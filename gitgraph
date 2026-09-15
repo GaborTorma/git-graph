@@ -1281,7 +1281,9 @@ def session_hook(port: int) -> int:
     CURRENT.write_text(f"{repo}\n", encoding="utf-8")
     if not port_open(port):
         return 0                                   # nem fut a szerver: néma kilépés
-    url = f"http://127.0.0.1:{port}/?repo={urllib.parse.quote(str(repo))}"
+    # Ugyanaz a cím, amit a launch config is használ (`<slug>.localhost`), hogy
+    # a panel egy tabot lásson kétféle URL helyett.
+    url = f"http://{register(repo)}.localhost:{port}"
     json.dump(
         {
             "hookSpecificOutput": {
