@@ -17,6 +17,7 @@ aktuális) könyvtárból oldja fel, magától a script helyétől függetlenül
     gg --open artifact            # a közzétett Artifact oldal (ha van)
     gg --serve                    # élő kiszolgálás: http://127.0.0.1:7788
     gg --launch-config            # .claude/launch.json a Browser panelhez
+    ggl                           # ugyanaz, rövidebben (alias)
 
 Az élő mód (`--serve`) magát a gráfot szolgálja ki, kérésenként újragenerálva;
 a lap kétmásodpercenként olcsó ujjlenyomatot kér, és csak tényleges változásra
@@ -1332,11 +1333,18 @@ def main() -> int:
                     help=f"a --serve és a --session-hook portja (alap: {DEFAULT_PORT})")
     ap.add_argument("--launch-config", action="store_true", dest="launch_config",
                     help="a repó .claude/launch.json-jébe beírja az élő preview "
-                         "bejegyzését (a Browser panel: preview_start git-graph)")
+                         "bejegyzését (a Browser panel: preview_start git-graph); "
+                         "`ggl` néven hívva ez a default")
     ap.add_argument("--session-hook", action="store_true", dest="session_hook",
                     help="Claude Code SessionStart hook: a session repóját beírja "
                          "a ~/.git-graph/current fájlba (stdin: a hook JSON-ja)")
     args = ap.parse_args()
+
+    # A `ggl` névvel hívva a --launch-config a default (busybox-stílusú alias):
+    # a többi kapcsoló ugyanúgy megy, pl. `ggl ~/masik-repo --port 7799`.
+    if Path(sys.argv[0]).name == "ggl":
+        args.launch_config = True
+
     global REPO
 
     if args.session_hook:

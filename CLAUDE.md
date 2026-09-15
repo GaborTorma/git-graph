@@ -12,6 +12,7 @@ Használat és felépítés: [README.md](README.md).
 | --- | --- |
 | `gitgraph` | a teljes eszköz egyetlen fájlban: git-adatgyűjtés + beágyazott HTML/CSS/JS sablon + élő szerver (`--serve`) + SessionStart hook (`--session-hook`) |
 | `gg` | symlink a `gitgraph`-ra (rövid alias) |
+| `ggl` | ugyanaz a script; a `sys.argv[0]` neve kapcsolja a `--launch-config`-ot |
 | `install.sh` | symlinkek; `--live`: launchd agent + SessionStart hook a globális settingsbe |
 | `commands/git-graph.md` | a `/git-graph` slash command (publikálás/frissítés) |
 | `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
@@ -28,6 +29,7 @@ gg --help             # a teljes súgó
 gg                    # az aktuális repó → <repó>/.git-graph/index.html
 gg --serve            # élő kiszolgálás a Claude Desktop Browser paneljének
 gg --launch-config    # .claude/launch.json bejegyzés (preview_start git-graph)
+ggl                   # ugyanaz — a hívás neve kapcsolja
 python3 gitgraph …    # symlink nélkül, közvetlenül
 ```
 

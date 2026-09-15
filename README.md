@@ -12,6 +12,7 @@ gg --limit 200        # csak az utolsó 200 commit (alap: mind)
 gg --out graf.html    # máshova (relatív út a hívás helyéhez)
 gg --serve            # élő kiszolgálás: http://127.0.0.1:7788
 gg --launch-config    # .claude/launch.json bejegyzés a Browser panelhez
+ggl                   # ugyanaz, rövidebben
 ```
 
 Két üzemmód van, és más-más célra:
@@ -63,7 +64,7 @@ A cél: **ne kelljen parancsot írni a chatbe**, mégis friss gráfot láss.
    panelt ezzel az URL-lel. Utána már csak a panel **Show/Hide Browser**
    kapcsolója kell.
 
-### `gg --launch-config`
+### `gg --launch-config` (röviden: `ggl`)
 
 Beírja a repó `.claude/launch.json`-jába az élő preview bejegyzését, így a panel
 névvel is indítható (`preview_start name="git-graph"`), URL nélkül:
@@ -106,6 +107,7 @@ A hook némán kilép, ha a mappa nem git repó, vagy ha a szerver nem fut — a
 | --- | --- |
 | `gitgraph` | maga a script (~930 sor: adatgyűjtés + beágyazott HTML/CSS/JS sablon) |
 | `gg` | symlink a `gitgraph`-ra — rövid alias |
+| `ggl` | symlink a `gitgraph`-ra; ezen a néven a `--launch-config` a default |
 | `install.sh` | symlinkek a PATH-ra és a Claude commands mappájába |
 | `commands/git-graph.md` | `/git-graph` slash command: publikálja/frissíti az Artifact oldalt |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |

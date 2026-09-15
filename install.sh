@@ -129,6 +129,7 @@ PLIST_EOF
 
 link "$REPO_DIR/gitgraph"            "$BIN_DIR/gitgraph"
 link "$REPO_DIR/gitgraph"            "$BIN_DIR/gg"
+link "$REPO_DIR/gitgraph"            "$BIN_DIR/ggl"   # = gg --launch-config
 link "$REPO_DIR/commands/git-graph.md" "$CMD_DIR/git-graph.md"
 
 case ":$PATH:" in
