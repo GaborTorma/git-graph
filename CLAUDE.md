@@ -75,6 +75,10 @@ változnia), és repóváltás a `~/.git-graph/current` átírásával.
   előfordult `</script>` (varazskez repó) → a lap fele nyers JSON-ként ömlött ki.
   A `build()` ezért az `embed()`-en át ágyaz (`</` → `<\/`, U+2028/29 escape).
   Bármi, ami a lapra kerül, ezen menjen át.
+- **Nincs `launch.local.json`.** A `.claude/launch.d/` drop-in mappa csak
+  framebuffer (VNC) forrásokra megy — mérve: az oda tett preview-bejegyzést a
+  `preview_start` nem találja, a `launch.json`-ra esik vissza. Gépfüggő
+  bejegyzést ezért `.git/info/exclude`-dal tartunk lokálisan.
 - **A launch.json localhostra csak origint fogad el** (mérve: *„a localhost
   address with a path or query"*), ezért a `--launch-config` a repót a
   hostnévbe teszi: `<slug>.localhost`. A Chromium minden `*.localhost` nevet a
@@ -83,6 +87,9 @@ változnia), és repóváltás a `~/.git-graph/current` átírásával.
 - **A repó a kérés URL-jében van** (`/?repo=…`), nem globális állapotban: több
   session panelje egyszerre kérdezi ugyanazt a szervert, és egy közös „aktuális
   repó" véletlenszerűen váltogatna. A `~/.git-graph/current` csak tartalék.
+- **Minden git-hívás `--no-optional-locks`**: a `git status` egyébként frissíti
+  az indexet, ahhoz `index.lock`-ot vesz, és a 2 mp-es pollozás így a Fejlesztő
+  saját git-parancsait akasztja meg (egy commit tényleg elhasalt rajta).
 - **A `REPO` modulszintű globális**, a szerver viszont kérésenként más repót
   szolgálhat ki: a kiszolgálás ezért **sorosított** (lock), és a `_REMOTES`
   cache-t minden váltásnál nullázni kell.

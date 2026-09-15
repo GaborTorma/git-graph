@@ -77,9 +77,22 @@ A Chromium minden `*.localhost` nevet a loopbackra old fel, a szerver pedig a
 `~/.git-graph/repos.json` tartja.
 
 A parancs a fájl **többi bejegyzését és kulcsát megtartja** (csak a saját,
-`git-graph` nevű sorát cseréli), de a JSON-t újraformázza. A `launch.json`
-commitolható fájl — a slug viszont abszolút útvonalból származik, tehát más
-gépen nem érvényes; ebben a repóban ezért `.gitignore`-ban van.
+`git-graph` nevű sorát cseréli), de a JSON-t újraformázza.
+
+A slug abszolút útvonalból származik, más gépen értelmetlen — ezért a parancs a
+`launch.json`-t felveszi a repó **lokális** ignore-listájába
+(`.git/info/exclude`), ugyanúgy, mint a `.git-graph/` mappát. Ha a repó viszont
+**már követi** a fájlt (mert van benne saját dev-szerver bejegyzés), nem nyúl
+hozzá, csak figyelmeztet — ott neked kell eldöntened, mi legyen a sorával.
+
+Nincs `launch.local.json`: mérve, a `.claude/launch.d/` drop-in mappa létezik
+ugyan, de csak framebuffer (VNC) forrásokra — egy oda tett preview-bejegyzést a
+`preview_start` nem talál meg. A lokális kizárás tehát az egyetlen jó válasz.
+
+> A `preview_start` **nem parancssori program**, hanem Claude eszköze — a
+> terminálból nem futtatható. Vagy a session hookja kéri meg rá Claude-ot
+> (ez a normál út, nem kell gépelni semmit), vagy kézzel beilleszted a fenti
+> URL-t a Browser panel címsorába. Rendszer-böngészőben: `open <URL>`.
 
 A hook némán kilép, ha a mappa nem git repó, vagy ha a szerver nem fut — az
 „off kapcsoló" tehát az agent leállítása (`./install.sh --uninstall-live`).

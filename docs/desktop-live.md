@@ -95,6 +95,24 @@ loopbackra oldja (`http://teszt-szlag.localhost:7788` → a szerverünk válaszo
 szerver a `Host` fejlécből és a `~/.git-graph/repos.json` regiszterből azonosít;
 ismeretlen slugra 503 + „futtasd a repóban: gg --launch-config".
 
+Amit még megmértem a launch config körül:
+
+- **`.claude/launch.d/` drop-in**: a csomag szerint ide „bootoló scriptek" tehetnek
+  egy-bejegyzéses JSON-t, hogy ne kelljen a felhasználó `launch.json`-jébe
+  belenyúlni. Preview-bejegyzésre viszont **nem működik**: `launch.json` nélkül
+  *„No .claude/launch.json found"*, mellette pedig a `preview_start <drop-in név>`
+  a `launch.json` bejegyzését nyitotta meg, nem a drop-inét. Framebuffer-forrásokra
+  való, nem erre.
+- **`preview_start` nem CLI.** Claude eszköze; a terminálból nincs megfelelője.
+  A gépelés nélküli út ezért marad a SessionStart hook, a kézi út pedig a Browser
+  panel címsora (vagy `open <URL>` a rendszer böngészőjébe).
+
+- **`index.lock`-ütközés.** A szerver kétmásodpercenként `git status`-t futtat,
+  az pedig frissíti az indexet, tehát lockot vesz — egy `git commit` emiatt
+  tényleg elhasalt („Unable to create index.lock"). Javítás: minden git-hívás
+  `--no-optional-locks`-kal megy. Utána 20/20 gyors `git status` ment hiba nélkül
+  a pollozás alatt.
+
 ## Nyitott, nem mért
 
 Túléli-e a Browser-panel tabja az **új sessiont**. A csomagban van tab-perzisztencia

@@ -59,8 +59,13 @@ RS = "\x1e"
 
 
 def git(*args: str) -> str:
+    # --no-optional-locks: a `git status` egyébként FRISSÍTI az indexet, ahhoz
+    # pedig `index.lock`-ot vesz. A szerver kétmásodpercenként kérdez — ez a
+    # Fejlesztő saját git-parancsait akasztaná meg („Unable to create
+    # index.lock"). Olvasó eszköznek úgyis felesleges.
     return subprocess.run(
-        ["git", "-C", str(REPO), *args], capture_output=True, text=True, check=True
+        ["git", "--no-optional-locks", "-C", str(REPO), *args],
+        capture_output=True, text=True, check=True,
     ).stdout
 
 
@@ -234,8 +239,8 @@ def assign_lanes(commits: list[dict]) -> list[dict]:
 OUT_DIR = ".git-graph"
 
 
-def ensure_excluded() -> bool:
-    """A kimeneti mappa a repó LOKÁLIS ignore-listájába (`.git/info/exclude`).
+def add_local_exclude(entry: str, comment: str) -> bool:
+    """Bejegyzés a repó LOKÁLIS ignore-listájába (`.git/info/exclude`).
 
     Szándékosan NEM a követett `.gitignore`-ba: ez az eszköz bármelyik repóban
     fut, és nem módosíthat ott commitolható fájlt. Igazzal tér vissza, ha most
@@ -246,7 +251,6 @@ def ensure_excluded() -> bool:
     if not git_dir.is_absolute():
         git_dir = REPO / git_dir
     exclude = git_dir / "info" / "exclude"
-    entry = f"{OUT_DIR}/"
 
     existing = exclude.read_text(encoding="utf-8") if exclude.exists() else ""
     if entry in {line.strip() for line in existing.splitlines()}:
@@ -254,8 +258,21 @@ def ensure_excluded() -> bool:
     exclude.parent.mkdir(parents=True, exist_ok=True)
     prefix = "" if existing.endswith("\n") or not existing else "\n"
     with exclude.open("a", encoding="utf-8") as fh:
-        fh.write(f"{prefix}# gitgraph kimenete (lokális, nem commitolandó)\n{entry}\n")
+        fh.write(f"{prefix}# {comment}\n{entry}\n")
     return True
+
+
+def ensure_excluded() -> bool:
+    return add_local_exclude(f"{OUT_DIR}/", "gitgraph kimenete (lokális, nem commitolandó)")
+
+
+def is_tracked(path: Path) -> bool:
+    """Követi-e a git ezt a fájlt (követettet már nem érdekli az exclude)."""
+    result = subprocess.run(
+        ["git", "-C", str(REPO), "ls-files", "--error-unmatch", str(path)],
+        capture_output=True, text=True,
+    )
+    return result.returncode == 0
 
 
 def config_get(key: str) -> str:
@@ -1024,6 +1041,19 @@ def write_launch_config(repo: Path, port: int) -> tuple[Path, str]:
     return path, url
 
 
+def keep_launch_local(path: Path) -> bool:
+    """A launch.json a repó lokális ignore-listájába, ha még nem követett fájl.
+
+    A benne lévő slug az abszolút útvonalból származik — más gépen értelmetlen,
+    tehát nem commitolandó. Ha a repó viszont MÁR követi a fájlt (van benne más
+    dev-szerver bejegyzés), nem nyúlunk hozzá: az exclude ott úgysem hatna.
+    """
+    if is_tracked(path.relative_to(REPO)):
+        return False
+    return add_local_exclude(".claude/launch.json",
+                             "gitgraph preview-bejegyzése (gépfüggő slug)")
+
+
 def port_open(port: int) -> bool:
     """Fut-e már valami a loopback porton (a hook ebből tudja, van-e mit nyitni)."""
     with socket.socket() as s:
@@ -1209,24 +1239,29 @@ def main() -> int:
                     help="Claude Code SessionStart hook: a session repóját beírja "
                          "a ~/.git-graph/current fájlba (stdin: a hook JSON-ja)")
     args = ap.parse_args()
+    global REPO
 
     if args.session_hook:
         return session_hook(args.port)
 
     if args.launch_config:
         repo = resolve_repo(Path(args.repo).expanduser().resolve())
+        REPO = repo
         path, url = write_launch_config(repo, args.port)
         print(f"✓ {path}")
         print(f"  {LAUNCH_NAME} → {url}")
-        print(f"  A panelben: preview_start name=\"{LAUNCH_NAME}\"")
+        if keep_launch_local(path):
+            print("  (.claude/launch.json felvéve a .git/info/exclude-ba)")
+        elif is_tracked(path.relative_to(REPO)):
+            print("  FIGYELEM: ez a fájl követett — a benne lévő slug gépfüggő, "
+                  "más gépen nem érvényes.")
         if not port_open(args.port):
             print(f"  FIGYELEM: a {args.port} porton nem fut szerver "
                   "(./install.sh --live vagy gg --serve)")
-        print("  Megjegyzés: a launch.json commitolható fájl — döntsd el, "
-              "beteszed-e a repóba.")
+        print("  A Browser panel innen veszi a címet; a sessionöd hookja magától "
+              "megnyittatja. Kézzel: illeszd be a fenti URL-t a panel címsorába.")
         return 0
 
-    global REPO
     if args.serve:
         # Indulhat repón kívülről is (launchd a "/"-ból indítja) — a repót a
         # hook adja meg; a pozicionális argumentum csak tartalék.
