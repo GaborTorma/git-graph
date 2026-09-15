@@ -635,8 +635,8 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
   width: 100%;
   padding: 0;
 }
-.row:hover { background: var(--bg-hover); }
-.row[aria-expanded="true"] { background: var(--bg-selected); }
+.row:hover .cell ~ .cell { background: var(--bg-hover); }
+.row[aria-expanded="true"] .cell ~ .cell { background: var(--bg-selected); }
 .row[aria-expanded="true"] .desc, .row[aria-expanded="true"] .sha { color: var(--fg-strong); }
 .row.dim { opacity: .28; }
 .row.uncommitted .subject { font-style: italic; color: var(--fg-faint); }

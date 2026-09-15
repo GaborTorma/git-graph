@@ -87,6 +87,12 @@ változnia), és repóváltás a `~/.git-graph/current` átírásával.
 - **A repó a kérés URL-jében van** (`/?repo=…`), nem globális állapotban: több
   session panelje egyszerre kérdezi ugyanazt a szervert, és egy közös „aktuális
   repó" véletlenszerűen váltogatna. A `~/.git-graph/current` csak tartalék.
+- **A sor-kiemelés nem mehet a gráf-oszlopra**: a pöttyöket az `#lanes` SVG
+  rajzolja a sorok MÖGÉ, az átlátszatlan `:hover` / kiválasztott háttér pedig
+  eltakarta őket. Ezért a háttér a cellákra megy, az elsőt kihagyva
+  (`.cell ~ .cell`). Az SVG-t a sorok fölé emelni nem megoldás: a `.rows`
+  (`z-index: 2`) saját rétegkontextust nyit, így a benne lévő `.details` sosem
+  kerülhet a testvér `#lanes` fölé — a kinyitott panelen átlógnának a vonalak.
 - **Az `Uncommitted Changes` ál-sor a `commits` lista 0. eleme** (`sha`:
   `*uncommitted`), a szülője a HEAD. Az `assign_lanes` magától kezeli, de az
   `edges` **sorindexeket** használ — ezért az ál-sort a lane-kiosztás ELŐTT kell
