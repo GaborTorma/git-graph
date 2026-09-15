@@ -7,6 +7,17 @@ dokumentáció-olvasás — a dokumentáció több ponton feltételes módban fo
 Mérés dátuma: **2026-08-25**, `gabor@torma.co.hu` fiók, Claude Desktop (macOS),
 runtime contract **0.2.23**.
 
+> **2026-09-15 — a kérdést megkerültük.** Az élő gráf azóta **nem** az Artifacton
+> fut, hanem a Claude Desktop **Browser paneljében**, lokális szerverrel
+> (`gg --serve`): ott nincs CSP-korlát, a lap közvetlenül pollozhat. Az alábbi
+> mérések érvényben maradnak arra, amire szólnak — a **publikált Artifact**
+> képességeire. Az élő út mérései: [desktop-live.md](desktop-live.md).
+>
+> Ami azóta változott: a contract **0.2.23 → 0.2.49**, és a fiók
+> capability-listája bővült — `artifact, assets, db, downloads, mcp, room,
+> sample, self`. Az `assets` tehát **már elérhető** (lásd lent: akkor nem volt).
+> A `host:` MCP-t **nem mértem újra** — az élő úthoz nincs rá szükség.
+
 ## A kiinduló kérdés
 
 A `gg` statikus HTML-t generál, amit a `/git-graph` Artifactként publikál. A cél

@@ -15,6 +15,13 @@ aktuális) könyvtárból oldja fel, magától a script helyétől függetlenül
     gg --out graf.html            # máshova (relatív út a CWD-hez)
     gg --limit 200                # csak az utolsó 200 commit (alap: mind)
     gg --open artifact            # a közzétett Artifact oldal (ha van)
+    gg --serve                    # élő kiszolgálás: http://127.0.0.1:7788
+
+Az élő mód (`--serve`) magát a gráfot szolgálja ki, kérésenként újragenerálva;
+a lap kétmásodpercenként olcsó ujjlenyomatot kér, és csak tényleges változásra
+tölt új adatot. Melyik repót mutatja? Amit a `--session-hook` (Claude Code
+SessionStart hook) utoljára beírt a `~/.git-graph/current` fájlba — így a
+Claude Desktop Browser panelje mindig az éppen nyitott session repóját mutatja.
 
 A kimenet a repón belül, MINDIG ugyanott keletkezik — így frissíthető belőle
 ugyanaz az Artifact oldal. A `.git-graph/` mappát a script a repó LOKÁLIS
@@ -28,10 +35,14 @@ túl; minden git-hívás csak olvas.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
+import http.server
 import json
+import socket
 import subprocess
 import sys
+import threading
 import webbrowser
 from pathlib import Path
 
@@ -335,6 +346,37 @@ def collect_meta(commits: list[dict]) -> dict:
     }
 
 
+def collect_payload(limit: int | None) -> dict:
+    """A lap teljes adatcsomagja — ugyanaz statikus fájlba és élő kiszolgáláshoz."""
+    commits = collect_commits(limit)
+    if not commits:
+        return {}
+    return {
+        "commits": commits,
+        "edges": assign_lanes(commits),
+        "stats": collect_stats(limit),
+        "branches": collect_branches(),
+        "meta": collect_meta(commits),
+    }
+
+
+def fingerprint() -> dict:
+    """Olcsó ujjlenyomat a pollozáshoz: három git-hívás, pár száz bájt.
+
+    A refek hash-e azért kell, hogy ág- és tag-mozgásra is változzon, ne csak
+    új commitra; a `dirty` a munkakönyvtár szerkesztéseit is látszóvá teszi.
+    """
+    refs = git("for-each-ref", "--format=%(objectname) %(refname)")
+    status = git("status", "--porcelain").strip()
+    return {
+        "repo": repo_name(),
+        "repoPath": str(REPO),
+        "head": git("rev-parse", "HEAD").strip(),
+        "refs": hashlib.sha1(refs.encode()).hexdigest()[:12],
+        "dirty": len([l for l in status.splitlines() if l.strip()]),
+    }
+
+
 TEMPLATE = r"""<meta charset="utf-8">
 <title>__TITLE__</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -578,6 +620,7 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
 
 .empty { padding: 40px; text-align: center; color: var(--fg-dim); }
 .foot { padding: 14px 18px 28px; font-size: 11px; color: var(--fg-faint); border-top: 1px solid var(--border-soft); }
+.foot.stale { color: var(--del); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
@@ -586,7 +629,7 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
 
 <div class="chrome">
   <div class="repo">
-    <span class="repo-name">__REPO__</span>
+    <span class="repo-name" id="repoName">__REPO__</span>
     <span class="repo-sub mono" id="headRef"></span>
   </div>
 
@@ -611,13 +654,11 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
     <svg id="lanes" aria-hidden="true"></svg>
     <div class="rows" id="rows"></div>
   </div>
-  <p class="foot">
-  Statikus pillanatkép — a <code class="mono">tools/gitgraph.py</code> generálta a repó
-  akkori állapotából. Nem frissül magától: új commit után futtasd újra.
-</p>
+  <p class="foot" id="foot">__FOOT__</p>
 
 <script>
-const DATA = __DATA__;
+let DATA = __DATA__;
+const LIVE = __LIVE__;   // szerverből szolgálva él a frissítés; fájlból nem
 
 // A Git Graph alap sáv-palettája: sávindex szerint ciklikusan.
 const LANE_COLORS = ['#0085d9','#d9008f','#00d90a','#d9c000','#d90000',
@@ -630,12 +671,18 @@ const counter = document.getElementById('counter');
 let expanded = null;      // a kinyitott commit sha-ja
 let visible = DATA.commits; // szűrés utáni lista
 
-const laneCount = DATA.commits.reduce((m, c) => Math.max(m, c.lane), 0) + 1;
-const graphW = Math.max(72, X0 * 2 + (laneCount - 1) * LANE_W);
-document.documentElement.style.setProperty('--graph-w', graphW + 'px');
+let graphW = 72;
 
-document.getElementById('headRef').textContent = DATA.meta.head + ' · ' +
-  DATA.meta.totalCommits + ' commit';
+/* Minden, ami a DATA-ból származik és adatcserekor újraszámolandó. */
+function hydrate() {
+  const laneCount = DATA.commits.reduce((m, c) => Math.max(m, c.lane), 0) + 1;
+  graphW = Math.max(72, X0 * 2 + (laneCount - 1) * LANE_W);
+  document.documentElement.style.setProperty('--graph-w', graphW + 'px');
+  document.getElementById('repoName').textContent = DATA.meta.repo;
+  document.title = DATA.meta.repo + ' Git Graph';
+  document.getElementById('headRef').textContent = DATA.meta.head + ' · ' +
+    DATA.meta.totalCommits + ' commit';
+}
 
 /* ── Gráf rajzolása ──────────────────────────────────────────────────────── */
 function laneX(l) { return X0 + l * LANE_W; }
@@ -771,10 +818,15 @@ document.addEventListener('keydown', e => {
 
 /* ── Szűrők ──────────────────────────────────────────────────────────────── */
 const branchSel = document.getElementById('branchSel');
-branchSel.innerHTML = '<option value="">Minden ág</option>' +
-  DATA.branches.map(b => `<option value="${esc(b.name)}"${b.current ? ' selected' : ''}>`
-    + esc(b.name) + (b.track ? ` (${esc(b.track)})` : '') + '</option>').join('');
-branchSel.value = '';
+
+/* A kiválasztott ágat megtartjuk, ha az adatcsere után is létezik. */
+function fillBranches() {
+  const keep = branchSel.value;
+  branchSel.innerHTML = '<option value="">Minden ág</option>' +
+    DATA.branches.map(b => `<option value="${esc(b.name)}"${b.current ? ' selected' : ''}>`
+      + esc(b.name) + (b.track ? ` (${esc(b.track)})` : '') + '</option>').join('');
+  branchSel.value = DATA.branches.some(b => b.name === keep) ? keep : '';
+}
 
 function ancestryOf(name) {
   const tip = DATA.commits.find(c => c.refs.some(r => r.name === name &&
@@ -816,24 +868,200 @@ document.getElementById('themeBtn').addEventListener('click', () => {
   root.setAttribute('data-theme', dark ? 'light' : 'dark');
 });
 
+hydrate();
+fillBranches();
 render();
+
+/* ── Élő frissítés ───────────────────────────────────────────────────────
+   Csak szerverből szolgálva. Az olcsó fingerprintet pollozzuk, és csak
+   tényleges változásra kérünk teljes adatot: a lap helyben rajzol újra, a
+   nyitott commit-panel, a szűrők és a görgetés megmaradnak. */
+if (LIVE) {
+  const POLL_MS = 2000;
+  const foot = document.getElementById('foot');
+  const scroller = document.querySelector('.scroll');
+  let last = null, broken = false;
+
+  async function swap() {
+    const top = scroller.scrollTop;
+    DATA = await fetch('/data', { cache: 'no-store' }).then(r => r.json());
+    hydrate();
+    fillBranches();
+    applyFilters();
+    scroller.scrollTop = top;
+  }
+
+  async function poll() {
+    try {
+      const f = await fetch('/fingerprint', { cache: 'no-store' }).then(r => r.json());
+      const key = [f.repoPath, f.head, f.refs, f.dirty].join('|');
+      if (last !== null && key !== last) await swap();
+      last = key;
+      broken = false;
+      foot.className = 'foot';
+      foot.textContent = `Élő · ${f.repoPath} · frissítve ${new Date().toLocaleTimeString()}`;
+    } catch {
+      if (!broken) {
+        foot.className = 'foot stale';
+        foot.textContent = 'A gg szerver nem válaszol — a gráf befagyott (gg --serve).';
+      }
+      broken = true;
+    }
+  }
+  poll();
+  setInterval(poll, POLL_MS);
+}
 </script>
 """
 
 
-def build(commits, edges, stats, branches, meta, title: str) -> str:
-    payload = {
-        "commits": commits,
-        "edges": edges,
-        "stats": stats,
-        "branches": branches,
-        "meta": meta,
-    }
+STATIC_FOOT = ("Statikus pillanatkép — a <code class=\"mono\">gg</code> generálta a repó "
+               "akkori állapotából. Nem frissül magától: új commit után futtasd újra.")
+LIVE_FOOT = "Élő — kapcsolódás…"
+
+
+def build(payload: dict, title: str, live: bool = False) -> str:
+    meta = payload["meta"]
     return (
         TEMPLATE.replace("__DATA__", json.dumps(payload, ensure_ascii=False))
+        .replace("__LIVE__", "true" if live else "false")
+        .replace("__FOOT__", LIVE_FOOT if live else STATIC_FOOT)
         .replace("__REPO__", html.escape(meta["repo"]))
         .replace("__TITLE__", html.escape(title))
     )
+
+
+# ── Élő kiszolgálás ─────────────────────────────────────────────────────────
+
+STATE_DIR = Path.home() / ".git-graph"
+CURRENT = STATE_DIR / "current"        # a session-hook írja, a szerver olvassa
+DEFAULT_PORT = 7788
+
+
+def port_open(port: int) -> bool:
+    """Fut-e már valami a loopback porton (a hook ebből tudja, van-e mit nyitni)."""
+    with socket.socket() as s:
+        s.settimeout(0.2)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def current_repo(fallback: Path | None) -> Path | None:
+    """A kiszolgálandó repó: amit a hook utoljára beírt, különben a fallback."""
+    try:
+        marked = Path(CURRENT.read_text(encoding="utf-8").strip()).expanduser()
+    except OSError:
+        return fallback
+    try:
+        return resolve_repo(marked)
+    except SystemExit:
+        return fallback
+
+
+def serve(port: int, fallback: Path | None, limit: int | None) -> int:
+    """Loopback HTTP szerver: `/` friss HTML, `/data` friss adat, `/fingerprint` olcsó."""
+    # A REPO modulszintű globális, a kérések viszont más-más repót kérhetnek —
+    # a kiszolgálást ezért sorosítjuk. Egy kérés pár tized másodperc.
+    lock = threading.Lock()
+
+    def switch() -> Path:
+        global REPO, _REMOTES
+        repo = current_repo(fallback)
+        if repo is None:
+            raise FileNotFoundError("nincs kiszolgálható repó")
+        REPO = repo
+        _REMOTES = None
+        return repo
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+        server_version = "gitgraph"
+
+        def reply(self, code: int, body: bytes, ctype: str) -> None:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:
+            route = self.path.split("?", 1)[0].rstrip("/") or "/"
+            try:
+                with lock:
+                    repo = switch()
+                    if route == "/fingerprint":
+                        return self.reply(200, json.dumps(fingerprint()).encode(),
+                                          "application/json; charset=utf-8")
+                    if route in ("/", "/index.html", "/data"):
+                        payload = collect_payload(limit)
+                        if not payload:
+                            raise RuntimeError(f"nincs commit: {repo}")
+                        if route == "/data":
+                            body = json.dumps(payload, ensure_ascii=False).encode()
+                            return self.reply(200, body, "application/json; charset=utf-8")
+                        title = f"{payload['meta']['repo']} Git Graph"
+                        body = build(payload, title, live=True).encode()
+                        return self.reply(200, body, "text/html; charset=utf-8")
+                self.reply(404, b"nincs ilyen utvonal\n", "text/plain; charset=utf-8")
+            except Exception as exc:                      # a lap ebből lesz "befagyott"
+                self.reply(503, f"{type(exc).__name__}: {exc}\n".encode(),
+                           "text/plain; charset=utf-8")
+
+        def log_message(self, *args) -> None:             # csendes napló
+            pass
+
+    try:
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    except OSError as exc:
+        raise SystemExit(f"HIBA: a {port} port nem nyitható meg ({exc.strerror}). "
+                         "Fut már egy gg --serve? Másik portra: --port N")
+    repo = current_repo(fallback)
+    # flush: launchd alatt a napló különben a puffere miatt üresnek látszik.
+    print(f"✓ gg --serve  http://127.0.0.1:{port}", flush=True)
+    print(f"  repó: {repo or '(még nincs — a session-hook majd beírja)'}", flush=True)
+    print(f"  váltás: {CURRENT}", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nLeállt.")
+    return 0
+
+
+def session_hook(port: int) -> int:
+    """Claude Code SessionStart hook: eltárolja a session repóját.
+
+    Ha fut a szerver, a visszaadott additionalContext megkéri a modellt, hogy
+    nyissa meg a Browser panelt — így a gráf gépelés nélkül megjelenik.
+    """
+    try:
+        payload = json.load(sys.stdin)
+    except Exception:
+        payload = {}
+    start = Path(payload.get("cwd") or Path.cwd())
+    try:
+        repo = resolve_repo(start)
+    except SystemExit:
+        return 0                                   # nem repó: nincs mit mutatni
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    CURRENT.write_text(f"{repo}\n", encoding="utf-8")
+    if not port_open(port):
+        return 0                                   # nem fut a szerver: néma kilépés
+    url = f"http://127.0.0.1:{port}"
+    json.dump(
+        {
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": (
+                    f"A git-graph élő commit-gráf ezen a címen szolgál ki: {url} "
+                    f"(most a(z) {repo} repót mutatja, magától frissül).\n"
+                    "A session elején nyisd meg EGYSZER a Browser panelen — "
+                    "preview_start, url paraméterrel —, és ne írj róla üzenetet."
+                ),
+            }
+        },
+        sys.stdout,
+    )
+    return 0
 
 
 def main() -> int:
@@ -860,9 +1088,29 @@ def main() -> int:
     ap.add_argument("--set-artifact", metavar="URL", default=None,
                     help="a repóhoz tartozó Artifact URL megjegyzése "
                          "(a /git-graph slash command hívja publikálás után)")
+    ap.add_argument("--serve", action="store_true",
+                    help="élő kiszolgálás loopbackon (a lap magától frissül); "
+                         "a mutatott repót a --session-hook váltja")
+    ap.add_argument("--port", type=int, default=DEFAULT_PORT,
+                    help=f"a --serve és a --session-hook portja (alap: {DEFAULT_PORT})")
+    ap.add_argument("--session-hook", action="store_true", dest="session_hook",
+                    help="Claude Code SessionStart hook: a session repóját beírja "
+                         "a ~/.git-graph/current fájlba (stdin: a hook JSON-ja)")
     args = ap.parse_args()
 
+    if args.session_hook:
+        return session_hook(args.port)
+
     global REPO
+    if args.serve:
+        # Indulhat repón kívülről is (launchd a "/"-ból indítja) — a repót a
+        # hook adja meg; a pozicionális argumentum csak tartalék.
+        try:
+            fallback = resolve_repo(Path(args.repo).expanduser().resolve())
+        except SystemExit:
+            fallback = None
+        return serve(args.port, fallback, args.limit or None)
+
     REPO = resolve_repo(Path(args.repo).expanduser().resolve())
 
     if args.set_artifact:
@@ -874,14 +1122,12 @@ def main() -> int:
         return 0
 
     limit = args.limit or None
-    commits = collect_commits(limit)
-    if not commits:
+    payload = collect_payload(limit)
+    if not payload:
         print("Nincs commit a repóban.", file=sys.stderr)
         return 1
-    edges = assign_lanes(commits)
-    stats = collect_stats(limit)
-    branches = collect_branches()
-    meta = collect_meta(commits)
+    commits, edges = payload["commits"], payload["edges"]
+    branches, meta = payload["branches"], payload["meta"]
     title = args.title or f"{meta['repo']} Git Graph"
 
     excluded = False
@@ -894,7 +1140,7 @@ def main() -> int:
         out = REPO / OUT_DIR / "index.html"
         excluded = ensure_excluded()
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(build(commits, edges, stats, branches, meta, title), encoding="utf-8")
+    out.write_text(build(payload, title), encoding="utf-8")
 
     print(f"✓ {out}  ({out.stat().st_size:,} B)")
     print(f"  {meta['repo']}: {len(commits)} commit"

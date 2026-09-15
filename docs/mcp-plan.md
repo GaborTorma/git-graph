@@ -1,5 +1,13 @@
 # Terv: élő, magától frissülő git-gráf
 
+> **2026-09-15 — ez a terv okafogyott.** Az élő gráf megvan, de nem Artifactként:
+> a Claude Desktop Browser panelje + lokális `gg --serve` szerver adja
+> ([desktop-live.md](desktop-live.md)). Az alábbi **B változat** — tunnel és
+> egyéni konnektor — ezzel feleslegessé vált: nem kell repó-olvasó szolgáltatást
+> az internetre tenni. A dokumentum azért marad meg, mert az **adatszerződést**
+> és a tool-felosztást (olcsó fingerprint + drága adat) a megvalósult szerver is
+> ezekből vette.
+
 Ez a terv **blokkolva van** — de nem elavult. Ha a blokkoló feloldódik, innen
 folytatható. A blokkoló méréseit lásd: [artifact-findings.md](artifact-findings.md).
 

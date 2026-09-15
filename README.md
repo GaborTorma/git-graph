@@ -10,17 +10,57 @@ gg --open             # …és megnyitja (Artifactot, ha az aktuális; különbe
 gg ~/dev/masik-repo   # másik repó
 gg --limit 200        # csak az utolsó 200 commit (alap: mind)
 gg --out graf.html    # máshova (relatív út a hívás helyéhez)
+gg --serve            # élő kiszolgálás: http://127.0.0.1:7788
 ```
+
+Két üzemmód van, és más-más célra:
+
+| | Statikus (`gg`) | Élő (`gg --serve`) |
+| --- | --- | --- |
+| Mi | egy önálló HTML fájl | loopback szerver, kérésenként újragenerál |
+| Frissülés | kézi újrafuttatás | magától, ~2 mp-en belül |
+| Hol nézed | böngésző / Artifact | a Claude Desktop **Browser panelje** |
+| Mire jó | megosztás, archiválás | napi munka közben |
 
 ## Telepítés
 
 ```sh
-./install.sh
+./install.sh          # symlinkek
+./install.sh --live   # + élő szerver (launchd) és SessionStart hook
 ```
 
 Symlinkeli a `gitgraph`-ot és a `gg`-t a `~/.local/bin`-be, a slash commandot a
 `~/.claude/commands`-ba. Idempotens. Függősége nincs a Python 3 stdliben túl;
 minden git-hívás **csak olvas**.
+
+A `--live` ezen felül:
+
+- `~/Library/LaunchAgents/co.torma.gitgraph.plist` — a szervert a bejelentkezés
+  indítja és életben tartja (`/usr/bin/python3`, napló: `~/.git-graph/serve.log`),
+- `~/.claude/settings.json` → `SessionStart` hook (a saját bejegyzését ismeri fel,
+  idegen hookhoz nem nyúl; a fájlról mentés készül).
+
+Leszerelés: `./install.sh --uninstall-live` (a symlinkek maradnak).
+
+## Élő mód a Claude Desktopban
+
+A cél: **ne kelljen parancsot írni a chatbe**, mégis friss gráfot láss.
+
+1. A `gg --serve` a loopbackon szolgál ki: `/` a friss HTML, `/data` a friss
+   adat, `/fingerprint` egy pár száz bájtos ujjlenyomat (HEAD + refek hash-e +
+   piszkos fájlok száma).
+2. A lap kétmásodpercenként az **ujjlenyomatot** kéri, és csak tényleges
+   változásra tölt `/data`-t — a nyitott commit-panel, a szűrők és a görgetés
+   megmaradnak.
+3. Melyik repót mutatja? Amit a **SessionStart hook** beírt a
+   `~/.git-graph/current` fájlba — vagyis mindig az éppen nyitott session
+   repóját. Repót váltasz → a panel magától átvált.
+4. A hook a session indulásakor megkéri Claude-ot, hogy nyissa meg a Browser
+   panelt ezzel az URL-lel. Utána már csak a panel **Show/Hide Browser**
+   kapcsolója kell.
+
+A hook némán kilép, ha a mappa nem git repó, vagy ha a szerver nem fut — az
+„off kapcsoló" tehát az agent leállítása (`./install.sh --uninstall-live`).
 
 ## Felépítés
 
@@ -31,6 +71,7 @@ minden git-hívás **csak olvas**.
 | `install.sh` | symlinkek a PATH-ra és a Claude commands mappájába |
 | `commands/git-graph.md` | `/git-graph` slash command: publikálja/frissíti az Artifact oldalt |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |
+| `docs/desktop-live.md` | miért a Browser panel + lokális szerver az élő út — mérésekkel |
 | `docs/mcp-plan.md` | terv az élő, magától frissülő verzióhoz (blokkolva, lásd findings) |
 | `probe/` | eldobható MCP-mérőeszköz a blokkoló újratesztelésére |
 
