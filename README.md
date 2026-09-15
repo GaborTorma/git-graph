@@ -11,6 +11,7 @@ gg ~/dev/masik-repo   # másik repó
 gg --limit 200        # csak az utolsó 200 commit (alap: mind)
 gg --out graf.html    # máshova (relatív út a hívás helyéhez)
 gg --serve            # élő kiszolgálás: http://127.0.0.1:7788
+gg --launch-config    # .claude/launch.json bejegyzés a Browser panelhez
 ```
 
 Két üzemmód van, és más-más célra:
@@ -59,6 +60,26 @@ A cél: **ne kelljen parancsot írni a chatbe**, mégis friss gráfot láss.
 4. A hook a session indulásakor megkéri Claude-ot, hogy nyissa meg a Browser
    panelt ezzel az URL-lel. Utána már csak a panel **Show/Hide Browser**
    kapcsolója kell.
+
+### `gg --launch-config`
+
+Beírja a repó `.claude/launch.json`-jába az élő preview bejegyzését, így a panel
+névvel is indítható (`preview_start name="git-graph"`), URL nélkül:
+
+```json
+{ "name": "git-graph", "url": "http://git-graph-94eba9.localhost:7788", "port": 7788 }
+```
+
+A Claude Desktop localhostra **csak origint** fogad el — path és query nélkül —,
+ezért a repó itt a **hostnévbe** kerül: `<mappanév>-<útvonal-hash>.localhost`.
+A Chromium minden `*.localhost` nevet a loopbackra old fel, a szerver pedig a
+`Host` fejlécből tudja, melyik repót kérted. A slug→útvonal párokat a
+`~/.git-graph/repos.json` tartja.
+
+A parancs a fájl **többi bejegyzését és kulcsát megtartja** (csak a saját,
+`git-graph` nevű sorát cseréli), de a JSON-t újraformázza. A `launch.json`
+commitolható fájl — a slug viszont abszolút útvonalból származik, tehát más
+gépen nem érvényes; ebben a repóban ezért `.gitignore`-ban van.
 
 A hook némán kilép, ha a mappa nem git repó, vagy ha a szerver nem fut — az
 „off kapcsoló" tehát az agent leállítása (`./install.sh --uninstall-live`).

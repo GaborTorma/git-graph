@@ -77,6 +77,24 @@ commit-szövegből:
   a lapra. Javítás: `embed()` — `</` → `<\/` és U+2028/29 escape. A generált
   oldalon ellenőrizve: pontosan egy `<script>`/`</script>` pár marad.
 
+## A launch config és a hostnév-trükk
+
+A `.claude/launch.json` bejegyzésével a panel **névvel** indítható
+(`preview_start name="git-graph"`), URL begépelése nélkül. A query viszont nem
+fér bele:
+
+```
+'url' is 'http://127.0.0.1:7788/?repo=…', a localhost address with a path or
+query…  A localhost "url" must be just the server's origin
+```
+
+A hibaüzenet saját példája (`http://app.localhost:3000`) mutatta az utat: a
+**hostnév** szabad. Mérve, hogy a panel Chromiumja a `*.localhost` neveket a
+loopbackra oldja (`http://teszt-szlag.localhost:7788` → a szerverünk válaszolt),
+így a repó a hostnévbe költözött: `<mappanév>-<útvonal-hash>.localhost`. A
+szerver a `Host` fejlécből és a `~/.git-graph/repos.json` regiszterből azonosít;
+ismeretlen slugra 503 + „futtasd a repóban: gg --launch-config".
+
 ## Nyitott, nem mért
 
 Túléli-e a Browser-panel tabja az **új sessiont**. A csomagban van tab-perzisztencia

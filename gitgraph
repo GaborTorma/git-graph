@@ -16,6 +16,7 @@ aktuális) könyvtárból oldja fel, magától a script helyétől függetlenül
     gg --limit 200                # csak az utolsó 200 commit (alap: mind)
     gg --open artifact            # a közzétett Artifact oldal (ha van)
     gg --serve                    # élő kiszolgálás: http://127.0.0.1:7788
+    gg --launch-config            # .claude/launch.json a Browser panelhez
 
 Az élő mód (`--serve`) magát a gráfot szolgálja ki, kérésenként újragenerálva;
 a lap kétmásodpercenként olcsó ujjlenyomatot kér, és csak tényleges változásra
@@ -39,6 +40,7 @@ import hashlib
 import html
 import http.server
 import json
+import re
 import socket
 import subprocess
 import sys
@@ -952,7 +954,74 @@ def build(payload: dict, title: str, live: bool = False) -> str:
 
 STATE_DIR = Path.home() / ".git-graph"
 CURRENT = STATE_DIR / "current"        # a session-hook írja, a szerver olvassa
+REPOS = STATE_DIR / "repos.json"       # slug → repó útvonal (a --launch-config írja)
 DEFAULT_PORT = 7788
+LAUNCH_NAME = "git-graph"              # a bejegyzés neve a .claude/launch.json-ben
+
+
+def slug_for(repo: Path) -> str:
+    """Hostnév-barát, stabil azonosító a repóhoz.
+
+    A mappanév olvashatóvá teszi, az útvonal-hash pedig egyértelművé: két
+    azonos nevű mappa (`~/a/app`, `~/b/app`) nem üthet össze.
+    """
+    base = re.sub(r"[^a-z0-9]+", "-", repo.name.lower()).strip("-") or "repo"
+    return f"{base[:40]}-{hashlib.sha1(str(repo).encode()).hexdigest()[:6]}"
+
+
+def register(repo: Path) -> str:
+    """A repó felvétele a slug-regiszterbe; a slugot adja vissza."""
+    slug = slug_for(repo)
+    try:
+        data = json.loads(REPOS.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        data = {}
+    if data.get(slug) != str(repo):
+        data[slug] = str(repo)
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        REPOS.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                         encoding="utf-8")
+    return slug
+
+
+def repo_for_slug(slug: str) -> Path | None:
+    try:
+        data = json.loads(REPOS.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    path = data.get(slug)
+    return Path(path) if path else None
+
+
+def write_launch_config(repo: Path, port: int) -> tuple[Path, str]:
+    """Az élő preview bejegyzése a repó `.claude/launch.json`-jába.
+
+    A Claude Desktop localhostra CSAK origint fogad el — path és query nélkül
+    (mérve: „a localhost address with a path or query"). A repót ezért a
+    hostnév hordozza: `<slug>.localhost`, amit a panel Chromiumja a loopbackra
+    old fel. A fájl többi bejegyzését és kulcsát nem bántjuk.
+    """
+    slug = register(repo)
+    url = f"http://{slug}.localhost:{port}"
+    path = repo / ".claude" / "launch.json"
+
+    data: dict = {}
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            raise SystemExit(f"HIBA: {path} nem érvényes JSON — kézzel kell javítani.")
+        if not isinstance(data, dict):
+            raise SystemExit(f"HIBA: {path} gyökere nem objektum.")
+
+    data.setdefault("version", "0.0.1")
+    others = [c for c in data.get("configurations", [])
+              if not (isinstance(c, dict) and c.get("name") == LAUNCH_NAME)]
+    data["configurations"] = others + [{"name": LAUNCH_NAME, "url": url, "port": port}]
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return path, url
 
 
 def port_open(port: int) -> bool:
@@ -980,7 +1049,7 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
     # a kiszolgálást ezért sorosítjuk. Egy kérés pár tized másodperc.
     lock = threading.Lock()
 
-    def switch(wanted: str | None) -> Path:
+    def switch(wanted: str | None, slug: str | None) -> Path:
         """A kérés repója: a `?repo=` paraméter, különben amit a hook beírt.
 
         A paraméter azért kell, mert egyszerre több session (több Browser panel)
@@ -993,6 +1062,11 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
                 repo = resolve_repo(Path(wanted).expanduser())
             except SystemExit as exc:     # a resolve_repo CLI-re van szabva
                 raise FileNotFoundError(str(exc)) from None
+        elif slug:
+            repo = repo_for_slug(slug)
+            if repo is None:
+                raise FileNotFoundError(
+                    f"ismeretlen repó-azonosító: {slug} — futtasd a repóban: gg --launch-config")
         else:
             repo = current_repo(fallback)
         if repo is None:
@@ -1017,9 +1091,13 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
             split = urllib.parse.urlsplit(self.path)
             route = split.path.rstrip("/") or "/"
             wanted = urllib.parse.parse_qs(split.query).get("repo", [None])[0]
+            # `<slug>.localhost` — a launch.json csak origint enged localhostra,
+            # így a repó a hostnévben utazik.
+            host = self.headers.get("Host", "").split(":")[0].lower()
+            slug = host[: -len(".localhost")] if host.endswith(".localhost") else None
             try:
                 with lock:
-                    repo = switch(wanted)
+                    repo = switch(wanted, slug)
                     if route == "/fingerprint":
                         return self.reply(200, json.dumps(fingerprint()).encode(),
                                           "application/json; charset=utf-8")
@@ -1124,6 +1202,9 @@ def main() -> int:
                          "a mutatott repót a --session-hook váltja")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT,
                     help=f"a --serve és a --session-hook portja (alap: {DEFAULT_PORT})")
+    ap.add_argument("--launch-config", action="store_true", dest="launch_config",
+                    help="a repó .claude/launch.json-jébe beírja az élő preview "
+                         "bejegyzését (a Browser panel: preview_start git-graph)")
     ap.add_argument("--session-hook", action="store_true", dest="session_hook",
                     help="Claude Code SessionStart hook: a session repóját beírja "
                          "a ~/.git-graph/current fájlba (stdin: a hook JSON-ja)")
@@ -1131,6 +1212,19 @@ def main() -> int:
 
     if args.session_hook:
         return session_hook(args.port)
+
+    if args.launch_config:
+        repo = resolve_repo(Path(args.repo).expanduser().resolve())
+        path, url = write_launch_config(repo, args.port)
+        print(f"✓ {path}")
+        print(f"  {LAUNCH_NAME} → {url}")
+        print(f"  A panelben: preview_start name=\"{LAUNCH_NAME}\"")
+        if not port_open(args.port):
+            print(f"  FIGYELEM: a {args.port} porton nem fut szerver "
+                  "(./install.sh --live vagy gg --serve)")
+        print("  Megjegyzés: a launch.json commitolható fájl — döntsd el, "
+              "beteszed-e a repóba.")
+        return 0
 
     global REPO
     if args.serve:

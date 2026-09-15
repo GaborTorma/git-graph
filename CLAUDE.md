@@ -27,6 +27,7 @@ Használat és felépítés: [README.md](README.md).
 gg --help             # a teljes súgó
 gg                    # az aktuális repó → <repó>/.git-graph/index.html
 gg --serve            # élő kiszolgálás a Claude Desktop Browser paneljének
+gg --launch-config    # .claude/launch.json bejegyzés (preview_start git-graph)
 python3 gitgraph …    # symlink nélkül, közvetlenül
 ```
 
@@ -48,9 +49,11 @@ változnia), és repóváltás a `~/.git-graph/current` átírásával.
   **angolul** maradnak: az a Git Graph felismerhető arca.
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
   futnia kell, `pip install` nélkül. Ne hozz be libet.
-- **Minden git-hívás olvas.** A script sosem módosít repót. Egyetlen kivétel a
+- **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a
   `.git/info/exclude` és a `.git/config` `gitgraph.*` kulcsai — mindkettő
-  lokális, sosem commitolódik.
+  lokális, sosem commitolódik —, valamint a `--launch-config`, ami
+  `.claude/launch.json`-t ír: az **commitolható** fájl, ezért csak kifejezett
+  kérésre fut, sosem mellékhatásként.
 - **Verziókezelés**: SemVer, kézi `vX.Y.Z` tag, Conventional Commits.
 - **Env**: a toolnak nincs env-függősége, ezért nincs `.env.example`. Ha a
   tunneles MCP-irány megvalósul (`docs/mcp-plan.md` B változat), a bearer token
@@ -72,6 +75,11 @@ változnia), és repóváltás a `~/.git-graph/current` átírásával.
   előfordult `</script>` (varazskez repó) → a lap fele nyers JSON-ként ömlött ki.
   A `build()` ezért az `embed()`-en át ágyaz (`</` → `<\/`, U+2028/29 escape).
   Bármi, ami a lapra kerül, ezen menjen át.
+- **A launch.json localhostra csak origint fogad el** (mérve: *„a localhost
+  address with a path or query"*), ezért a `--launch-config` a repót a
+  hostnévbe teszi: `<slug>.localhost`. A Chromium minden `*.localhost` nevet a
+  loopbackra old fel; a szerver a `Host` fejlécből és a
+  `~/.git-graph/repos.json` regiszterből azonosítja a repót.
 - **A repó a kérés URL-jében van** (`/?repo=…`), nem globális állapotban: több
   session panelje egyszerre kérdezi ugyanazt a szervert, és egy közös „aktuális
   repó" véletlenszerűen váltogatna. A `~/.git-graph/current` csak tartalék.

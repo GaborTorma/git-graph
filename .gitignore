@@ -9,6 +9,10 @@ __pycache__/
 # A gg saját kimenete, ha valaki a repón belül futtatja
 .git-graph/
 
+# A --launch-config kimenete: a benne lévő slug az abszolút útvonalból
+# származik, más gépen értelmetlen
+.claude/launch.json
+
 # Env / secrets (a toolnak nincs env-függősége, de a konvenció maradjon)
 .env
 .env.*
