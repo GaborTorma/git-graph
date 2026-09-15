@@ -45,8 +45,9 @@ változnia), és repóváltás a `~/.git-graph/current` átírásával.
 ## Konvenciók
 
 - **Nyelv**: magyar — kommentek, doksi, commit-body, a generált UI feliratai.
-  A táblázat-fejlécek (`Graph / Description / Date / Author / Commit`) viszont
-  **angolul** maradnak: az a Git Graph felismerhető arca.
+  A táblázat-fejlécek (`Description / Date / Author / Commit`) viszont
+  **angolul** maradnak: az a Git Graph felismerhető arca. A Graph oszlop
+  fejléce ikon (a felirat feleslegesen szélesre nyomta az oszlopot).
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
   futnia kell, `pip install` nélkül. Ne hozz be libet.
 - **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a
@@ -87,6 +88,11 @@ változnia), és repóváltás a `~/.git-graph/current` átírásával.
 - **A repó a kérés URL-jében van** (`/?repo=…`), nem globális állapotban: több
   session panelje egyszerre kérdezi ugyanazt a szervert, és egy közös „aktuális
   repó" véletlenszerűen váltogatna. A `~/.git-graph/current` csak tartalék.
+- **A `drawGraph()` a DOM-ból olvassa a sorok Y-pozícióját** (`offsetTop`), nem
+  sorszám × magasságból: kinyitott commit-panelnél az alatta lévő sorok
+  lejjebb csúsznak. Ezért minden DOM-változás után újra kell hívni (nyitás,
+  zárás, Escape, `render`). A panel `margin-left: var(--graph-w)` — a gráf-oszlop
+  szabadon marad, a vonal mellette fut végig.
 - **A sor-kiemelés nem mehet a gráf-oszlopra**: a pöttyöket az `#lanes` SVG
   rajzolja a sorok MÖGÉ, az átlátszatlan `:hover` / kiválasztott háttér pedig
   eltakarta őket. Ezért a háttér a cellákra megy, az elsőt kihagyva
