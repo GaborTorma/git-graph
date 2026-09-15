@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# A gg saját kimenete, ha valaki a repón belül futtatja
+.git-graph/
+
+# Env / secrets (a toolnak nincs env-függősége, de a konvenció maradjon)
+.env
+.env.*
+*.pem
+*.key
+!.env.example

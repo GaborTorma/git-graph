@@ -1,0 +1,929 @@
+#!/usr/bin/env python3
+"""Git Graph-szerű commit-gráf generálása a repóból, önálló HTML-be.
+
+A VS Code `mhutchie.git-graph` extension elrendezését követi: bal oldalon
+sávokra osztott, színes commit-gráf, jobbra Description / Date / Author /
+Commit oszlopok, ref-badge-ekkel; a soron kattintva commit-részletek panel.
+
+Az adat a generálás pillanatában készül (statikus pillanatkép) — a frissítéshez
+futtasd újra. Bármelyik repóban működik: a git gyökeret a megadott (vagy az
+aktuális) könyvtárból oldja fel, magától a script helyétől függetlenül.
+
+    gg                            # az aktuális repó → <repó>/.git-graph/index.html
+    gg --open                     # …és rögtön meg is nyitja
+    gg ~/dev/masik-repo           # másik repó
+    gg --out graf.html            # máshova (relatív út a CWD-hez)
+    gg --limit 200                # csak az utolsó 200 commit (alap: mind)
+    gg --open artifact            # a közzétett Artifact oldal (ha van)
+
+A kimenet a repón belül, MINDIG ugyanott keletkezik — így frissíthető belőle
+ugyanaz az Artifact oldal. A `.git-graph/` mappát a script a repó LOKÁLIS
+ignore-listájába (`.git/info/exclude`) veszi fel, tehát idegen repóban sem
+módosít követett fájlt.
+
+Telepítés: saját repó (`git-graph`), az `install.sh` symlinkeli a
+`~/.local/bin`-be `gitgraph` és `gg` néven. Függősége nincs a Python 3 stdliben
+túl; minden git-hívás csak olvas.
+"""
+from __future__ import annotations
+
+import argparse
+import html
+import json
+import subprocess
+import sys
+import webbrowser
+from pathlib import Path
+
+# A vizsgált repó gyökere — a `main()` állítja be a --repo / CWD alapján.
+REPO = Path.cwd()
+
+# Mezőelválasztó (unit separator) és rekordelválasztó (record separator):
+# commit-üzenetben nem fordulhatnak elő, ellentétben bármilyen látható jellel.
+FS = "\x1f"
+RS = "\x1e"
+
+
+def git(*args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(REPO), *args], capture_output=True, text=True, check=True
+    ).stdout
+
+
+def resolve_repo(start: Path) -> Path:
+    """A megadott könyvtárat tartalmazó git repó gyökere."""
+    result = subprocess.run(
+        ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise SystemExit(f"HIBA: {start} nem git repó (vagy nincs git a PATH-on).")
+    return Path(result.stdout.strip())
+
+
+def collect_commits(limit: int | None) -> list[dict]:
+    """Commitok minden refről, szülőkkel, ref-dekorációval és törzzsel."""
+    fmt = FS.join(["%H", "%P", "%an", "%aI", "%D", "%s", "%b"])
+    args = ["log", "--all", "--date-order", f"--pretty=format:{RS}{fmt}"]
+    if limit:
+        args.append(f"-{limit}")
+    raw = git(*args)
+
+    commits: list[dict] = []
+    for record in raw.split(RS):
+        if not record.strip():
+            continue
+        parts = record.split(FS)
+        if len(parts) < 7:
+            continue
+        sha, parents, author, date, refs, subject, body = parts[:7]
+        commits.append(
+            {
+                "sha": sha.strip(),
+                "short": sha.strip()[:7],
+                "parents": parents.split() if parents.strip() else [],
+                "author": author,
+                "date": date,
+                "refs": parse_refs(refs),
+                "subject": subject,
+                "body": body.strip(),
+            }
+        )
+    return commits
+
+
+def parse_refs(decoration: str) -> list[dict]:
+    """A `%D` dekoráció badge-ekké: HEAD, lokális ág, remote ág, tag."""
+    refs: list[dict] = []
+    for item in (r.strip() for r in decoration.split(",")):
+        if not item:
+            continue
+        if item.startswith("tag: "):
+            refs.append({"kind": "tag", "name": item[5:]})
+        elif " -> " in item:  # "HEAD -> main"
+            head, _, branch = item.partition(" -> ")
+            refs.append({"kind": "head", "name": branch})
+            del head
+        elif item == "HEAD":
+            refs.append({"kind": "detached", "name": "HEAD"})
+        elif item.startswith("origin/") or "/" in item and item.split("/")[0] in remotes():
+            refs.append({"kind": "remote", "name": item})
+        else:
+            refs.append({"kind": "branch", "name": item})
+    # A HEAD-badge menjen előre, utána tag, ág, végül remote — mint a Git Graphban.
+    order = {"head": 0, "detached": 0, "tag": 1, "branch": 2, "remote": 3}
+    refs.sort(key=lambda r: order.get(r["kind"], 9))
+    return refs
+
+
+_REMOTES: set[str] | None = None
+
+
+def remotes() -> set[str]:
+    global _REMOTES
+    if _REMOTES is None:
+        _REMOTES = {r.strip() for r in git("remote").splitlines() if r.strip()}
+    return _REMOTES
+
+
+def collect_stats(limit: int | None) -> dict[str, dict]:
+    """Fájlonkénti +/− soronként, commitra bontva (`--numstat`)."""
+    args = ["log", "--all", "--date-order", "--numstat", f"--pretty=format:{RS}%H"]
+    if limit:
+        args.append(f"-{limit}")
+    raw = git(*args)
+
+    stats: dict[str, dict] = {}
+    for block in raw.split(RS):
+        if not block.strip():
+            continue
+        lines = block.strip().splitlines()
+        sha = lines[0].strip()
+        files = []
+        added = deleted = 0
+        for line in lines[1:]:
+            if not line.strip():
+                continue
+            cols = line.split("\t")
+            if len(cols) < 3:
+                continue
+            a, d, path = cols[0], cols[1], cols[2]
+            # Bináris fájlnál a git "-" jelet ad szám helyett.
+            ai = int(a) if a.isdigit() else 0
+            di = int(d) if d.isdigit() else 0
+            added += ai
+            deleted += di
+            files.append({"path": path, "add": ai, "del": di, "bin": not a.isdigit()})
+        stats[sha] = {"files": files, "add": added, "del": deleted}
+    return stats
+
+
+def assign_lanes(commits: list[dict]) -> list[dict]:
+    """Sávkiosztás: minden commit kap egy oszlopot, a szülők sávot foglalnak.
+
+    A Git Graph logikája: egy commit abba a sávba ül, amelyik már rá vár
+    (a gyereke foglalta le); ha nincs ilyen, az első szabad sávba. Az első
+    szülő ugyanabban a sávban folytatódik, a további szülők (merge) új vagy
+    már létező sávot kapnak.
+    """
+    active: list[str | None] = []  # sávonként: melyik commitra vár
+    index = {c["sha"]: i for i, c in enumerate(commits)}
+
+    for commit in commits:
+        sha = commit["sha"]
+        lane = next((i for i, h in enumerate(active) if h == sha), None)
+        if lane is None:
+            lane = next((i for i, h in enumerate(active) if h is None), None)
+            if lane is None:
+                active.append(None)
+                lane = len(active) - 1
+        commit["lane"] = lane
+
+        # Ha több sáv is erre a commitra várt, a többi felszabadul (összefutás).
+        for i, h in enumerate(active):
+            if h == sha and i != lane:
+                active[i] = None
+
+        parents = commit["parents"]
+        if not parents:
+            active[lane] = None
+            continue
+        active[lane] = parents[0]
+        for parent in parents[1:]:
+            existing = next((i for i, h in enumerate(active) if h == parent), None)
+            if existing is None:
+                slot = next((i for i, h in enumerate(active) if h is None), None)
+                if slot is None:
+                    active.append(None)
+                    slot = len(active) - 1
+                active[slot] = parent
+
+    # Élek: gyerek → szülő, sáv- és sorindexekkel (a rajzoláshoz).
+    edges = []
+    for row, commit in enumerate(commits):
+        for order, parent in enumerate(commit["parents"]):
+            prow = index.get(parent)
+            if prow is None:
+                continue  # a szülő a limiten kívülre esett
+            edges.append(
+                {
+                    "fromRow": row,
+                    "fromLane": commit["lane"],
+                    "toRow": prow,
+                    "toLane": commits[prow]["lane"],
+                    "merge": order > 0,
+                }
+            )
+    return edges
+
+
+OUT_DIR = ".git-graph"
+
+
+def ensure_excluded() -> bool:
+    """A kimeneti mappa a repó LOKÁLIS ignore-listájába (`.git/info/exclude`).
+
+    Szándékosan NEM a követett `.gitignore`-ba: ez az eszköz bármelyik repóban
+    fut, és nem módosíthat ott commitolható fájlt. Igazzal tér vissza, ha most
+    írta bele.
+    """
+    common = git("rev-parse", "--git-common-dir").strip()
+    git_dir = Path(common)
+    if not git_dir.is_absolute():
+        git_dir = REPO / git_dir
+    exclude = git_dir / "info" / "exclude"
+    entry = f"{OUT_DIR}/"
+
+    existing = exclude.read_text(encoding="utf-8") if exclude.exists() else ""
+    if entry in {line.strip() for line in existing.splitlines()}:
+        return False
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    prefix = "" if existing.endswith("\n") or not existing else "\n"
+    with exclude.open("a", encoding="utf-8") as fh:
+        fh.write(f"{prefix}# gitgraph kimenete (lokális, nem commitolandó)\n{entry}\n")
+    return True
+
+
+def config_get(key: str) -> str:
+    """Érték a repó lokális git configjából (hiányzó kulcsnál üres sztring)."""
+    try:
+        return git("config", "--local", "--get", f"gitgraph.{key}").strip()
+    except subprocess.CalledProcessError:
+        return ""
+
+
+def remember_artifact(url: str) -> None:
+    """Az Artifact URL-je + a publikáláskori HEAD a `.git/config`-ba.
+
+    A HEAD azért kell, hogy az `--open` tudja: a közzétett oldal az aktuális
+    állapotot mutatja-e, vagy azóta jött új commit. A `.git/config` sosem
+    commitolódik, és repónként külön tárol — pont, ami ide kell.
+    """
+    git("config", "--local", "gitgraph.artifact", url)
+    git("config", "--local", "gitgraph.artifactHead", git("rev-parse", "HEAD").strip())
+
+
+def artifact_state() -> tuple[str, bool]:
+    """(URL, naprakész-e). URL nélkül ("", False)."""
+    url = config_get("artifact")
+    if not url:
+        return "", False
+    return url, config_get("artifactHead") == git("rev-parse", "HEAD").strip()
+
+
+def collect_branches() -> list[dict]:
+    """Ágak upstreammel és ahead/behind számokkal."""
+    fmt = FS.join(
+        [
+            "%(refname:short)",
+            "%(objectname:short)",
+            "%(upstream:short)",
+            "%(upstream:track)",
+            "%(committerdate:short)",
+        ]
+    )
+    out = git("for-each-ref", f"--format={fmt}", "refs/heads")
+    head = git("rev-parse", "--abbrev-ref", "HEAD").strip()
+    branches = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        name, sha, upstream, track, date = (line.split(FS) + [""] * 5)[:5]
+        branches.append(
+            {
+                "name": name,
+                "sha": sha,
+                "upstream": upstream,
+                "track": track.strip("[]"),
+                "date": date,
+                "current": name == head,
+            }
+        )
+    return branches
+
+
+def repo_name() -> str:
+    """A repó neve: az `origin` remote URL-jéből, különben a mappanév.
+
+    A mappanév félrevezető lehet (más néven klónozva, örökölt könyvtárnév) —
+    a remote hordozza a repó tényleges nevét.
+    """
+    try:
+        url = git("remote", "get-url", "origin").strip()
+    except subprocess.CalledProcessError:
+        return REPO.name
+    if not url:
+        return REPO.name
+    name = url.rstrip("/").rsplit("/", 1)[-1].rsplit(":", 1)[-1]
+    if name.endswith(".git"):
+        name = name[:-4]
+    return name or REPO.name
+
+
+def collect_meta(commits: list[dict]) -> dict:
+    status = git("status", "--porcelain").strip()
+    return {
+        "repo": repo_name(),
+        "head": git("rev-parse", "--abbrev-ref", "HEAD").strip(),
+        "totalCommits": int(git("rev-list", "--all", "--count").strip()),
+        "shown": len(commits),
+        "dirty": len([l for l in status.splitlines() if l.strip()]),
+        "generated": git("log", "-1", "--pretty=format:%aI").strip(),
+        "worktrees": [
+            l.split()[0] for l in git("worktree", "list").splitlines() if l.strip()
+        ],
+    }
+
+
+TEMPLATE = r"""<meta charset="utf-8">
+<title>__TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* ── Tokenek ───────────────────────────────────────────────────────────────
+   Sötét-elsődleges: a :root a VS Code Dark+ palettája (ez a Git Graph ismerős
+   arca), a világos változat mind a rendszer-preferenciára, mind az explicit
+   [data-theme="light"] kapcsolóra felülír. Minden szín tokenen keresztül megy —
+   így egyik témában sem marad definiálatlan érték.                            */
+:root {
+  --bg:            #1e1e1e;
+  --bg-chrome:     #252526;
+  --bg-elevated:   #2d2d30;
+  --bg-hover:      #2a2d2e;
+  --bg-selected:   #094771;
+  --fg:            #cccccc;
+  --fg-strong:     #ffffff;
+  --fg-dim:        #8b8b8b;
+  --fg-faint:      #6a6a6a;
+  --border:        #3c3c3c;
+  --border-soft:   #333336;
+  --accent:        #0098ff;
+  --add:           #6a9955;
+  --del:           #f14c4c;
+  --badge-fg:      #ffffff;
+  --tag-bg:        #b8860b;
+  --shadow:        0 2px 12px rgba(0, 0, 0, .5);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg:          #ffffff;
+    --bg-chrome:   #f3f3f3;
+    --bg-elevated: #f8f8f8;
+    --bg-hover:    #e8e8e8;
+    --bg-selected: #cce5ff;
+    --fg:          #333333;
+    --fg-strong:   #000000;
+    --fg-dim:      #6a6a6a;
+    --fg-faint:    #8a8a8a;
+    --border:      #dcdcdc;
+    --border-soft: #ececec;
+    --accent:      #005fb8;
+    --add:         #388a34;
+    --del:         #c72e2e;
+    --badge-fg:    #ffffff;
+    --tag-bg:      #9a6b00;
+    --shadow:      0 2px 12px rgba(0, 0, 0, .14);
+  }
+}
+:root[data-theme="light"] {
+  --bg:          #ffffff;
+  --bg-chrome:   #f3f3f3;
+  --bg-elevated: #f8f8f8;
+  --bg-hover:    #e8e8e8;
+  --bg-selected: #cce5ff;
+  --fg:          #333333;
+  --fg-strong:   #000000;
+  --fg-dim:      #6a6a6a;
+  --fg-faint:    #8a8a8a;
+  --border:      #dcdcdc;
+  --border-soft: #ececec;
+  --accent:      #005fb8;
+  --add:         #388a34;
+  --del:         #c72e2e;
+  --badge-fg:    #ffffff;
+  --tag-bg:      #9a6b00;
+  --shadow:      0 2px 12px rgba(0, 0, 0, .14);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI",
+               system-ui, "Ubuntu", "Droid Sans", sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  /* VS Code-panel elrendezés: a kontroll-sor fix, alatta egyetlen görgethető
+     régió — a fejléc-sor ehhez tapad, a body pedig sosem görget sehova. */
+  height: 100dvh;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono",
+               Menlo, Consolas, "Liberation Mono", monospace;
+  font-variant-ligatures: none;
+}
+
+/* ── Fejléc-sáv (a Git Graph kontroll-sora) ───────────────────────────────── */
+.chrome {
+  flex: none;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 9px 14px;
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--border);
+}
+.repo { display: flex; align-items: baseline; gap: 8px; }
+.repo-name { font-size: 14px; font-weight: 600; color: var(--fg-strong); }
+.repo-sub { font-size: 11px; color: var(--fg-dim); }
+
+.control { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.control label { color: var(--fg-dim); }
+select, .btn {
+  background: var(--bg-elevated);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 3px 7px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+select:focus-visible, .btn:focus-visible, .row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.btn:hover, select:hover { background: var(--bg-hover); }
+.switch { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.switch input { accent-color: var(--accent); margin: 0; cursor: pointer; }
+
+.spacer { margin-left: auto; }
+.stat { font-size: 11px; color: var(--fg-dim); white-space: nowrap; }
+.stat b { color: var(--fg); font-weight: 600; }
+
+/* ── Táblázat ─────────────────────────────────────────────────────────────── */
+.scroll { flex: 1 1 auto; overflow: auto; }
+.thead, .row {
+  display: grid;
+  grid-template-columns: var(--graph-w, 96px) minmax(320px, 1fr) 136px 148px 92px;
+  align-items: center;
+  min-width: 860px;
+}
+.thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  height: 26px;
+}
+.thead > div { padding: 0 10px; border-left: 1px solid var(--border-soft); }
+.thead > div:first-child { border-left: 0; }
+
+.graph-wrap { position: relative; }
+#lanes { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
+
+.rows { position: relative; z-index: 2; }
+.row {
+  height: 24px;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  padding: 0;
+}
+.row:hover { background: var(--bg-hover); }
+.row[aria-expanded="true"] { background: var(--bg-selected); }
+.row[aria-expanded="true"] .desc, .row[aria-expanded="true"] .sha { color: var(--fg-strong); }
+.row.dim { opacity: .28; }
+
+.cell { padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desc { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.date, .author { color: var(--fg-dim); font-size: 12px; }
+.date { font-variant-numeric: tabular-nums; }
+.sha { color: var(--fg-dim); font-size: 12px; }
+
+/* ── Ref-badge-ek ─────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  max-width: 260px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 15px;
+  color: var(--badge-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.badge.ref-head, .badge.ref-detached { background: #0e7a3d; }
+.badge.ref-branch { background: #1f6feb; }
+.badge.ref-remote { background: #6e4bb8; }
+.badge.ref-tag    { background: var(--tag-bg); border-radius: 3px; }
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.85); flex: none; }
+.badge.ref-tag .dot { border-radius: 1px; }
+
+/* ── Commit-részletek panel ──────────────────────────────────────────────── */
+.details {
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 18px 16px;
+  box-shadow: var(--shadow);
+}
+.details h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-strong);
+  text-wrap: balance;
+}
+.meta { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; font-size: 12px; margin-bottom: 12px; }
+.meta dt { color: var(--fg-dim); }
+.meta dd { margin: 0; }
+.meta a { color: var(--accent); text-decoration: none; cursor: pointer; }
+.meta a:hover { text-decoration: underline; }
+.body-text { white-space: pre-wrap; font-size: 12px; color: var(--fg); margin: 0 0 12px; max-width: 68ch; }
+
+.files { border-top: 1px solid var(--border-soft); padding-top: 10px; }
+.files-head { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-dim); margin-bottom: 6px; }
+.file { display: grid; grid-template-columns: 1fr 84px; gap: 10px; font-size: 12px; padding: 1px 0; }
+.file span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.churn { text-align: right; font-variant-numeric: tabular-nums; }
+.churn .a { color: var(--add); }
+.churn .d { color: var(--del); }
+
+.empty { padding: 40px; text-align: center; color: var(--fg-dim); }
+.foot { padding: 14px 18px 28px; font-size: 11px; color: var(--fg-faint); border-top: 1px solid var(--border-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div class="chrome">
+  <div class="repo">
+    <span class="repo-name">__REPO__</span>
+    <span class="repo-sub mono" id="headRef"></span>
+  </div>
+
+  <div class="control">
+    <label for="branchSel">Branch</label>
+    <select id="branchSel"></select>
+  </div>
+
+  <label class="switch"><input type="checkbox" id="showRemotes" checked> Show Remote Branches</label>
+  <label class="switch"><input type="checkbox" id="onlyRefs"> Csak ref-es commitok</label>
+
+  <div class="spacer"></div>
+  <div class="stat" id="counter"></div>
+  <button class="btn" id="themeBtn" type="button">Téma</button>
+</div>
+
+<div class="scroll">
+  <div class="thead">
+    <div>Graph</div><div>Description</div><div>Date</div><div>Author</div><div>Commit</div>
+  </div>
+  <div class="graph-wrap">
+    <svg id="lanes" aria-hidden="true"></svg>
+    <div class="rows" id="rows"></div>
+  </div>
+  <p class="foot">
+  Statikus pillanatkép — a <code class="mono">tools/gitgraph.py</code> generálta a repó
+  akkori állapotából. Nem frissül magától: új commit után futtasd újra.
+</p>
+
+<script>
+const DATA = __DATA__;
+
+// A Git Graph alap sáv-palettája: sávindex szerint ciklikusan.
+const LANE_COLORS = ['#0085d9','#d9008f','#00d90a','#d9c000','#d90000',
+                     '#4d00d9','#d94a00','#00d9cc','#e138e8','#85d900'];
+const ROW_H = 24, LANE_W = 16, X0 = 12, DOT_R = 4;
+
+const rowsEl = document.getElementById('rows');
+const svg = document.getElementById('lanes');
+const counter = document.getElementById('counter');
+let expanded = null;      // a kinyitott commit sha-ja
+let visible = DATA.commits; // szűrés utáni lista
+
+const laneCount = DATA.commits.reduce((m, c) => Math.max(m, c.lane), 0) + 1;
+const graphW = Math.max(72, X0 * 2 + (laneCount - 1) * LANE_W);
+document.documentElement.style.setProperty('--graph-w', graphW + 'px');
+
+document.getElementById('headRef').textContent = DATA.meta.head + ' · ' +
+  DATA.meta.totalCommits + ' commit';
+
+/* ── Gráf rajzolása ──────────────────────────────────────────────────────── */
+function laneX(l) { return X0 + l * LANE_W; }
+function rowY(i)  { return i * ROW_H + ROW_H / 2; }
+
+function drawGraph(rowIndexBySha) {
+  const h = visible.length * ROW_H;
+  svg.setAttribute('width', graphW);
+  svg.setAttribute('height', h);
+  svg.setAttribute('viewBox', `0 0 ${graphW} ${h}`);
+
+  let out = '';
+  for (const e of DATA.edges) {
+    const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
+    const b = rowIndexBySha.get(DATA.commits[e.toRow].sha);
+    if (a === undefined || b === undefined) continue;   // szűrve
+    const x1 = laneX(e.fromLane), y1 = rowY(a);
+    const x2 = laneX(e.toLane),   y2 = rowY(b);
+    const color = LANE_COLORS[(e.merge ? e.fromLane : e.toLane) % LANE_COLORS.length];
+    out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"/>`;
+  }
+  visible.forEach((c, i) => {
+    const color = LANE_COLORS[c.lane % LANE_COLORS.length];
+    const merge = c.parents.length > 1;
+    out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="${merge ? DOT_R + 1 : DOT_R}"`
+        +  ` fill="${merge ? 'var(--bg)' : color}" stroke="${color}" stroke-width="2"/>`;
+  });
+  svg.innerHTML = out;
+}
+
+/* Sávváltásnál ott hajlik a vonal, ahol a git is: merge-nél rögtön a merge
+   commit alatt, ág-leágazásnál pedig közvetlenül a szülő fölött. */
+function edgePath(x1, y1, x2, y2, merge) {
+  if (x1 === x2) return `M ${x1} ${y1} L ${x2} ${y2}`;
+  if (merge) {
+    const bend = Math.min(y1 + ROW_H, y2);
+    return `M ${x1} ${y1} C ${x1} ${bend}, ${x2} ${y1}, ${x2} ${bend} L ${x2} ${y2}`;
+  }
+  const bend = Math.max(y2 - ROW_H, y1);
+  return `M ${x1} ${y1} L ${x1} ${bend} C ${x1} ${y2}, ${x2} ${bend}, ${x2} ${y2}`;
+}
+
+/* ── Sorok ───────────────────────────────────────────────────────────────── */
+const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const pad = n => String(n).padStart(2, '0');
+const fmtDate = iso => { const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} `
+       + `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+function badges(c) {
+  return c.refs.map(r => {
+    const label = r.kind === 'head' ? r.name : r.name;
+    const title = r.kind === 'head' ? 'HEAD → ' + r.name : r.kind + ': ' + r.name;
+    return `<span class="badge ref-${r.kind}" title="${esc(title)}"><span class="dot"></span>${esc(label)}</span>`;
+  }).join('');
+}
+
+function render() {
+  const rowIndexBySha = new Map(visible.map((c, i) => [c.sha, i]));
+  rowsEl.innerHTML = visible.map((c, i) => `
+    <button class="row" type="button" data-sha="${c.sha}" aria-expanded="false">
+      <span class="cell"></span>
+      <span class="cell desc">${badges(c)}<span class="subject">${esc(c.subject)}</span></span>
+      <span class="cell date">${fmtDate(c.date)}</span>
+      <span class="cell author">${esc(c.author)}</span>
+      <span class="cell sha mono">${c.short}</span>
+    </button>`).join('') || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
+  drawGraph(rowIndexBySha);
+  counter.innerHTML = `<b>${visible.length}</b> commit látszik / ${DATA.meta.totalCommits}`;
+  if (expanded && rowIndexBySha.has(expanded)) open(expanded); else expanded = null;
+}
+
+/* ── Commit-részletek ────────────────────────────────────────────────────── */
+function open(sha) {
+  document.querySelectorAll('.details').forEach(d => d.remove());
+  const row = rowsEl.querySelector(`.row[data-sha="${sha}"]`);
+  if (!row) return;
+  rowsEl.querySelectorAll('.row').forEach(r => r.setAttribute('aria-expanded', 'false'));
+  row.setAttribute('aria-expanded', 'true');
+
+  const c = DATA.commits.find(x => x.sha === sha);
+  const st = DATA.stats[sha] || { files: [], add: 0, del: 0 };
+  const parents = c.parents.length
+    ? c.parents.map(p => `<a data-jump="${p}">${p.slice(0, 7)}</a>`).join(' · ')
+    : '—';
+
+  const el = document.createElement('div');
+  el.className = 'details';
+  el.innerHTML = `
+    <h2>${esc(c.subject)}</h2>
+    <dl class="meta">
+      <dt>Commit</dt><dd class="mono">${c.sha}</dd>
+      <dt>Szülő</dt><dd class="mono">${parents}</dd>
+      <dt>Szerző</dt><dd>${esc(c.author)}</dd>
+      <dt>Dátum</dt><dd>${fmtDate(c.date)}</dd>
+    </dl>
+    ${c.body ? `<p class="body-text">${esc(c.body)}</p>` : ''}
+    <div class="files">
+      <div class="files-head">${st.files.length} fájl ·
+        <span style="color:var(--add)">+${st.add}</span>
+        <span style="color:var(--del)">−${st.del}</span></div>
+      ${st.files.map(f => `<div class="file"><span class="mono">${esc(f.path)}</span>
+        <span class="churn mono">${f.bin ? 'bin'
+          : `<span class="a">+${f.add}</span> <span class="d">−${f.del}</span>`}</span></div>`).join('')}
+    </div>`;
+  row.after(el);
+  expanded = sha;
+}
+
+rowsEl.addEventListener('click', e => {
+  const jump = e.target.closest('[data-jump]');
+  if (jump) {
+    const target = rowsEl.querySelector(`.row[data-sha="${jump.dataset.jump}"]`);
+    if (target) { open(jump.dataset.jump); target.scrollIntoView({ block: 'center' }); }
+    return;
+  }
+  const row = e.target.closest('.row');
+  if (!row) return;
+  if (row.getAttribute('aria-expanded') === 'true') {
+    row.setAttribute('aria-expanded', 'false');
+    document.querySelectorAll('.details').forEach(d => d.remove());
+    expanded = null;
+  } else open(row.dataset.sha);
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && expanded) {
+    document.querySelectorAll('.details').forEach(d => d.remove());
+    rowsEl.querySelectorAll('.row').forEach(r => r.setAttribute('aria-expanded', 'false'));
+    expanded = null;
+  }
+});
+
+/* ── Szűrők ──────────────────────────────────────────────────────────────── */
+const branchSel = document.getElementById('branchSel');
+branchSel.innerHTML = '<option value="">Minden ág</option>' +
+  DATA.branches.map(b => `<option value="${esc(b.name)}"${b.current ? ' selected' : ''}>`
+    + esc(b.name) + (b.track ? ` (${esc(b.track)})` : '') + '</option>').join('');
+branchSel.value = '';
+
+function ancestryOf(name) {
+  const tip = DATA.commits.find(c => c.refs.some(r => r.name === name &&
+    (r.kind === 'branch' || r.kind === 'head')));
+  if (!tip) return null;
+  const keep = new Set(), stack = [tip.sha];
+  const bySha = new Map(DATA.commits.map(c => [c.sha, c]));
+  while (stack.length) {
+    const sha = stack.pop();
+    if (keep.has(sha)) continue;
+    keep.add(sha);
+    (bySha.get(sha)?.parents || []).forEach(p => bySha.has(p) && stack.push(p));
+  }
+  return keep;
+}
+
+function applyFilters() {
+  const branch = branchSel.value;
+  const remotes = document.getElementById('showRemotes').checked;
+  const refsOnly = document.getElementById('onlyRefs').checked;
+  const keep = branch ? ancestryOf(branch) : null;
+
+  visible = DATA.commits.filter(c => {
+    if (keep && !keep.has(c.sha)) return false;
+    if (refsOnly && c.refs.length === 0) return false;
+    if (!remotes && c.refs.length && c.refs.every(r => r.kind === 'remote')) return false;
+    return true;
+  });
+  render();
+}
+['branchSel', 'showRemotes', 'onlyRefs'].forEach(id =>
+  document.getElementById(id).addEventListener('change', applyFilters));
+
+/* ── Téma ────────────────────────────────────────────────────────────────── */
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const root = document.documentElement;
+  const dark = root.getAttribute('data-theme') === 'dark' ||
+    (!root.hasAttribute('data-theme') && !matchMedia('(prefers-color-scheme: light)').matches);
+  root.setAttribute('data-theme', dark ? 'light' : 'dark');
+});
+
+render();
+</script>
+"""
+
+
+def build(commits, edges, stats, branches, meta, title: str) -> str:
+    payload = {
+        "commits": commits,
+        "edges": edges,
+        "stats": stats,
+        "branches": branches,
+        "meta": meta,
+    }
+    return (
+        TEMPLATE.replace("__DATA__", json.dumps(payload, ensure_ascii=False))
+        .replace("__REPO__", html.escape(meta["repo"]))
+        .replace("__TITLE__", html.escape(title))
+    )
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description="Git Graph-szerű commit-gráf egyetlen HTML fájlba.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    ap.add_argument("repo", nargs="?", default=".",
+                    help="a repó (bármelyik könyvtára); alap: az aktuális")
+    ap.add_argument("--out", default=None,
+                    help="kimeneti HTML (relatív út a CWD-hez); "
+                         "alap: <repó>/.git-graph/index.html")
+    ap.add_argument("--limit", type=int, default=0,
+                    help="max. commit (0 = a teljes history, ez az alap)")
+    ap.add_argument("--title", default=None, help="oldalcím")
+    ap.add_argument("--open", nargs="?", const="auto", default=None,
+                    choices=["auto", "local", "artifact"], dest="open_mode",
+                    help="megnyitás a BÖNGÉSZŐBEN: auto (alap) = a közzétett "
+                         "Artifact, ha az aktuális állapotot mutatja, különben a "
+                         "helyi fájl; a local/artifact kényszerít. (A Claude "
+                         "Artifact-ablakát külső folyamat nem tudja nyitni — "
+                         "arra a /git-graph parancs való.)")
+    ap.add_argument("--set-artifact", metavar="URL", default=None,
+                    help="a repóhoz tartozó Artifact URL megjegyzése "
+                         "(a /git-graph slash command hívja publikálás után)")
+    args = ap.parse_args()
+
+    global REPO
+    REPO = resolve_repo(Path(args.repo).expanduser().resolve())
+
+    if args.set_artifact:
+        if not args.set_artifact.startswith("https://"):
+            raise SystemExit("HIBA: az URL-nek https://-sel kell kezdődnie.")
+        remember_artifact(args.set_artifact)
+        print(f"✓ Artifact megjegyezve: {args.set_artifact}")
+        print(f"  {repo_name()} @ {git('rev-parse', '--short', 'HEAD').strip()}")
+        return 0
+
+    limit = args.limit or None
+    commits = collect_commits(limit)
+    if not commits:
+        print("Nincs commit a repóban.", file=sys.stderr)
+        return 1
+    edges = assign_lanes(commits)
+    stats = collect_stats(limit)
+    branches = collect_branches()
+    meta = collect_meta(commits)
+    title = args.title or f"{meta['repo']} Git Graph"
+
+    excluded = False
+    if args.out:
+        out = Path(args.out).expanduser()
+        if not out.is_absolute():
+            out = Path.cwd() / out          # relatív út a hívás helyéhez
+    else:
+        # Stabil hely a repón belül: ugyanabból a fájlból frissül az Artifact.
+        out = REPO / OUT_DIR / "index.html"
+        excluded = ensure_excluded()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(build(commits, edges, stats, branches, meta, title), encoding="utf-8")
+
+    print(f"✓ {out}  ({out.stat().st_size:,} B)")
+    print(f"  {meta['repo']}: {len(commits)} commit"
+          f"{'' if limit is None or len(commits) < limit else f' (a {limit}-es limitig)'}"
+          f" · {max(c['lane'] for c in commits) + 1} sáv · {len(edges)} él"
+          f" · {len(branches)} ág")
+
+    if excluded:
+        print(f"  ({OUT_DIR}/ felvéve a .git/info/exclude-ba)")
+
+    url, fresh = artifact_state()
+    if url:
+        print(f"  Artifact: {url}"
+              f"{'' if fresh else '  ← ELAVULT (azóta új commit; /git-graph frissíti)'}")
+
+    if args.open_mode:
+        mode = args.open_mode
+        if mode == "artifact" and not url:
+            print("  Nincs megjegyzett Artifact ehhez a repóhoz — a helyi fájlt nyitom.")
+            mode = "local"
+        elif mode == "auto":
+            # Az Artifact pillanatkép: csak akkor nyitjuk, ha az aktuális HEAD-et
+            # mutatja — különben a frissen generált helyi fájl a helyes válasz.
+            mode = "artifact" if (url and fresh) else "local"
+        webbrowser.open(url if mode == "artifact" else out.as_uri())
+        where = "Artifact (böngészőben)" if mode == "artifact" else "helyi fájl"
+        print(f"  Megnyitva: {where}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

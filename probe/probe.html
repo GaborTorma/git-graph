@@ -1,0 +1,232 @@
+<meta charset="utf-8">
+<title>MCP Host Probe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+:root {
+  --bg: #14161a; --panel: #1b1e24; --panel-2: #21252c; --line: #2c313a;
+  --fg: #d7dbe2; --fg-strong: #ffffff; --fg-dim: #8d95a3;
+  --accent: #58a6ff; --ok: #3fb950; --warn: #d29922; --fail: #f85149; --idle: #6e7681;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f0f2f5; --line: #dde1e7;
+    --fg: #2b3038; --fg-strong: #0d1117; --fg-dim: #656d78;
+    --accent: #0969da; --ok: #1a7f37; --warn: #9a6700; --fail: #cf222e; --idle: #8c959f;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f0f2f5; --line: #dde1e7;
+  --fg: #2b3038; --fg-strong: #0d1117; --fg-dim: #656d78;
+  --accent: #0969da; --ok: #1a7f37; --warn: #9a6700; --fail: #cf222e; --idle: #8c959f;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 28px 22px 52px; background: var(--bg); color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+.mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+h1 { margin: 0 0 6px; font-size: 21px; font-weight: 650; color: var(--fg-strong);
+     letter-spacing: -0.01em; text-wrap: balance; }
+.lede { margin: 0; color: var(--fg-dim); max-width: 64ch; }
+
+.verdict { border: 1px solid var(--line); border-left: 3px solid var(--idle);
+           border-radius: 6px; background: var(--panel); padding: 15px 17px; }
+.verdict[data-state="ok"] { border-left-color: var(--ok); }
+.verdict[data-state="fail"] { border-left-color: var(--fail); }
+.verdict h2 { margin: 0 0 5px; font-size: 16px; font-weight: 650; color: var(--fg-strong); }
+.verdict p { margin: 0; color: var(--fg-dim); }
+
+.steps { display: flex; flex-direction: column; gap: 1px; background: var(--line);
+         border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.step { background: var(--panel); padding: 12px 16px; display: grid;
+        grid-template-columns: 16px 1fr auto; gap: 12px; align-items: start; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--idle); margin-top: 6px; }
+.step[data-state="run"] .dot { background: var(--warn); }
+.step[data-state="ok"] .dot { background: var(--ok); }
+.step[data-state="fail"] .dot { background: var(--fail); }
+.step .name { color: var(--fg-strong); font-weight: 550; }
+.step .detail { color: var(--fg-dim); font-size: 13px; margin-top: 2px; word-break: break-word; }
+.chip { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--fg-dim);
+        border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px;
+        white-space: nowrap; align-self: center; }
+.step[data-state="ok"] .chip { color: var(--ok); border-color: var(--ok); }
+.step[data-state="fail"] .chip { color: var(--fail); border-color: var(--fail); }
+.step[data-state="run"] .chip { color: var(--warn); border-color: var(--warn); }
+
+pre { margin: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+      padding: 12px 14px; overflow-x: auto; font-size: 12.5px; color: var(--fg); }
+h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
+     color: var(--fg-dim); font-weight: 600; }
+button { font: inherit; font-size: 13px; cursor: pointer; background: var(--panel-2);
+         color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 14px; }
+button:hover { border-color: var(--accent); color: var(--fg-strong); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Elér-e egy Artifact oldal helyi MCP szervert?</h1>
+    <p class="lede">Ugyanaz a <code class="mono">ping</code> tool fut két néven: egyszer a
+      <strong>Claude Code</strong> regisztrációjából, egyszer a <strong>Claude Desktop</strong>
+      configjából. A válaszból kiderül, melyik ér el a lapig — és hogy a
+      <code class="mono">host:</code> híd egyáltalán él-e.</p>
+  </header>
+
+  <div class="verdict" id="verdict" data-state="idle">
+    <h2 id="verdictTitle">Mérés folyamatban…</h2>
+    <p id="verdictText">A lap betöltéskor magától lefuttatja a próbákat.</p>
+  </div>
+
+  <div class="steps" id="steps"></div>
+
+  <div class="actions">
+    <button type="button" id="rerun">Mérés újra</button>
+    <button type="button" id="theme">Téma</button>
+  </div>
+
+  <section>
+    <h3>Nyers kimenet</h3>
+    <pre class="mono" id="raw">(még nincs)</pre>
+  </section>
+</div>
+
+<script>
+const SERVERS = [
+  { id: "host:gg-probe-code", label: "Claude Code regisztráció", key: "code" },
+  { id: "host:gg-probe-app",  label: "Claude Desktop config",    key: "app"  },
+];
+
+const stepsEl = document.getElementById('steps');
+const rawEl = document.getElementById('raw');
+const log = [];
+
+function addStep(key, name) {
+  const el = document.createElement('div');
+  el.className = 'step'; el.dataset.state = 'idle'; el.id = 'step-' + key;
+  el.innerHTML = '<span class="dot"></span>'
+    + '<span><span class="name"></span><span class="detail"></span></span>'
+    + '<span class="chip">várakozik</span>';
+  el.querySelector('.name').textContent = name;
+  stepsEl.append(el);
+}
+function setStep(key, state, detail, chip) {
+  const el = document.getElementById('step-' + key);
+  if (!el) return;
+  el.dataset.state = state;
+  el.querySelector('.detail').textContent = detail ? ' — ' + detail : '';
+  el.querySelector('.chip').textContent = chip || state;
+}
+function note(line, obj) {
+  log.push(obj === undefined ? line : line + '\n' + JSON.stringify(obj, null, 2));
+  rawEl.textContent = log.join('\n\n');
+}
+function verdict(state, title, text) {
+  const v = document.getElementById('verdict');
+  v.dataset.state = state;
+  document.getElementById('verdictTitle').textContent = title;
+  document.getElementById('verdictText').textContent = text;
+}
+const errInfo = e => ({ code: e && e.code, message: e && e.message, retryable: e && e.retryable });
+
+async function run() {
+  stepsEl.innerHTML = ''; log.length = 0; rawEl.textContent = '(fut…)';
+  verdict('idle', 'Mérés folyamatban…', 'Lépésenként haladok.');
+
+  addStep('claude', 'window.claude jelen van');
+  addStep('use', 'claude.use("mcp") feloldódik');
+  addStep('list', 'listTools() — mely szerverek hívhatók');
+  SERVERS.forEach(s => addStep('ct-' + s.key, 'callTool ping — ' + s.label));
+
+  const hasClaude = typeof window.claude === 'object' && window.claude !== null
+                    && typeof window.claude.use === 'function';
+  setStep('claude', hasClaude ? 'ok' : 'fail',
+          hasClaude ? '' : 'a lap nem Artifact-nézetben fut (böngészőfül?)',
+          hasClaude ? 'megvan' : 'hiányzik');
+  note('window.claude: ' + (hasClaude ? 'van, use() elérhető' : 'NINCS'));
+  if (!hasClaude) {
+    verdict('fail', 'Nem Artifact-nézetben fut',
+            'Ezt a Claude appban, az Artifact-ablakban kell megnyitni — böngészőfülben a host: hívások eleve nem mennek.');
+    return;
+  }
+
+  // null = nincs kiszolgálva / nincs engedélyezve / nem töltődött be —
+  // szándékosan megkülönböztethetetlen. 10 s után dől el.
+  setStep('use', 'run', 'várakozás a viewerre (max 10 s)', 'fut');
+  const mcp = await window.claude.use('mcp');
+  if (!mcp) {
+    setStep('use', 'fail', 'null — a képesség nem elérhető ebben a nézetben', 'null');
+    note('claude.use("mcp") → null');
+    verdict('fail', 'Az mcp képesség nem elérhető',
+            'A lap fut, de a viewer nem adta meg az mcp képességet ennek a nézetnek.');
+    return;
+  }
+  setStep('use', 'ok', 'namespace megvan', 'ok');
+  note('claude.use("mcp") → namespace: ' + Object.keys(mcp).join(', '));
+
+  // listTools() paraméter NÉLKÜL: a manifest és a néző tényleges konnektorainak
+  // metszete. Host-híd nélkül a host: szerverek egyszerűen hiányoznak innen.
+  setStep('list', 'run', '', 'fut');
+  let listed = [];
+  try {
+    const lt = await mcp.listTools();
+    listed = (lt.servers || []).map(x => x.server);
+    setStep('list', listed.length ? 'ok' : 'fail',
+            listed.length ? listed.join(', ') : 'egyetlen hívható szerver sincs',
+            listed.length ? listed.length + ' szerver' : 'üres');
+    note('listTools() →', lt);
+  } catch (e) {
+    setStep('list', 'fail', (e && e.code) || String(e), (e && e.code) || 'hiba');
+    note('listTools() ELUTASÍTVA →', errInfo(e));
+  }
+
+  const reached = [];
+  for (const s of SERVERS) {
+    // A döntő lépés. Akkor is megpróbáljuk, ha a listTools nem sorolta fel.
+    setStep('ct-' + s.key, 'run',
+            listed.includes(s.id) ? s.id : s.id + ' (a listában nem szerepelt)', 'fut');
+    try {
+      const res = await mcp.callTool(s.id, 'ping', { message: 'artifact oldalról' });
+      const p = res.payload;
+      const who = (p && typeof p === 'object')
+        ? p.server + ' / origin=' + p.origin + ' / call=' + p.call + ' / pid=' + p.pid
+        : String(p);
+      setStep('ct-' + s.key, 'ok', who, 'válaszolt');
+      note('callTool("' + s.id + '", "ping") payload →', p);
+      if (res.cache) note('  cache →', res.cache);
+      reached.push(s);
+    } catch (e) {
+      setStep('ct-' + s.key, 'fail', (e && e.code) || String(e), (e && e.code) || 'hiba');
+      note('callTool("' + s.id + '", "ping") ELUTASÍTVA →', errInfo(e));
+    }
+  }
+
+  if (reached.length === 2) {
+    verdict('ok', 'Mindkét regisztráció elérhető',
+            'A host: híd él, és a Claude Code-ban meg a Desktop configban felvett szervert is eléri. Az élő git-gráf terv mehet.');
+  } else if (reached.length === 1) {
+    verdict('ok', 'Elérhető: ' + reached[0].label,
+            'Csak a(z) "' + reached[0].id + '" válaszolt — az MCP szervert ebbe a regisztrációba kell tenni. Az élő git-gráf terv mehet.');
+  } else {
+    verdict('fail', 'Egyik regisztráció sem érhető el',
+            'A lap eléri az mcp képességet, de egyik host: szerver sem válaszol. A nyers kimenetben a hibakód mondja meg, miért: server_not_connected = nincs host-híd ezen a felületen, vagy a helyi szerver nem fut.');
+  }
+}
+
+document.getElementById('rerun').addEventListener('click', run);
+document.getElementById('theme').addEventListener('click', () => {
+  const root = document.documentElement;
+  const dark = root.getAttribute('data-theme') === 'dark' ||
+    (!root.hasAttribute('data-theme') && !matchMedia('(prefers-color-scheme: light)').matches);
+  root.setAttribute('data-theme', dark ? 'light' : 'dark');
+});
+
+run();
+</script>
