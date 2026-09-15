@@ -223,7 +223,8 @@ def collect_uncommitted() -> tuple[dict, dict] | None:
         "author": "*",
         "date": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "refs": [],
-        "subject": "Uncommitted Changes",
+        # A fájlszám a soron is látszik — a részletek-panel kinyitása nélkül.
+        "subject": f"Uncommitted Changes ({len(files)} fájl)",
         "body": "",
         "uncommitted": True,
     }

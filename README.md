@@ -154,8 +154,9 @@ folyamat nem tudja vezérelni — részletek és mérés: [docs/artifact-finding
 ## Uncommitted Changes
 
 Ha a munkakönyvtárban van változás, a gráf tetején — a Git Graph mintájára —
-megjelenik egy **ál-sor**: `Uncommitted Changes`, üres karikával, szaggatott
-vonallal a HEAD-re. Rákattintva ugyanaz a részletek-panel nyílik, mint egy
+megjelenik egy **ál-sor**: `Uncommitted Changes (3 fájl)`, üres karikával,
+szaggatott vonallal a HEAD-re. A zárójelben az érintett fájlok száma — így a
+panel kinyitása nélkül is látszik. Rákattintva ugyanaz a részletek-panel nyílik, mint egy
 commitnál: fájlonkénti `+`/`−` a HEAD-hez képest, a követetlen fájlok pedig
 `új` jelöléssel (számok nélkül — a diff nem látja őket).
 
