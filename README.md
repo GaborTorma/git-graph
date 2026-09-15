@@ -151,6 +151,17 @@ vakon választ:
 Mindegyik a **rendszer böngészőjében** nyit. A Claude Artifact-ablakát külső
 folyamat nem tudja vezérelni — részletek és mérés: [docs/artifact-findings.md](docs/artifact-findings.md).
 
+## Uncommitted Changes
+
+Ha a munkakönyvtárban van változás, a gráf tetején — a Git Graph mintájára —
+megjelenik egy **ál-sor**: `Uncommitted Changes`, üres karikával, szaggatott
+vonallal a HEAD-re. Rákattintva ugyanaz a részletek-panel nyílik, mint egy
+commitnál: fájlonkénti `+`/`−` a HEAD-hez képest, a követetlen fájlok pedig
+`új` jelöléssel (számok nélkül — a diff nem látja őket).
+
+Nem commit, ezért a fejléc számlálójába nem számít bele, és a szűrők sem rejtik
+el. Élő módban magától megjelenik és tűnik el, ahogy szerkesztesz.
+
 ## Hogyan rajzol
 
 A git saját lane-kiosztását követi: a commit abba a sávba ül, amelyik már rá

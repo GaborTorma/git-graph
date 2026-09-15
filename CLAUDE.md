@@ -87,6 +87,11 @@ változnia), és repóváltás a `~/.git-graph/current` átírásával.
 - **A repó a kérés URL-jében van** (`/?repo=…`), nem globális állapotban: több
   session panelje egyszerre kérdezi ugyanazt a szervert, és egy közös „aktuális
   repó" véletlenszerűen váltogatna. A `~/.git-graph/current` csak tartalék.
+- **Az `Uncommitted Changes` ál-sor a `commits` lista 0. eleme** (`sha`:
+  `*uncommitted`), a szülője a HEAD. Az `assign_lanes` magától kezeli, de az
+  `edges` **sorindexeket** használ — ezért az ál-sort a lane-kiosztás ELŐTT kell
+  beszúrni, a `meta` viszont még a valódi commitokból készül (különben a
+  „N commit látszik" hazudna).
 - **Minden git-hívás `--no-optional-locks`**: a `git status` egyébként frissíti
   az indexet, ahhoz `index.lock`-ot vesz, és a 2 mp-es pollozás így a Fejlesztő
   saját git-parancsait akasztja meg (egy commit tényleg elhasalt rajta).

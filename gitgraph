@@ -36,6 +36,7 @@ túl; minden git-hívás csak olvas.
 from __future__ import annotations
 
 import argparse
+import datetime
 import hashlib
 import html
 import http.server
@@ -175,6 +176,58 @@ def collect_stats(limit: int | None) -> dict[str, dict]:
             files.append({"path": path, "add": ai, "del": di, "bin": not a.isdigit()})
         stats[sha] = {"files": files, "add": added, "del": deleted}
     return stats
+
+
+UNCOMMITTED = "*uncommitted"
+
+
+def collect_uncommitted() -> tuple[dict, dict] | None:
+    """A munkakönyvtár változásai egy ál-commitként, a Git Graph mintájára.
+
+    A gráf tetejére kerül, szülője a HEAD — így szaggatott vonallal odalóg, és
+    a soron kattintva ugyanaz a részletek-panel nyílik, mint egy commitnál.
+    Változás nélkül nincs sor (`None`).
+    """
+    status = [l for l in git("status", "--porcelain").splitlines() if l.strip()]
+    if not status:
+        return None
+    try:
+        head = git("rev-parse", "HEAD").strip()
+    except subprocess.CalledProcessError:
+        return None                      # commit nélküli repó: nincs mihez kötni
+
+    files, added, deleted = [], 0, 0
+    for line in git("diff", "--numstat", "HEAD").splitlines():
+        cols = line.split("\t")
+        if len(cols) < 3:
+            continue
+        a, d, path = cols[0], cols[1], cols[2]
+        ai = int(a) if a.isdigit() else 0
+        di = int(d) if d.isdigit() else 0
+        added += ai
+        deleted += di
+        files.append({"path": path, "add": ai, "del": di, "bin": not a.isdigit()})
+
+    # A követetlen fájlokat a diff nem látja — számok helyett „új" jelöléssel.
+    known = {f["path"] for f in files}
+    for line in status:
+        if line.startswith("??"):
+            path = line[3:].strip().strip('"')
+            if path not in known:
+                files.append({"path": path, "add": 0, "del": 0, "bin": False, "new": True})
+
+    commit = {
+        "sha": UNCOMMITTED,
+        "short": "*",
+        "parents": [head],
+        "author": "*",
+        "date": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "refs": [],
+        "subject": "Uncommitted Changes",
+        "body": "",
+        "uncommitted": True,
+    }
+    return commit, {"files": files, "add": added, "del": deleted}
 
 
 def assign_lanes(commits: list[dict]) -> list[dict]:
@@ -371,12 +424,21 @@ def collect_payload(limit: int | None) -> dict:
     commits = collect_commits(limit)
     if not commits:
         return {}
+    stats = collect_stats(limit)
+    meta = collect_meta(commits)          # még a valódi commitokból: `shown`
+
+    pending = collect_uncommitted()
+    if pending:
+        commit, churn = pending
+        commits.insert(0, commit)         # a gráf tetejére, a HEAD fölé
+        stats[commit["sha"]] = churn
+
     return {
         "commits": commits,
         "edges": assign_lanes(commits),
-        "stats": collect_stats(limit),
+        "stats": stats,
         "branches": collect_branches(),
-        "meta": collect_meta(commits),
+        "meta": meta,
     }
 
 
@@ -576,6 +638,7 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
 .row[aria-expanded="true"] { background: var(--bg-selected); }
 .row[aria-expanded="true"] .desc, .row[aria-expanded="true"] .sha { color: var(--fg-strong); }
 .row.dim { opacity: .28; }
+.row.uncommitted .subject { font-style: italic; color: var(--fg-faint); }
 
 .cell { padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .desc { display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -722,13 +785,18 @@ function drawGraph(rowIndexBySha) {
     const x1 = laneX(e.fromLane), y1 = rowY(a);
     const x2 = laneX(e.toLane),   y2 = rowY(b);
     const color = LANE_COLORS[(e.merge ? e.fromLane : e.toLane) % LANE_COLORS.length];
-    out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"/>`;
+    // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re.
+    const dash = DATA.commits[e.fromRow].uncommitted ? ' stroke-dasharray="3 3"' : '';
+    out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
   }
   visible.forEach((c, i) => {
     const color = LANE_COLORS[c.lane % LANE_COLORS.length];
     const merge = c.parents.length > 1;
-    out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="${merge ? DOT_R + 1 : DOT_R}"`
-        +  ` fill="${merge ? 'var(--bg)' : color}" stroke="${color}" stroke-width="2"/>`;
+    // Az ál-sor pontja üres karika: a szaggatott vonal már jelzi, hogy nem
+    // commit — a pöttyözött körvonal ezen a méreten csak elmosódna.
+    const hollow = merge || c.uncommitted;
+    out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="${hollow ? DOT_R + 1 : DOT_R}"`
+        +  ` fill="${hollow ? 'var(--bg)' : color}" stroke="${color}" stroke-width="2"/>`;
   });
   svg.innerHTML = out;
 }
@@ -763,7 +831,7 @@ function badges(c) {
 function render() {
   const rowIndexBySha = new Map(visible.map((c, i) => [c.sha, i]));
   rowsEl.innerHTML = visible.map((c, i) => `
-    <button class="row" type="button" data-sha="${c.sha}" aria-expanded="false">
+    <button class="row${c.uncommitted ? ' uncommitted' : ''}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="cell"></span>
       <span class="cell desc">${badges(c)}<span class="subject">${esc(c.subject)}</span></span>
       <span class="cell date">${fmtDate(c.date)}</span>
@@ -771,7 +839,8 @@ function render() {
       <span class="cell sha mono">${c.short}</span>
     </button>`).join('') || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
   drawGraph(rowIndexBySha);
-  counter.innerHTML = `<b>${visible.length}</b> commit látszik / ${DATA.meta.totalCommits}`;
+  const shown = visible.filter(c => !c.uncommitted).length;   // az ál-sor nem commit
+  counter.innerHTML = `<b>${shown}</b> commit látszik / ${DATA.meta.totalCommits}`;
   if (expanded && rowIndexBySha.has(expanded)) open(expanded); else expanded = null;
 }
 
@@ -805,7 +874,7 @@ function open(sha) {
         <span style="color:var(--add)">+${st.add}</span>
         <span style="color:var(--del)">−${st.del}</span></div>
       ${st.files.map(f => `<div class="file"><span class="mono">${esc(f.path)}</span>
-        <span class="churn mono">${f.bin ? 'bin'
+        <span class="churn mono">${f.new ? 'új' : f.bin ? 'bin'
           : `<span class="a">+${f.add}</span> <span class="d">−${f.del}</span>`}</span></div>`).join('')}
     </div>`;
   row.after(el);
@@ -870,6 +939,7 @@ function applyFilters() {
   const keep = branch ? ancestryOf(branch) : null;
 
   visible = DATA.commits.filter(c => {
+    if (c.uncommitted) return true;       // állapot, nem commit: mindig látszik
     if (keep && !keep.has(c.sha)) return false;
     if (refsOnly && c.refs.length === 0) return false;
     if (!remotes && c.refs.length && c.refs.every(r => r.kind === 'remote')) return false;
