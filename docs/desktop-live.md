@@ -59,6 +59,24 @@ Mért számok egy 210 commitos repón: `/fingerprint` 173 B / ~66 ms,
   a fejléc és az ág-lista is követi
 - a statikus `gg` kimenet változatlanul működik (`LIVE = false`, nincs pollozás)
 
+## Amit az első éles nap kihozott
+
+Két hiba jött elő, mindkettő a több-session használatból, illetve valós
+commit-szövegből:
+
+- **Rossz repó a panelen.** A repót eleinte egyetlen globális fájl
+  (`~/.git-graph/current`) mondta meg, amit minden session indulása felülírt —
+  több nyitott session mellett a panel véletlenszerűen váltogatott. Javítás: a
+  repó a kérés URL-jébe került (`/?repo=…`), a hook ezt az URL-t adja át; a
+  `current` csak tartalék a paraméter nélküli `/`-hez. Mérve: két panel,
+  `git-graph` (2 sor) és `varazskez` (78 sor) egyszerre, több poll-cikluson át
+  megmaradt a sajátjánál.
+- **Szétesett lap.** A `varazskez` repó egyik commit-üzenete tartalmazza a
+  `</script>` karakterláncot (*„JSON-LD </script>-escape"*) — ez a beágyazott
+  `DATA`-ban korán lezárta a script blokkot, és a maradék JSON szövegként ömlött
+  a lapra. Javítás: `embed()` — `</` → `<\/` és U+2028/29 escape. A generált
+  oldalon ellenőrizve: pontosan egy `<script>`/`</script>` pár marad.
+
 ## Nyitott, nem mért
 
 Túléli-e a Browser-panel tabja az **új sessiont**. A csomagban van tab-perzisztencia

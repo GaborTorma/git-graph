@@ -52,9 +52,10 @@ A cél: **ne kelljen parancsot írni a chatbe**, mégis friss gráfot láss.
 2. A lap kétmásodpercenként az **ujjlenyomatot** kéri, és csak tényleges
    változásra tölt `/data`-t — a nyitott commit-panel, a szűrők és a görgetés
    megmaradnak.
-3. Melyik repót mutatja? Amit a **SessionStart hook** beírt a
-   `~/.git-graph/current` fájlba — vagyis mindig az éppen nyitott session
-   repóját. Repót váltasz → a panel magától átvált.
+3. Melyik repót mutatja? Amit az URL mond: `…:7788/?repo=<a repó útja>`. A
+   **SessionStart hook** ezt az URL-t adja át — így minden session panelje a
+   **sajátját** mutatja akkor is, ha több session fut egyszerre. Paraméter
+   nélkül (`/`) a `~/.git-graph/current` a tartalék, amit szintén a hook ír.
 4. A hook a session indulásakor megkéri Claude-ot, hogy nyissa meg a Browser
    panelt ezzel az URL-lel. Utána már csak a panel **Show/Hide Browser**
    kapcsolója kell.

@@ -68,6 +68,13 @@ változnia), és repóváltás a `~/.git-graph/current` átírásával.
 - **A `file://` megnyitás a Browser panelen `data:` originné válik** — beágyazott
   pillanatkép, magától nem tölt újra, és nem `fetch`-el. Az élő mód ezért
   loopback HTTP, nem fájl.
+- **A beágyazott JSON lezárhatja a script blokkot**: egy commit-üzenetben tényleg
+  előfordult `</script>` (varazskez repó) → a lap fele nyers JSON-ként ömlött ki.
+  A `build()` ezért az `embed()`-en át ágyaz (`</` → `<\/`, U+2028/29 escape).
+  Bármi, ami a lapra kerül, ezen menjen át.
+- **A repó a kérés URL-jében van** (`/?repo=…`), nem globális állapotban: több
+  session panelje egyszerre kérdezi ugyanazt a szervert, és egy közös „aktuális
+  repó" véletlenszerűen váltogatna. A `~/.git-graph/current` csak tartalék.
 - **A `REPO` modulszintű globális**, a szerver viszont kérésenként más repót
   szolgálhat ki: a kiszolgálás ezért **sorosított** (lock), és a `_REMOTES`
   cache-t minden váltásnál nullázni kell.

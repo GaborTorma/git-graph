@@ -43,6 +43,7 @@ import socket
 import subprocess
 import sys
 import threading
+import urllib.parse
 import webbrowser
 from pathlib import Path
 
@@ -878,13 +879,14 @@ render();
    nyitott commit-panel, a szűrők és a görgetés megmaradnak. */
 if (LIVE) {
   const POLL_MS = 2000;
+  const Q = location.search;        // a ?repo= paramétert minden kérés viszi
   const foot = document.getElementById('foot');
   const scroller = document.querySelector('.scroll');
   let last = null, broken = false;
 
   async function swap() {
     const top = scroller.scrollTop;
-    DATA = await fetch('/data', { cache: 'no-store' }).then(r => r.json());
+    DATA = await fetch('/data' + Q, { cache: 'no-store' }).then(r => r.json());
     hydrate();
     fillBranches();
     applyFilters();
@@ -893,7 +895,7 @@ if (LIVE) {
 
   async function poll() {
     try {
-      const f = await fetch('/fingerprint', { cache: 'no-store' }).then(r => r.json());
+      const f = await fetch('/fingerprint' + Q, { cache: 'no-store' }).then(r => r.json());
       const key = [f.repoPath, f.head, f.refs, f.dirty].join('|');
       if (last !== null && key !== last) await swap();
       last = key;
@@ -920,10 +922,25 @@ STATIC_FOOT = ("Statikus pillanatkép — a <code class=\"mono\">gg</code> gener
 LIVE_FOOT = "Élő — kapcsolódás…"
 
 
+def embed(payload: dict) -> str:
+    r"""A `<script>`-be ágyazható JSON.
+
+    Egy commit-üzenetben előfordulhat `</script>` (láttuk: „JSON-LD
+    </script>-escape") — az a script blokkot korán lezárja, és a maradék JSON
+    szövegként ömlik a lapra. A `<\/` JSON-szinten ugyanaz a karakterlánc, a
+    HTML-parszer viszont nem látja benne a záró taget. A sorelválasztók (U+2028,
+    U+2029) ugyanezt a kárt tudják okozni régebbi JS-motorokon.
+    """
+    raw = json.dumps(payload, ensure_ascii=False)
+    return (raw.replace("</", "<\\/")
+               .replace("\u2028", "\\u2028")
+               .replace("\u2029", "\\u2029"))
+
+
 def build(payload: dict, title: str, live: bool = False) -> str:
     meta = payload["meta"]
     return (
-        TEMPLATE.replace("__DATA__", json.dumps(payload, ensure_ascii=False))
+        TEMPLATE.replace("__DATA__", embed(payload))
         .replace("__LIVE__", "true" if live else "false")
         .replace("__FOOT__", LIVE_FOOT if live else STATIC_FOOT)
         .replace("__REPO__", html.escape(meta["repo"]))
@@ -963,9 +980,21 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
     # a kiszolgálást ezért sorosítjuk. Egy kérés pár tized másodperc.
     lock = threading.Lock()
 
-    def switch() -> Path:
+    def switch(wanted: str | None) -> Path:
+        """A kérés repója: a `?repo=` paraméter, különben amit a hook beírt.
+
+        A paraméter azért kell, mert egyszerre több session (több Browser panel)
+        kérdezi ugyanezt a szervert — egy globális „aktuális repó" ilyenkor
+        véletlenszerűen váltogatna. Az URL-be sütve minden panel a sajátját látja.
+        """
         global REPO, _REMOTES
-        repo = current_repo(fallback)
+        if wanted:
+            try:
+                repo = resolve_repo(Path(wanted).expanduser())
+            except SystemExit as exc:     # a resolve_repo CLI-re van szabva
+                raise FileNotFoundError(str(exc)) from None
+        else:
+            repo = current_repo(fallback)
         if repo is None:
             raise FileNotFoundError("nincs kiszolgálható repó")
         REPO = repo
@@ -985,10 +1014,12 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
             self.wfile.write(body)
 
         def do_GET(self) -> None:
-            route = self.path.split("?", 1)[0].rstrip("/") or "/"
+            split = urllib.parse.urlsplit(self.path)
+            route = split.path.rstrip("/") or "/"
+            wanted = urllib.parse.parse_qs(split.query).get("repo", [None])[0]
             try:
                 with lock:
-                    repo = switch()
+                    repo = switch(wanted)
                     if route == "/fingerprint":
                         return self.reply(200, json.dumps(fingerprint()).encode(),
                                           "application/json; charset=utf-8")
@@ -1046,7 +1077,7 @@ def session_hook(port: int) -> int:
     CURRENT.write_text(f"{repo}\n", encoding="utf-8")
     if not port_open(port):
         return 0                                   # nem fut a szerver: néma kilépés
-    url = f"http://127.0.0.1:{port}"
+    url = f"http://127.0.0.1:{port}/?repo={urllib.parse.quote(str(repo))}"
     json.dump(
         {
             "hookSpecificOutput": {
