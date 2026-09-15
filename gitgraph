@@ -1129,7 +1129,8 @@ def write_launch_config(repo: Path, port: int) -> tuple[Path, str]:
     data.setdefault("version", "0.0.1")
     others = [c for c in data.get("configurations", [])
               if not (isinstance(c, dict) and c.get("name") == LAUNCH_NAME)]
-    data["configurations"] = others + [{"name": LAUNCH_NAME, "url": url, "port": port}]
+    # Mindig az ELSŐ bejegyzés: a névtelen indítás a lista elejéről választ.
+    data["configurations"] = [{"name": LAUNCH_NAME, "url": url, "port": port}] + others
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

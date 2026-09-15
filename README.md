@@ -77,7 +77,8 @@ A Chromium minden `*.localhost` nevet a loopbackra old fel, a szerver pedig a
 `~/.git-graph/repos.json` tartja.
 
 A parancs a fájl **többi bejegyzését és kulcsát megtartja** (csak a saját,
-`git-graph` nevű sorát cseréli), de a JSON-t újraformázza.
+`git-graph` nevű sorát cseréli), de a JSON-t újraformázza. A `git-graph` mindig
+a **lista elejére** kerül — a névtelen indítás az első bejegyzést választja.
 
 A slug abszolút útvonalból származik, más gépen értelmetlen — ezért a parancs a
 `launch.json`-t felveszi a repó **lokális** ignore-listájába
