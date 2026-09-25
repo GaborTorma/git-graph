@@ -674,7 +674,7 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.badge.ref-head, .badge.ref-detached { background: #0e7a3d; font-weight: 700; }
+.badge.ref-head, .badge.ref-detached { background: #0e7a3d; font-weight: 900; }
 .badge.ref-branch { background: #1f6feb; }
 .badge.ref-remote { background: #6e4bb8; }
 .badge.ref-tag    { background: var(--tag-bg); border-radius: 3px; }
