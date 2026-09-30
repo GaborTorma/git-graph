@@ -204,10 +204,13 @@ A hash és a fájl csak **pusholt** commitnál link (az `origin` valamelyik ága
 eléri) — a helyi commit a GitHubon 404 lenne. Más hoston (GitLab, …) nincs
 linkesítés: ott a `#szám` mást jelent.
 
-Minden link a lapon, JS-ből épül — az adatban nincs URL. A fájl-diff horgonyát
-(`#diff-<sha256(út)>`) is a panel kinyitásakor számolja (`crypto.subtle`, ami
-csak secure contextben van: Artifact, `*.localhost`; máshol a link horgony
-nélkül a commit-oldalra mutat).
+A linkek nem `<a href>` elemek: a lapon csak egy osztály jelöli őket (`gh-c`
+commit, `gh-f` fájl, `gh-i` issue), az URL-t kattintáskor egyetlen kezelő rakja
+össze a sor `data-sha`-jából és a szövegből — az adatban és a DOM-ban nincs
+URL. A fájl-diff horgonyát (`#diff-<sha256(út)>`) is ekkor számolja
+(`crypto.subtle`, ami csak secure contextben van: Artifact, `*.localhost`;
+máshol a commit-oldal nyílik, horgony nélkül). Ára: nincs jobbklikkes
+„link másolása” és középső gombos megnyitás.
 
 ## Hogyan rajzol
 

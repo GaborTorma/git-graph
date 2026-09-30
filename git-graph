@@ -767,8 +767,8 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
 .meta a { color: var(--accent); text-decoration: none; cursor: pointer; }
 .meta a:hover { text-decoration: underline; }
 .body-text { white-space: pre-wrap; font-size: 12px; color: var(--fg); margin: 0 0 12px; max-width: 68ch; }
-.gh-link { color: var(--accent); text-decoration: none; }
-.gh-link:hover { text-decoration: underline; }
+.gh-c, .gh-f, .gh-i { color: var(--accent); cursor: pointer; }
+.gh-c:hover, .gh-f:hover, .gh-i:hover { text-decoration: underline; }
 
 .files { border-top: 1px solid var(--border-soft); padding-top: 10px; }
 .files-head { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-dim); margin-bottom: 6px; }
@@ -910,41 +910,56 @@ const fmtDate = iso => { const d = new Date(iso);
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} `
        + `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
-/* `#12` és `owner/repo#12` → GitHub-link (a `/issues/N` a PR-ra átirányít).
+/* GitHub-linkek: a lapon csak egy osztály jelöli őket (`gh-c` commit, `gh-f`
+   fájl-diff, `gh-i` issue/PR) — az URL-t kattintáskor egyetlen kezelő rakja
+   össze a sor/panel `data-sha`-jából és a szövegből. Commit és fájl csak
+   pusholt commitnál (`pushed`, a Python jelöli): a helyi a GitHubon 404 lenne. */
+const GH = '.gh-c, .gh-f, .gh-i';
+
+/* `#12` és `owner/repo#12` → issue/PR (a `/issues/N` a PR-ra átirányít).
    Előtte nem állhat szó- vagy URL-karakter: a `C#1` és a `lap.html#3` marad szöveg. */
 const ISSUE_RE = /(^|[^\w.\/-])([\w.-]+\/[\w.-]+)?#(\d+)\b/g;
 function linkify(s) {
-  const text = esc(s), base = DATA.meta.repoUrl;
-  if (!base) return text;
-  return text.replace(ISSUE_RE, (m, pre, repo, n) =>
-    pre + ghLink(`${repo ? 'https://github.com/' + repo : base}/issues/${n}`, `${repo || ''}#${n}`));
+  const text = esc(s);
+  if (!DATA.meta.repoUrl) return text;
+  return text.replace(ISSUE_RE, (m, pre, repo, n) => `${pre}<span class="gh-i">${repo || ''}#${n}</span>`);
 }
-
-const ghLink = (href, html, attrs = '') =>
-  `<a class="gh-link"${attrs} href="${href}" target="_blank" rel="noopener">${html}</a>`;
-
-/* Commit és fájl-diff link csak pusholt commitra (`pushed`, a Python jelöli). */
-const commitUrl = c => c.pushed ? `${DATA.meta.repoUrl}/commit/${c.sha}` : '';
-const shaHtml = (c, text) => c.pushed ? ghLink(commitUrl(c), text) : text;
+const shaHtml = (c, text) => c.pushed ? `<span class="gh-c">${text}</span>` : text;
+const pathHtml = (c, f) => c.pushed ? `<span class="gh-f">${esc(f.path)}</span>` : esc(f.path);
 
 /* A `--numstat` átnevezés-alakjából (`a => b`, `x/{a => b}/y`) az új út —
    a GitHub diff-horgonya ebből számol. */
 const newPath = p => !p.includes(' => ') ? p
   : p.includes('{') ? p.replace(/\{[^{}]* => ([^{}]*)\}/g, '$1').replace(/\/\//g, '/')
   : p.split(' => ')[1];
-const pathHtml = (c, f) => c.pushed
-  ? ghLink(commitUrl(c), esc(f.path), ` data-diff="${esc(newPath(f.path))}"`) : esc(f.path);
+const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 
-/* A fájl-diff horgonya (`#diff-<sha256(út)>`) itt készül, nem az adatban.
-   A crypto.subtle csak secure contextben van (Artifact, *.localhost) — nélküle
-   a link a commit-oldalra mutat, horgony nélkül. */
-async function fillDiffAnchors(root) {
-  if (!window.crypto || !crypto.subtle) return;
-  for (const a of root.querySelectorAll('a[data-diff]')) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(a.dataset.diff));
-    a.href += '#diff-' + [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+/* A diff-horgony `#diff-<sha256(új út)>`. A crypto.subtle csak secure
+   contextben van (Artifact, *.localhost) — nélküle a commit-oldal nyílik. */
+async function ghUrl(el) {
+  const text = el.textContent;
+  if (el.classList.contains('gh-i')) {
+    const [repo, n] = text.split('#');
+    return `${repo ? 'https://github.com/' + repo : DATA.meta.repoUrl}/issues/${n}`;
   }
+  const url = `${DATA.meta.repoUrl}/commit/${el.closest('[data-sha]').dataset.sha}`;
+  if (!el.classList.contains('gh-f') || !window.crypto || !crypto.subtle) return url;
+  return url + '#diff-' + hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(newPath(text))));
 }
+
+/* Élő módban a Browser panel a saját fülén nyitná — ott a szerver nyitja a
+   rendszerböngészőben; egyébként (Artifact, fájl) új ablak. */
+document.addEventListener('click', async e => {
+  const el = e.target.closest(GH);
+  if (!el) return;
+  const url = await ghUrl(el);
+  if (LIVE) {
+    try {
+      if ((await fetch('/open?url=' + encodeURIComponent(url), { method: 'POST' })).ok) return;
+    } catch {}
+  }
+  window.open(url, '_blank', 'noopener');
+});
 
 function badges(c) {
   return c.refs.map(r => {
@@ -985,6 +1000,7 @@ function open(sha) {
 
   const el = document.createElement('div');
   el.className = 'details';
+  el.dataset.sha = sha;      // a panel GitHub-linkjei innen tudják a commitot
   el.innerHTML = `
     <h2>${linkify(c.subject)}</h2>
     <dl class="meta">
@@ -1003,13 +1019,12 @@ function open(sha) {
           : `<span class="a">+${f.add}</span> <span class="d">−${f.del}</span>`}</span></div>`).join('')}
     </div>`;
   row.after(el);
-  fillDiffAnchors(el);
   expanded = sha;
   drawGraph();               // a panel alatti sorok lejjebb kerültek
 }
 
 rowsEl.addEventListener('click', e => {
-  if (e.target.closest('a[href]')) return;   // GitHub-link: nyíljon, a sor ne csukódjon
+  if (e.target.closest(GH)) return;          // GitHub-link: nyíljon, a sor ne csukódjon
   const jump = e.target.closest('[data-jump]');
   if (jump) {
     const target = rowsEl.querySelector(`.row[data-sha="${jump.dataset.jump}"]`);
@@ -1102,16 +1117,6 @@ if (LIVE) {
   const foot = document.getElementById('foot');
   const scroller = document.querySelector('.scroll');
   let last = null, broken = false;
-
-  // A panel a linket a saját fülén nyitná — a szerver a rendszerböngészőben nyitja.
-  document.addEventListener('click', e => {
-    const a = e.target.closest('a.gh-link');
-    if (!a) return;
-    e.preventDefault();
-    fetch('/open?url=' + encodeURIComponent(a.href), { method: 'POST' })
-      .then(r => { if (!r.ok) throw new Error(r.status); })
-      .catch(() => window.open(a.href, '_blank', 'noopener'));
-  });
 
   async function swap() {
     const top = scroller.scrollTop;
