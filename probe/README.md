@@ -9,6 +9,9 @@ Eldobható mérőeszköz. Egyetlen kérdést dönt el:
 elutasítja. Részletek és kontroll-mérések:
 [../docs/artifact-findings.md](../docs/artifact-findings.md).
 
+**2026-09-30: igen** (contract 0.2.66) — csak a `host:gg-probe-app` manifesttel
+publikálva, a Claude appban megnyitva a `ping` válaszolt.
+
 Ez a mappa azért maradt meg, hogy a kérdés **egy publikálásból** újramérhető
 legyen, ha a platform változik.
 

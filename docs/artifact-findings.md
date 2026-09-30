@@ -17,6 +17,19 @@ runtime contract **0.2.23**.
 > capability-listája bővült — `artifact, assets, db, downloads, mcp, room,
 > sample, self`. Az `assets` tehát **már elérhető** (lásd lent: akkor nem volt).
 > A `host:` MCP-t **nem mértem újra** — az élő úthoz nincs rá szükség.
+>
+> **2026-09-30 — a `host:` híd MŰKÖDIK** (contract **0.2.66**). A `probe/`
+> újramérve: a deploy elfogadta a `{"server": "host:gg-probe-app", "tools":
+> ["ping"]}` manifestet (`capabilities mcp: host gg-probe-app[1 tool]`), és a
+> Claude appban megnyitott lapon a `callTool("host:gg-probe-app", "ping")`
+> friss payloadot adott — ugyanaz a szerverfolyamat (pid) felelt, amit a Code
+> session is elér. Ma már a doksi is kimondja: *„Locally-configured MCP servers
+> connected in this session can also be declared, as host servers"*. Korlátok
+> (a típusdefinícióból): csak a Claude appban (böngészőfülben
+> `server_not_connected`), csak a tulajdonosnak, nem read-only toolra az app
+> megerősítést kérhet, a `watchTool` pollozása ≥ ~30 s. Csak a Claude app
+> configjában (`claude_desktop_config.json`) felvett szerver számít — a
+> `claude mcp add`-os nem (`gg-probe-code`: nem is volt deklarálható).
 
 ## A kiinduló kérdés
 
