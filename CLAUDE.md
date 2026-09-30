@@ -44,6 +44,8 @@ szintaxis-ellenőrizni. Az élő mód ellenőrzése: `gg --serve`, majd a lapon
 `DATA.meta.dirty` figyelése egy fájl létrehozása után (újratöltés nélkül kell
 változnia), és repóváltás a `~/.git-graph/current` átírásával.
 
+- **Check**: `syntax=python3 -c "import ast; ast.parse(open('git-graph').read())" && bash -n install.sh` · `js=sed -n '/^<script>$/,/^<\/script>$/{//!p;}' git-graph | node --check -`
+
 ## Konvenciók
 
 - **Nyelv**: magyar — kommentek, doksi, commit-body, a generált UI feliratai.
