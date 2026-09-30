@@ -10,7 +10,7 @@ Használat és felépítés: [README.md](README.md).
 
 | Útvonal | Mi ez |
 | --- | --- |
-| `git-graph` | a teljes eszköz egyetlen fájlban: git-adatgyűjtés + beágyazott HTML/CSS/JS sablon + élő szerver (`--serve`) + SessionStart hook (`--session-hook`) |
+| `git-graph` | a teljes eszköz egyetlen fájlban: git-adatgyűjtés + beágyazott HTML/CSS/JS sablon + élő szerver és háttér-publikálás (`--serve`) + headless Artifact-publikálás (`--publish`) + SessionStart hook (`--session-hook`) |
 | `gg` | symlink a `git-graph`-ra (rövid alias) |
 | `ggl` | ugyanaz a script; a `sys.argv[0]` neve kapcsolja a `--launch-config`-ot |
 | `install.sh` | symlinkek; `--live`: launchd agent + SessionStart hook a globális settingsbe |
@@ -26,8 +26,9 @@ Használat és felépítés: [README.md](README.md).
 ./install.sh          # symlinkek felrakása (idempotens)
 ./install.sh --live   # + launchd agent (gg --serve) és SessionStart hook
 gg --help             # a teljes súgó
-gg                    # az aktuális repó → <repó>/.git-graph/index.html
-gg --serve            # élő kiszolgálás a Claude Desktop Browser paneljének
+gg                    # az aktuális repó → ~/.git-graph/<slug>/index.html
+gg --publish          # Artifactként publikálja (headless claude -p)
+gg --serve            # élő kiszolgálás a Browser panelnek + háttér-publikálás
 gg --launch-config    # .claude/launch.json bejegyzés (preview_start git-graph)
 ggl                   # ugyanaz — a hívás neve kapcsolja
 python3 git-graph …    # symlink nélkül, közvetlenül
@@ -42,7 +43,12 @@ ellenőrzés: `gg` futtatása több repón (eltérő sávszámmal, merge-ekkel),
 generált HTML megnyitása. A JS-t a fájlból kivágva `node --check`-kel lehet
 szintaxis-ellenőrizni. Az élő mód ellenőrzése: `gg --serve`, majd a lapon
 `DATA.meta.dirty` figyelése egy fájl létrehozása után (újratöltés nélkül kell
-változnia), és repóváltás a `~/.git-graph/current` átírásával.
+változnia), és repóváltás a `~/.git-graph/current` átírásával. A publikálásé:
+`gg --publish` kétszer (a második „naprakész”), és a launchd szerver újraindítása
+(`launchctl kickstart -k gui/$UID/ai.torma.git-graph`) után a
+`~/.git-graph/serve.log` `[publish]` sorai egy fájlmódosításra (10 s) és egy
+commitra (2 s). A launchd más környezet, mint egy Desktop session shellje —
+ami onnan működik, azt launchd alatt is ki kell próbálni.
 
 - **Check**: `syntax=python3 -c "import ast; ast.parse(open('git-graph').read())" && bash -n install.sh` · `js=sed -n '/^<script>$/,/^<\/script>$/{//!p;}' git-graph | node --check -`
 
@@ -53,7 +59,9 @@ változnia), és repóváltás a `~/.git-graph/current` átírásával.
   **angolul** maradnak: az a Git Graph felismerhető arca. A Graph oszlop
   fejléce ikon (a felirat feleslegesen szélesre nyomta az oszlopot).
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
-  futnia kell, `pip install` nélkül. Ne hozz be libet.
+  futnia kell, `pip install` nélkül. Ne hozz be libet. A publikáláshoz a
+  `claude` CLI kell (külső program, `claude_bin()` keresi a launchd PATH-ján
+  kívül is); nélküle minden más működik.
 - **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a
   `.git/info/exclude` és a `.git/config` `git-graph.*` kulcsai (a régi
   `gitgraph.*` nevet még olvassuk, íráskor töröljük) — mindkettő lokális,
@@ -119,7 +127,28 @@ változnia), és repóváltás a `~/.git-graph/current` átírásával.
   Python eltűnhet egy frissítéssel) — a script maradjon 3.9-kompatibilis.
 - **A hook némán kilép**, ha a mappa nem repó vagy nem fut a szerver: egy
   SessionStart hook minden sessionben lefut, zajt nem csinálhat.
-- **A kimenet mindig `<repó>/.git-graph/index.html`** — ez stabil szerződés az
-  Artifact-frissítéssel. Ne tedd konfigurálhatóvá a default helyet.
+- **A kimenet mindig `~/.git-graph/<slug>/index.html`** — a repón KÍVÜL, ez
+  stabil szerződés a publikálással (a headless claude ezt a mappát kapja
+  munkakönyvtárnak; az Artifact csak onnan olvas). Ne tedd konfigurálhatóvá.
+  A projektmappába nem írunk; a régi `<repó>/.git-graph/`-ot a `gg` törli.
+- **Headless Artifact (`publish_page`)** — mind mérve, docs/artifact-findings.md:
+  - `-p` módban az Artifact tool alapból KI (`sdk_default_off`); az opt-in a
+    `CLAUDE_CODE_ARTIFACT=1`. Desktop sessionből indítva nélküle is ment (a
+    `CLAUDE_CODE_ENTRYPOINT=claude-desktop` öröklődik) — launchd alatt nem.
+  - Az Artifact egy org-policy lekérdezés után kapcsol be, gyakran az első
+    init UTÁN. Ezért `--input-format stream-json`: hiányzó toolnál interrupt +
+    újrakérdezés UGYANABBAN a folyamatban (új folyamat újra zárt kapuval indul).
+  - Friss sessionből a publish csak `Artifact read` után megy át.
+  - A modell csak végigolvasott fájlt publikál, a `Read` ~25k token/hívás:
+    a beágyazott JSON ezért sorokra tördelt (`json_lines`), és az adatban nincs
+    előre számolt link (a diff-horgony is JS-ből jön). Nagy lap = lassú
+    feltöltés: minden megspórolt bájt számít.
+  - Karcsú indulás: `--strict-mcp-config` + `ENABLE_CLAUDEAI_MCP_SERVERS=false`
+    + `--setting-sources project` (a `--tools` szűkítés MCP-vel együtt rossz:
+    `ToolSearch` nélkül minden MCP-séma betöltődik).
+- **A tartalom-hash (`content_digest`) az Uncommitted ál-sor dátuma nélkül
+  számol** — az `datetime.now()`, enélkül piszkos munkakönyvtárnál sosem egyezne.
+- **A publikálás (5–50 s) a lock NÉLKÜL fut**: a `REPO`-váltás és a git-hívások
+  lockban, a claude-folyamat kívül — különben addig a lap sem szolgálna ki.
 
 Részletes platform-tanulságok (CSP, capabilities, MCP): `docs/artifact-findings.md`.

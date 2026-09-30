@@ -5,12 +5,13 @@ A VS Code [`mhutchie.git-graph`](https://marketplace.visualstudio.com/items?item
 elrendezését és Dark+/Light+ palettáját követi.
 
 ```sh
-gg                    # az aktuális repó → <repó>/.git-graph/index.html
+gg                    # az aktuális repó → ~/.git-graph/<slug>/index.html
 gg --open             # …és megnyitja (Artifactot, ha az aktuális; különben a helyi fájlt)
 gg ~/dev/masik-repo   # másik repó
 gg --limit 200        # csak az utolsó 200 commit (alap: mind)
 gg --out graf.html    # máshova (relatív út a hívás helyéhez)
-gg --serve            # élő kiszolgálás: http://127.0.0.1:7788
+gg --publish          # Artifactként publikálja (headless claude-dal)
+gg --serve            # élő kiszolgálás: http://127.0.0.1:7788 + háttér-publikálás
 gg --launch-config    # .claude/launch.json bejegyzés a Browser panelhez
 ggl                   # ugyanaz, rövidebben
 ```
@@ -20,7 +21,7 @@ Két üzemmód van, és más-más célra:
 | | Statikus (`gg`) | Élő (`gg --serve`) |
 | --- | --- | --- |
 | Mi | egy önálló HTML fájl | loopback szerver, kérésenként újragenerál |
-| Frissülés | kézi újrafuttatás | magától, ~2 mp-en belül |
+| Frissülés | az Artifact magától, ha fut a szerver (lásd lent) | magától, ~2 mp-en belül |
 | Hol nézed | böngésző / Artifact | a Claude Desktop **Browser panelje** |
 | Mire jó | megosztás, archiválás | napi munka közben |
 
@@ -85,7 +86,7 @@ a **lista elejére** kerül — a névtelen indítás az első bejegyzést vála
 
 A slug abszolút útvonalból származik, más gépen értelmetlen — ezért a parancs a
 `launch.json`-t felveszi a repó **lokális** ignore-listájába
-(`.git/info/exclude`), ugyanúgy, mint a `.git-graph/` mappát. Ha a repó viszont
+(`.git/info/exclude`). Ha a repó viszont
 **már követi** a fájlt (mert van benne saját dev-szerver bejegyzés), nem nyúl
 hozzá, csak figyelmeztet — ott neked kell eldöntened, mi legyen a sorával.
 
@@ -109,7 +110,7 @@ A hook némán kilép, ha a mappa nem git repó, vagy ha a szerver nem fut — a
 | `gg` | symlink a `git-graph`-ra — rövid alias |
 | `ggl` | symlink a `git-graph`-ra; ezen a néven a `--launch-config` a default |
 | `install.sh` | symlinkek a PATH-ra és a Claude commands mappájába |
-| `commands/git-graph.md` | `/git-graph` slash command: publikálja/frissíti az Artifact oldalt |
+| `commands/git-graph.md` | `/git-graph` slash command: `gg --publish`, majd megnyitja az Artifactot |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |
 | `docs/desktop-live.md` | miért a Browser panel + lokális szerver az élő út — mérésekkel |
 | `docs/mcp-plan.md` | terv az élő, magától frissülő verzióhoz (blokkolva, lásd findings) |
@@ -117,30 +118,46 @@ A hook némán kilép, ha a mappa nem git repó, vagy ha a szerver nem fut — a
 
 ## Kimenet
 
-Mindig **ugyanoda**, a repón belülre: `<repó>/.git-graph/index.html`. Ez
-szándékos — így ugyanabból a fájlból frissül ugyanaz az Artifact oldal.
-
-A `.git-graph/` mappát a script a repó **lokális** ignore-listájába
-(`.git/info/exclude`) veszi fel, nem a követett `.gitignore`-ba: az eszköz
-idegen repókban is fut, ott pedig nem módosíthat commitolható fájlt.
+Mindig **ugyanoda**, a repón **kívülre**: `~/.git-graph/<slug>/index.html` —
+ugyanaz a slug, mint a `<slug>.localhost` címben. A projektmappába nem kerül
+semmi; a régi, repón belüli `.git-graph/` mappát a `gg` eltávolítja (ha csak a
+saját `index.html`-je van benne, és nem követett fájl).
 
 ## Artifact
 
-A publikálás nem CLI — a Claude `/git-graph` parancsa végzi. A cím konvenció
-szerint `<repónév> Git Graph` (a repónév az `origin` remote URL-jéből, mappanév
-csak fallback). Ez alapján találja meg és **frissíti** a meglévő oldalt ahelyett,
-hogy duplikátumot hozna létre. Repónként külön Artifact.
+A `gg --publish` egy headless `claude -p`-vel tölti fel a lapot (az Artifact
+API-t csak a modell éri el): meglévőt frissít, ha nincs, létrehozza,
+**változatlan tartalomnál nem tölt fel**. A cím `<repónév> Git Graph` (a repónév
+az `origin` remote URL-jéből). A `/git-graph` slash command is ezt hívja, majd
+megnyitja az oldalt.
 
-Publikálás után a parancs lefuttatja a `gg --set-artifact <url>`-t, ami a repó
-**lokális** git configjába (`.git/config`, sosem commitolódik) elteszi:
+**Háttér-publikálás:** a `gg --serve` a dev szerver által ismert minden repót
+(`~/.git-graph/repos.json` + a hook repója) figyeli, és mindegyiknek Artifactot
+tart fenn — ahol még nincs, létrehozza:
+
+| Változás | Várakozás | Mi számít |
+| --- | --- | --- |
+| HEAD, ág, tag | 2 mp csend | `for-each-ref` + a HEAD neve |
+| munkakönyvtár | 10 mp csend | `git status` + `git diff --numstat HEAD` |
+
+Mindkettő „csendre” vár: újabb változás újraindítja az órát. Feltöltés csak
+akkor van, ha a lap tartalom-hashe eltér a legutóbb publikálttól. Egyszerre
+legfeljebb 3 feltöltés fut; napló: `~/.git-graph/serve.log`.
+
+Egy feltöltés kis repón ~6 mp, 150–200 KB-os lapnál 20–50 mp: a feltöltő modell
+csak végigolvasott fájlt publikál, frissítéskor az élő változatot is. A mérések
+és a beállítások indoklása: [docs/artifact-findings.md](docs/artifact-findings.md).
+
+A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 
 | Kulcs | Mi |
 | --- | --- |
 | `git-graph.artifact` | a közzétett oldal URL-je |
 | `git-graph.artifactHead` | a HEAD a publikálás pillanatában |
+| `git-graph.artifactHash` | a publikált lap tartalom-hashe (változatlanra nem tölt fel) |
 
 Ettől a `gg` minden futásnál kiírja a linket, és jelzi, ha azóta új commit jött
-(`← ELAVULT`).
+(`← ELAVULT`). Kézi URL-megadás: `gg --set-artifact <url>`.
 
 ## `--open`
 
@@ -186,6 +203,11 @@ lapjáról (Origin = Host) fogad el.
 A hash és a fájl csak **pusholt** commitnál link (az `origin` valamelyik ága
 eléri) — a helyi commit a GitHubon 404 lenne. Más hoston (GitLab, …) nincs
 linkesítés: ott a `#szám` mást jelent.
+
+Minden link a lapon, JS-ből épül — az adatban nincs URL. A fájl-diff horgonyát
+(`#diff-<sha256(út)>`) is a panel kinyitásakor számolja (`crypto.subtle`, ami
+csak secure contextben van: Artifact, `*.localhost`; máshol a link horgony
+nélkül a commit-oldalra mutat).
 
 ## Hogyan rajzol
 

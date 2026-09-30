@@ -9,11 +9,12 @@ Az adat a generálás pillanatában készül (statikus pillanatkép) — a friss
 futtasd újra. Bármelyik repóban működik: a git gyökeret a megadott (vagy az
 aktuális) könyvtárból oldja fel, magától a script helyétől függetlenül.
 
-    gg                            # az aktuális repó → <repó>/.git-graph/index.html
+    gg                            # az aktuális repó → ~/.git-graph/<slug>/index.html
     gg --open                     # …és rögtön meg is nyitja
     gg ~/dev/masik-repo           # másik repó
     gg --out graf.html            # máshova (relatív út a CWD-hez)
     gg --limit 200                # csak az utolsó 200 commit (alap: mind)
+    gg --publish                  # Artifactként publikálja (headless claude-dal)
     gg --open artifact            # a közzétett Artifact oldal (ha van)
     gg --serve                    # élő kiszolgálás: http://127.0.0.1:7788
     gg --launch-config            # .claude/launch.json a Browser panelhez
@@ -24,11 +25,13 @@ a lap kétmásodpercenként olcsó ujjlenyomatot kér, és csak tényleges vált
 tölt új adatot. Melyik repót mutatja? Amit a `--session-hook` (Claude Code
 SessionStart hook) utoljára beírt a `~/.git-graph/current` fájlba — így a
 Claude Desktop Browser panelje mindig az éppen nyitott session repóját mutatja.
+Közben a szerver minden regisztrált repó Artifactját naprakészen tartja:
+ref-változás után 2, fájlváltozás után 10 másodperc csenddel újrapublikál, ha a
+lap tartalma változott.
 
-A kimenet a repón belül, MINDIG ugyanott keletkezik — így frissíthető belőle
-ugyanaz az Artifact oldal. A `.git-graph/` mappát a script a repó LOKÁLIS
-ignore-listájába (`.git/info/exclude`) veszi fel, tehát idegen repóban sem
-módosít követett fájlt.
+A kimenet a repón KÍVÜL, mindig ugyanott keletkezik (`~/.git-graph/<slug>/`),
+innen frissül ugyanaz az Artifact oldal — a projektmappában nincs mit
+ignorálni. A régi, repón belüli `.git-graph/` mappát a script eltávolítja.
 
 Telepítés: saját repó (`git-graph`), az `install.sh` symlinkeli a
 `~/.local/bin`-be `git-graph` és `gg` néven. Függősége nincs a Python 3 stdliben
@@ -42,12 +45,17 @@ import hashlib
 import html
 import http.server
 import json
+import os
+import queue
 import re
+import shutil
 import socket
 import subprocess
 import sys
 import threading
+import time
 import urllib.parse
+import uuid
 import webbrowser
 from pathlib import Path
 
@@ -291,9 +299,6 @@ def assign_lanes(commits: list[dict]) -> list[dict]:
     return edges
 
 
-OUT_DIR = ".git-graph"
-
-
 def add_local_exclude(entry: str, comment: str) -> bool:
     """Bejegyzés a repó LOKÁLIS ignore-listájába (`.git/info/exclude`).
 
@@ -315,10 +320,6 @@ def add_local_exclude(entry: str, comment: str) -> bool:
     with exclude.open("a", encoding="utf-8") as fh:
         fh.write(f"{prefix}# {comment}\n{entry}\n")
     return True
-
-
-def ensure_excluded() -> bool:
-    return add_local_exclude(f"{OUT_DIR}/", "gitgraph kimenete (lokális, nem commitolandó)")
 
 
 def is_tracked(path: Path) -> bool:
@@ -344,15 +345,24 @@ def config_get(key: str) -> str:
     return ""
 
 
-def remember_artifact(url: str) -> None:
+def remember_artifact(url: str, head: str | None = None, digest: str | None = None) -> None:
     """Az Artifact URL-je + a publikáláskori HEAD a `.git/config`-ba.
 
     A HEAD azért kell, hogy az `--open` tudja: a közzétett oldal az aktuális
-    állapotot mutatja-e, vagy azóta jött új commit. A `.git/config` sosem
-    commitolódik, és repónként külön tárol — pont, ami ide kell.
+    állapotot mutatja-e, vagy azóta jött új commit. A tartalom-hash
+    (`artifactHash`) alapján a háttér-publikálás kihagyja a változatlan lapot.
+    A `.git/config` sosem commitolódik, és repónként külön tárol — pont, ami
+    ide kell.
     """
     git("config", "--local", "git-graph.artifact", url)
-    git("config", "--local", "git-graph.artifactHead", git("rev-parse", "HEAD").strip())
+    git("config", "--local", "git-graph.artifactHead", head or git("rev-parse", "HEAD").strip())
+    if digest:
+        git("config", "--local", "git-graph.artifactHash", digest)
+    else:                                 # kézi --set-artifact: a hash már nem érvényes
+        try:
+            git("config", "--local", "--unset", "git-graph.artifactHash")
+        except subprocess.CalledProcessError:
+            pass
     try:                                  # a régi név kitakarítása, ha még ott van
         git("config", "--local", "--remove-section", "gitgraph")
     except subprocess.CalledProcessError:
@@ -446,29 +456,17 @@ def collect_meta(commits: list[dict]) -> dict:
     }
 
 
-def numstat_new_path(path: str) -> str:
-    """A `--numstat` átnevezés-alakjából (`a => b`, `x/{a => b}/y`) az új út."""
-    if " => " not in path:
-        return path
-    if "{" in path:
-        return re.sub(r"\{[^{}]* => ([^{}]*)\}", r"\1", path).replace("//", "/")
-    return path.split(" => ", 1)[1]
-
-
-def mark_pushed(commits: list[dict], stats: dict[str, dict]) -> None:
+def mark_pushed(commits: list[dict]) -> None:
     """Az `origin` által ismert commitok linkelhetők a GitHubra — a pusholatlan 404-et adna.
 
-    A fájlokhoz a GitHub commit-oldalának diff-horgonya kerül
-    (`#diff-<az új út sha256-ja>`): a JS-ben ez csak aszinkron, secure
-    contextben menne, a `file://` pillanatképben nem.
+    A linkek maguk a lapon, JS-ből épülnek (a fájl-diff horgonya is): az
+    adatban tárolva fájlonként 64 hex karakter volt, egy nagy repó lapjának
+    ötöde — azt a publikáló modellnek végig kellett olvasnia.
     """
     pushed = set(git("rev-list", "--remotes=origin").split())
     for c in commits:
-        if c["sha"] not in pushed:
-            continue
-        c["pushed"] = True
-        for f in stats.get(c["sha"], {}).get("files", []):
-            f["anchor"] = hashlib.sha256(numstat_new_path(f["path"]).encode()).hexdigest()
+        if c["sha"] in pushed:
+            c["pushed"] = True
 
 
 def collect_payload(limit: int | None) -> dict:
@@ -479,7 +477,7 @@ def collect_payload(limit: int | None) -> dict:
     stats = collect_stats(limit)
     meta = collect_meta(commits)          # még a valódi commitokból: `shown`
     if meta["repoUrl"]:
-        mark_pushed(commits, stats)
+        mark_pushed(commits)
 
     pending = collect_uncommitted()
     if pending:
@@ -511,6 +509,20 @@ def fingerprint() -> dict:
         "refs": hashlib.sha1(refs.encode()).hexdigest()[:12],
         "dirty": len([l for l in status.splitlines() if l.strip()]),
     }
+
+
+def change_signals() -> tuple[str, str]:
+    """(ref-jel, fájl-jel) a háttér-publikálás ütemezéséhez.
+
+    Külön kell a kettő, mert más a várakozásuk. A ref-jelben a HEAD neve is
+    benne van (ágváltás ugyanarra a commitra is badge-változás); a fájl-jel
+    pontosan azt fedi, amit az Uncommitted sor mutat (státusz + `+/−`).
+    """
+    refs = (git("for-each-ref", "--format=%(objectname) %(refname)")
+            + git("rev-parse", "HEAD", "--abbrev-ref", "HEAD"))
+    files = git("status", "--porcelain") + git("diff", "--numstat", "HEAD")
+    return (hashlib.sha1(refs.encode()).hexdigest(),
+            hashlib.sha1(files.encode()).hexdigest())
 
 
 TEMPLATE = r"""<meta charset="utf-8">
@@ -908,13 +920,31 @@ function linkify(s) {
     pre + ghLink(`${repo ? 'https://github.com/' + repo : base}/issues/${n}`, `${repo || ''}#${n}`));
 }
 
-const ghLink = (href, html) => `<a class="gh-link" href="${href}" target="_blank" rel="noopener">${html}</a>`;
+const ghLink = (href, html, attrs = '') =>
+  `<a class="gh-link"${attrs} href="${href}" target="_blank" rel="noopener">${html}</a>`;
 
 /* Commit és fájl-diff link csak pusholt commitra (`pushed`, a Python jelöli). */
 const commitUrl = c => c.pushed ? `${DATA.meta.repoUrl}/commit/${c.sha}` : '';
 const shaHtml = (c, text) => c.pushed ? ghLink(commitUrl(c), text) : text;
-const pathHtml = (c, f) => f.anchor
-  ? ghLink(`${commitUrl(c)}#diff-${f.anchor}`, esc(f.path)) : esc(f.path);
+
+/* A `--numstat` átnevezés-alakjából (`a => b`, `x/{a => b}/y`) az új út —
+   a GitHub diff-horgonya ebből számol. */
+const newPath = p => !p.includes(' => ') ? p
+  : p.includes('{') ? p.replace(/\{[^{}]* => ([^{}]*)\}/g, '$1').replace(/\/\//g, '/')
+  : p.split(' => ')[1];
+const pathHtml = (c, f) => c.pushed
+  ? ghLink(commitUrl(c), esc(f.path), ` data-diff="${esc(newPath(f.path))}"`) : esc(f.path);
+
+/* A fájl-diff horgonya (`#diff-<sha256(út)>`) itt készül, nem az adatban.
+   A crypto.subtle csak secure contextben van (Artifact, *.localhost) — nélküle
+   a link a commit-oldalra mutat, horgony nélkül. */
+async function fillDiffAnchors(root) {
+  if (!window.crypto || !crypto.subtle) return;
+  for (const a of root.querySelectorAll('a[data-diff]')) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(a.dataset.diff));
+    a.href += '#diff-' + [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+}
 
 function badges(c) {
   return c.refs.map(r => {
@@ -973,6 +1003,7 @@ function open(sha) {
           : `<span class="a">+${f.add}</span> <span class="d">−${f.del}</span>`}</span></div>`).join('')}
     </div>`;
   row.after(el);
+  fillDiffAnchors(el);
   expanded = sha;
   drawGraph();               // a panel alatti sorok lejjebb kerültek
 }
@@ -1115,9 +1146,21 @@ if (LIVE) {
 """
 
 
-STATIC_FOOT = ("Statikus pillanatkép — a <code class=\"mono\">gg</code> generálta a repó "
-               "akkori állapotából. Nem frissül magától: új commit után futtasd újra.")
+STATIC_FOOT = ("Pillanatkép — a <code class=\"mono\">gg</code> generálta a repó állapotából. "
+               "Ha fut a <code class=\"mono\">gg --serve</code>, változás után magától újrapublikálja.")
 LIVE_FOOT = "Élő — kapcsolódás…"
+
+
+def json_lines(value: object, depth: int = 0) -> str:
+    """JSON, amelyben a gyökér és az első szint elemei külön sorba kerülnek."""
+    if depth > 1 or not isinstance(value, (list, dict)) or not value:
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, list):
+        items = [json_lines(v, depth + 1) for v in value]
+        return "[\n" + ",\n".join(items) + "\n]"
+    items = [f"{json.dumps(k, ensure_ascii=False)}:{json_lines(v, depth + 1)}"
+             for k, v in value.items()]
+    return "{\n" + ",\n".join(items) + "\n}"
 
 
 def embed(payload: dict) -> str:
@@ -1128,8 +1171,12 @@ def embed(payload: dict) -> str:
     szövegként ömlik a lapra. A `<\/` JSON-szinten ugyanaz a karakterlánc, a
     HTML-parszer viszont nem látja benne a záró taget. A sorelválasztók (U+2028,
     U+2029) ugyanezt a kárt tudják okozni régebbi JS-motorokon.
+
+    Sorokra tördelve (soronként egy commit, él, stat-bejegyzés): a publikáló
+    modell csak végigolvasott fájlt tölt fel, a `Read` pedig hívásonként max.
+    ~25k tokent ad — egy 180 ezer karakteres sor olvashatatlan volt.
     """
-    raw = json.dumps(payload, ensure_ascii=False)
+    raw = json_lines(payload)
     return (raw.replace("</", "<\\/")
                .replace("\u2028", "\\u2028")
                .replace("\u2029", "\\u2029"))
@@ -1144,6 +1191,19 @@ def build(payload: dict, title: str, live: bool = False) -> str:
         .replace("__REPO__", html.escape(meta["repo"]))
         .replace("__TITLE__", html.escape(title))
     )
+
+
+def content_digest(payload: dict, title: str) -> str:
+    """A statikus lap ujjlenyomata — az Uncommitted ál-sor „most" dátuma nélkül.
+
+    Az ál-sor dátuma minden generáláskor más: enélkül a hash piszkos
+    munkakönyvtárnál sosem egyezne, és változatlan lapot is publikálnánk.
+    A sablont is lefedi (a kész HTML-ből számol), így egy UI-változás is
+    újrapublikálást vált ki.
+    """
+    stable = dict(payload, commits=[dict(c, date="") if c.get("uncommitted") else c
+                                    for c in payload["commits"]])
+    return hashlib.sha256(build(stable, title).encode()).hexdigest()
 
 
 # ── Élő kiszolgálás ─────────────────────────────────────────────────────────
@@ -1187,6 +1247,184 @@ def repo_for_slug(slug: str) -> Path | None:
         return None
     path = data.get(slug)
     return Path(path) if path else None
+
+
+# ── Publikálás ──────────────────────────────────────────────────────────────
+
+def page_path(repo: Path) -> Path:
+    """A repó generált lapja: `~/.git-graph/<slug>/index.html`.
+
+    A projektmappán KÍVÜL — a repóban nincs mit ignorálni. Ez stabil szerződés:
+    innen tölti fel a publikáló az Artifactot (a claude-folyamat ezt a mappát
+    kapja munkakönyvtárnak, az Artifact csak onnan olvas).
+    """
+    return STATE_DIR / slug_for(repo) / "index.html"
+
+
+def drop_legacy_out() -> None:
+    """A régi, repón belüli kimenet (`<repó>/.git-graph/`) eltávolítása.
+
+    Csak ha kizárólag a mi `index.html`-ünk van benne, és nem követett fájl —
+    idegen tartalomhoz nem nyúlunk.
+    """
+    legacy = REPO / ".git-graph"
+    if not legacy.is_dir():
+        return
+    files = list(legacy.iterdir())
+    if {p.name for p in files} <= {"index.html"} and not any(
+            is_tracked(p.relative_to(REPO)) for p in files):
+        for p in files:
+            p.unlink()
+        legacy.rmdir()
+
+
+def write_page(payload: dict, title: str) -> Path:
+    page = page_path(REPO)
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text(build(payload, title), encoding="utf-8")
+    drop_legacy_out()
+    return page
+
+
+def prepare_publish(limit: int | None) -> dict | None:
+    """A publikálandó lap: kiírja, ha a tartalma eltér a legutóbb publikálttól.
+
+    None, ha van már Artifact, és a tartalom-hash egyezik. Csak git-hívás és
+    fájlírás — a lassú feltöltés (`publish_page`) külön, lock nélkül fut.
+    """
+    payload = collect_payload(limit)
+    if not payload:
+        raise RuntimeError("nincs commit a repóban")
+    title = f"{payload['meta']['repo']} Git Graph"
+    digest = content_digest(payload, title)
+    url = config_get("artifact")
+    if url and digest == config_get("artifactHash"):
+        return None
+    return {"page": write_page(payload, title), "url": url, "title": title,
+            "digest": digest, "head": git("rev-parse", "HEAD").strip(),
+            "name": payload["meta"]["repo"], "commits": payload["meta"]["shown"]}
+
+
+def finish_publish(job: dict, url: str) -> None:
+    remember_artifact(url, job["head"], job["digest"])
+    register(REPO)                        # a háttér-publikálás a regiszterből figyel
+
+
+# A hideg, headless publikálás beállításai — mérve, docs/artifact-findings.md:
+# ezzel 5,6–6,2 s a `Published`-ig (ha a modell nem olvas bele a fájlba: +3 s).
+PUBLISH_MODEL = "claude-sonnet-5-5"
+PUBLISH_ENV = {
+    # `-p` módban az Artifact tool alapból KI van kapcsolva (sdk_default_off),
+    # ez az opt-in. A Desktop sessionből indítva azért működött nélküle is,
+    # mert onnan a CLAUDE_CODE_ENTRYPOINT=claude-desktop öröklődik — a launchd
+    # szerver alatt nincs ilyen.
+    "CLAUDE_CODE_ARTIFACT": "1",
+    "ENABLE_CLAUDEAI_MCP_SERVERS": "false",   # claude.ai konnektorok nélkül
+    "CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1",
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+}
+PUBLISH_TIMEOUT_S = 180
+PUBLISH_PARALLEL = 3
+GATE_POLL_S = 0.3        # az Artifact tool késve kapcsol be — ennyinként kérdezünk újra
+GATE_TRIES = 30
+REF_QUIET_S = 2          # háttér-publikálás: ennyi csend kell ref-változás után…
+FILE_QUIET_S = 10        # …és ennyi fájlváltozás után
+
+
+def claude_bin() -> str | None:
+    """A `claude` CLI — a launchd agent minimális PATH-ján is (`~/.local/bin`)."""
+    extra = [str(Path.home() / ".local" / "bin"), "/opt/homebrew/bin", "/usr/local/bin"]
+    return shutil.which("claude", path=os.pathsep.join([os.environ.get("PATH", ""), *extra]))
+
+
+def publish_page(page: Path, url: str, title: str) -> str:
+    """A lap feltöltése egy hideg, headless `claude` folyamattal; az URL-t adja.
+
+    Az Artifact API-t csak a modell éri el (nincs rá CLI-alparancs), ezért egy
+    szűk promptú, karcsú `claude -p` fut:
+    - `--strict-mcp-config` + `ENABLE_CLAUDEAI_MCP_SERVERS=false`: MCP-szerver
+      nélkül (444 helyett ~30 tool), `--setting-sources project`: user-hookok
+      és pluginok nélkül — így 0,3 s-nál indul.
+    - Az Artifact tool egy org-policy lekérdezés után kapcsol be, sokszor csak
+      az első init UTÁN. Ezért `--input-format stream-json`: ha az init-ben
+      még nincs Artifact, a kört megszakítjuk (interrupt) és ugyanabban a
+      folyamatban újrakérdezünk — új folyamattal a kapu újra zárva indulna.
+    - Friss sessionből a publish csak `Artifact read` után megy át (különben
+      elutasítja, mert „nem látta" az élő verziót) — ezért kéri a prompt előbb.
+    - A `Published` tool-válasznál kilépünk: a modell záró szövege felesleges.
+    """
+    exe = claude_bin()
+    if not exe:
+        raise RuntimeError("nem található a claude CLI (~/.local/bin, /opt/homebrew/bin)")
+    if url:
+        prompt = (f"Publish the local file {page} to the existing artifact {url}. Steps: "
+                  f"1) call Artifact with action read and url {url}; 2) call Artifact publish "
+                  f"with url {url} and file_path {page}. If a publish is refused, follow the "
+                  "refusal's instructions. Do nothing else. Reply with the URL only.")
+    else:
+        prompt = (f"Publish the local file {page} as a new artifact titled {title!r}, with icon "
+                  "\"branch\". Do nothing else. Reply with the URL only.")
+    cmd = [exe, "-p", "--input-format", "stream-json", "--output-format", "stream-json",
+           "--verbose", "--strict-mcp-config", "--setting-sources", "project",
+           "--no-session-persistence", "--model", PUBLISH_MODEL, "--effort", "low",
+           "--tools", "Artifact", "Read", "--allowedTools", "Artifact"]
+    proc = subprocess.Popen(cmd, cwd=page.parent, env=dict(os.environ, **PUBLISH_ENV),
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, text=True, bufsize=1)
+    lines: queue.Queue = queue.Queue()
+
+    def pump() -> None:
+        for line in proc.stdout:
+            lines.put(line)
+        lines.put(None)
+
+    def send(event: dict) -> None:
+        proc.stdin.write(json.dumps(event) + "\n")
+        proc.stdin.flush()
+
+    def ask() -> None:
+        send({"type": "user", "message": {"role": "user", "content": prompt}})
+
+    threading.Thread(target=pump, daemon=True).start()
+    deadline = time.monotonic() + PUBLISH_TIMEOUT_S
+    tries, gated = 1, False
+    try:
+        ask()
+        while True:
+            line = lines.get(timeout=max(0.1, deadline - time.monotonic()))
+            if line is None:
+                raise RuntimeError("a claude folyamat váratlanul kilépett")
+            event = json.loads(line)
+            kind = event.get("type")
+            if kind == "system" and event.get("subtype") == "init" \
+                    and "Artifact" not in event.get("tools", []):
+                send({"type": "control_request", "request_id": uuid.uuid4().hex,
+                      "request": {"subtype": "interrupt"}})
+                gated = True
+            elif kind == "result":
+                if gated and tries < GATE_TRIES:
+                    time.sleep(GATE_POLL_S)
+                    tries, gated = tries + 1, False
+                    ask()
+                    continue
+                reason = "az Artifact tool nem kapcsolt be" if gated else event.get("result", "")
+                raise RuntimeError(f"nem publikált: {str(reason)[:300]}")
+            message = event.get("message")
+            blocks = message.get("content") if isinstance(message, dict) else None
+            for block in blocks if isinstance(blocks, list) else []:
+                if block.get("type") != "tool_result":
+                    continue
+                text = block.get("content")
+                text = text if isinstance(text, str) else json.dumps(text)
+                found = re.search(r"Published .+? at (https://claude\.ai/[^\s)\"]+)", text)
+                if found:
+                    return found.group(1)
+    except queue.Empty:
+        raise RuntimeError(f"időtúllépés ({PUBLISH_TIMEOUT_S} s)") from None
+    except OSError as exc:                     # a folyamat közben kilépett (EPIPE)
+        raise RuntimeError(f"a claude folyamat hibája: {exc}") from None
+    finally:
+        proc.kill()
 
 
 def write_launch_config(repo: Path, port: int) -> tuple[Path, str]:
@@ -1285,6 +1523,93 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
         _REMOTES = None
         return repo
 
+    def watched_repos() -> list[Path]:
+        """A figyelt repók: amit a dev szerver ismer — a regiszter és a hook repója.
+
+        Mindegyiknek jár Artifact: ahol még nincs, az első publikálás létrehozza.
+        """
+        try:
+            paths = set(json.loads(REPOS.read_text(encoding="utf-8")).values())
+        except (OSError, json.JSONDecodeError, AttributeError):
+            paths = set()
+        marked = current_repo(None)
+        if marked is not None:
+            paths.add(str(marked))
+        found: list[Path] = []
+        for path in sorted(paths):
+            try:
+                with lock:
+                    repo = switch(path, None)
+                if repo not in found:
+                    found.append(repo)
+            except Exception:
+                pass                              # eltűnt mappa, nem repó
+        return found
+
+    # Indításkor minden repó egyszerre esedékes — egy claude-folyamat ~270 MB.
+    slots = threading.BoundedSemaphore(PUBLISH_PARALLEL)
+
+    def run_publish(repo: Path, busy: set) -> None:
+        try:
+            with lock:
+                switch(str(repo), None)
+                job = prepare_publish(limit)
+            if job is None:
+                return                            # a tartalom nem változott
+            with slots:
+                started = time.monotonic()
+                url = publish_page(job["page"], job["url"], job["title"])
+            with lock:
+                switch(str(repo), None)
+                finish_publish(job, url)
+            print(f"[publish] {job['name']}: {time.monotonic() - started:.1f} s → {url}", flush=True)
+        except Exception as exc:
+            print(f"[publish] {repo}: HIBA — {exc}", flush=True)
+        finally:
+            busy.discard(repo)
+
+    def auto_publish() -> None:
+        """Háttér-publikálás: ref-változás után 2 s, fájlváltozás után 10 s csenddel.
+
+        Mindkettő „csendre" vár: újabb változás újraindítja az órát, így egy
+        rebase vagy egy szerkesztés-sorozat egyetlen publikálás. Indításkor
+        minden figyelt repó egyszer ellenőrződik — a tartalom-hash dönt.
+        """
+        if not claude_bin():
+            print("  háttér-publikálás: KI — nem található a claude CLI", flush=True)
+            return
+        seen: dict = {}                           # repo → refs, files, due, kind
+        busy: set = set()
+        repos: list[Path] = []
+        rescan = 0.0
+        while True:
+            time.sleep(1)
+            now = time.monotonic()
+            if now >= rescan:
+                repos, rescan = watched_repos(), now + 10
+            for repo in repos:
+                try:
+                    with lock:
+                        switch(str(repo), None)
+                        refs, files = change_signals()
+                except Exception:
+                    continue
+                state = seen.get(repo)
+                if state is None:
+                    seen[repo] = {"refs": refs, "files": files,
+                                  "due": now + REF_QUIET_S, "kind": "ref"}
+                    continue
+                if refs != state["refs"]:
+                    state.update(refs=refs, files=files, due=now + REF_QUIET_S, kind="ref")
+                elif files != state["files"]:
+                    state["files"] = files
+                    if state["kind"] != "ref":    # a függő ref-publikálás ezt is viszi
+                        state.update(due=now + FILE_QUIET_S, kind="file")
+                if state["due"] is not None and now >= state["due"] and repo not in busy:
+                    state.update(due=None, kind=None)
+                    busy.add(repo)
+                    threading.Thread(target=run_publish, args=(repo, busy), daemon=True).start()
+
     class Handler(http.server.BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
         server_version = "gitgraph"
@@ -1355,6 +1680,9 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
     print(f"✓ gg --serve  http://127.0.0.1:{port}", flush=True)
     print(f"  repó: {repo or '(még nincs — a session-hook majd beírja)'}", flush=True)
     print(f"  váltás: {CURRENT}", flush=True)
+    print(f"  háttér-publikálás: ref után {REF_QUIET_S} s, fájlváltozás után {FILE_QUIET_S} s",
+          flush=True)
+    threading.Thread(target=auto_publish, daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -1411,7 +1739,7 @@ def main() -> int:
                     help="a repó (bármelyik könyvtára); alap: az aktuális")
     ap.add_argument("--out", default=None,
                     help="kimeneti HTML (relatív út a CWD-hez); "
-                         "alap: <repó>/.git-graph/index.html")
+                         "alap: ~/.git-graph/<slug>/index.html")
     ap.add_argument("--limit", type=int, default=0,
                     help="max. commit (0 = a teljes history, ez az alap)")
     ap.add_argument("--title", default=None, help="oldalcím")
@@ -1423,11 +1751,15 @@ def main() -> int:
                          "Artifact-ablakát külső folyamat nem tudja nyitni — "
                          "arra a /git-graph parancs való.)")
     ap.add_argument("--set-artifact", metavar="URL", default=None,
-                    help="a repóhoz tartozó Artifact URL megjegyzése "
-                         "(a /git-graph slash command hívja publikálás után)")
+                    help="a repóhoz tartozó Artifact URL kézi megjegyzése")
+    ap.add_argument("--publish", action="store_true",
+                    help="a lap publikálása Artifactként egy headless claude-dal "
+                         "(meglévőt frissít, ha nincs, létrehozza; változatlan "
+                         "tartalomnál nem tölt fel) — a /git-graph ezt hívja")
     ap.add_argument("--serve", action="store_true",
                     help="élő kiszolgálás loopbackon (a lap magától frissül); "
-                         "a mutatott repót a --session-hook váltja")
+                         "a mutatott repót a --session-hook váltja. Közben a "
+                         "regisztrált repók Artifactját változáskor újrapublikálja")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT,
                     help=f"a --serve és a --session-hook portja (alap: {DEFAULT_PORT})")
     ap.add_argument("--launch-config", action="store_true", dest="launch_config",
@@ -1482,11 +1814,29 @@ def main() -> int:
         if not args.set_artifact.startswith("https://"):
             raise SystemExit("HIBA: az URL-nek https://-sel kell kezdődnie.")
         remember_artifact(args.set_artifact)
+        register(REPO)
         print(f"✓ Artifact megjegyezve: {args.set_artifact}")
         print(f"  {repo_name()} @ {git('rev-parse', '--short', 'HEAD').strip()}")
         return 0
 
     limit = args.limit or None
+
+    if args.publish:
+        job = prepare_publish(limit)
+        if job is None:
+            print(f"✓ Az Artifact naprakész, nincs mit feltölteni: {config_get('artifact')}")
+            return 0
+        started = time.monotonic()
+        try:
+            url = publish_page(job["page"], job["url"], job["title"])
+        except RuntimeError as exc:
+            raise SystemExit(f"HIBA: {exc}") from None
+        finish_publish(job, url)
+        print(f"✓ Artifact {'frissítve' if job['url'] else 'létrehozva'} "
+              f"({time.monotonic() - started:.1f} s): {url}")
+        print(f"  {job['name']}: {job['commits']} commit")
+        return 0
+
     payload = collect_payload(limit)
     if not payload:
         print("Nincs commit a repóban.", file=sys.stderr)
@@ -1495,17 +1845,15 @@ def main() -> int:
     branches, meta = payload["branches"], payload["meta"]
     title = args.title or f"{meta['repo']} Git Graph"
 
-    excluded = False
     if args.out:
         out = Path(args.out).expanduser()
         if not out.is_absolute():
             out = Path.cwd() / out          # relatív út a hívás helyéhez
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(build(payload, title), encoding="utf-8")
+        drop_legacy_out()
     else:
-        # Stabil hely a repón belül: ugyanabból a fájlból frissül az Artifact.
-        out = REPO / OUT_DIR / "index.html"
-        excluded = ensure_excluded()
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(build(payload, title), encoding="utf-8")
+        out = write_page(payload, title)    # a repón kívül: ~/.git-graph/<slug>/
 
     print(f"✓ {out}  ({out.stat().st_size:,} B)")
     print(f"  {meta['repo']}: {len(commits)} commit"
@@ -1513,13 +1861,10 @@ def main() -> int:
           f" · {max(c['lane'] for c in commits) + 1} sáv · {len(edges)} él"
           f" · {len(branches)} ág")
 
-    if excluded:
-        print(f"  ({OUT_DIR}/ felvéve a .git/info/exclude-ba)")
-
     url, fresh = artifact_state()
     if url:
         print(f"  Artifact: {url}"
-              f"{'' if fresh else '  ← ELAVULT (azóta új commit; /git-graph frissíti)'}")
+              f"{'' if fresh else '  ← ELAVULT (azóta új commit; gg --publish frissíti)'}")
 
     if args.open_mode:
         mode = args.open_mode

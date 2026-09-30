@@ -94,9 +94,10 @@ konnektoraidat**. Az `assets`-et és a `host:`-ot **nem** érinti.
 
 ## Ami ebből következik
 
-- **A `gg`-ből soha nem lesz Artifact-frissítés.** Egy shell script nem éri el
-  az Artifact API-t; a publikálás session-oldali eszköz. Nincs `claude` CLI
-  alparancs rá (`claude --help` → nincs artifact).
+- **~~A `gg`-ből soha nem lesz Artifact-frissítés.~~** Megdőlt (2026-09-30):
+  CLI-alparancs továbbra sincs, de egy headless `claude -p` publikálni tud —
+  lásd lent: *Headless publikálás*. Ezen megy a `gg --publish` és a szerver
+  háttér-publikálása.
 - **A Claude Artifact-ablakát külső folyamat nem nyitja meg.** A `--open` a
   rendszer böngészőjében nyit. A panel útja a sessionön belülről a
   `/git-graph`, illetve a `ctrl+]`. (A beépített `/artifacts` lista `o`
@@ -107,12 +108,64 @@ konnektoraidat**. Az `assets`-et és a `host:`-ot **nem** érinti.
   kitenni és **egyéni** claude.ai konnektorként felvenni — ez működne a lokális
   repóval is, de internetre tesz egy repó-olvasó szolgáltatást (token auth +
   repó-whitelist kötelező). Részletek: [mcp-plan.md](mcp-plan.md).
-- **Nem mért, nyitott kérdések**: (1) egy már nyitott Artifact-panel magától
+- **Nem mért, nyitott kérdés**: egy már nyitott Artifact-panel magától
   újrarajzol-e republish után — az `artifact` capability doksija szerint
   *„every open view … reloads to it"*, de ez az oldalról indított publishre
-  van kimondva; (2) `claude -p "/git-graph"` működik-e a Fejlesztő saját
-  termináljából (sandboxolt shellből `Not logged in`). Ha (1) és (2) is igen,
-  a `gg --publish` egy sorral megoldható.
+  van kimondva. (A korábbi (2) kérdésre a válasz: igen, lásd lent.)
+
+## Headless publikálás (mérve, 2026-09-30, Claude Code 2.1.285)
+
+Egy `claude -p` folyamat publikál; a végleges beállítás a `publish_page()`-ben.
+Az út buktatói, sorrendben:
+
+1. **A `-p "/git-graph"` nem fut le**: a slash command helyi parancsként nyelődik
+   el (`num_turns: 0`). Promptként kell kérni.
+2. **`-p` módban az Artifact tool alapból KI** (a kódban: `sdk_default_off`).
+   Az opt-in: `CLAUDE_CODE_ARTIFACT=1`. Desktop session shelljéből nélküle is
+   ment, mert onnan `CLAUDE_CODE_ENTRYPOINT=claude-desktop` öröklődik — tiszta
+   (launchd, Terminal.app) környezetben nem. A modell saját toolkészletről adott
+   válasza („Do you have Artifact?") megbízhatatlan — az init-esemény
+   `tools` listája a mérvadó (`--output-format stream-json --verbose`).
+3. **Friss sessionben az első publish elutasítás**, mert a session „nem látta"
+   az élő verziót; a változatlan újraküldést is elutasítja. Megoldás: előbb
+   `Artifact read`. (A skill-es út 6–10 kört futott emiatt.)
+4. **Lassú indulás 444 toollal** (MCP-szerverek, claude.ai konnektorok). Karcsú:
+   `--strict-mcp-config` + `ENABLE_CLAUDEAI_MCP_SERVERS=false` → ~30 tool;
+   `--setting-sources project` → user-hookok és pluginok nélkül, init 0,3 s.
+   A `--strict-mcp-config` egyedül az Artifact-ot is kivette; a `--tools`
+   szűkítés MCP mellett ártott (`ToolSearch` nélkül minden MCP-séma betöltődött:
+   lassabb, és cache-miss); `--tools Artifact` `Read` nélkül nem publikál (a
+   publish a `Read` jogon át olvassa a fájlt).
+5. **Az Artifact kapuja a policy-lekérdezés után nyílik** — karcsú indulásnál
+   az init (0,4 s) előtt csak kb. 60%-ban. Sima `-p "<prompt>"`: 10-ből 6
+   futás publikált. Megoldás: `--input-format stream-json`, hiányzó toolnál
+   `interrupt` control-üzenet és újrakérdezés 0,3 s-onként UGYANABBAN a
+   folyamatban (a kapu ~0,8 s-nál nyílt) — új folyamat újra zárt kapuval indul.
+   A `CLAUDE_CODE_ARTIFACT=1` ezen nem segít.
+6. **A modell csak végigolvasott fájlt publikál** („never distributes what it
+   has not seen"), a `Read` ~25k token/hívás. Egy 180 ezer karakteres
+   JSON-sort nem tudott elolvasni → nem publikált. Ezért a beágyazott adat
+   soronként egy rekord, és nincs benne előre számolt link. Frissítéskor az
+   élő változatot is végigolvassa (a merge-védelem miatt).
+
+Időmérés, a `Published` tool-válaszig (a záró modellszöveget nem várjuk meg):
+
+| Változat | Idő |
+| --- | --- |
+| skill-en át (`Invoke the git-graph skill`), 444 tool | 20–78 s |
+| direkt prompt, 444 tool, Sonnet low | 7,5–11,5 s |
+| **karcsú + stream-json + kapu-poll, Sonnet low (végleges)** | **5,6–6,2 s** (+3 s, ha a modell `Read`-del is beleolvas) |
+| ugyanez, 165–200 KB-os lap létrehozása | ~18 s |
+| ugyanez, 200 KB-os lap frissítése | ~50 s (mindkét példány végigolvasva) |
+| meleg session (`--input-format stream-json`, folyamatosan futó claude) | 2,9–3,3 s |
+
+A meleg session gyorsabb, de futó folyamatot és életciklust igényel; háttérben
+publikálásnál a hideg is elég (senki nem vár rá). Egy tétlen meleg folyamat
+~270 MB RAM, ~0,5% CPU.
+
+Modellek (hideg, direkt prompt): a Sonnet 5.5 low a leggyorsabb megbízható; az
+Opus 5.5 low 15 s körül; a Haiku 4.5 hasonló idő, de a skill-es úton 78 s-ig
+is elhúzódott. A Sonnet `medium` effort nem gyorsabb, és többet `Read`-el.
 
 ## Implementációs tanulságok (a generátorból)
 
