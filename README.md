@@ -178,6 +178,11 @@ Ha az `origin` GitHub-repó, a lap a GitHubra linkel:
 - **Commit hash**: a sorban és a panelen a commit GitHub-oldala.
 - **Fájlváltozás**: a panel fájllistájában a fájl diffje a commit-oldalon.
 
+Élő módban a link a **rendszerböngészőben** nyílik: a Browser panel a saját
+fülén nyitná meg, ezért a lap a szervernek küldi (`POST /open`), az pedig
+`webbrowser.open`-nel nyitja. A szerver csak GitHub-URL-t és csak a saját
+lapjáról (Origin = Host) fogad el.
+
 A hash és a fájl csak **pusholt** commitnál link (az `origin` valamelyik ága
 eléri) — a helyi commit a GitHubon 404 lenne. Más hoston (GitLab, …) nincs
 linkesítés: ott a `#szám` mást jelent.

@@ -1072,6 +1072,16 @@ if (LIVE) {
   const scroller = document.querySelector('.scroll');
   let last = null, broken = false;
 
+  // A panel a linket a saját fülén nyitná — a szerver a rendszerböngészőben nyitja.
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a.gh-link');
+    if (!a) return;
+    e.preventDefault();
+    fetch('/open?url=' + encodeURIComponent(a.href), { method: 'POST' })
+      .then(r => { if (!r.ok) throw new Error(r.status); })
+      .catch(() => window.open(a.href, '_blank', 'noopener'));
+  });
+
   async function swap() {
     const top = scroller.scrollTop;
     DATA = await fetch('/data' + Q, { cache: 'no-store' }).then(r => r.json());
@@ -1315,6 +1325,22 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
             except Exception as exc:                      # a lap ebből lesz "befagyott"
                 self.reply(503, f"{type(exc).__name__}: {exc}\n".encode(),
                            "text/plain; charset=utf-8")
+
+        def do_POST(self) -> None:
+            """`/open?url=…`: a GitHub-link a rendszerböngészőben.
+
+            A Browser panel a `target=_blank` linket a saját fülén nyitná meg.
+            Csak GitHub-URL és csak a saját lapról (Origin = Host) — idegen oldal
+            ne nyitogasson fület a loopback szerveren át.
+            """
+            split = urllib.parse.urlsplit(self.path)
+            url = urllib.parse.parse_qs(split.query).get("url", [""])[0]
+            origin = urllib.parse.urlsplit(self.headers.get("Origin", "")).netloc
+            if (split.path != "/open" or origin != self.headers.get("Host")
+                    or not url.startswith("https://github.com/")):
+                return self.reply(403, b"tiltott\n", "text/plain; charset=utf-8")
+            webbrowser.open(url)
+            self.reply(204, b"", "text/plain; charset=utf-8")
 
         def log_message(self, *args) -> None:             # csendes napló
             pass
