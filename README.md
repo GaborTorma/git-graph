@@ -168,6 +168,13 @@ commitnál: fájlonkénti `+`/`−` a HEAD-hez képest, a követetlen fájlok pe
 Nem commit, ezért a fejléc számlálójába nem számít bele, és a szűrők sem rejtik
 el. Élő módban magától megjelenik és tűnik el, ahogy szerkesztesz.
 
+## Issue- és PR-linkek
+
+Ha az `origin` GitHub-repó, a commit-üzenetekben (sor, panel-cím, body) a `#12`
+és az `owner/repo#12` hivatkozás link a GitHubra — a `/issues/12` a PR-ra is
+átirányít. A `C#1`-szerű szöveg és az URL-fragment (`lap.html#3`) nem lesz link.
+Más hoston (GitLab, …) nincs linkesítés: ott a `#szám` mást jelent.
+
 ## Hogyan rajzol
 
 A git saját lane-kiosztását követi: a commit abba a sávba ül, amelyik már rá

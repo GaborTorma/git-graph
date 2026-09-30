@@ -416,10 +416,25 @@ def repo_name() -> str:
     return name or REPO.name
 
 
+def repo_url() -> str:
+    """Az `origin` GitHub-webcíme (`https://github.com/<owner>/<repo>`), különben üres.
+
+    Ehhez linkeli a lap a commit-üzenetek `#12` issue/PR-hivatkozásait. Más
+    hoston a `#szám` mást jelent (GitLabon az MR `!szám`), ott nincs link.
+    """
+    try:
+        url = git("remote", "get-url", "origin").strip()
+    except subprocess.CalledProcessError:
+        return ""
+    m = re.match(r"(?:https?://|ssh://)?(?:[^@/]+@)?github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?/?$", url)
+    return f"https://github.com/{m[1]}/{m[2]}" if m else ""
+
+
 def collect_meta(commits: list[dict]) -> dict:
     status = git("status", "--porcelain").strip()
     return {
         "repo": repo_name(),
+        "repoUrl": repo_url(),
         "head": git("rev-parse", "--abbrev-ref", "HEAD").strip(),
         "totalCommits": int(git("rev-list", "--all", "--count").strip()),
         "shown": len(commits),
@@ -713,6 +728,8 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
 .meta a { color: var(--accent); text-decoration: none; cursor: pointer; }
 .meta a:hover { text-decoration: underline; }
 .body-text { white-space: pre-wrap; font-size: 12px; color: var(--fg); margin: 0 0 12px; max-width: 68ch; }
+.issue-link { color: var(--accent); text-decoration: none; }
+.issue-link:hover { text-decoration: underline; }
 
 .files { border-top: 1px solid var(--border-soft); padding-top: 10px; }
 .files-head { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-dim); margin-bottom: 6px; }
@@ -854,6 +871,17 @@ const fmtDate = iso => { const d = new Date(iso);
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} `
        + `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
+/* `#12` és `owner/repo#12` → GitHub-link (a `/issues/N` a PR-ra átirányít).
+   Előtte nem állhat szó- vagy URL-karakter: a `C#1` és a `lap.html#3` marad szöveg. */
+const ISSUE_RE = /(^|[^\w.\/-])([\w.-]+\/[\w.-]+)?#(\d+)\b/g;
+function linkify(s) {
+  const text = esc(s), base = DATA.meta.repoUrl;
+  if (!base) return text;
+  return text.replace(ISSUE_RE, (m, pre, repo, n) =>
+    `${pre}<a class="issue-link" href="${repo ? 'https://github.com/' + repo : base}/issues/${n}"`
+    + ` target="_blank" rel="noopener">${repo || ''}#${n}</a>`);
+}
+
 function badges(c) {
   return c.refs.map(r => {
     const label = r.kind === 'head' ? r.name : r.name;
@@ -866,7 +894,7 @@ function render() {
   rowsEl.innerHTML = visible.map((c, i) => `
     <button class="row${c.uncommitted ? ' uncommitted' : ''}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="cell"></span>
-      <span class="cell desc">${badges(c)}<span class="subject">${esc(c.subject)}</span></span>
+      <span class="cell desc">${badges(c)}<span class="subject">${linkify(c.subject)}</span></span>
       <span class="cell date">${fmtDate(c.date)}</span>
       <span class="cell author">${esc(c.author)}</span>
       <span class="cell sha mono">${c.short}</span>
@@ -894,14 +922,14 @@ function open(sha) {
   const el = document.createElement('div');
   el.className = 'details';
   el.innerHTML = `
-    <h2>${esc(c.subject)}</h2>
+    <h2>${linkify(c.subject)}</h2>
     <dl class="meta">
       <dt>Commit</dt><dd class="mono">${c.sha}</dd>
       <dt>Szülő</dt><dd class="mono">${parents}</dd>
       <dt>Szerző</dt><dd>${esc(c.author)}</dd>
       <dt>Dátum</dt><dd>${fmtDate(c.date)}</dd>
     </dl>
-    ${c.body ? `<p class="body-text">${esc(c.body)}</p>` : ''}
+    ${c.body ? `<p class="body-text">${linkify(c.body)}</p>` : ''}
     <div class="files">
       <div class="files-head">${st.files.length} fájl ·
         <span style="color:var(--add)">+${st.add}</span>
@@ -916,6 +944,7 @@ function open(sha) {
 }
 
 rowsEl.addEventListener('click', e => {
+  if (e.target.closest('a[href]')) return;   // issue-link: nyíljon, a sor ne csukódjon
   const jump = e.target.closest('[data-jump]');
   if (jump) {
     const target = rowsEl.querySelector(`.row[data-sha="${jump.dataset.jump}"]`);
