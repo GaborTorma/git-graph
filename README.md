@@ -168,12 +168,19 @@ commitnál: fájlonkénti `+`/`−` a HEAD-hez képest, a követetlen fájlok pe
 Nem commit, ezért a fejléc számlálójába nem számít bele, és a szűrők sem rejtik
 el. Élő módban magától megjelenik és tűnik el, ahogy szerkesztesz.
 
-## Issue- és PR-linkek
+## GitHub-linkek
 
-Ha az `origin` GitHub-repó, a commit-üzenetekben (sor, panel-cím, body) a `#12`
-és az `owner/repo#12` hivatkozás link a GitHubra — a `/issues/12` a PR-ra is
-átirányít. A `C#1`-szerű szöveg és az URL-fragment (`lap.html#3`) nem lesz link.
-Más hoston (GitLab, …) nincs linkesítés: ott a `#szám` mást jelent.
+Ha az `origin` GitHub-repó, a lap a GitHubra linkel:
+
+- **Issue / PR**: a commit-üzenetekben (sor, panel-cím, body) a `#12` és az
+  `owner/repo#12` — a `/issues/12` a PR-ra is átirányít. A `C#1`-szerű szöveg
+  és az URL-fragment (`lap.html#3`) nem lesz link.
+- **Commit hash**: a sorban és a panelen a commit GitHub-oldala.
+- **Fájlváltozás**: a panel fájllistájában a fájl diffje a commit-oldalon.
+
+A hash és a fájl csak **pusholt** commitnál link (az `origin` valamelyik ága
+eléri) — a helyi commit a GitHubon 404 lenne. Más hoston (GitLab, …) nincs
+linkesítés: ott a `#szám` mást jelent.
 
 ## Hogyan rajzol
 

@@ -446,6 +446,31 @@ def collect_meta(commits: list[dict]) -> dict:
     }
 
 
+def numstat_new_path(path: str) -> str:
+    """A `--numstat` átnevezés-alakjából (`a => b`, `x/{a => b}/y`) az új út."""
+    if " => " not in path:
+        return path
+    if "{" in path:
+        return re.sub(r"\{[^{}]* => ([^{}]*)\}", r"\1", path).replace("//", "/")
+    return path.split(" => ", 1)[1]
+
+
+def mark_pushed(commits: list[dict], stats: dict[str, dict]) -> None:
+    """Az `origin` által ismert commitok linkelhetők a GitHubra — a pusholatlan 404-et adna.
+
+    A fájlokhoz a GitHub commit-oldalának diff-horgonya kerül
+    (`#diff-<az új út sha256-ja>`): a JS-ben ez csak aszinkron, secure
+    contextben menne, a `file://` pillanatképben nem.
+    """
+    pushed = set(git("rev-list", "--remotes=origin").split())
+    for c in commits:
+        if c["sha"] not in pushed:
+            continue
+        c["pushed"] = True
+        for f in stats.get(c["sha"], {}).get("files", []):
+            f["anchor"] = hashlib.sha256(numstat_new_path(f["path"]).encode()).hexdigest()
+
+
 def collect_payload(limit: int | None) -> dict:
     """A lap teljes adatcsomagja — ugyanaz statikus fájlba és élő kiszolgáláshoz."""
     commits = collect_commits(limit)
@@ -453,6 +478,8 @@ def collect_payload(limit: int | None) -> dict:
         return {}
     stats = collect_stats(limit)
     meta = collect_meta(commits)          # még a valódi commitokból: `shown`
+    if meta["repoUrl"]:
+        mark_pushed(commits, stats)
 
     pending = collect_uncommitted()
     if pending:
@@ -728,8 +755,8 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
 .meta a { color: var(--accent); text-decoration: none; cursor: pointer; }
 .meta a:hover { text-decoration: underline; }
 .body-text { white-space: pre-wrap; font-size: 12px; color: var(--fg); margin: 0 0 12px; max-width: 68ch; }
-.issue-link { color: var(--accent); text-decoration: none; }
-.issue-link:hover { text-decoration: underline; }
+.gh-link { color: var(--accent); text-decoration: none; }
+.gh-link:hover { text-decoration: underline; }
 
 .files { border-top: 1px solid var(--border-soft); padding-top: 10px; }
 .files-head { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-dim); margin-bottom: 6px; }
@@ -878,9 +905,16 @@ function linkify(s) {
   const text = esc(s), base = DATA.meta.repoUrl;
   if (!base) return text;
   return text.replace(ISSUE_RE, (m, pre, repo, n) =>
-    `${pre}<a class="issue-link" href="${repo ? 'https://github.com/' + repo : base}/issues/${n}"`
-    + ` target="_blank" rel="noopener">${repo || ''}#${n}</a>`);
+    pre + ghLink(`${repo ? 'https://github.com/' + repo : base}/issues/${n}`, `${repo || ''}#${n}`));
 }
+
+const ghLink = (href, html) => `<a class="gh-link" href="${href}" target="_blank" rel="noopener">${html}</a>`;
+
+/* Commit és fájl-diff link csak pusholt commitra (`pushed`, a Python jelöli). */
+const commitUrl = c => c.pushed ? `${DATA.meta.repoUrl}/commit/${c.sha}` : '';
+const shaHtml = (c, text) => c.pushed ? ghLink(commitUrl(c), text) : text;
+const pathHtml = (c, f) => f.anchor
+  ? ghLink(`${commitUrl(c)}#diff-${f.anchor}`, esc(f.path)) : esc(f.path);
 
 function badges(c) {
   return c.refs.map(r => {
@@ -897,7 +931,7 @@ function render() {
       <span class="cell desc">${badges(c)}<span class="subject">${linkify(c.subject)}</span></span>
       <span class="cell date">${fmtDate(c.date)}</span>
       <span class="cell author">${esc(c.author)}</span>
-      <span class="cell sha mono">${c.short}</span>
+      <span class="cell sha mono">${shaHtml(c, c.short)}</span>
     </button>`).join('') || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
   drawGraph();
   const shown = visible.filter(c => !c.uncommitted).length;   // az ál-sor nem commit
@@ -924,7 +958,7 @@ function open(sha) {
   el.innerHTML = `
     <h2>${linkify(c.subject)}</h2>
     <dl class="meta">
-      <dt>Commit</dt><dd class="mono">${c.sha}</dd>
+      <dt>Commit</dt><dd class="mono">${shaHtml(c, c.sha)}</dd>
       <dt>Szülő</dt><dd class="mono">${parents}</dd>
       <dt>Szerző</dt><dd>${esc(c.author)}</dd>
       <dt>Dátum</dt><dd>${fmtDate(c.date)}</dd>
@@ -934,7 +968,7 @@ function open(sha) {
       <div class="files-head">${st.files.length} fájl ·
         <span style="color:var(--add)">+${st.add}</span>
         <span style="color:var(--del)">−${st.del}</span></div>
-      ${st.files.map(f => `<div class="file"><span class="mono">${esc(f.path)}</span>
+      ${st.files.map(f => `<div class="file"><span class="mono">${pathHtml(c, f)}</span>
         <span class="churn mono">${f.new ? 'új' : f.bin ? 'bin'
           : `<span class="a">+${f.add}</span> <span class="d">−${f.del}</span>`}</span></div>`).join('')}
     </div>`;
@@ -944,7 +978,7 @@ function open(sha) {
 }
 
 rowsEl.addEventListener('click', e => {
-  if (e.target.closest('a[href]')) return;   // issue-link: nyíljon, a sor ne csukódjon
+  if (e.target.closest('a[href]')) return;   // GitHub-link: nyíljon, a sor ne csukódjon
   const jump = e.target.closest('[data-jump]');
   if (jump) {
     const target = rowsEl.querySelector(`.row[data-sha="${jump.dataset.jump}"]`);
