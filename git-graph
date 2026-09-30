@@ -31,7 +31,7 @@ ignore-listájába (`.git/info/exclude`) veszi fel, tehát idegen repóban sem
 módosít követett fájlt.
 
 Telepítés: saját repó (`git-graph`), az `install.sh` symlinkeli a
-`~/.local/bin`-be `gitgraph` és `gg` néven. Függősége nincs a Python 3 stdliben
+`~/.local/bin`-be `git-graph` és `gg` néven. Függősége nincs a Python 3 stdliben
 túl; minden git-hívás csak olvas.
 """
 from __future__ import annotations
@@ -331,11 +331,17 @@ def is_tracked(path: Path) -> bool:
 
 
 def config_get(key: str) -> str:
-    """Érték a repó lokális git configjából (hiányzó kulcsnál üres sztring)."""
-    try:
-        return git("config", "--local", "--get", f"gitgraph.{key}").strip()
-    except subprocess.CalledProcessError:
-        return ""
+    """Érték a repó lokális git configjából (hiányzó kulcsnál üres sztring).
+
+    A régi `gitgraph.*` kulcsokat is olvassa: a korábban közzétett Artifact
+    URL-je így nem vész el, és a következő publikálás átírja az új névre.
+    """
+    for section in ("git-graph", "gitgraph"):
+        try:
+            return git("config", "--local", "--get", f"{section}.{key}").strip()
+        except subprocess.CalledProcessError:
+            pass
+    return ""
 
 
 def remember_artifact(url: str) -> None:
@@ -345,8 +351,12 @@ def remember_artifact(url: str) -> None:
     állapotot mutatja-e, vagy azóta jött új commit. A `.git/config` sosem
     commitolódik, és repónként külön tárol — pont, ami ide kell.
     """
-    git("config", "--local", "gitgraph.artifact", url)
-    git("config", "--local", "gitgraph.artifactHead", git("rev-parse", "HEAD").strip())
+    git("config", "--local", "git-graph.artifact", url)
+    git("config", "--local", "git-graph.artifactHead", git("rev-parse", "HEAD").strip())
+    try:                                  # a régi név kitakarítása, ha még ott van
+        git("config", "--local", "--remove-section", "gitgraph")
+    except subprocess.CalledProcessError:
+        pass
 
 
 def artifact_state() -> tuple[str, bool]:

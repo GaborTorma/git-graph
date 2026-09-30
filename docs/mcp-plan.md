@@ -69,7 +69,7 @@ a handler csak változáskor kér `graph_data`-t.
 
 ## Az adatszerződés
 
-A `gitgraph` ma ezt ágyazza be `const DATA = …`-ként. Az MCP szervernek
+A `git-graph` ma ezt ágyazza be `const DATA = …`-ként. Az MCP szervernek
 **ugyanezt** kell adnia, hogy a renderelő kód változatlan maradhasson:
 
 ```jsonc
@@ -95,12 +95,12 @@ A `gitgraph` ma ezt ágyazza be `const DATA = …`-ként. Az MCP szervernek
 }
 ```
 
-Az adatgyűjtő függvények készen vannak a [`../gitgraph`](../gitgraph) scriptben:
+Az adatgyűjtő függvények készen vannak a [`../git-graph`](../git-graph) scriptben:
 `collect_commits`, `parse_refs`, `collect_stats`, `assign_lanes`,
 `collect_branches`, `repo_name`, `collect_meta`, `resolve_repo`.
 
 > **Döntés kell**: a script `.py` kiterjesztés nélkül nem importálható. Vagy
-> kiemeled ezeket rendes csomagba (és a `gitgraph` onnan függ), vagy másolod.
+> kiemeled ezeket rendes csomagba (és a `git-graph` onnan függ), vagy másolod.
 > Ne duplikáld csendben — döntsd el és írd le.
 
 ## Az oldal átalakítása

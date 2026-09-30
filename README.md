@@ -31,13 +31,13 @@ Két üzemmód van, és más-más célra:
 ./install.sh --live   # + élő szerver (launchd) és SessionStart hook
 ```
 
-Symlinkeli a `gitgraph`-ot és a `gg`-t a `~/.local/bin`-be, a slash commandot a
+Symlinkeli a `git-graph`-ot és a `gg`-t a `~/.local/bin`-be, a slash commandot a
 `~/.claude/commands`-ba. Idempotens. Függősége nincs a Python 3 stdliben túl;
 minden git-hívás **csak olvas**.
 
 A `--live` ezen felül:
 
-- `~/Library/LaunchAgents/co.torma.gitgraph.plist` — a szervert a bejelentkezés
+- `~/Library/LaunchAgents/ai.torma.git-graph.plist` — a szervert a bejelentkezés
   indítja és életben tartja (`/usr/bin/python3`, napló: `~/.git-graph/serve.log`),
 - `~/.claude/settings.json` → `SessionStart` hook (a saját bejegyzését ismeri fel,
   idegen hookhoz nem nyúl; a fájlról mentés készül).
@@ -105,9 +105,9 @@ A hook némán kilép, ha a mappa nem git repó, vagy ha a szerver nem fut — a
 
 | Útvonal | Mi |
 | --- | --- |
-| `gitgraph` | maga a script (~930 sor: adatgyűjtés + beágyazott HTML/CSS/JS sablon) |
-| `gg` | symlink a `gitgraph`-ra — rövid alias |
-| `ggl` | symlink a `gitgraph`-ra; ezen a néven a `--launch-config` a default |
+| `git-graph` | maga a script (~930 sor: adatgyűjtés + beágyazott HTML/CSS/JS sablon) |
+| `gg` | symlink a `git-graph`-ra — rövid alias |
+| `ggl` | symlink a `git-graph`-ra; ezen a néven a `--launch-config` a default |
 | `install.sh` | symlinkek a PATH-ra és a Claude commands mappájába |
 | `commands/git-graph.md` | `/git-graph` slash command: publikálja/frissíti az Artifact oldalt |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |
@@ -136,8 +136,8 @@ Publikálás után a parancs lefuttatja a `gg --set-artifact <url>`-t, ami a rep
 
 | Kulcs | Mi |
 | --- | --- |
-| `gitgraph.artifact` | a közzétett oldal URL-je |
-| `gitgraph.artifactHead` | a HEAD a publikálás pillanatában |
+| `git-graph.artifact` | a közzétett oldal URL-je |
+| `git-graph.artifactHead` | a HEAD a publikálás pillanatában |
 
 Ettől a `gg` minden futásnál kiírja a linket, és jelzi, ha azóta új commit jött
 (`← ELAVULT`).

@@ -10,8 +10,8 @@ Használat és felépítés: [README.md](README.md).
 
 | Útvonal | Mi ez |
 | --- | --- |
-| `gitgraph` | a teljes eszköz egyetlen fájlban: git-adatgyűjtés + beágyazott HTML/CSS/JS sablon + élő szerver (`--serve`) + SessionStart hook (`--session-hook`) |
-| `gg` | symlink a `gitgraph`-ra (rövid alias) |
+| `git-graph` | a teljes eszköz egyetlen fájlban: git-adatgyűjtés + beágyazott HTML/CSS/JS sablon + élő szerver (`--serve`) + SessionStart hook (`--session-hook`) |
+| `gg` | symlink a `git-graph`-ra (rövid alias) |
 | `ggl` | ugyanaz a script; a `sys.argv[0]` neve kapcsolja a `--launch-config`-ot |
 | `install.sh` | symlinkek; `--live`: launchd agent + SessionStart hook a globális settingsbe |
 | `commands/git-graph.md` | a `/git-graph` slash command (publikálás/frissítés) |
@@ -30,7 +30,7 @@ gg                    # az aktuális repó → <repó>/.git-graph/index.html
 gg --serve            # élő kiszolgálás a Claude Desktop Browser paneljének
 gg --launch-config    # .claude/launch.json bejegyzés (preview_start git-graph)
 ggl                   # ugyanaz — a hívás neve kapcsolja
-python3 gitgraph …    # symlink nélkül, közvetlenül
+python3 git-graph …    # symlink nélkül, közvetlenül
 ```
 
 Két üzemmód: a **statikus** fájl (megosztás, Artifact) és az **élő** szerver
@@ -53,8 +53,9 @@ változnia), és repóváltás a `~/.git-graph/current` átírásával.
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
   futnia kell, `pip install` nélkül. Ne hozz be libet.
 - **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a
-  `.git/info/exclude` és a `.git/config` `gitgraph.*` kulcsai — mindkettő
-  lokális, sosem commitolódik —, valamint a `--launch-config`, ami
+  `.git/info/exclude` és a `.git/config` `git-graph.*` kulcsai (a régi
+  `gitgraph.*` nevet még olvassuk, íráskor töröljük) — mindkettő lokális,
+  sosem commitolódik —, valamint a `--launch-config`, ami
   `.claude/launch.json`-t ír: az **commitolható** fájl, ezért csak kifejezett
   kérésre fut, sosem mellékhatásként.
 - **Verziókezelés**: SemVer, kézi `vX.Y.Z` tag, Conventional Commits.

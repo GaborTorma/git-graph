@@ -2,7 +2,7 @@
 # git-graph telepítő: symlinkek a PATH-ra és a Claude commands mappájába.
 # Idempotens — újrafuttatható, meglévő azonos symlinket nem bánt.
 #
-#   ./install.sh                  symlinkek (gitgraph, gg, /git-graph parancs)
+#   ./install.sh                  symlinkek (git-graph, gg, /git-graph parancs)
 #   ./install.sh --live [--port N]  + élő szerver (launchd) és SessionStart hook
 #   ./install.sh --uninstall-live   az élő rész leszerelése (symlinkek maradnak)
 set -euo pipefail
@@ -11,8 +11,9 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$HOME/.local/bin"
 CMD_DIR="$HOME/.claude/commands"
 SETTINGS="$HOME/.claude/settings.json"
-LABEL="co.torma.gitgraph"
+LABEL="ai.torma.git-graph"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+OLD_LABEL="co.torma.gitgraph"   # korábbi név — telepítéskor/leszereléskor eltávolítjuk
 # A rendszer Pythonja: a launchd minimális környezetében is biztosan megvan,
 # és nem tűnik el egy homebrew-frissítéssel. A script stdlib-only, elég neki.
 PY_BIN="/usr/bin/python3"
@@ -59,7 +60,7 @@ link() {
 # A SessionStart hook be-/kivétele a globális Claude settingsből. Mentést készít,
 # és a saját bejegyzését azonosítja — idegen hookokhoz nem nyúl.
 patch_settings() {   # $1: "add" | "remove"
-  "$PY_BIN" - "$1" "$SETTINGS" "$PY_BIN $REPO_DIR/gitgraph --session-hook --port $PORT" <<'PY'
+  "$PY_BIN" - "$1" "$SETTINGS" "$PY_BIN $REPO_DIR/git-graph --session-hook --port $PORT" <<'PY'
 import json, shutil, sys, time
 from pathlib import Path
 
@@ -74,7 +75,7 @@ if path.exists():
 
 hooks = data.setdefault("hooks", {})
 groups = hooks.setdefault("SessionStart", [])
-mine = "gitgraph --session-hook"
+mine = "graph --session-hook"   # a régi (gitgraph) és az új (git-graph) név is
 kept = [g for g in groups
         if not any(mine in h.get("command", "") for h in g.get("hooks", []))]
 dropped = len(groups) - len(kept)
@@ -97,6 +98,13 @@ path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding=
 PY
 }
 
+# A régi néven futó agent: különben a régi plist a következő bejelentkezéskor
+# újraindulna, és a két szerver ugyanazért a portért versenyezne.
+remove_old_agent() {
+  launchctl bootout "gui/$UID/$OLD_LABEL" 2>/dev/null || true
+  rm -f "$HOME/Library/LaunchAgents/$OLD_LABEL.plist"
+}
+
 install_agent() {
   mkdir -p "$(dirname "$PLIST")" "$HOME/.git-graph"
   cat > "$PLIST" <<PLIST_EOF
@@ -108,7 +116,7 @@ install_agent() {
   <key>ProgramArguments</key>
   <array>
     <string>$PY_BIN</string>
-    <string>$REPO_DIR/gitgraph</string>
+    <string>$REPO_DIR/git-graph</string>
     <string>--serve</string>
     <string>--port</string>
     <string>$PORT</string>
@@ -122,14 +130,15 @@ install_agent() {
 </dict>
 </plist>
 PLIST_EOF
+  remove_old_agent
   launchctl bootout "gui/$UID/$LABEL" 2>/dev/null || true
   launchctl bootstrap "gui/$UID" "$PLIST"
   echo "launchd agent: $LABEL (port $PORT)"
 }
 
-link "$REPO_DIR/gitgraph"            "$BIN_DIR/gitgraph"
-link "$REPO_DIR/gitgraph"            "$BIN_DIR/gg"
-link "$REPO_DIR/gitgraph"            "$BIN_DIR/ggl"   # = gg --launch-config
+link "$REPO_DIR/git-graph"            "$BIN_DIR/git-graph"
+link "$REPO_DIR/git-graph"            "$BIN_DIR/gg"
+link "$REPO_DIR/git-graph"            "$BIN_DIR/ggl"   # = gg --launch-config
 link "$REPO_DIR/commands/git-graph.md" "$CMD_DIR/git-graph.md"
 
 case ":$PATH:" in
@@ -155,6 +164,7 @@ case "$MODE" in
     echo
     launchctl bootout "gui/$UID/$LABEL" 2>/dev/null || true
     rm -f "$PLIST"
+    remove_old_agent
     echo "launchd agent eltávolítva."
     patch_settings remove
     ;;
