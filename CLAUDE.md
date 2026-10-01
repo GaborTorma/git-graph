@@ -129,8 +129,10 @@ azt launchd alatt is ki kell próbálni.
   cache-t minden váltásnál nullázni kell.
 - **A launchd agent `/usr/bin/python3`-mal fut** (minimális PATH, a homebrew-s
   Python eltűnhet egy frissítéssel) — a script maradjon 3.9-kompatibilis.
-- **A hook némán kilép**, ha a mappa nem repó vagy nem fut a szerver: egy
-  SessionStart hook minden sessionben lefut, zajt nem csinálhat.
+- **A hook az Artifactot nyittatja meg** (`git-graph.artifact`), ha van; ha
+  nincs, a Browser panelt (dev szerver). Némán kilép, ha a mappa nem repó, vagy
+  se Artifact, se futó szerver: egy SessionStart hook minden sessionben lefut,
+  zajt nem csinálhat.
 - **A kimenet a repón KÍVÜL, `~/.git-graph/<slug>/`**: `index.html` a `gg`
   pillanatképe, `artifact.html` az Artifact vékony lapja — a headless claude ezt
   a mappát kapja munkakönyvtárnak (az Artifact csak onnan olvas). Ne tedd

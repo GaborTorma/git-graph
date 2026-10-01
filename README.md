@@ -65,9 +65,10 @@ A cél: **ne kelljen parancsot írni a chatbe**, mégis friss gráfot láss.
    több session fut egyszerre. A szerver a `?repo=<útvonal>` alakot is érti
    (kézi használatra), paraméter és slug nélkül pedig a `~/.git-graph/current`
    a tartalék — azt szintén a hook írja.
-4. A hook a session indulásakor megkéri Claude-ot, hogy nyissa meg a Browser
-   panelt ezzel az URL-lel. Utána már csak a panel **Show/Hide Browser**
-   kapcsolója kell.
+4. A hook a session indulásakor megkéri Claude-ot, hogy nyissa meg a repó élő
+   **Artifactját** (`git-graph.artifact`). Ha a repónak még nincs, a Browser
+   panelt nyittatja meg ezzel az URL-lel — a szerver közben létrehozza az
+   Artifactot, és a következő sessiontől az nyílik.
 
 ### `gg --launch-config` (röviden: `ggl`)
 
@@ -103,8 +104,9 @@ ugyan, de csak framebuffer (VNC) forrásokra — egy oda tett preview-bejegyzés
 > (ez a normál út, nem kell gépelni semmit), vagy kézzel beilleszted a fenti
 > URL-t a Browser panel címsorába. Rendszer-böngészőben: `open <URL>`.
 
-A hook némán kilép, ha a mappa nem git repó, vagy ha a szerver nem fut — az
-„off kapcsoló" tehát az agent leállítása (`./install.sh --uninstall-live`).
+A hook némán kilép, ha a mappa nem git repó, vagy ha se Artifactja nincs, se a
+szerver nem fut — az „off kapcsoló" tehát az `./install.sh --uninstall-live`
+(leveszi a hookot is).
 
 ## Felépítés
 

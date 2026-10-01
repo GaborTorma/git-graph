@@ -2118,9 +2118,11 @@ def mcp_serve(limit: int | None) -> int:
 def session_hook(port: int) -> int:
     """Claude Code SessionStart hook: eltárolja a session repóját.
 
-    Ha fut a szerver, a visszaadott additionalContext megkéri a modellt, hogy
-    nyissa meg a Browser panelt — így a gráf gépelés nélkül megjelenik.
+    A visszaadott additionalContext megkéri a modellt, hogy nyissa meg a repó
+    élő Artifactját — így a gráf gépelés nélkül megjelenik. Ha a repónak még
+    nincs Artifactja, és fut a szerver, a Browser panelt (dev szerver) nyitja.
     """
+    global REPO
     try:
         payload = json.load(sys.stdin)
     except Exception:
@@ -2132,25 +2134,29 @@ def session_hook(port: int) -> int:
         return 0                                   # nem repó: nincs mit mutatni
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     CURRENT.write_text(f"{repo}\n", encoding="utf-8")
-    if not port_open(port):
-        return 0                                   # nem fut a szerver: néma kilépés
-    # Ugyanaz a cím, amit a launch config is használ (`<slug>.localhost`), hogy
-    # a panel egy tabot lásson kétféle URL helyett.
-    url = f"http://{register(repo)}.localhost:{port}"
-    json.dump(
-        {
-            "hookSpecificOutput": {
-                "hookEventName": "SessionStart",
-                "additionalContext": (
-                    f"A git-graph élő commit-gráf ezen a címen szolgál ki: {url} "
-                    f"(most a(z) {repo} repót mutatja, magától frissül).\n"
-                    "A session elején nyisd meg EGYSZER a Browser panelen — "
-                    "preview_start, url paraméterrel —, és ne írj róla üzenetet."
-                ),
-            }
-        },
-        sys.stdout,
-    )
+    REPO = repo
+    artifact = config_get("artifact")
+    if port_open(port):
+        # A regiszter kell a dev szerver `<slug>.localhost` címéhez, a `gg --mcp`
+        # slug-feloldásához, és a szerver ebből hozza létre a hiányzó Artifactot.
+        slug = register(repo)
+    elif not artifact:
+        return 0                                   # se Artifact, se szerver: néma kilépés
+    if artifact:
+        context = (f"A(z) {repo} repó élő git-graph Artifactja: {artifact} (a gépen futó "
+                   "git-graph-ból élőben frissül).\nA session elején nyisd meg EGYSZER az "
+                   "Artifact eszközzel — action: \"open\", url paraméterrel —, és ne írj "
+                   "róla üzenetet.")
+    else:
+        # Ugyanaz a cím, amit a launch config is használ (`<slug>.localhost`), hogy
+        # a panel egy tabot lásson kétféle URL helyett.
+        url = f"http://{slug}.localhost:{port}"
+        context = (f"A git-graph élő commit-gráf ezen a címen szolgál ki: {url} "
+                   f"(most a(z) {repo} repót mutatja, magától frissül).\n"
+                   "A session elején nyisd meg EGYSZER a Browser panelen — "
+                   "preview_start, url paraméterrel —, és ne írj róla üzenetet.")
+    json.dump({"hookSpecificOutput": {"hookEventName": "SessionStart",
+                                      "additionalContext": context}}, sys.stdout)
     return 0
 
 
