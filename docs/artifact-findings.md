@@ -196,6 +196,17 @@ megnyitva a gépen futó `gg --mcp`-t hívja (`callTool("host:git-graph", …)`)
 | `graph_data`, 31 KB / 151 KB adat | 152 ms / 274 ms |
 | vékony lap (~27 KB) feltöltése | 5–8 s (régi nagy lap első cseréje: 20–30 s) |
 | teljes MCP-ág a lapon, hamis híddal (Browser panel) | `fingerprint` ~130 ms, `graph_data` ~190 ms |
+| **a Claude appban, valódi híddal** | `fingerprint` 262 ms, `graph_data` 414 ms |
+| **változás → a lapon látszik** (fájltörlés 05:56:28 → kirajzolva 05:56:31) | **~3 s** (≤ 2 s poll + ~0,7 s) |
+
+Két buktató, mindkettő mérve:
+
+- **A lap capability-deklaráció nélkül nem kap MCP-t** (`use("mcp")` → `null`).
+  A headless publikáló csak akkor tudja deklarálni a `host:git-graph`-ot, ha a
+  sessionje is látja a szervert (`--mcp-config`).
+- **A futó Claude app felülírja a `claude_desktop_config.json`-t** a
+  memóriabeli változattal (beállítás-mentéskor) — a közben beírt bejegyzés
+  elveszett. Beírás után azonnal újra kell indítani.
 
 A vékony lapot csak sablon- (kód-) vagy repónév-változáskor kell feltölteni;
 a `gg --serve` indításkor és új repó regisztrálásakor ellenőrzi (hash).

@@ -202,6 +202,12 @@ case "$MODE" in
     install_agent
     patch_settings add
     patch_app_config add
+    if ps -axo comm= | grep -q '/Claude.app/Contents/MacOS/Claude$'; then
+      # Mérve: a futó app a preferences mentésekor a memóriabeli configgal
+      # felülírja a fájlt — a bejegyzés ilyenkor elvész.
+      echo "FIGYELEM: a Claude app fut — most azonnal indítsd újra (Cmd+Q, majd indítás),"
+      echo "különben a következő beállítás-mentésnél felülírja a configot, és a bejegyzés elvész."
+    fi
     sleep 1
     if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/fingerprint"; then
       echo "Szerver válaszol: http://127.0.0.1:$PORT"

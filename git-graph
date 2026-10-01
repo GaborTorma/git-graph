@@ -1339,7 +1339,8 @@ def prepare_publish() -> dict | None:
     name = repo_name()
     title = f"{name} Git Graph"
     html_page = build(thin_payload(), title, mode="mcp", slug=register(REPO))
-    digest = hashlib.sha256(html_page.encode()).hexdigest()
+    # A capability-deklaráció is része a publikált lapnak: ha változik, újra kell.
+    digest = hashlib.sha256((html_page + json.dumps(PUBLISH_CAPS)).encode()).hexdigest()
     url = config_get("artifact")
     if url and digest == config_get("artifactHash"):
         return None
@@ -1370,6 +1371,9 @@ PUBLISH_TIMEOUT_S = 180
 PUBLISH_PARALLEL = 3
 GATE_POLL_S = 0.3        # az Artifact tool késve kapcsol be — ennyinként kérdezünk újra
 GATE_TRIES = 30
+# A lap ezen át éri el a gépen futó gg --mcp-t (enélkül use("mcp") null).
+PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
+                                     "tools": ["fingerprint", "graph_data"]}]}}
 
 
 def claude_bin() -> str | None:
@@ -1397,16 +1401,24 @@ def publish_page(page: Path, url: str, title: str) -> str:
     exe = claude_bin()
     if not exe:
         raise RuntimeError("nem található a claude CLI (~/.local/bin, /opt/homebrew/bin)")
+    caps = json.dumps(PUBLISH_CAPS)
     if url:
         prompt = (f"Publish the local file {page} to the existing artifact {url}. Steps: "
                   f"1) call Artifact with action read and url {url}; 2) call Artifact publish "
-                  f"with url {url} and file_path {page}. If a publish is refused, follow the "
-                  "refusal's instructions. Do nothing else. Reply with the URL only.")
+                  f"with url {url}, file_path {page} and capabilities exactly {caps}. If a "
+                  "publish is refused, follow the refusal's instructions. Do nothing else. "
+                  "Reply with the URL only.")
     else:
         prompt = (f"Publish the local file {page} as a new artifact titled {title!r}, with icon "
-                  "\"branch\". Do nothing else. Reply with the URL only.")
+                  f"\"branch\" and capabilities exactly {caps}. Do nothing else. "
+                  "Reply with the URL only.")
+    # A host:git-graph csak akkor deklarálható, ha a publikáló session is látja a
+    # szervert — ezért kapja meg (a többi MCP nélkül).
+    mcp = {"mcpServers": {MCP_NAME: {"command": "/usr/bin/python3",
+                                     "args": [str(Path(__file__).resolve()), "--mcp"]}}}
     cmd = [exe, "-p", "--input-format", "stream-json", "--output-format", "stream-json",
-           "--verbose", "--strict-mcp-config", "--setting-sources", "project",
+           "--verbose", "--strict-mcp-config", "--mcp-config", json.dumps(mcp),
+           "--setting-sources", "project",
            "--no-session-persistence", "--model", PUBLISH_MODEL, "--effort", "low",
            "--tools", "Artifact", "Read", "--allowedTools", "Artifact"]
     proc = subprocess.Popen(cmd, cwd=page.parent, env=dict(os.environ, **PUBLISH_ENV),

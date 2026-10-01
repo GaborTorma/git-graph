@@ -142,7 +142,13 @@ azt launchd alatt is ki kell próbálni.
   repónév-változáskor kell feltölteni (~6 s). Adatot ne tegyél vissza a lapba.
 - **Host-híd (`host:git-graph`)** — mérve, docs/artifact-findings.md:
   - Csak a Claude app configjában (`claude_desktop_config.json`) felvett szerver
-    érhető el; a `claude mcp add`-os nem. Az app csak induláskor olvassa.
+    érhető el; a `claude mcp add`-os nem. Az app csak induláskor olvassa, és
+    **futás közben felülírja** a memóriabeli változattal (beállítás-mentéskor —
+    mérve: a bejegyzés eltűnt). Ezért a beírás után azonnal újraindítás.
+  - A lapnak deklarálnia kell a `mcp` capability-t (`PUBLISH_CAPS`) — enélkül a
+    `use("mcp")` `null`, és a lap azt hiszi, nem az appban fut. A headless
+    publikáló csak akkor deklarálhatja a `host:git-graph`-ot, ha maga is látja a
+    szervert: ezért kapja `--mcp-config`-gal. A deklaráció a hash része.
   - A `gg --mcp` stdout-ján csak JSON-RPC mehet, ASCII-ban (a locale-tól
     függetlenül); napló, ha kell, stderr-re.
   - A toolok `readOnlyHint: true`-k — enélkül az app hívásonként megerősítést
