@@ -46,7 +46,7 @@ generált HTML megnyitása. A JS-t a fájlból kivágva `node --check`-kel lehet
 szintaxis-ellenőrizni. Az élő mód ellenőrzése: `gg --serve`, majd a lapon
 `DATA.meta.dirty` figyelése egy fájl létrehozása után (újratöltés nélkül kell
 változnia), és repóváltás a `~/.git-graph/current` átírásával. Az MCP-é: a
-`gg --mcp`-t stdio-n kézfogással, `tools/list`-tel és a két tool hívásával
+`gg --mcp`-t stdio-n kézfogással, `tools/list`-tel és a toolok hívásával
 (`/usr/bin/python3`-mal, ahogy az app indítja). Az MCP-mód lapja a Browser
 panelen egy `srcdoc` iframe-ben próbálható: a szerver lapját `MODE='mcp'`-re
 írva, egy ál-`window.claude`-dal, amely a `/fingerprint`-ből és a `/data`-ból
@@ -156,6 +156,12 @@ azt launchd alatt is ki kell próbálni.
     2 s-onként (olcsó `fingerprint`, változáskor `graph_data`).
   - Csak az appban megy (böngészőben `server_not_connected`), csak a
     tulajdonosnak. A lap nem `retryable` hibánál leáll, és kiírja a teendőt.
+  - Új tool → a `PUBLISH_CAPS` tool-listájába is (különben `not_in_manifest`),
+    és az app újraindítása: az app által indított `gg --mcp` a régi kódot futtatja.
+- **A `file_diff` / `/diff` bemenete a lapról jön**: a `sha` csak hex lehet
+  (különben `--output=…`-szerű opcióként menne a gitnek), fájlt közvetlenül
+  csak akkor olvasunk, ha a git követetlennek mondja — a loopback szerveren át
+  ne legyen kiolvasható tetszőleges fájl.
 - **Headless Artifact (`publish_page`)** — mind mérve, docs/artifact-findings.md:
   - `-p` módban az Artifact tool alapból KI (`sdk_default_off`); az opt-in a
     `CLAUDE_CODE_ARTIFACT=1`. Desktop sessionből indítva nélküle is ment (a

@@ -55,7 +55,7 @@ A cél: **ne kelljen parancsot írni a chatbe**, mégis friss gráfot láss.
 
 1. A `gg --serve` a loopbackon szolgál ki: `/` a friss HTML, `/data` a friss
    adat, `/fingerprint` egy pár száz bájtos ujjlenyomat (HEAD + refek hash-e +
-   piszkos fájlok száma).
+   piszkos fájlok száma), `/diff` egy fájl diffje (→ Fájl-diff).
 2. A lap kétmásodpercenként az **ujjlenyomatot** kéri, és csak tényleges
    változásra tölt `/data`-t — a nyitott commit-panel, a szűrők és a görgetés
    megmaradnak.
@@ -140,7 +140,7 @@ gépeden futó `gg --mcp`-ből kéri, az app **host-hídján** át
 (`callTool("host:git-graph", …)`). Ugyanaz a logika, mint a Browser panelen:
 2 mp-enként az olcsó `fingerprint` (refek, HEAD, munkakönyvtár — ~40 ms), és
 csak változáskor a teljes `graph_data` (150–300 ms). A lábléc kiírja a mért
-időket.
+időket. Egy lenyitott fájl diffje a `file_diff` toolból jön.
 
 Megkötések (a platformé, mérve — [docs/artifact-findings.md](docs/artifact-findings.md)):
 
@@ -190,6 +190,19 @@ commitnál: fájlonkénti `+`/`−` a HEAD-hez képest, a követetlen fájlok pe
 
 Nem commit, ezért a fejléc számlálójába nem számít bele, és a szűrők sem rejtik
 el. Élő módban magától megjelenik és tűnik el, ahogy szerkesztesz.
+
+## Fájl-diff
+
+A részletek-panel fájlsorai lenyithatók (a sorra kattintva — a fájlnév maga a
+GitHub-link marad): alatta a fájl diffje, a Claude app diff-nézetének mintájára —
+sorszám, `+`/`−`, a cserélt soroknál a megváltozott szavak erősebb háttérrel, a
+hunkok közt „N változatlan sor”. Az Uncommitted sornál a HEAD-hez képesti diff,
+követetlen fájlnál a teljes tartalom hozzáadottként.
+
+A diff nincs a teljes adatban: a lap lenyitáskor kéri, fájlonként (`/diff`,
+illetve az Artifactban a `file_diff` tool). A commitok diffje gyorstárazva, az
+Uncommitted soré élőben frissül. Csak élő nézetben megy — a statikus
+pillanatkép (`gg`) ezt kiírja. Egy fájlból legfeljebb 3000 sor látszik.
 
 ## GitHub-linkek
 
