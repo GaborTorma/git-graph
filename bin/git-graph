@@ -281,15 +281,20 @@ def assign_lanes(commits: list[dict]) -> list[dict]:
     return edges
 
 
+def is_linked_worktree() -> bool:
+    """A `REPO` egy hozzáadott worktree-e (nem a fő checkout)."""
+    own = git("rev-parse", "--path-format=absolute", "--git-dir").strip()
+    common = git("rev-parse", "--path-format=absolute", "--git-common-dir").strip()
+    return own != common
+
+
 def config_section() -> str:
     """A `REPO` kulcsainak szakasza: `git-graph`, worktree-ben `git-graph.<slug>`.
 
     A worktree-k közös `.git/config`-ot látnak, a lapjuk viszont más (más
     slug, más munkakönyvtár) — közös kulcson egymás Artifactját írnák felül.
     """
-    own = git("rev-parse", "--path-format=absolute", "--git-dir").strip()
-    common = git("rev-parse", "--path-format=absolute", "--git-common-dir").strip()
-    return "git-graph" if own == common else f"git-graph.{slug_for(REPO)}"
+    return f"git-graph.{slug_for(REPO)}" if is_linked_worktree() else "git-graph"
 
 
 def config_get(key: str) -> str:
@@ -399,9 +404,9 @@ def repo_name() -> str:
 
 
 def page_title(name: str) -> str:
-    """A lap és az Artifact neve. „Git Graph” elöl; a repó zárójelben, mert
-    repónként külön Artifact van — azonos nevekkel a választóban nem lennének
-    megkülönböztethetők. A lap JS-e (`hydrate`) ugyanezt a formát írja."""
+    """A lap és az Artifact neve. „Git Graph” elöl; a repó (worktree-ben a
+    mappájával) zárójelben, mert repónként és worktree-nként külön Artifact
+    van — azonos nevekkel a választóban nem lennének megkülönböztethetők."""
     return f"Git Graph ({name})"
 
 
@@ -1007,7 +1012,6 @@ function hydrate() {
   graphW = Math.max(28, X0 * 2 + (laneCount - 1) * LANE_W);
   document.documentElement.style.setProperty('--graph-w', graphW + 'px');
   document.getElementById('repoName').textContent = DATA.meta.repo;
-  document.title = 'Git Graph (' + DATA.meta.repo + ')';   // = page_title() a Pythonban
   document.getElementById('headRef').textContent = DATA.meta.head
     ? DATA.meta.head + ' · ' + DATA.meta.totalCommits + ' commit' : '';
 }
@@ -1601,7 +1605,10 @@ def prepare_publish() -> dict | None:
     így csak sablon- (kód-) vagy repónév-változáskor kell újra feltölteni.
     None, ha van már Artifact, és a lap hashe egyezik.
     """
-    html_page = build(thin_payload(), page_title(repo_name()), register(REPO))
+    # Worktree-ben a mappa neve is a címbe kerül: a fő checkout és a worktree-k
+    # Artifactjai különben azonos néven állnának a választóban.
+    name = f"{repo_name()} · {REPO.name}" if is_linked_worktree() else repo_name()
+    html_page = build(thin_payload(), page_title(name), register(REPO))
     url = config_get("artifact")
     if url and page_digest(html_page) == config_get("artifactHash"):
         return None

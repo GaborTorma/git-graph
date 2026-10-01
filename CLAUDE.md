@@ -83,7 +83,9 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 - **`<meta charset="utf-8">` a generált fájl legelső sora** — enélkül
   `file://`-ról latin-1-ként olvasódik.
 - **Repónév az `origin` remote-ból**, nem a mappanévből (a mappa eltérhet:
-  `auto-bpm` → `WristBPM`). Ez adja az Artifact címét is.
+  `auto-bpm` → `WristBPM`). Ez adja az Artifact címét is; worktree-ben a
+  mappa neve is mellé kerül (`Git Graph (git-graph · <mappa>)`). A cím a
+  publikált `<title>`-ből jön, a lap JS-e nem írja felül.
 - **A beágyazott JSON lezárhatja a script blokkot**: egy commit-üzenetben tényleg
   előfordult `</script>` (varazskez repó) → a lap fele nyers JSON-ként ömlött ki.
   A `build()` ezért az `embed()`-en át ágyaz (`</` → `<\/`, U+2028/29 escape).
