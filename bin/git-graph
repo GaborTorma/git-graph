@@ -1576,6 +1576,59 @@ def repo_for_slug(slug: str) -> Path | None:
     return Path(path) if path else None
 
 
+def registered_repos() -> dict:
+    try:
+        data = json.loads(REPOS.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def list_artifacts() -> list[tuple[Path, str]]:
+    """(repó, Artifact URL) párok — a `/git-graph:remove` ebből dolgozik.
+
+    A regiszter hiányos lehet (leszereléskor törlődik, és csak a hook tölti
+    újra), ezért a regisztrált repók szülőmappáinak többi repóját is nézi.
+    """
+    global REPO
+    candidates: set[Path] = set()
+    for path in registered_repos().values():
+        repo = Path(path)
+        candidates.add(repo)
+        try:
+            candidates.update(p for p in repo.parent.iterdir() if (p / ".git").exists())
+        except OSError:
+            pass
+    found = []
+    for repo in sorted(candidates):
+        REPO = repo
+        url = config_get("artifact")
+        if url:
+            found.append((repo, url))
+    return found
+
+
+def forget(repo: Path) -> None:
+    """A repó minden git-graph nyoma: `.git/config` kulcsai, helyi lapjai, regiszterbejegyzése.
+
+    Az automatikus publikálást is kikapcsolja — különben a szerver a
+    következő regiszterváltozáskor új Artifactot hozna létre.
+    """
+    global REPO
+    REPO = repo
+    try:
+        git("config", "--local", "--remove-section", "git-graph")
+    except subprocess.CalledProcessError:
+        pass
+    shutil.rmtree(STATE_DIR / slug_for(repo), ignore_errors=True)
+    data = registered_repos()
+    if data.pop(slug_for(repo), None) is not None:
+        REPOS.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                         encoding="utf-8")
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    NO_AUTO_PUBLISH.touch()
+
+
 # ── Publikálás ──────────────────────────────────────────────────────────────
 
 def page_path(repo: Path) -> Path:
@@ -1905,12 +1958,14 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
         if not claude_bin():
             print("  Artifact-publikálás: KI — nem található a claude CLI", flush=True)
             return
-        if NO_AUTO_PUBLISH.exists():          # fejlesztés közben: csak kézi gg --publish
-            print(f"  Artifact-publikálás: KI — {NO_AUTO_PUBLISH} létezik", flush=True)
-            return
         busy: set = set()
         stamp: float | None = -1.0
         while True:
+            # Futás közben is kapcsolható (fejlesztés, `gg --forget`): akkor csak
+            # a kézi gg --publish megy.
+            if NO_AUTO_PUBLISH.exists():
+                time.sleep(5)
+                continue
             try:
                 mtime: float | None = REPOS.stat().st_mtime
             except OSError:
@@ -2410,6 +2465,13 @@ def main() -> int:
                          "a Claude Artifact-ablakát a /git-graph nyitja)")
     ap.add_argument("--set-artifact", metavar="URL", default=None,
                     help="a repóhoz tartozó Artifact URL kézi megjegyzése")
+    ap.add_argument("--artifacts", action="store_true",
+                    help="az ismert repók Artifactjai, soronként: <repó>\\t<URL> "
+                         "(a /git-graph:remove ebből dolgozik)")
+    ap.add_argument("--forget", action="store_true",
+                    help="a repó git-graph nyomainak törlése (.git/config kulcsok, "
+                         "helyi lapok, regiszter) és az automatikus publikálás "
+                         "kikapcsolása — az Artifactot nem törli")
     ap.add_argument("--publish", action="store_true",
                     help="az Artifact vékony lapjának publikálása egy headless "
                          "claude-dal (meglévőt frissít, ha nincs, létrehozza; "
@@ -2444,6 +2506,18 @@ def main() -> int:
 
     if args.mcp:
         return mcp_serve(args.limit or None)
+
+    if args.artifacts:
+        for repo, url in list_artifacts():
+            print(f"{repo}\t{url}")
+        return 0
+
+    if args.forget:
+        repo = resolve_repo(Path(args.repo).expanduser().resolve())
+        forget(repo)
+        print(f"✓ {repo}: a git-graph nyomai törölve; automatikus publikálás KI "
+              f"({NO_AUTO_PUBLISH})")
+        return 0
 
     if args.launch_config:
         repo = resolve_repo(Path(args.repo).expanduser().resolve())

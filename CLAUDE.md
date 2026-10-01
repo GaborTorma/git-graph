@@ -17,6 +17,7 @@ Használat és felépítés: [README.md](README.md).
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
 | `hooks/hooks.json` | a plugin SessionStart hookja (`--session-hook`) |
 | `skills/git-graph/SKILL.md` | a `/git-graph:git-graph` skill (`gg --publish`, majd megnyitja) |
+| `skills/remove/SKILL.md` | a `/git-graph:remove` skill: Artifactok törlése + `gg --forget` az uninstall előtt |
 | `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
 | `docs/desktop-live.md` | **mérési napló**: miért a Browser panel + lokális szerver az élő út |
 | `docs/mcp-plan.md` | a korábbi terv az élő Artifacthoz (azóta a `host:` híddal megvalósult) |
@@ -34,6 +35,8 @@ gg --publish          # az Artifact vékony lapja (headless claude -p)
 gg --serve            # élő kiszolgálás a Browser panelnek + Artifactok karbantartása
 gg --mcp              # MCP szerver stdio-n — a Claude app indítja, nem kézzel
 gg --launch-config    # .claude/launch.json bejegyzés (preview_start git-graph)
+gg --artifacts        # ismert repók Artifactjai (regiszter + a szülőmappák repói)
+gg --forget           # a repó git-graph nyomai + automatikus publikálás KI
 ggl                   # ugyanaz — a hívás neve kapcsolja
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
 ```
