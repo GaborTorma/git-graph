@@ -14,30 +14,23 @@ aktuális) könyvtárból oldja fel, magától a script helyétől függetlenül
     gg ~/dev/masik-repo           # másik repó
     gg --out graf.html            # máshova (relatív út a CWD-hez)
     gg --limit 200                # csak az utolsó 200 commit (alap: mind)
-    gg --publish                  # Artifactként publikálja (headless claude-dal)
+    gg --publish                  # az Artifact publikálásának lépései a sessionnek
     gg --open artifact            # a közzétett Artifact oldal (ha van)
-    gg --serve                    # élő kiszolgálás: http://127.0.0.1:7788
-    gg --launch-config            # .claude/launch.json a Browser panelhez
-    ggl                           # ugyanaz, rövidebben (alias)
 
-Az élő mód (`--serve`) magát a gráfot szolgálja ki, kérésenként újragenerálva;
-a lap kétmásodpercenként olcsó ujjlenyomatot kér, és csak tényleges változásra
-tölt új adatot. Melyik repót mutatja? Amit a `--session-hook` (Claude Code
-SessionStart hook) utoljára beírt a `~/.git-graph/current` fájlba — így a
-Claude Desktop Browser panelje mindig az éppen nyitott session repóját mutatja.
-Közben a szerver minden regisztrált repó Artifactját naprakészen tartja:
-ref-változás után 2, fájlváltozás után 10 másodperc csenddel újrapublikál, ha a
-lap tartalma változott.
+Az élő nézet az Artifact: adat nincs benne, a Claude appban megnyitva a gépen
+futó `gg --mcp`-ből kéri (a Claude app host-hídján át). Kétmásodpercenként
+olcsó ujjlenyomatot kér, és csak tényleges változásra tölt új adatot. A lapot
+a session publikálja, amikor a SessionStart hook kéri: ha még nincs, vagy a
+sablonja (a git-graph kódja) változott.
 
-A kimenet a repón KÍVÜL, mindig ugyanott keletkezik (`~/.git-graph/<slug>/`),
-innen frissül ugyanaz az Artifact oldal — a projektmappában nincs mit
-ignorálni.
+A kimenet a repón KÍVÜL, mindig ugyanott keletkezik (`~/.git-graph/<slug>/`) —
+a projektmappában nincs mit ignorálni.
 
 Telepítés: Claude Code plugin (`claude plugin install git-graph@git-graph`).
 Az első session SessionStart hookja beállítja a többit: a stabil másolatot
-(`~/.git-graph/bin`), a `~/.local/bin` parancsokat, a launchd agentet és a
-Claude app MCP-configját. Függősége nincs a Python 3 stdliben túl; minden
-git-hívás csak olvas.
+(`~/.git-graph/bin`), a `~/.local/bin` parancsokat és a Claude app
+MCP-configját. Függősége nincs a Python 3 stdliben túl; minden git-hívás csak
+olvas.
 """
 from __future__ import annotations
 
@@ -46,19 +39,15 @@ import datetime
 import difflib
 import hashlib
 import html
-import http.server
 import json
 import os
-import queue
 import re
+import shlex
 import shutil
-import socket
 import subprocess
 import sys
 import threading
 import time
-import urllib.parse
-import uuid
 import webbrowser
 from pathlib import Path
 
@@ -302,42 +291,21 @@ def assign_lanes(commits: list[dict]) -> list[dict]:
     return edges
 
 
-def add_local_exclude(entry: str, comment: str) -> bool:
-    """Bejegyzés a repó LOKÁLIS ignore-listájába (`.git/info/exclude`).
+def config_section() -> str:
+    """A `REPO` kulcsainak szakasza: `git-graph`, worktree-ben `git-graph.<slug>`.
 
-    Szándékosan NEM a követett `.gitignore`-ba: ez az eszköz bármelyik repóban
-    fut, és nem módosíthat ott commitolható fájlt. Igazzal tér vissza, ha most
-    írta bele.
+    A worktree-k közös `.git/config`-ot látnak, a lapjuk viszont más (más
+    slug, más munkakönyvtár) — közös kulcson egymás Artifactját írnák felül.
     """
-    common = git("rev-parse", "--git-common-dir").strip()
-    git_dir = Path(common)
-    if not git_dir.is_absolute():
-        git_dir = REPO / git_dir
-    exclude = git_dir / "info" / "exclude"
-
-    existing = exclude.read_text(encoding="utf-8") if exclude.exists() else ""
-    if entry in {line.strip() for line in existing.splitlines()}:
-        return False
-    exclude.parent.mkdir(parents=True, exist_ok=True)
-    prefix = "" if existing.endswith("\n") or not existing else "\n"
-    with exclude.open("a", encoding="utf-8") as fh:
-        fh.write(f"{prefix}# {comment}\n{entry}\n")
-    return True
-
-
-def is_tracked(path: Path) -> bool:
-    """Követi-e a git ezt a fájlt (követettet már nem érdekli az exclude)."""
-    result = subprocess.run(
-        ["git", "-C", str(REPO), "ls-files", "--error-unmatch", str(path)],
-        capture_output=True, text=True,
-    )
-    return result.returncode == 0
+    own = git("rev-parse", "--path-format=absolute", "--git-dir").strip()
+    common = git("rev-parse", "--path-format=absolute", "--git-common-dir").strip()
+    return "git-graph" if own == common else f"git-graph.{slug_for(REPO)}"
 
 
 def config_get(key: str) -> str:
     """Érték a repó lokális git configjából (hiányzó kulcsnál üres sztring)."""
     try:
-        return git("config", "--local", "--get", f"git-graph.{key}").strip()
+        return git("config", "--local", "--get", f"{config_section()}.{key}").strip()
     except subprocess.CalledProcessError:
         return ""
 
@@ -348,14 +316,47 @@ def remember_artifact(url: str, digest: str | None = None) -> None:
     A hash alapján a publikálás kihagyja a változatlan lapot. A `.git/config`
     sosem commitolódik, és repónként külön tárol — pont, ami ide kell.
     """
-    git("config", "--local", "git-graph.artifact", url)
+    section = config_section()
+    git("config", "--local", f"{section}.artifact", url)
     if digest:
-        git("config", "--local", "git-graph.artifactHash", digest)
+        git("config", "--local", f"{section}.artifactHash", digest)
     if not digest:                        # kézi --set-artifact: a hash már nem érvényes
         try:
-            git("config", "--local", "--unset", "git-graph.artifactHash")
+            git("config", "--local", "--unset", f"{section}.artifactHash")
         except subprocess.CalledProcessError:
             pass
+
+
+def artifact_entries() -> dict[str, str]:
+    """A repó minden Artifactja — a fő checkouté és a worktree-ké: szakasz → URL."""
+    try:
+        out = git("config", "--local", "--get-regexp", r"^git-graph\.(.+\.)?artifact$")
+    except subprocess.CalledProcessError:
+        return {}
+    entries = {}
+    for line in out.splitlines():
+        key, _, url = line.partition(" ")
+        entries[key.rsplit(".", 1)[0]] = url.strip()
+    return entries
+
+
+def worktree_paths() -> list[Path]:
+    """A repó worktree-jei; az első a fő checkout."""
+    return [Path(line[len("worktree "):])
+            for line in git("worktree", "list", "--porcelain").splitlines()
+            if line.startswith("worktree ")]
+
+
+def orphan_artifacts() -> dict[str, str]:
+    """Megszűnt worktree-k Artifactjai: szakasz → URL."""
+    live = {f"git-graph.{slug_for(path)}" for path in worktree_paths()}
+    return {section: url for section, url in artifact_entries().items()
+            if section != "git-graph" and section not in live}
+
+
+def section_slug(section: str) -> str:
+    """A szakasz slugja — a fő checkouté az útvonalából."""
+    return section.split(".", 1)[1] if "." in section else slug_for(worktree_paths()[0])
 
 
 def collect_branches() -> list[dict]:
@@ -491,23 +492,6 @@ def collect_payload(limit: int | None) -> dict:
         "stats": stats,
         "branches": collect_branches(),
         "meta": meta,
-    }
-
-
-def fingerprint() -> dict:
-    """Olcsó ujjlenyomat a pollozáshoz: három git-hívás, pár száz bájt.
-
-    A refek hash-e azért kell, hogy ág- és tag-mozgásra is változzon, ne csak
-    új commitra; a `dirty` a munkakönyvtár szerkesztéseit is látszóvá teszi.
-    """
-    refs = git("for-each-ref", "--format=%(objectname) %(refname)")
-    status = git("status", "--porcelain").strip()
-    return {
-        "repo": repo_name(),
-        "repoPath": str(REPO),
-        "head": git("rev-parse", "HEAD").strip(),
-        "refs": hashlib.sha1(refs.encode()).hexdigest()[:12],
-        "dirty": len([l for l in status.splitlines() if l.strip()]),
     }
 
 
@@ -1008,9 +992,9 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
 
 <script>
 let DATA = __DATA__;
-/* Honnan él a lap: `static` — beágyazott pillanatkép (gg), `http` — a helyi
-   gg --serve (Browser panel), `mcp` — Artifact, amely a Claude app host-hídján
-   át a gépen futó `gg --mcp`-ből kéri az adatot (a SLUG repóét). */
+/* Honnan él a lap: `static` — beágyazott pillanatkép (gg), `mcp` — Artifact,
+   amely a Claude app host-hídján át a gépen futó `gg --mcp`-ből kéri az adatot
+   (a SLUG repóét). */
 const MODE = '__MODE__';
 const SLUG = '__SLUG__';
 const MCP_SERVER = 'host:git-graph';
@@ -1119,17 +1103,6 @@ const shaHtml = (c, text) => c.pushed ? ghLink(commitUrl(c), text) : text;
 const pathHtml = (c, f) => c.pushed
   ? ghLink(commitUrl(c) + (f.anchor ? '#diff-' + f.anchor : ''), esc(f.path)) : esc(f.path);
 
-/* A Browser panel a linket a saját fülén nyitná — ott a szerver nyitja a
-   rendszerböngészőben. Máshol (Artifact, fájl) a link maga nyílik. */
-document.addEventListener('click', e => {
-  const a = e.target.closest('a.gh-link');
-  if (!a || MODE !== 'http') return;
-  e.preventDefault();
-  fetch('/open?url=' + encodeURIComponent(a.href), { method: 'POST' })
-    .then(r => { if (!r.ok) throw new Error(r.status); })
-    .catch(() => window.open(a.href, '_blank', 'noopener'));
-});
-
 function badges(c) {
   return c.refs.map(r => {
     const label = r.kind === 'head' ? r.name : r.name;
@@ -1199,7 +1172,7 @@ function open(sha) {
 }
 
 /* ── Fájl-diff ───────────────────────────────────────────────────────────────
-   A diffet a lap lustán kéri, fájlonként (http: /diff, mcp: file_diff tool) —
+   A diffet a lap lustán kéri, fájlonként (a file_diff toollal) —
    a teljes adatban nincs benne. A commitok diffje nem változik, gyorstárazzuk;
    az Uncommitted soré adatcserekor elavul (`stale`): a régi látszik, amíg az
    új meg nem jön, így a 2 mp-es frissítés nem villog. */
@@ -1222,7 +1195,7 @@ function toggleFile(fileEl, sha, on) {
   };
   const cached = diffCache.get(key);
   if (!SRC) return show('<p class="diff-note">A diff csak élő nézetben látszik '
-    + '(Browser panel: gg --serve, vagy az Artifact a Claude appban).</p>');
+    + '(az Artifact a Claude appban).</p>');
   show(cached ? diffHtml(cached.data) : '<p class="diff-note">Betöltés…</p>');
   if (cached && !cached.stale) return;
   SRC.diff(sha, fileEl.dataset.path).then(
@@ -1383,27 +1356,13 @@ fillBranches();
 render();
 
 /* ── Élő frissítés ───────────────────────────────────────────────────────
-   Két forrás, egy logika: a Browser panelen a helyi `gg --serve` (HTTP), az
-   Artifactban a gépen futó `gg --mcp` (a Claude app host-hídján át). Az olcsó
+   A forrás a gépen futó `gg --mcp` (a Claude app host-hídján át). Az olcsó
    ujjlenyomatot pollozzuk, teljes adatot csak tényleges változásra kérünk: a
    lap helyben rajzol újra, a nyitott panel, a szűrők és a görgetés megmaradnak.
    A lábléc a mért időket is mutatja (ujjlenyomat · adat). */
 const POLL_MS = 2000;
 const foot = document.getElementById('foot');
 const scroller = document.querySelector('.scroll');
-
-function httpSource() {
-  const get = path => fetch(path + location.search, { cache: 'no-store' }).then(r => r.json());
-  const diff = (sha, path) => {
-    const q = new URLSearchParams(location.search);
-    q.set('sha', sha);
-    q.set('path', path);
-    return fetch('/diff?' + q, { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : r.text().then(t => { throw new Error(t.trim()); }));
-  };
-  return { fingerprint: () => get('/fingerprint'), data: () => get('/data'), diff,
-           where: 'gg --serve' };
-}
 
 async function mcpSource() {
   const mcp = window.claude && await window.claude.use('mcp');
@@ -1439,7 +1398,7 @@ function mcpProblem(e) {
 }
 
 function startLive(src) {
-  let last = MODE === 'http' ? null : '';   // http: a beágyazott adat friss
+  let last = '';                            // a váz üres: az első kör adatot kér
   let change = '';                          // az utolsó változás: mikor, mennyi idő alatt
   SRC = src;
   async function poll() {
@@ -1449,7 +1408,7 @@ function startLive(src) {
       const f = await src.fingerprint();
       const tf = performance.now() - t0;
       const key = JSON.stringify(f);
-      if (last !== null && key !== last) {
+      if (key !== last) {
         const t1 = performance.now();
         DATA = await src.data();
         const td = performance.now() - t1;
@@ -1464,23 +1423,18 @@ function startLive(src) {
       }
       last = key;
       foot.className = 'foot';
-      foot.textContent = `Élő · ${f.repoPath || src.where} · ${new Date().toLocaleTimeString()}`
+      foot.textContent = `Élő · ${src.where} · ${new Date().toLocaleTimeString()}`
         + ` · ujjlenyomat ${Math.round(tf)} ms` + change;
     } catch (e) {
-      if (MODE === 'http') {
-        notice('A gg szerver nem válaszol — a gráf befagyott (gg --serve).', true);
-      } else {
-        notice(mcpProblem(e), true);
-        if (!(e && e.retryable)) return;        // magától nem javul: nincs több kör
-        wait = Math.max(POLL_MS, (e && e.retryAfterMs) || 0) * 2;
-      }
+      notice(mcpProblem(e), true);
+      if (!(e && e.retryable)) return;          // magától nem javul: nincs több kör
+      wait = Math.max(POLL_MS, (e && e.retryAfterMs) || 0) * 2;
     }
     setTimeout(poll, wait);                     // a következő kör az előző után
   }
   poll();
 }
 
-if (MODE === 'http') startLive(httpSource());
 if (MODE === 'mcp') {
   notice('Kapcsolódás a gépeden futó git-graph-hoz…');
   mcpSource().then(src => src ? startLive(src) : notice(
@@ -1492,7 +1446,7 @@ if (MODE === 'mcp') {
 
 
 STATIC_FOOT = ("Statikus pillanatkép — a <code class=\"mono\">gg</code> generálta. Élő nézet: "
-               "a Browser panel (<code class=\"mono\">gg --serve</code>) vagy az Artifact a Claude appban.")
+               "az Artifact a Claude appban.")
 LIVE_FOOT = "Élő — kapcsolódás…"
 
 
@@ -1512,8 +1466,8 @@ def embed(payload: dict) -> str:
 
 
 def build(payload: dict, title: str, mode: str = "static", slug: str = "") -> str:
-    """A lap: `static` — beágyazott pillanatkép, `http` — a gg --serve élő lapja,
-    `mcp` — az Artifact vékony lapja (üres váz; az adat a `gg --mcp`-ből jön)."""
+    """A lap: `static` — beágyazott pillanatkép, `mcp` — az Artifact vékony lapja
+    (üres váz; az adat a `gg --mcp`-ből jön)."""
     meta = payload["meta"]
     return (
         TEMPLATE.replace("__DATA__", embed(payload))
@@ -1532,18 +1486,15 @@ def thin_payload() -> dict:
                      "shown": 0, "dirty": 0, "generated": "", "worktrees": []}}
 
 
-# ── Élő kiszolgálás ─────────────────────────────────────────────────────────
+# ── Állapot a gépen (`~/.git-graph`) ────────────────────────────────────────
 
 STATE_DIR = Path.home() / ".git-graph"
-CURRENT = STATE_DIR / "current"        # a session-hook írja, a szerver olvassa
-REPOS = STATE_DIR / "repos.json"       # slug → repó útvonal (a --launch-config írja)
-NO_AUTO_PUBLISH = STATE_DIR / "no-auto-publish"   # ha létezik: a szerver nem publikál
-DEFAULT_PORT = 7788
-LAUNCH_NAME = "git-graph"              # a bejegyzés neve a .claude/launch.json-ben
+REPOS = STATE_DIR / "repos.json"       # slug → repó útvonal (a hook írja, a gg --mcp olvassa)
+NO_AUTO_PUBLISH = STATE_DIR / "no-auto-publish"   # ha létezik: a hook nem kér publikálást
 
 
 def slug_for(repo: Path) -> str:
-    """Hostnév-barát, stabil azonosító a repóhoz.
+    """Stabil azonosító a repóhoz — az Artifact lapja ezzel kérdezi a `gg --mcp`-t.
 
     A mappanév olvashatóvá teszi, az útvonal-hash pedig egyértelművé: két
     azonos nevű mappa (`~/a/app`, `~/b/app`) nem üthet össze.
@@ -1599,34 +1550,53 @@ def list_artifacts() -> list[tuple[Path, str]]:
             candidates.update(p for p in repo.parent.iterdir() if (p / ".git").exists())
         except OSError:
             pass
-    found = []
+    found: dict[str, Path] = {}             # URL → repó; a worktree-k configja közös
     for repo in sorted(candidates):
         REPO = repo
-        url = config_get("artifact")
-        if url:
-            found.append((repo, url))
-    return found
+        try:
+            main = worktree_paths()[0]
+            urls = artifact_entries().values()
+        except subprocess.CalledProcessError:
+            continue                             # eltűnt vagy sérült repó
+        for url in urls:
+            found.setdefault(url, main)
+    return [(repo, url) for url, repo in found.items()]
+
+
+def drop_section(section: str) -> None:
+    """Egy Artifact nyoma: a config-szakasza, a helyi lapjai és a regiszterbejegyzése."""
+    slug = section_slug(section)
+    try:
+        git("config", "--local", "--remove-section", section)
+    except subprocess.CalledProcessError:
+        pass
+    shutil.rmtree(STATE_DIR / slug, ignore_errors=True)
+    data = registered_repos()
+    if data.pop(slug, None) is not None:
+        REPOS.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                         encoding="utf-8")
 
 
 def forget(repo: Path) -> None:
-    """A repó minden git-graph nyoma: `.git/config` kulcsai, helyi lapjai, regiszterbejegyzése.
+    """A repó minden git-graph nyoma — a worktree-ké is: kulcsok, helyi lapok, regiszter.
 
-    Az automatikus publikálást is kikapcsolja — különben a szerver a
-    következő regiszterváltozáskor új Artifactot hozna létre.
+    Az automatikus publikálást is kikapcsolja — különben a következő session
+    hookja új Artifactot kérne.
     """
     global REPO
     REPO = repo
-    try:
-        git("config", "--local", "--remove-section", "git-graph")
-    except subprocess.CalledProcessError:
-        pass
-    shutil.rmtree(STATE_DIR / slug_for(repo), ignore_errors=True)
-    data = registered_repos()
-    if data.pop(slug_for(repo), None) is not None:
-        REPOS.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
-                         encoding="utf-8")
+    for section in {"git-graph", *artifact_entries()}:
+        drop_section(section)
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     NO_AUTO_PUBLISH.touch()
+
+
+def forget_artifact(url: str) -> bool:
+    """Egyetlen Artifact nyoma (egy megszűnt worktree-é); False, ha nem ismert."""
+    sections = [section for section, known in artifact_entries().items() if known == url]
+    for section in sections:
+        drop_section(section)
+    return bool(sections)
 
 
 # ── Publikálás ──────────────────────────────────────────────────────────────
@@ -1640,11 +1610,7 @@ def page_path(repo: Path) -> Path:
 
 
 def artifact_path(repo: Path) -> Path:
-    """Az Artifact vékony lapja: `~/.git-graph/<slug>/artifact.html`.
-
-    Innen tölti fel a publikáló (a claude-folyamat ezt a mappát kapja
-    munkakönyvtárnak — az Artifact csak onnan olvas).
-    """
+    """Az Artifact vékony lapja: `~/.git-graph/<slug>/artifact.html` — innen publikál a session."""
     return STATE_DIR / slug_for(repo) / "artifact.html"
 
 
@@ -1655,414 +1621,61 @@ def write_page(payload: dict, title: str) -> Path:
     return page
 
 
-def prepare_publish() -> dict | None:
-    """Az Artifact vékony lapja: kiírja, ha eltér a legutóbb publikálttól.
-
-    Adat nincs benne — a lap a Claude appban a gép `gg --mcp`-jéből kéri —,
-    így csak sablon- (kód-) vagy repónév-változáskor kell újra feltölteni.
-    None, ha van már Artifact, és a lap hashe egyezik. Csak git-hívás és
-    fájlírás — a lassú feltöltés (`publish_page`) külön, lock nélkül fut.
-    """
-    name = repo_name()
-    title = page_title(name)
-    html_page = build(thin_payload(), title, mode="mcp", slug=register(REPO))
-    # A capability-deklaráció is része a publikált lapnak: ha változik, újra kell.
-    digest = hashlib.sha256((html_page + json.dumps(PUBLISH_CAPS)).encode()).hexdigest()
-    url = config_get("artifact")
-    if url and digest == config_get("artifactHash"):
-        return None
-    page = artifact_path(REPO)
-    page.parent.mkdir(parents=True, exist_ok=True)
-    page.write_text(html_page, encoding="utf-8")
-    return {"page": page, "url": url, "title": title, "digest": digest, "name": name}
-
-
-def finish_publish(job: dict, url: str) -> None:
-    remember_artifact(url, job["digest"])
-
-
-# A hideg, headless publikálás beállításai — mérve, docs/artifact-findings.md:
-# ezzel 5,6–6,2 s a `Published`-ig (ha a modell nem olvas bele a fájlba: +3 s).
-PUBLISH_MODEL = "claude-sonnet-5-5"
-PUBLISH_ENV = {
-    # `-p` módban az Artifact tool alapból KI van kapcsolva (sdk_default_off),
-    # ez az opt-in. A Desktop sessionből indítva azért működött nélküle is,
-    # mert onnan a CLAUDE_CODE_ENTRYPOINT=claude-desktop öröklődik — a launchd
-    # szerver alatt nincs ilyen.
-    "CLAUDE_CODE_ARTIFACT": "1",
-    "ENABLE_CLAUDEAI_MCP_SERVERS": "false",   # claude.ai konnektorok nélkül
-    "CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1",
-    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
-}
-PUBLISH_TIMEOUT_S = 180
-PUBLISH_PARALLEL = 3
-GATE_POLL_S = 0.3        # az Artifact tool késve kapcsol be — ennyinként kérdezünk újra
-GATE_TRIES = 30
 # A lap ezen át éri el a gépen futó gg --mcp-t (enélkül use("mcp") null).
 PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
                                      "tools": ["fingerprint", "graph_data", "file_diff"]}]}}
 
 
-def claude_bin() -> str | None:
-    """A `claude` CLI — a launchd agent minimális PATH-ján is (`~/.local/bin`)."""
-    extra = [str(Path.home() / ".local" / "bin"), "/opt/homebrew/bin", "/usr/local/bin"]
-    return shutil.which("claude", path=os.pathsep.join([os.environ.get("PATH", ""), *extra]))
+def page_digest(html_page: str) -> str:
+    """A publikált lap hashe — a capability-deklaráció is része: ha változik, újra kell."""
+    return hashlib.sha256((html_page + json.dumps(PUBLISH_CAPS)).encode()).hexdigest()
 
 
-def publish_page(page: Path, url: str, title: str) -> str:
-    """A lap feltöltése egy hideg, headless `claude` folyamattal; az URL-t adja.
+def prepare_publish() -> dict | None:
+    """Az Artifact vékony lapja: kiírja, ha eltér a legutóbb publikálttól.
 
-    Az Artifact API-t csak a modell éri el (nincs rá CLI-alparancs), ezért egy
-    szűk promptú, karcsú `claude -p` fut:
-    - `--strict-mcp-config` + `ENABLE_CLAUDEAI_MCP_SERVERS=false`: MCP-szerver
-      nélkül (444 helyett ~30 tool), `--setting-sources project`: user-hookok
-      és pluginok nélkül — így 0,3 s-nál indul.
-    - Az Artifact tool egy org-policy lekérdezés után kapcsol be, sokszor csak
-      az első init UTÁN. Ezért `--input-format stream-json`: ha az init-ben
-      még nincs Artifact, a kört megszakítjuk (interrupt) és ugyanabban a
-      folyamatban újrakérdezünk — új folyamattal a kapu újra zárva indulna.
-    - Friss sessionből a publish csak `Artifact read` után megy át (különben
-      elutasítja, mert „nem látta" az élő verziót) — ezért kéri a prompt előbb.
-    - A `Published` tool-válasznál kilépünk: a modell záró szövege felesleges.
+    Adat nincs benne — a lap a Claude appban a gép `gg --mcp`-jéből kéri —,
+    így csak sablon- (kód-) vagy repónév-változáskor kell újra feltölteni.
+    None, ha van már Artifact, és a lap hashe egyezik.
     """
-    exe = claude_bin()
-    if not exe:
-        raise RuntimeError("nem található a claude CLI (~/.local/bin, /opt/homebrew/bin)")
+    html_page = build(thin_payload(), page_title(repo_name()), mode="mcp", slug=register(REPO))
+    url = config_get("artifact")
+    if url and page_digest(html_page) == config_get("artifactHash"):
+        return None
+    page = artifact_path(REPO)
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text(html_page, encoding="utf-8")
+    return {"page": page, "url": url}
+
+
+def publish_steps(job: dict) -> str:
+    """A session teendője a lap publikálásához — a hook és a `gg --publish` adja a modellnek.
+
+    Az Artifact API-t csak a modell éri el, ezért a publikálást a session
+    végzi (mérve, docs/artifact-findings.md): a `host:git-graph` akkor is
+    deklarálható, ha a session nem látja a szervert; egy meglévő Artifactra
+    viszont csak az élő verzió olvasása után publikálhat. Az URL-t és a hasht
+    a `--published` írja vissza — a hook a publikálás eredményét nem látja.
+    A `gg` a plugin `bin/`-jéből a Bash eszköz PATH-ján van (egy
+    `Bash(gg:*)` engedéllyel nem kérdez).
+    """
     caps = json.dumps(PUBLISH_CAPS)
-    if url:
-        prompt = (f"Publish the local file {page} to the existing artifact {url}. Steps: "
-                  f"1) call Artifact with action read and url {url}; 2) call Artifact publish "
-                  f"with url {url}, file_path {page} and capabilities exactly {caps}. If a "
-                  "publish is refused, follow the refusal's instructions. Do nothing else. "
-                  "Reply with the URL only.")
-    else:
-        prompt = (f"Publish the local file {page} as a new artifact titled {title!r}, with icon "
-                  f"\"branch\" and capabilities exactly {caps}. Do nothing else. "
-                  "Reply with the URL only.")
-    # A host:git-graph csak akkor deklarálható, ha a publikáló session is látja a
-    # szervert — ezért kapja meg (a többi MCP nélkül).
-    mcp = {"mcpServers": {MCP_NAME: {"command": "/usr/bin/python3",
-                                     "args": [str(Path(__file__).resolve()), "--mcp"]}}}
-    cmd = [exe, "-p", "--input-format", "stream-json", "--output-format", "stream-json",
-           "--verbose", "--strict-mcp-config", "--mcp-config", json.dumps(mcp),
-           "--setting-sources", "project",
-           "--no-session-persistence", "--model", PUBLISH_MODEL, "--effort", "low",
-           "--tools", "Artifact", "Read", "--allowedTools", "Artifact"]
-    proc = subprocess.Popen(cmd, cwd=page.parent, env=dict(os.environ, **PUBLISH_ENV),
-                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL, text=True, bufsize=1)
-    lines: queue.Queue = queue.Queue()
-
-    def pump() -> None:
-        for line in proc.stdout:
-            lines.put(line)
-        lines.put(None)
-
-    def send(event: dict) -> None:
-        proc.stdin.write(json.dumps(event) + "\n")
-        proc.stdin.flush()
-
-    def ask() -> None:
-        send({"type": "user", "message": {"role": "user", "content": prompt}})
-
-    threading.Thread(target=pump, daemon=True).start()
-    deadline = time.monotonic() + PUBLISH_TIMEOUT_S
-    tries, gated = 1, False
-    try:
-        ask()
-        while True:
-            line = lines.get(timeout=max(0.1, deadline - time.monotonic()))
-            if line is None:
-                raise RuntimeError("a claude folyamat váratlanul kilépett")
-            event = json.loads(line)
-            kind = event.get("type")
-            if kind == "system" and event.get("subtype") == "init" \
-                    and "Artifact" not in event.get("tools", []):
-                send({"type": "control_request", "request_id": uuid.uuid4().hex,
-                      "request": {"subtype": "interrupt"}})
-                gated = True
-            elif kind == "result":
-                if gated and tries < GATE_TRIES:
-                    time.sleep(GATE_POLL_S)
-                    tries, gated = tries + 1, False
-                    ask()
-                    continue
-                reason = "az Artifact tool nem kapcsolt be" if gated else event.get("result", "")
-                raise RuntimeError(f"nem publikált: {str(reason)[:300]}")
-            message = event.get("message")
-            blocks = message.get("content") if isinstance(message, dict) else None
-            for block in blocks if isinstance(blocks, list) else []:
-                if block.get("type") != "tool_result":
-                    continue
-                text = block.get("content")
-                text = text if isinstance(text, str) else json.dumps(text)
-                found = re.search(r"Published .+? at (https://claude\.ai/[^\s)\"]+)", text)
-                if found:
-                    return found.group(1)
-    except queue.Empty:
-        raise RuntimeError(f"időtúllépés ({PUBLISH_TIMEOUT_S} s)") from None
-    except OSError as exc:                     # a folyamat közben kilépett (EPIPE)
-        raise RuntimeError(f"a claude folyamat hibája: {exc}") from None
-    finally:
-        proc.kill()
+    record = (f"Bash: gg {shlex.quote(str(REPO))} --published <URL> "
+              "(az URL a publish eredményéből)")
+    if job["url"]:
+        return (f"1) Artifact, action: \"read\", url: {job['url']}; 2) Artifact publish — url: "
+                f"{job['url']}, file_path: {job['page']}, capabilities: {caps}; 3) {record}.")
+    return (f"1) Artifact publish — file_path: {job['page']}, icon: \"branch\", "
+            f"capabilities: {caps}; 2) {record}.")
 
 
-def write_launch_config(repo: Path, port: int) -> tuple[Path, str]:
-    """Az élő preview bejegyzése a repó `.claude/launch.json`-jába.
-
-    A Claude Desktop localhostra CSAK origint fogad el — path és query nélkül
-    (mérve: „a localhost address with a path or query"). A repót ezért a
-    hostnév hordozza: `<slug>.localhost`, amit a panel Chromiumja a loopbackra
-    old fel. A fájl többi bejegyzését és kulcsát nem bántjuk.
-    """
-    slug = register(repo)
-    url = f"http://{slug}.localhost:{port}"
-    path = repo / ".claude" / "launch.json"
-
-    data: dict = {}
-    if path.exists():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            raise SystemExit(f"HIBA: {path} nem érvényes JSON — kézzel kell javítani.")
-        if not isinstance(data, dict):
-            raise SystemExit(f"HIBA: {path} gyökere nem objektum.")
-
-    data.setdefault("version", "0.0.1")
-    others = [c for c in data.get("configurations", [])
-              if not (isinstance(c, dict) and c.get("name") == LAUNCH_NAME)]
-    # Mindig az ELSŐ bejegyzés: a névtelen indítás a lista elejéről választ.
-    data["configurations"] = [{"name": LAUNCH_NAME, "url": url, "port": port}] + others
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return path, url
-
-
-def keep_launch_local(path: Path) -> bool:
-    """A launch.json a repó lokális ignore-listájába, ha még nem követett fájl.
-
-    A benne lévő slug az abszolút útvonalból származik — más gépen értelmetlen,
-    tehát nem commitolandó. Ha a repó viszont MÁR követi a fájlt (van benne más
-    dev-szerver bejegyzés), nem nyúlunk hozzá: az exclude ott úgysem hatna.
-    """
-    if is_tracked(path.relative_to(REPO)):
-        return False
-    return add_local_exclude(".claude/launch.json",
-                             "gitgraph preview-bejegyzése (gépfüggő slug)")
-
-
-def port_open(port: int) -> bool:
-    """Fut-e már valami a loopback porton (a hook ebből tudja, van-e mit nyitni)."""
-    with socket.socket() as s:
-        s.settimeout(0.2)
-        return s.connect_ex(("127.0.0.1", port)) == 0
-
-
-def current_repo(fallback: Path | None) -> Path | None:
-    """A kiszolgálandó repó: amit a hook utoljára beírt, különben a fallback."""
-    try:
-        marked = Path(CURRENT.read_text(encoding="utf-8").strip()).expanduser()
-    except OSError:
-        return fallback
-    try:
-        return resolve_repo(marked)
-    except SystemExit:
-        return fallback
-
-
-def serve(port: int, fallback: Path | None, limit: int | None) -> int:
-    """Loopback HTTP szerver: `/` friss HTML, `/data` friss adat, `/fingerprint` olcsó."""
-    # A REPO modulszintű globális, a kérések viszont más-más repót kérhetnek —
-    # a kiszolgálást ezért sorosítjuk. Egy kérés pár tized másodperc.
-    lock = threading.Lock()
-
-    def switch(wanted: str | None, slug: str | None) -> Path:
-        """A kérés repója: a `?repo=` paraméter, különben amit a hook beírt.
-
-        A paraméter azért kell, mert egyszerre több session (több Browser panel)
-        kérdezi ugyanezt a szervert — egy globális „aktuális repó" ilyenkor
-        véletlenszerűen váltogatna. Az URL-be sütve minden panel a sajátját látja.
-        """
-        global REPO, _REMOTES
-        if wanted:
-            try:
-                repo = resolve_repo(Path(wanted).expanduser())
-            except SystemExit as exc:     # a resolve_repo CLI-re van szabva
-                raise FileNotFoundError(str(exc)) from None
-        elif slug:
-            repo = repo_for_slug(slug)
-            if repo is None:
-                raise FileNotFoundError(
-                    f"ismeretlen repó-azonosító: {slug} — futtasd a repóban: gg --launch-config")
-        else:
-            repo = current_repo(fallback)
-        if repo is None:
-            raise FileNotFoundError("nincs kiszolgálható repó")
-        REPO = repo
-        _REMOTES = None
-        return repo
-
-    def watched_repos() -> list[Path]:
-        """A figyelt repók: amit a dev szerver ismer — a regiszter és a hook repója.
-
-        Mindegyiknek jár Artifact: ahol még nincs, az első publikálás létrehozza.
-        """
-        try:
-            paths = set(json.loads(REPOS.read_text(encoding="utf-8")).values())
-        except (OSError, json.JSONDecodeError, AttributeError):
-            paths = set()
-        marked = current_repo(None)
-        if marked is not None:
-            paths.add(str(marked))
-        found: list[Path] = []
-        for path in sorted(paths):
-            try:
-                with lock:
-                    repo = switch(path, None)
-                if repo not in found:
-                    found.append(repo)
-            except Exception:
-                pass                              # eltűnt mappa, nem repó
-        return found
-
-    # Indításkor minden repó egyszerre esedékes — egy claude-folyamat ~270 MB.
-    slots = threading.BoundedSemaphore(PUBLISH_PARALLEL)
-
-    def run_publish(repo: Path, busy: set) -> None:
-        try:
-            with lock:
-                switch(str(repo), None)
-                job = prepare_publish()
-            if job is None:
-                return                            # a lap nem változott
-            with slots:
-                started = time.monotonic()
-                url = publish_page(job["page"], job["url"], job["title"])
-            with lock:
-                switch(str(repo), None)
-                finish_publish(job, url)
-            print(f"[publish] {job['name']}: {time.monotonic() - started:.1f} s → {url}", flush=True)
-        except Exception as exc:
-            print(f"[publish] {repo}: HIBA — {exc}", flush=True)
-        finally:
-            busy.discard(repo)
-
-    def ensure_artifacts() -> None:
-        """Minden ismert repónak legyen naprakész (vékony) Artifactja.
-
-        A lap adat nélküli sablon: csak kódfrissítéskor (akkor a szerver is
-        újraindul) vagy új repó regisztrálásakor kell feltölteni. Ezért elég
-        indításkor és a regiszter változásakor ellenőrizni — a lap hashe dönt.
-        """
-        if not claude_bin():
-            print("  Artifact-publikálás: KI — nem található a claude CLI", flush=True)
-            return
-        busy: set = set()
-        stamp: float | None = -1.0
-        while True:
-            # Futás közben is kapcsolható (fejlesztés, `gg --forget`): akkor csak
-            # a kézi gg --publish megy.
-            if NO_AUTO_PUBLISH.exists():
-                time.sleep(5)
-                continue
-            try:
-                mtime: float | None = REPOS.stat().st_mtime
-            except OSError:
-                mtime = None
-            if mtime != stamp:
-                stamp = mtime
-                for repo in watched_repos():
-                    if repo not in busy:
-                        busy.add(repo)
-                        threading.Thread(target=run_publish, args=(repo, busy),
-                                         daemon=True).start()
-            time.sleep(5)
-
-    class Handler(http.server.BaseHTTPRequestHandler):
-        protocol_version = "HTTP/1.1"
-        server_version = "gitgraph"
-
-        def reply(self, code: int, body: bytes, ctype: str) -> None:
-            self.send_response(code)
-            self.send_header("Content-Type", ctype)
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            self.wfile.write(body)
-
-        def do_GET(self) -> None:
-            split = urllib.parse.urlsplit(self.path)
-            route = split.path.rstrip("/") or "/"
-            query = urllib.parse.parse_qs(split.query)
-            wanted = query.get("repo", [None])[0]
-            # `<slug>.localhost` — a launch.json csak origint enged localhostra,
-            # így a repó a hostnévben utazik.
-            host = self.headers.get("Host", "").split(":")[0].lower()
-            slug = host[: -len(".localhost")] if host.endswith(".localhost") else None
-            try:
-                with lock:
-                    repo = switch(wanted, slug)
-                    if route == "/fingerprint":
-                        return self.reply(200, json.dumps(fingerprint()).encode(),
-                                          "application/json; charset=utf-8")
-                    if route == "/diff":
-                        diff = file_diff(query.get("sha", [""])[0], query.get("path", [""])[0])
-                        return self.reply(200, json.dumps(diff, ensure_ascii=False).encode(),
-                                          "application/json; charset=utf-8")
-                    if route in ("/", "/index.html", "/data"):
-                        payload = collect_payload(limit)
-                        if not payload:
-                            raise RuntimeError(f"nincs commit: {repo}")
-                        if route == "/data":
-                            body = json.dumps(payload, ensure_ascii=False).encode()
-                            return self.reply(200, body, "application/json; charset=utf-8")
-                        title = page_title(payload["meta"]["repo"])
-                        body = build(payload, title, mode="http").encode()
-                        return self.reply(200, body, "text/html; charset=utf-8")
-                self.reply(404, b"nincs ilyen utvonal\n", "text/plain; charset=utf-8")
-            except Exception as exc:                      # a lap ebből lesz "befagyott"
-                self.reply(503, f"{type(exc).__name__}: {exc}\n".encode(),
-                           "text/plain; charset=utf-8")
-
-        def do_POST(self) -> None:
-            """`/open?url=…`: a GitHub-link a rendszerböngészőben.
-
-            A Browser panel a `target=_blank` linket a saját fülén nyitná meg.
-            Csak GitHub-URL és csak a saját lapról (Origin = Host) — idegen oldal
-            ne nyitogasson fület a loopback szerveren át.
-            """
-            split = urllib.parse.urlsplit(self.path)
-            url = urllib.parse.parse_qs(split.query).get("url", [""])[0]
-            origin = urllib.parse.urlsplit(self.headers.get("Origin", "")).netloc
-            if (split.path != "/open" or origin != self.headers.get("Host")
-                    or not url.startswith("https://github.com/")):
-                return self.reply(403, b"tiltott\n", "text/plain; charset=utf-8")
-            webbrowser.open(url)
-            self.reply(204, b"", "text/plain; charset=utf-8")
-
-        def log_message(self, *args) -> None:             # csendes napló
-            pass
-
-    try:
-        server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    except OSError as exc:
-        raise SystemExit(f"HIBA: a {port} port nem nyitható meg ({exc.strerror}). "
-                         "Fut már egy gg --serve? Másik portra: --port N")
-    repo = current_repo(fallback)
-    # flush: launchd alatt a napló különben a puffere miatt üresnek látszik.
-    print(f"✓ gg --serve  http://127.0.0.1:{port}", flush=True)
-    print(f"  repó: {repo or '(még nincs — a session-hook majd beírja)'}", flush=True)
-    print(f"  váltás: {CURRENT}", flush=True)
-    print("  Artifactok: indításkor és új repónál ellenőrizve (a lap élő — adat a gg --mcp-ből)",
-          flush=True)
-    threading.Thread(target=ensure_artifacts, daemon=True).start()
-    threading.Thread(target=watch_uninstall, daemon=True).start()
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nLeállt.")
-    return 0
+def mark_published(url: str) -> None:
+    """A session publikálása után: az URL és a feltöltött lap hashe a `.git/config`-ba."""
+    page = artifact_path(REPO)
+    if not page.exists():
+        raise SystemExit("HIBA: nincs kiírt Artifact-lap — előbb: gg --publish")
+    remember_artifact(url, page_digest(page.read_text(encoding="utf-8")))
+    register(REPO)
 
 
 # ── MCP szerver a Claude appnak (`gg --mcp`) ────────────────────────────────
@@ -2095,7 +1708,7 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
 
     repo = repo_for_slug(str(args.get("repo", "")))
     if repo is None:
-        return text(f"ismeretlen repó: {args.get('repo')!r} — futtasd benne: gg --launch-config", True)
+        return text(f"ismeretlen repó: {args.get('repo')!r} — nyiss benne egy Claude sessiont (a git-graph hookja regisztrálja)", True)
     REPO, _REMOTES = repo, None
     try:
         if name == "fingerprint":
@@ -2116,9 +1729,11 @@ def mcp_serve(limit: int | None) -> int:
     Az Artifact vékony lapja a Claude app host-hídján át ezt hívja: az olcsó
     `fingerprint`-et sűrűn, a `graph_data`-t csak változáskor. Stdlib JSON-RPC
     2.0, soronként egy üzenet; a stdout-ra csak protokoll mehet. Mindkét tool
-    read-only-nak jelölt: így az app nem kér hívásonként megerősítést.
+    read-only-nak jelölt: így az app nem kér hívásonként megerősítést. Közben
+    figyeli, eltávolították-e a plugint (`watch_uninstall`).
     """
     out = sys.stdout.buffer
+    threading.Thread(target=watch_uninstall, daemon=True).start()
 
     def send(message: dict) -> None:
         out.write(json.dumps(message).encode() + b"\n")   # ASCII: nem függ a locale-tól
@@ -2154,29 +1769,31 @@ def mcp_serve(limit: int | None) -> int:
     return 0
 
 
-# ── Plugin-telepítés (SessionStart hook) és leszerelés (`--serve`) ──────────
+# ── Plugin-telepítés (SessionStart hook) és leszerelés (`gg --mcp`) ─────────
 #
 # A Claude Code pluginnak nincs install/update/uninstall eseménye. Ami a gépen
-# túl van a pluginon (launchd agent, a Claude app MCP-configja, terminálos
-# parancsok), azt a SessionStart hook állítja be — idempotensen, csak
-# változáskor írva —, a leszerelést pedig a futó szerver végzi, amikor a plugin
+# túl van a pluginon (a Claude app MCP-configja, terminálos parancsok), azt a
+# SessionStart hook állítja be — idempotensen, csak változáskor írva —, a
+# leszerelést pedig az app által indított `gg --mcp` végzi, amikor a plugin
 # eltűnik a Claude Code nyilvántartásából.
 
 PLUGIN_ID = "git-graph@"     # bármelyik marketplace-ből telepítve
 INSTALLED_PLUGINS = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
 # A plugin útvonala verziónként más (…/cache/<marketplace>/git-graph/<verzió>/),
-# a régi verzió mappája el is tűnhet — a launchd és az app ezt a másolatot futtatja.
+# a régi verzió mappája el is tűnhet — az app ezt a másolatot futtatja.
 BIN_DIR = STATE_DIR / "bin"
 STABLE = BIN_DIR / "git-graph"
-ALIASES = ("gg", "ggl")
+ALIASES = ("gg",)
 USER_BIN = Path.home() / ".local" / "bin"
-AGENT_LABEL = "ai.torma.git-graph"
-AGENT_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{AGENT_LABEL}.plist"
+# A 0.2-es verziók launchd agentje (`gg --serve`): a publikálás azóta a
+# sessionben fut, a Browser panel megszűnt — a hook leszereli, ha még fent van.
+LEGACY_AGENT = "ai.torma.git-graph"
+LEGACY_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{LEGACY_AGENT}.plist"
 # Az Artifact `host:git-graph` hívásai csak az innen indított szervert érik el
 # (a `claude mcp add`-os nem számít — mérve).
 APP_CONFIG = (Path.home() / "Library" / "Application Support" / "Claude"
               / "claude_desktop_config.json")
-# A rendszer Pythonja: a launchd minimális környezetében is megvan, és nem tűnik
+# A rendszer Pythonja: az app minimális környezetében is megvan, és nem tűnik
 # el egy homebrew-frissítéssel.
 SYSTEM_PYTHON = "/usr/bin/python3"
 UNINSTALL_POLL_S = 60
@@ -2207,15 +1824,10 @@ def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def launchctl(*args: str) -> bool:
-    return subprocess.run(["launchctl", *args], capture_output=True).returncode == 0
-
-
-def install_copy() -> bool:
-    """A futó script másolata a stabil helyre (+ aliasok); True, ha változott."""
+def install_copy() -> None:
+    """A futó script másolata a stabil helyre (+ aliasok)."""
     new = Path(__file__).resolve().read_bytes()
-    changed = not STABLE.exists() or STABLE.read_bytes() != new
-    if changed:
+    if not STABLE.exists() or STABLE.read_bytes() != new:
         BIN_DIR.mkdir(parents=True, exist_ok=True)
         tmp = STABLE.with_name(".git-graph.tmp")
         tmp.write_bytes(new)
@@ -2224,7 +1836,6 @@ def install_copy() -> bool:
     for name in ALIASES:
         if not (BIN_DIR / name).is_symlink():
             (BIN_DIR / name).symlink_to(STABLE.name)
-    return changed
 
 
 def link_user_bin() -> None:
@@ -2240,62 +1851,17 @@ def link_user_bin() -> None:
             link.symlink_to(STABLE)
 
 
-def agent_plist(port: int) -> str:
-    return f"""<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>{AGENT_LABEL}</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>{SYSTEM_PYTHON}</string>
-    <string>{STABLE}</string>
-    <string>--serve</string>
-    <string>--port</string>
-    <string>{port}</string>
-  </array>
-  <key>EnvironmentVariables</key>
-  <dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>{STATE_DIR / "serve.log"}</string>
-  <key>StandardErrorPath</key><string>{STATE_DIR / "serve.log"}</string>
-</dict>
-</plist>
-"""
-
-
-def install_agent(port: int, restart: bool) -> None:
-    """A `gg --serve` launchd agentje; új kódnál újraindítja."""
-    domain = f"gui/{os.getuid()}"
-    content = agent_plist(port)
-    loaded = launchctl("print", f"{domain}/{AGENT_LABEL}")
-    if not AGENT_PLIST.exists() or AGENT_PLIST.read_text(encoding="utf-8") != content:
-        AGENT_PLIST.parent.mkdir(parents=True, exist_ok=True)
-        STATE_DIR.mkdir(parents=True, exist_ok=True)
-        AGENT_PLIST.write_text(content, encoding="utf-8")
-        if loaded:
-            launchctl("bootout", f"{domain}/{AGENT_LABEL}")
-            loaded = False
-    if loaded:
-        if restart:
-            launchctl("kickstart", "-k", f"{domain}/{AGENT_LABEL}")
-        else:
-            return
-    else:
-        # A bootout aszinkron: amíg a régi példány le nem állt, a bootstrap
-        # „5: Input/output error"-ral elbukik (mérve) — ezért próbálkozunk.
-        for _ in range(10):
-            if launchctl("bootstrap", domain, str(AGENT_PLIST)):
-                break
-            time.sleep(0.5)
-        else:
-            log(f"git-graph: a launchd agent nem indult — napló: {STATE_DIR / 'serve.log'}")
-            return
-    for _ in range(30):                  # a hook ugyanebben a körben már a szervert kérdezi
-        if port_open(port):
-            break
-        time.sleep(0.1)
+def drop_legacy() -> None:
+    """A 0.2-es verziók gépi maradéka: launchd agent, `ggl` parancs, szervernapló."""
+    if LEGACY_PLIST.exists():
+        LEGACY_PLIST.unlink()
+        subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}/{LEGACY_AGENT}"],
+                       capture_output=True)
+    for link in (USER_BIN / "ggl", BIN_DIR / "ggl"):
+        if link.is_symlink() and os.readlink(link) in (str(STABLE), STABLE.name):
+            link.unlink()
+    for name in ("serve.log", "current"):
+        (STATE_DIR / name).unlink(missing_ok=True)
 
 
 def install_app_mcp() -> bool:
@@ -2315,7 +1881,7 @@ def install_app_mcp() -> bool:
     return True
 
 
-def ensure_installed(port: int) -> str | None:
+def ensure_installed() -> str | None:
     """Pluginból futva a gépi rész beállítása; a modellnek szóló üzenet, ha van.
 
     Csak a plugin hookjából fut (CLAUDE_PLUGIN_ROOT alatti script): egy kézi
@@ -2324,11 +1890,11 @@ def ensure_installed(port: int) -> str | None:
     root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if not root or Path(root).resolve() not in Path(__file__).resolve().parents:
         return None
-    changed = install_copy()
+    install_copy()
     link_user_bin()
     if sys.platform != "darwin":
         return None
-    install_agent(port, restart=changed)
+    drop_legacy()
     if not install_app_mcp():
         return None
     # Mérve: a futó app a beállítások mentésekor a memóriabeli configgal
@@ -2351,7 +1917,7 @@ def plugin_installed() -> bool | None:
 
 
 def uninstall() -> None:
-    """Minden, amit az `ensure_installed` a gépre tett — utoljára a saját agent."""
+    """Minden, amit az `ensure_installed` a gépre tett."""
     data = read_json(APP_CONFIG) if APP_CONFIG.exists() else None
     servers = (data or {}).get("mcpServers")
     if isinstance(servers, dict) and MCP_NAME in servers:
@@ -2359,39 +1925,46 @@ def uninstall() -> None:
         if not servers:
             data.pop("mcpServers")
         write_json(APP_CONFIG, data)
+    drop_legacy()
     for name in ("git-graph", *ALIASES):
         link = USER_BIN / name
         if link.is_symlink() and os.readlink(link) == str(STABLE):
             link.unlink()
     shutil.rmtree(STATE_DIR, ignore_errors=True)
-    AGENT_PLIST.unlink(missing_ok=True)
-    launchctl("bootout", f"gui/{os.getuid()}/{AGENT_LABEL}")   # ez ezt a folyamatot is leállítja
 
 
 def watch_uninstall() -> None:
-    """A `--serve` szála: ha a plugint eltávolították, leszereli a gépi részt.
+    """A `gg --mcp` szála: ha a plugint eltávolították, leszereli a gépi részt.
 
-    Csak a plugin telepítette példányban (a stabil másolat) fut — egy kézi
-    `gg --serve` a fejlesztői checkoutból nem szerel le semmit.
+    Az app minden indításkor elindítja a `gg --mcp`-t, és a folyamat az app
+    futásáig él — így a leszerelés legkésőbb a következő app-indítás után
+    megtörténik. Csak a plugin telepítette példányban (a stabil másolat) fut.
+    Több példány is futhat (az app és minden Code-session indít egyet): a
+    leszerelés idempotens.
     """
     if Path(__file__).resolve() != STABLE.resolve():
         return
     misses = 0
     while True:
-        time.sleep(UNINSTALL_POLL_S)
         misses = misses + 1 if plugin_installed() is False else 0
         if misses >= UNINSTALL_MISSES:
-            print("A git-graph plugin nincs telepítve — leszerelés.", flush=True)
+            log("A git-graph plugin nincs telepítve — leszerelés.")
             uninstall()
             return
+        time.sleep(UNINSTALL_POLL_S)
 
 
-def session_hook(port: int) -> int:
-    """Claude Code SessionStart hook: eltárolja a session repóját.
+def session_hook() -> int:
+    """Claude Code hook: a gépi rész, és a repó (worktree) Artifactja.
 
-    A visszaadott additionalContext megkéri a modellt, hogy nyissa meg a repó
-    élő Artifactját — így a gráf gépelés nélkül megjelenik. Ha a repónak még
-    nincs Artifactja, és fut a szerver, a Browser panelt (dev szerver) nyitja.
+    SessionStartként és az `EnterWorktree` / `ExitWorktree` utáni
+    PostToolUse-ként fut — a `cwd` ilyenkor már az új munkakönyvtár. Ha
+    nincs Artifact, vagy a lapja elavult, a sessiont kéri meg, hogy
+    publikálja: a lap csak kódfrissítéskor változik, az pedig csak új
+    sessionnel lép életbe — és ilyenkor először ez a hook fut. Különben a
+    meglévőt nyittatja meg. A megszűnt worktree-k Artifactjainak törlését is
+    kéri. Headless (`-p`, SDK) sessionben nem kér publikálást: ott nincs, aki
+    a gráfot nézné.
     """
     global REPO
     try:
@@ -2399,46 +1972,55 @@ def session_hook(port: int) -> int:
     except Exception:
         payload = {}
     try:
-        notice = ensure_installed(port)
+        notice = ensure_installed()
     except Exception as exc:                       # a telepítés hibája ne vigye el a sessiont
         log(f"git-graph: telepítési hiba: {type(exc).__name__}: {exc}")
         notice = None
     start = Path(payload.get("cwd") or Path.cwd())
+    event = payload.get("hook_event_name") or "SessionStart"
     try:
-        repo = resolve_repo(start)
+        REPO = resolve_repo(start)
     except SystemExit:
-        return emit_context(notice)                # nem repó: nincs mit mutatni
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    CURRENT.write_text(f"{repo}\n", encoding="utf-8")
-    REPO = repo
-    artifact = config_get("artifact")
-    if port_open(port):
-        # A regiszter kell a dev szerver `<slug>.localhost` címéhez, a `gg --mcp`
-        # slug-feloldásához, és a szerver ebből hozza létre a hiányzó Artifactot.
-        slug = register(repo)
-    elif not artifact:
-        return emit_context(notice)                # se Artifact, se szerver: néma kilépés
-    if artifact:
-        context = (f"A(z) {repo} repó élő git-graph Artifactja: {artifact} (a gépen futó "
-                   "git-graph-ból élőben frissül).\nA session elején nyisd meg EGYSZER az "
+        return emit_context(notice, event=event)   # nem repó: nincs mit mutatni
+    register(REPO)                                 # a gg --mcp a lap slugjából ebből találja meg
+    url = config_get("artifact")
+    headless = os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk")
+    cleanup = None if headless else orphan_request()
+    job = None if headless or NO_AUTO_PUBLISH.exists() else prepare_publish()
+    if job:
+        state = "elavult (a git-graph frissült)" if job["url"] else "még nincs"
+        context = (f"A(z) {REPO} repó élő git-graph Artifactja {state}. Most, a "
+                   "Fejlesztő kérésének folytatása előtt publikáld, és ne írj róla üzenetet: "
+                   + publish_steps(job) + "\nHa valamelyik lépés nem sikerül, egy mondatban "
+                   "jelezd, és folytasd a Fejlesztő kérésével.")
+    elif url:
+        context = (f"A(z) {REPO} repó élő git-graph Artifactja: {url} (a gépen futó "
+                   "git-graph-ból élőben frissül).\nMost nyisd meg EGYSZER az "
                    "Artifact eszközzel — action: \"open\", url paraméterrel —, és ne írj "
                    "róla üzenetet.")
     else:
-        # Ugyanaz a cím, amit a launch config is használ (`<slug>.localhost`), hogy
-        # a panel egy tabot lásson kétféle URL helyett.
-        url = f"http://{slug}.localhost:{port}"
-        context = (f"A git-graph élő commit-gráf ezen a címen szolgál ki: {url} "
-                   f"(most a(z) {repo} repót mutatja, magától frissül).\n"
-                   "A session elején nyisd meg EGYSZER a Browser panelen — "
-                   "preview_start, url paraméterrel —, és ne írj róla üzenetet.")
-    return emit_context(context, notice)
+        context = None                             # nincs Artifact, és nem is kérünk
+    return emit_context(context, cleanup, notice, event=event)
 
 
-def emit_context(*parts: str | None) -> int:
+def orphan_request() -> str | None:
+    """A megszűnt worktree-k Artifactjainak törlése — a modellnek szóló kérés, ha van mit."""
+    orphans = orphan_artifacts()
+    if not orphans:
+        return None
+    urls = ", ".join(orphans.values())
+    return (f"Megszűnt worktree-k git-graph Artifactjai maradtak: {urls}. Mindegyikre: "
+            "1) Artifact, action: \"delete\", url: az URL; 2) Bash: gg "
+            f"{shlex.quote(str(REPO))} --forget-artifact <URL> — akkor is, ha a törlés "
+            "nem sikerült vagy a Fejlesztő nem engedte (különben minden session újra "
+            "kérné). Ne írj róla üzenetet, csak ha valami nem sikerült.")
+
+
+def emit_context(*parts: str | None, event: str = "SessionStart") -> int:
     """A hook kimenete: a nem üres részek additionalContextként; ha nincs, semmi."""
     context = "\n\n".join(p for p in parts if p)
     if context:
-        json.dump({"hookSpecificOutput": {"hookEventName": "SessionStart",
+        json.dump({"hookSpecificOutput": {"hookEventName": event,
                                           "additionalContext": context}}, sys.stdout)
     return 0
 
@@ -2472,37 +2054,29 @@ def main() -> int:
                     help="a repó git-graph nyomainak törlése (.git/config kulcsok, "
                          "helyi lapok, regiszter) és az automatikus publikálás "
                          "kikapcsolása — az Artifactot nem törli")
+    ap.add_argument("--forget-artifact", metavar="URL", default=None, dest="forget_artifact",
+                    help="egyetlen Artifact nyomainak törlése (egy megszűnt worktree-é; "
+                         "a hook kéri, miután az Artifactot törölte)")
     ap.add_argument("--publish", action="store_true",
-                    help="az Artifact vékony lapjának publikálása egy headless "
-                         "claude-dal (meglévőt frissít, ha nincs, létrehozza; "
-                         "változatlan lapnál nem tölt fel) — a /git-graph ezt hívja")
+                    help="az Artifact vékony lapjának kiírása, és a publikálás lépései "
+                         "a sessionnek (változatlan lapnál: naprakész) — a /git-graph "
+                         "ezt hívja")
+    ap.add_argument("--published", metavar="URL", default=None,
+                    help="a session publikálása után: az URL és a lap hashe a "
+                         ".git/config-ba (a --publish lépései kérik)")
     ap.add_argument("--mcp", action="store_true",
                     help="MCP szerver stdio-n a Claude appnak (az app indítja a "
                          "configjából; az Artifact innen kapja az élő adatot)")
-    ap.add_argument("--serve", action="store_true",
-                    help="élő kiszolgálás loopbackon (a lap magától frissül); "
-                         "a mutatott repót a --session-hook váltja. Közben a "
-                         "regisztrált repók Artifactját változáskor újrapublikálja")
-    ap.add_argument("--port", type=int, default=DEFAULT_PORT,
-                    help=f"a --serve és a --session-hook portja (alap: {DEFAULT_PORT})")
-    ap.add_argument("--launch-config", action="store_true", dest="launch_config",
-                    help="a repó .claude/launch.json-jébe beírja az élő preview "
-                         "bejegyzését (a Browser panel: preview_start git-graph); "
-                         "`ggl` néven hívva ez a default")
     ap.add_argument("--session-hook", action="store_true", dest="session_hook",
-                    help="Claude Code SessionStart hook: a session repóját beírja "
-                         "a ~/.git-graph/current fájlba (stdin: a hook JSON-ja)")
+                    help="Claude Code hook (SessionStart, és PostToolUse a worktree-"
+                         "váltásra): telepítés, a repó Artifactjának megnyitása vagy "
+                         "publikálása, árva Artifactok törlése (stdin: a hook JSON-ja)")
     args = ap.parse_args()
-
-    # A `ggl` névvel hívva a --launch-config a default (busybox-stílusú alias):
-    # a többi kapcsoló ugyanúgy megy, pl. `ggl ~/masik-repo --port 7799`.
-    if Path(sys.argv[0]).name == "ggl":
-        args.launch_config = True
 
     global REPO
 
     if args.session_hook:
-        return session_hook(args.port)
+        return session_hook()
 
     if args.mcp:
         return mcp_serve(args.limit or None)
@@ -2519,41 +2093,24 @@ def main() -> int:
               f"({NO_AUTO_PUBLISH})")
         return 0
 
-    if args.launch_config:
-        repo = resolve_repo(Path(args.repo).expanduser().resolve())
-        REPO = repo
-        path, url = write_launch_config(repo, args.port)
-        print(f"✓ {path}")
-        print(f"  {LAUNCH_NAME} → {url}")
-        if keep_launch_local(path):
-            print("  (.claude/launch.json felvéve a .git/info/exclude-ba)")
-        elif is_tracked(path.relative_to(REPO)):
-            print("  FIGYELEM: ez a fájl követett — a benne lévő slug gépfüggő, "
-                  "más gépen nem érvényes.")
-        if not port_open(args.port):
-            print(f"  FIGYELEM: a {args.port} porton nem fut szerver "
-                  "(a git-graph plugin launchd agentje, vagy gg --serve)")
-        print("  A Browser panel innen veszi a címet; a sessionöd hookja magától "
-              "megnyittatja. Kézzel: illeszd be a fenti URL-t a panel címsorába.")
-        return 0
-
-    if args.serve:
-        # Indulhat repón kívülről is (launchd a "/"-ból indítja) — a repót a
-        # hook adja meg; a pozicionális argumentum csak tartalék.
-        try:
-            fallback = resolve_repo(Path(args.repo).expanduser().resolve())
-        except SystemExit:
-            fallback = None
-        return serve(args.port, fallback, args.limit or None)
-
     REPO = resolve_repo(Path(args.repo).expanduser().resolve())
 
-    if args.set_artifact:
-        if not args.set_artifact.startswith("https://"):
+    if args.forget_artifact:
+        known = forget_artifact(args.forget_artifact)
+        print(f"✓ {args.forget_artifact}: " + ("a git-graph nyomai törölve" if known
+                                               else "nem ismert ebben a repóban"))
+        return 0
+
+    if args.set_artifact or args.published:
+        url = args.set_artifact or args.published
+        if not url.startswith("https://"):
             raise SystemExit("HIBA: az URL-nek https://-sel kell kezdődnie.")
-        remember_artifact(args.set_artifact)
-        register(REPO)
-        print(f"✓ Artifact megjegyezve: {args.set_artifact}")
+        if args.published:
+            mark_published(url)
+        else:
+            remember_artifact(url)
+            register(REPO)
+        print(f"✓ Artifact megjegyezve: {url}")
         print(f"  {repo_name()} @ {git('rev-parse', '--short', 'HEAD').strip()}")
         return 0
 
@@ -2563,16 +2120,8 @@ def main() -> int:
         job = prepare_publish()
         if job is None:
             print(f"✓ Az Artifact naprakész, nincs mit feltölteni: {config_get('artifact')}")
-            return 0
-        started = time.monotonic()
-        try:
-            url = publish_page(job["page"], job["url"], job["title"])
-        except RuntimeError as exc:
-            raise SystemExit(f"HIBA: {exc}") from None
-        finish_publish(job, url)
-        print(f"✓ Artifact {'frissítve' if job['url'] else 'létrehozva'} "
-              f"({time.monotonic() - started:.1f} s): {url}")
-        print("  Élő: a Claude appban megnyitva a gépeden futó git-graph adja az adatot.")
+        else:
+            print("PUBLIKÁLD: " + publish_steps(job))
         return 0
 
     payload = collect_payload(limit)

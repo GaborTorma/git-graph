@@ -10,23 +10,22 @@ gg --open             # …és megnyitja a böngészőben
 gg ~/dev/masik-repo   # másik repó
 gg --limit 200        # csak az utolsó 200 commit (alap: mind)
 gg --out graf.html    # máshova (relatív út a hívás helyéhez)
-gg --publish          # az Artifact élő lapjának publikálása (headless claude-dal)
-gg --serve            # élő kiszolgálás: http://127.0.0.1:7788
+gg --publish          # az Artifact publikálásának lépései a sessionnek
+gg --published <URL>  # a session publikálása után: URL + hash a .git/config-ba
 gg --mcp              # MCP szerver a Claude appnak (az app indítja, nem kézzel)
-gg --launch-config    # .claude/launch.json bejegyzés a Browser panelhez
 gg --artifacts        # az ismert repók Artifactjai (<repó>\t<URL>)
 gg --forget           # a repó git-graph nyomai törlése (az Artifactot nem törli)
-ggl                   # ugyanaz, rövidebben
+gg --forget-artifact <URL>  # egyetlen Artifact nyomai (egy megszűnt worktree-é)
 ```
 
-Három nézet, más-más célra:
+Két nézet, más-más célra:
 
-| | Pillanatkép (`gg`) | Browser panel (`gg --serve`) | Artifact |
-| --- | --- | --- | --- |
-| Mi | önálló HTML fájl, beágyazott adattal | loopback szerver | adat nélküli lap a claude.ai-on |
-| Adat | a generálás pillanatáé | élő, HTTP-n | élő, a gépen futó `gg --mcp`-ből |
-| Frissülés | kézi újrafuttatás | ~2 mp-en belül | ~2 mp-en belül |
-| Hol nézed | böngésző | a Claude Desktop **Browser panelje** | a **Claude appban**, a saját gépeden |
+| | Pillanatkép (`gg`) | Artifact |
+| --- | --- | --- |
+| Mi | önálló HTML fájl, beágyazott adattal | adat nélküli lap a claude.ai-on |
+| Adat | a generálás pillanatáé | élő, a gépen futó `gg --mcp`-ből |
+| Frissülés | kézi újrafuttatás | ~2 mp-en belül |
+| Hol nézed | böngésző | a **Claude appban**, a saját gépeden |
 
 ## Telepítés
 
@@ -38,23 +37,23 @@ claude plugin install git-graph@git-graph
 ```
 
 A plugin hozza a `/git-graph:git-graph` skillt, a SessionStart hookot, és a Claude
-Bash eszközének PATH-jára a `git-graph` / `gg` / `ggl` parancsokat. Függősége
+Bash eszközének PATH-jára a `git-graph` / `gg` parancsokat. Függősége
 nincs a Python 3 stdliben túl; minden git-hívás **csak olvas**.
 
 A pluginnak nincs telepítési eseménye, ezért a gépi részt az **első session
 hookja** állítja be — és minden verzióváltáskor frissíti (idempotens, csak
 változáskor ír):
 
-- `~/.git-graph/bin/git-graph` (+ `gg`, `ggl`) — a script stabil másolata. A
-  plugin útvonala verziónként más, a launchd és az app ezt futtatja.
-- `~/.local/bin/{git-graph,gg,ggl}` — terminálos parancsok a másolatra (ha a
+- `~/.git-graph/bin/git-graph` (+ `gg`) — a script stabil másolata. A
+  plugin útvonala verziónként más, az app ezt futtatja.
+- `~/.local/bin/{git-graph,gg}` — terminálos parancsok a másolatra (ha a
   mappa létezik; valódi fájlhoz és idegen symlinkhez nem nyúl).
-- `~/Library/LaunchAgents/ai.torma.git-graph.plist` — a `gg --serve`-et a
-  bejelentkezés indítja és életben tartja (`/usr/bin/python3`, napló:
-  `~/.git-graph/serve.log`). Új verziónál újraindul.
 - `~/Library/Application Support/Claude/claude_desktop_config.json` → `git-graph`
   MCP szerver (előtte mentés). Az app csak induláskor olvassa: ilyenkor a
   session szól, hogy **egyszer újra kell indítani**.
+
+A 0.2-es verziók launchd agentjét (`gg --serve`), a `ggl` parancsot és a
+szervernaplót a hook leszereli, ha még fent vannak.
 
 **Eltávolítás:** két lépés.
 
@@ -62,14 +61,15 @@ változáskor ír):
    listája alapján, mindegyiket külön jóváhagyással), és repónként a `gg
    --forget`-tel a `git-graph.*` kulcsokat, a helyi lapokat és a
    regiszterbejegyzést. Közben kikapcsolja az automatikus publikálást, hogy a
-   futó szerver ne hozzon létre újat. Kihagyható: akkor az Artifactok és a
+   hook ne kérjen újat. Kihagyható: akkor az Artifactok és a
    kulcsok maradnak, és egy újratelepítés ugyanazokat éleszti újra.
-2. `claude plugin uninstall git-graph@git-graph`. A futó szerver percenként
-   megnézi a Claude Code nyilvántartását (`installed_plugins.json`), és ha a
-   plugin két egymást követő ellenőrzésnél hiányzik, leszereli a fentieket — az
-   MCP-bejegyzést, a `~/.local/bin` linkjeit, a `~/.git-graph`-ot és végül
-   saját magát. Olvashatatlan vagy ismeretlen formátumú nyilvántartásnál nem
-   töröl semmit. Az appot csak utána érdemes újraindítani.
+2. `claude plugin uninstall git-graph@git-graph`. Az app által indított `gg
+   --mcp` percenként megnézi a Claude Code nyilvántartását
+   (`installed_plugins.json`), és ha a plugin két egymást követő ellenőrzésnél
+   hiányzik, leszereli a fentieket — az MCP-bejegyzést, a `~/.local/bin`
+   linkjeit és a `~/.git-graph`-ot. Olvashatatlan vagy ismeretlen formátumú
+   nyilvántartásnál nem töröl semmit. Ha az app nem fut, a leszerelés a
+   következő indulása után történik meg; az appot utána érdemes újraindítani.
 
 **Verziózás:** SemVer, a verzió egyetlen forrása a
 `.claude-plugin/plugin.json`. Bump nélkül a `claude plugin update` nem hoz le
@@ -77,93 +77,58 @@ semmit. Kiadás: `vX.Y.Z` tag.
 
 Fejlesztés közben, bump nélkül: `claude --plugin-dir .` (csak az adott
 sessionre). Ilyenkor a hook ugyanúgy telepít, de mivel a nyilvántartásban nincs
-benne, a szerver ~2 perc múlva leszerel — a következő session újra telepít.
+benne, a `gg --mcp` ~1 perc múlva leszerel — a következő session újra telepít.
 
-## Élő mód a Claude Desktopban
+## Élő nézet: az Artifact
 
 A cél: **ne kelljen parancsot írni a chatbe**, mégis friss gráfot láss.
 
-1. A `gg --serve` a loopbackon szolgál ki: `/` a friss HTML, `/data` a friss
-   adat, `/fingerprint` egy pár száz bájtos ujjlenyomat (HEAD + refek hash-e +
-   piszkos fájlok száma), `/diff` egy fájl diffje (→ Fájl-diff).
-2. A lap kétmásodpercenként az **ujjlenyomatot** kéri, és csak tényleges
-   változásra tölt `/data`-t — a nyitott commit-panel, a szűrők és a görgetés
-   megmaradnak.
-3. Melyik repót mutatja? Amit az URL mond: `http://<slug>.localhost:7788` — a
-   **SessionStart hook** ezt az URL-t adja át (ugyanazt, amit a launch config
-   is használ), így minden session panelje a **sajátját** mutatja akkor is, ha
-   több session fut egyszerre. A szerver a `?repo=<útvonal>` alakot is érti
-   (kézi használatra), paraméter és slug nélkül pedig a `~/.git-graph/current`
-   a tartalék — azt szintén a hook írja.
-4. A hook a session indulásakor megkéri Claude-ot, hogy nyissa meg a repó élő
-   **Artifactját** (`git-graph.artifact`). Ha a repónak még nincs, a Browser
-   panelt nyittatja meg ezzel az URL-lel — a szerver közben létrehozza az
-   Artifactot, és a következő sessiontől az nyílik.
+A **SessionStart hook** a session indulásakor a repó Artifactját nézi:
 
-### `gg --launch-config` (röviden: `ggl`)
+- ha **naprakész**, megkéri Claude-ot, hogy nyissa meg (`git-graph.artifact`);
+- ha **még nincs**, vagy a lapja **elavult** (a git-graph frissült — a lap
+  hashe eltér a `git-graph.artifactHash`-től), megkéri, hogy publikálja: a lap
+  csak kódfrissítéskor változik, az pedig csak új sessionnel lép életbe — és
+  ilyenkor először ez a hook fut.
 
-Beírja a repó `.claude/launch.json`-jába az élő preview bejegyzését, így a panel
-névvel is indítható (`preview_start name="git-graph"`), URL nélkül:
+**Worktree-k:** minden worktree saját Artifactot kap (saját slug, saját
+Uncommitted sor). A hook az `EnterWorktree` / `ExitWorktree` után is lefut
+(PostToolUse), így a session közben nyitott worktree is megkapja a magáét. A
+megszűnt worktree-k Artifactjait a hook felismeri (a `git worktree list`-ben
+már nincsenek), és megkéri Claude-ot, hogy törölje őket, majd
+`gg --forget-artifact <URL>`-lel takarítsa a kulcsaikat — a `/worktree-close`-nak
+ehhez nem kell tudnia a git-graph-ról.
 
-```json
-{ "name": "git-graph", "url": "http://git-graph-94eba9.localhost:7788", "port": 7788 }
-```
-
-A Claude Desktop localhostra **csak origint** fogad el — path és query nélkül —,
-ezért a repó itt a **hostnévbe** kerül: `<mappanév>-<útvonal-hash>.localhost`.
-A Chromium minden `*.localhost` nevet a loopbackra old fel, a szerver pedig a
-`Host` fejlécből tudja, melyik repót kérted. A slug→útvonal párokat a
-`~/.git-graph/repos.json` tartja.
-
-A parancs a fájl **többi bejegyzését és kulcsát megtartja** (csak a saját,
-`git-graph` nevű sorát cseréli), de a JSON-t újraformázza. A `git-graph` mindig
-a **lista elejére** kerül — a névtelen indítás az első bejegyzést választja.
-
-A slug abszolút útvonalból származik, más gépen értelmetlen — ezért a parancs a
-`launch.json`-t felveszi a repó **lokális** ignore-listájába
-(`.git/info/exclude`). Ha a repó viszont
-**már követi** a fájlt (mert van benne saját dev-szerver bejegyzés), nem nyúl
-hozzá, csak figyelmeztet — ott neked kell eldöntened, mi legyen a sorával.
-
-Nincs `launch.local.json`: mérve, a `.claude/launch.d/` drop-in mappa létezik
-ugyan, de csak framebuffer (VNC) forrásokra — egy oda tett preview-bejegyzést a
-`preview_start` nem talál meg. A lokális kizárás tehát az egyetlen jó válasz.
-
-> A `preview_start` **nem parancssori program**, hanem Claude eszköze — a
-> terminálból nem futtatható. Vagy a session hookja kéri meg rá Claude-ot
-> (ez a normál út, nem kell gépelni semmit), vagy kézzel beilleszted a fenti
-> URL-t a Browser panel címsorába. Rendszer-böngészőben: `open <URL>`.
-
-A hook némán kilép, ha a mappa nem git repó, vagy ha se Artifactja nincs, se a
-szerver nem fut — az „off kapcsoló" a plugin kikapcsolása
-(`claude plugin disable git-graph@git-graph`).
+A hook némán kilép, ha a mappa nem git repó; headless (`-p`, SDK) sessionben nem
+kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
+(`claude plugin disable git-graph@git-graph`), vagy a publikálásé a
+`~/.git-graph/no-auto-publish` fájl.
 
 ## Felépítés
 
 | Útvonal | Mi |
 | --- | --- |
-| `bin/git-graph` | maga a script: adatgyűjtés + beágyazott HTML/CSS/JS sablon + szerverek + telepítés |
+| `bin/git-graph` | maga a script: adatgyűjtés + beágyazott HTML/CSS/JS sablon + MCP szerver + telepítés |
 | `bin/gg` | symlink a `git-graph`-ra — rövid alias |
-| `bin/ggl` | symlink a `git-graph`-ra; ezen a néven a `--launch-config` a default |
 | `.claude-plugin/plugin.json` | a plugin manifestje — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace (egyetlen plugin: ez a repó) |
-| `hooks/hooks.json` | SessionStart hook: `git-graph --session-hook` (telepít + megnyittatja a gráfot) |
-| `skills/git-graph/SKILL.md` | `/git-graph:git-graph`: `gg --publish`, majd megnyitja az Artifactot |
+| `hooks/hooks.json` | SessionStart és worktree-váltás (PostToolUse) hook: `git-graph --session-hook` (telepít + megnyittatja vagy publikáltatja a gráfot + az árva worktree-Artifactokat töröltet) |
+| `skills/git-graph/SKILL.md` | `/git-graph:git-graph`: `gg --publish`, és publikálja vagy megnyitja az Artifactot |
 | `skills/remove/SKILL.md` | `/git-graph:remove`: az Artifactok törlése és a repók kitakarítása az eltávolítás előtt |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |
-| `docs/desktop-live.md` | miért a Browser panel + lokális szerver az élő út — mérésekkel |
-| `docs/mcp-plan.md` | terv az élő, magától frissülő verzióhoz (blokkolva, lásd findings) |
+| `docs/desktop-live.md` | a korábbi Browser panel-út mérései (a `host:` híd óta nem használt) |
+| `docs/mcp-plan.md` | a korábbi terv az élő Artifacthoz (azóta a `host:` híddal megvalósult) |
 | `probe/` | eldobható MCP-mérőeszköz a blokkoló újratesztelésére |
 
 ## Kimenet
 
-A repón **kívülre**, `~/.git-graph/<slug>/` alá — ugyanaz a slug, mint a
-`<slug>.localhost` címben:
+A repón **kívülre**, `~/.git-graph/<slug>/` alá — a slug a mappanév és az
+útvonal hashe; a lap ezzel kérdezi a `gg --mcp`-t (`~/.git-graph/repos.json`):
 
 | Fájl | Mi |
 | --- | --- |
 | `index.html` | a `gg` pillanatképe, beágyazott adattal |
-| `artifact.html` | az Artifact vékony lapja — adat nélkül, ezt tölti fel a `gg --publish` |
+| `artifact.html` | az Artifact vékony lapja — adat nélkül, ezt publikálja a session |
 
 A projektmappába nem kerül semmi.
 
@@ -171,8 +136,7 @@ A projektmappába nem kerül semmi.
 
 Az Artifact **élő**, de adatot nem tárol: a lap a Claude appban megnyitva a
 gépeden futó `gg --mcp`-ből kéri, az app **host-hídján** át
-(`callTool("host:git-graph", …)`). Ugyanaz a logika, mint a Browser panelen:
-2 mp-enként az olcsó `fingerprint` (refek, HEAD, munkakönyvtár — ~40 ms), és
+(`callTool("host:git-graph", …)`): 2 mp-enként az olcsó `fingerprint` (refek, HEAD, munkakönyvtár — ~40 ms), és
 csak változáskor a teljes `graph_data` (150–300 ms). A lábléc kiírja a mért
 időket. Egy lenyitott fájl diffje a `file_diff` toolból jön.
 
@@ -186,14 +150,14 @@ Megkötések (a platformé, mérve — [docs/artifact-findings.md](docs/artifact
 - az első megnyitáskor az app engedélyt kér a `git-graph` szerverhez.
 
 **Publikálás:** a lap csak sablon, így feltölteni csak akkor kell, ha a UI-kód
-vagy a repó neve változik. A `gg --publish` egy headless `claude -p`-vel tölti
-fel (az Artifact API-t csak a modell éri el): meglévőt frissít, ha nincs,
-létrehozza, **változatlan lapnál nem tölt fel**. A `gg --serve` indításkor és új
-repó regisztrálásakor minden ismert repóra (`~/.git-graph/repos.json` + a hook
-repója) megteszi — így minden repónak van Artifactja. Egy feltöltés ~6 mp.
-Ha létezik a `~/.git-graph/no-auto-publish` fájl, a szerver nem publikál
-(fejlesztés közben, és a `gg --forget` után: csak a kézi `gg --publish` megy).
-Futás közben is kapcsolható.
+vagy a repó neve változik. Az Artifact API-t csak a modell éri el, ezért a
+**session** publikál: a hook (vagy a `/git-graph` skill a `gg --publish`-sal)
+kiírja az `artifact.html`-t és a lépéseket — meglévő Artifactnál előbb `read`
+(friss sessionből a platform különben elutasítja), majd `publish` a
+`host:git-graph` capability-vel, végül `gg --published <URL>`, ami az URL-t és
+a lap hashét visszaírja. Változatlan lapnál nincs teendő.
+Ha létezik a `~/.git-graph/no-auto-publish` fájl, a hook nem kér publikálást
+(a `gg --forget` után: csak a kézi `/git-graph` megy).
 
 A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 
@@ -201,6 +165,7 @@ A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 | --- | --- |
 | `git-graph.artifact` | a közzétett oldal URL-je |
 | `git-graph.artifactHash` | a publikált lap hashe (változatlanra nem tölt fel) |
+| `git-graph.<slug>.artifact`, `….artifactHash` | ugyanez egy worktree-é — a worktree-k `.git/config`-ja közös |
 
 Kézi URL-megadás: `gg --set-artifact <url>`.
 
@@ -233,12 +198,12 @@ GitHub-link marad): alatta a fájl diffje, a Claude app diff-nézetének mintáj
 sorszám, `+`/`−`, a cserélt soroknál a megváltozott szavak erősebb háttérrel, a
 hunkok közt „N változatlan sor”. Az Uncommitted sornál a HEAD-hez képesti diff,
 követetlen fájlnál a teljes tartalom hozzáadottként. Ha a diff legalább 1000 px
-széles (széles Artifact-ablak, Browser panel), **side-by-side** nézetre vált:
+széles (széles Artifact-ablak), **side-by-side** nézetre vált:
 balra a régi, jobbra az új oldal, a cserélt sorok egymás mellett — átméretezéskor
 magától, újratöltés nélkül.
 
-A diff nincs a teljes adatban: a lap lenyitáskor kéri, fájlonként (`/diff`,
-illetve az Artifactban a `file_diff` tool). A commitok diffje gyorstárazva, az
+A diff nincs a teljes adatban: a lap lenyitáskor kéri, fájlonként (a
+`file_diff` toollal). A commitok diffje gyorstárazva, az
 Uncommitted soré élőben frissül. Csak élő nézetben megy — a statikus
 pillanatkép (`gg`) ezt kiírja. Egy fájlból legfeljebb 3000 sor látszik.
 
@@ -251,11 +216,6 @@ Ha az `origin` GitHub-repó, a lap a GitHubra linkel:
   és az URL-fragment (`lap.html#3`) nem lesz link.
 - **Commit hash**: a sorban és a panelen a commit GitHub-oldala.
 - **Fájlváltozás**: a panel fájllistájában a fájl diffje a commit-oldalon.
-
-Élő módban a link a **rendszerböngészőben** nyílik: a Browser panel a saját
-fülén nyitná meg, ezért a lap a szervernek küldi (`POST /open`), az pedig
-`webbrowser.open`-nel nyitja. A szerver csak GitHub-URL-t és csak a saját
-lapjáról (Origin = Host) fogad el.
 
 A hash és a fájl csak **pusholt** commitnál link (az `origin` valamelyik ága
 eléri) — a helyi commit a GitHubon 404 lenne. Más hoston (GitLab, …) nincs
