@@ -111,8 +111,8 @@ konnektoraidat**. Az `assets`-et és a `host:`-ot **nem** érinti.
   CLI-alparancs továbbra sincs, de egy headless `claude -p` publikálni tud —
   lásd lent: *Headless publikálás*. 2026-10-01 óta ez sem kell: a **session**
   publikál, a hook kérésére — lásd lent: *Publikálás a sessionből*.
-- **A Claude Artifact-ablakát külső folyamat nem nyitja meg.** A `--open` a
-  rendszer böngészőjében nyit. A panel útja a sessionön belülről a
+- **A Claude Artifact-ablakát külső folyamat nem nyitja meg.** A (2026-10-01
+  óta kivezetett) `--open` a rendszer böngészőjében nyitott. A panel útja a sessionön belülről a
   `/git-graph`, illetve a `ctrl+]`. (A beépített `/artifacts` lista `o`
   billentyűje is böngészőben nyit.)
 - **~~Élő adat csak claude.ai konnektorból jöhet.~~** Megdőlt (2026-09-30): a
