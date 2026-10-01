@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import difflib
 import hashlib
 import html
 import http.server
@@ -527,6 +528,134 @@ def change_signals() -> tuple[str, str]:
             hashlib.sha1(files.encode()).hexdigest())
 
 
+# ── Fájl-diff (a lenyitott fájlsor) ─────────────────────────────────────────
+
+HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+SHA_RE = re.compile(r"^[0-9a-f]{7,64}$")
+TOKEN_RE = re.compile(r"\w+|\s+|[^\w\s]")
+DIFF_MAX_LINES = 3000           # egy lockfile ne fagyassza meg a lapot
+
+
+def numstat_old_path(path: str) -> str:
+    """A `--numstat` átnevezés-alakjából a régi út (a `numstat_new_path` párja)."""
+    if " => " not in path:
+        return path
+    if "{" in path:
+        return re.sub(r"\{([^{}]*) => [^{}]*\}", r"\1", path).replace("//", "/")
+    return path.split(" => ", 1)[0]
+
+
+def mark_words(old: dict, new: dict) -> None:
+    """Egy cserélt sorpár szó-szintű különbsége: `hl` = [[kezdet, vég], …] karakterben."""
+    a, b = TOKEN_RE.findall(old["s"]), TOKEN_RE.findall(new["s"])
+    old["hl"], new["hl"] = [], []
+    pos_a = [0]
+    for t in a:
+        pos_a.append(pos_a[-1] + len(t))
+    pos_b = [0]
+    for t in b:
+        pos_b.append(pos_b[-1] + len(t))
+    matcher = difflib.SequenceMatcher(None, a, b, autojunk=False)
+    for op, i1, i2, j1, j2 in matcher.get_opcodes():
+        if op == "equal":
+            continue
+        if i2 > i1:
+            old["hl"].append([pos_a[i1], pos_a[i2]])
+        if j2 > j1:
+            new["hl"].append([pos_b[j1], pos_b[j2]])
+
+
+def parse_diff(raw: str) -> dict:
+    """Egyfájlos unified diff → hunkok soronként, a lap ebből rajzol.
+
+    Sor: `t` (` `/`+`/`-`), `n` (a törölt sornál a régi, máskor az új sorszám),
+    `s` (szöveg), cserélt sorpárnál `hl` (a változott szakaszok). A hunk `old`
+    kezdete adja a lapon a kihagyott („unmodified") sorok számát.
+    """
+    hunks: list[dict] = []
+    binary = truncated = False
+    count = 0
+    old_no = new_no = 0
+    for line in raw.splitlines():
+        m = HUNK_RE.match(line)
+        if m:
+            old_no, new_no = int(m[1]), int(m[2])
+            hunks.append({"old": old_no, "lines": []})
+            continue
+        if not hunks:
+            binary = binary or line.startswith("Binary files")
+            continue
+        tag = line[:1]
+        if tag not in (" ", "+", "-"):
+            continue                          # „\ No newline at end of file"
+        if count >= DIFF_MAX_LINES:
+            truncated = True
+            break
+        count += 1
+        if tag == "-":
+            n, old_no = old_no, old_no + 1
+        elif tag == "+":
+            n, new_no = new_no, new_no + 1
+        else:
+            n, old_no, new_no = new_no, old_no + 1, new_no + 1
+        hunks[-1]["lines"].append({"t": tag, "n": n, "s": line[1:]})
+
+    # Szó-szintű kiemelés: egy törölt blokk és a rá következő hozzáadott blokk
+    # sorait páronként vetjük össze (ahogy a GitHub és a Claude app is).
+    for h in hunks:
+        lines, i = h["lines"], 0
+        while i < len(lines):
+            if lines[i]["t"] != "-":
+                i += 1
+                continue
+            j = i
+            while j < len(lines) and lines[j]["t"] == "-":
+                j += 1
+            k = j
+            while k < len(lines) and lines[k]["t"] == "+":
+                k += 1
+            for d in range(min(j - i, k - j)):
+                mark_words(lines[i + d], lines[j + d])
+            i = k
+    return {"hunks": hunks, "binary": binary, "truncated": truncated}
+
+
+def untracked_diff(path: str) -> dict:
+    """Követetlen fájl: a git nem diffeli, minden sora hozzáadott."""
+    try:
+        text = (REPO / path).read_bytes()[:2_000_000].decode("utf-8")
+    except UnicodeDecodeError:
+        return {"hunks": [], "binary": True, "truncated": False}
+    lines = text.splitlines()
+    truncated = len(lines) > DIFF_MAX_LINES
+    rows = [{"t": "+", "n": i + 1, "s": s} for i, s in enumerate(lines[:DIFF_MAX_LINES])]
+    return {"hunks": [{"old": 0, "lines": rows}] if rows else [], "binary": False,
+            "truncated": truncated}
+
+
+def file_diff(sha: str, path: str) -> dict:
+    """Egy fájl diffje a commitban (vagy az Uncommitted ál-sorban: a HEAD-hez képest).
+
+    A `sha` és a `path` a lapról jön: a sha csak hex lehet (különben `--opció`-ként
+    futna), a fájlt pedig csak akkor olvassuk közvetlenül, ha a git követetlennek
+    mondja — így a loopback szerveren át nem olvasható ki tetszőleges fájl.
+    """
+    old, new = numstat_old_path(path), numstat_new_path(path)
+    if sha == UNCOMMITTED:
+        raw = git("diff", "--no-color", "--no-ext-diff", "-M", "HEAD", "--", old, new)
+        if not raw.strip() and path.endswith("/"):      # a status így mutat egy új mappát
+            return {"hunks": [], "binary": False, "truncated": False,
+                    "note": "követetlen mappa — a fájljai a git add után látszanak"}
+        if not raw.strip() and path in git("ls-files", "--others", "--exclude-standard",
+                                           "--", path).splitlines():
+            return untracked_diff(path)
+    elif SHA_RE.match(sha):
+        raw = git("show", "--format=", "--no-color", "--no-ext-diff", "-M", sha, "--", old, new)
+    else:
+        raise ValueError(f"érvénytelen commit: {sha!r}")
+    return parse_diff(raw)
+
+
 TEMPLATE = r"""<meta charset="utf-8">
 <title>__TITLE__</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -553,6 +682,10 @@ TEMPLATE = r"""<meta charset="utf-8">
   --accent:        #0098ff;
   --add:           #6a9955;
   --del:           #f14c4c;
+  --add-bg:        rgba(106, 153, 85, .16);
+  --add-hl:        rgba(106, 153, 85, .40);
+  --del-bg:        rgba(241, 76, 76, .13);
+  --del-hl:        rgba(241, 76, 76, .36);
   --badge-fg:      #ffffff;
   --tag-bg:        #b8860b;
   --shadow:        0 2px 12px rgba(0, 0, 0, .5);
@@ -573,6 +706,10 @@ TEMPLATE = r"""<meta charset="utf-8">
     --accent:      #005fb8;
     --add:         #388a34;
     --del:         #c72e2e;
+    --add-bg:      rgba(56, 138, 52, .11);
+    --add-hl:      rgba(56, 138, 52, .27);
+    --del-bg:      rgba(199, 46, 46, .09);
+    --del-hl:      rgba(199, 46, 46, .22);
     --badge-fg:    #ffffff;
     --tag-bg:      #9a6b00;
     --shadow:      0 2px 12px rgba(0, 0, 0, .14);
@@ -593,6 +730,10 @@ TEMPLATE = r"""<meta charset="utf-8">
   --accent:      #005fb8;
   --add:         #388a34;
   --del:         #c72e2e;
+  --add-bg:      rgba(56, 138, 52, .11);
+  --add-hl:      rgba(56, 138, 52, .27);
+  --del-bg:      rgba(199, 46, 46, .09);
+  --del-hl:      rgba(199, 46, 46, .22);
   --badge-fg:    #ffffff;
   --tag-bg:      #9a6b00;
   --shadow:      0 2px 12px rgba(0, 0, 0, .14);
@@ -774,9 +915,52 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
 
 .files { border-top: 1px solid var(--border-soft); padding-top: 10px; }
 .files-head { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-dim); margin-bottom: 6px; }
-.file { display: grid; grid-template-columns: 1fr 84px; gap: 10px; font-size: 12px; padding: 1px 0; }
-.file span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) 84px; gap: 6px; align-items: center;
+  font-size: 12px; padding: 1px 4px; margin: 0 -4px; border-radius: 3px; cursor: pointer;
+}
+.file:hover { background: var(--bg-hover); }
+.file .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; justify-self: start; max-width: 100%; }
+.file .chev { color: var(--fg-dim); transition: transform .12s; }
+.file[aria-expanded="true"] .chev { transform: rotate(90deg); }
 .churn { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Fájl-diff (lenyitott fájlsor) ── a Claude app diff-nézetének mintájára:
+   sorszám · jel · szöveg, a cserélt szavak erősebb háttérrel. */
+.diff {
+  margin: 4px 0 8px 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  background: var(--bg);
+  font-size: 12px;
+  line-height: 18px;
+  overflow: hidden;
+  container-type: inline-size;         /* a nézetet a saját szélessége dönti el */
+}
+/* Egymás alatti nézet: `.diff-line`; side-by-side: `.split-row` két `.half`-fel. */
+.diff-line, .half { display: grid; grid-template-columns: 5ch 2ch minmax(0, 1fr); padding-right: 8px; }
+.diff .no { color: var(--fg-faint); text-align: right; padding-right: 1ch; user-select: none; }
+.diff .sg { user-select: none; }
+.diff .tx { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff .add { background: var(--add-bg); box-shadow: inset 2px 0 var(--add); }
+.diff .del { background: var(--del-bg); box-shadow: inset 2px 0 var(--del); }
+.diff .add .no, .diff .add .sg { color: var(--add); }
+.diff .del .no, .diff .del .sg { color: var(--del); }
+.diff .add mark { background: var(--add-hl); color: inherit; border-radius: 2px; }
+.diff .del mark { background: var(--del-hl); color: inherit; border-radius: 2px; }
+.split-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.split-row .half + .half { border-left: 1px solid var(--border-soft); }
+.half.none { background: var(--bg-elevated); }
+.diff-split { display: none; }
+@container (min-width: 1000px) {
+  .diff-uni { display: none; }
+  .diff-split { display: block; }
+}
+.diff-gap, .diff-note {
+  font-size: 12px; color: var(--fg-dim); padding: 4px 8px; margin: 0;
+}
+.diff-gap { padding: 8px 8px; }
+.diff-gap:first-child { padding-top: 6px; }
 .churn .a { color: var(--add); }
 .churn .d { color: var(--del); }
 
@@ -1001,17 +1185,120 @@ function open(sha) {
       <div class="files-head">${st.files.length} fájl ·
         <span style="color:var(--add)">+${st.add}</span>
         <span style="color:var(--del)">−${st.del}</span></div>
-      ${st.files.map(f => `<div class="file"><span class="mono">${pathHtml(c, f)}</span>
+      ${st.files.map(f => `<div class="file" data-path="${esc(f.path)}" aria-expanded="false">
+        <span class="chev" aria-hidden="true">›</span>
+        <span class="path mono">${pathHtml(c, f)}</span>
         <span class="churn mono">${f.new ? 'új' : f.bin ? 'bin'
-          : `<span class="a">+${f.add}</span> <span class="d">−${f.del}</span>`}</span></div>`).join('')}
+          : `<span class="a">+${f.add}</span> <span class="d">−${f.del}</span>`}</span></div>
+        <div class="diff" hidden></div>`).join('')}
     </div>`;
   row.after(el);
   expanded = sha;
+  // Újrarajzolás (élő adatcsere) után a korábban lenyitott fájlok nyitva maradnak.
+  el.querySelectorAll('.file').forEach(f => {
+    if (openFiles.has(sha + '\n' + f.dataset.path)) toggleFile(f, sha, true);
+  });
   drawGraph();               // a panel alatti sorok lejjebb kerültek
 }
 
+/* ── Fájl-diff ───────────────────────────────────────────────────────────────
+   A diffet a lap lustán kéri, fájlonként (http: /diff, mcp: file_diff tool) —
+   a teljes adatban nincs benne. A commitok diffje nem változik, gyorstárazzuk;
+   az Uncommitted soré adatcserekor elavul (`stale`): a régi látszik, amíg az
+   új meg nem jön, így a 2 mp-es frissítés nem villog. */
+const openFiles = new Set();   // sha + '\n' + út
+const diffCache = new Map();   // ugyanígy kulcsolva → { data, stale }
+let SRC = null;                // az élő adatforrás (startLive állítja); statikusan nincs
+
+function toggleFile(fileEl, sha, on) {
+  const key = sha + '\n' + fileEl.dataset.path;
+  const box = fileEl.nextElementSibling;
+  fileEl.setAttribute('aria-expanded', on ? 'true' : 'false');
+  box.hidden = !on;
+  if (!on) { openFiles.delete(key); drawGraph(); return; }
+  openFiles.add(key);
+
+  const show = html => {
+    if (!fileEl.isConnected || fileEl.getAttribute('aria-expanded') !== 'true') return;
+    box.innerHTML = html;
+    drawGraph();
+  };
+  const cached = diffCache.get(key);
+  if (!SRC) return show('<p class="diff-note">A diff csak élő nézetben látszik '
+    + '(Browser panel: gg --serve, vagy az Artifact a Claude appban).</p>');
+  show(cached ? diffHtml(cached.data) : '<p class="diff-note">Betöltés…</p>');
+  if (cached && !cached.stale) return;
+  SRC.diff(sha, fileEl.dataset.path).then(
+    d => { diffCache.set(key, { data: d }); show(diffHtml(d)); },
+    e => { if (!cached) show(`<p class="diff-note">A diff nem tölthető be: ${esc(
+      (e && (e.message || e.code)) || e)}</p>`); });
+}
+
+/* Mindkét nézet elkészül (egymás alatti és side-by-side); hogy melyik látszik,
+   azt a `.diff` szélessége dönti el egy container queryvel — átméretezéskor
+   újrarenderelés nélkül vált. Hunkok közt a kihagyott sorok száma a régi oldal
+   sorszámaiból jön. */
+function diffHtml(d) {
+  if (d.note) return `<p class="diff-note">${esc(d.note)}</p>`;
+  if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
+  if (!d.hunks.length) return '<p class="diff-note">Nincs megjeleníthető változás.</p>';
+  let uni = '', split = '', oldEnd = 1;
+  for (const h of d.hunks) {
+    const gap = h.old - oldEnd;
+    const gapHtml = gap > 0 ? `<p class="diff-gap">${gap} változatlan sor</p>` : '';
+    uni += gapHtml + h.lines.map(l => `<div class="diff-line mono${KIND[l.t]}">`
+      + diffCell(l, l.n) + '</div>').join('');
+    split += gapHtml + splitRows(h);
+    oldEnd = h.old + h.lines.filter(l => l.t !== '+').length;
+  }
+  return `<div class="diff-uni">${uni}</div><div class="diff-split">${split}</div>`
+    + (d.truncated ? '<p class="diff-note">… a diff túl hosszú, a vége le van vágva.</p>' : '');
+}
+
+const KIND = { ' ': '', '+': ' add', '-': ' del' };
+const diffCell = (l, no) => `<span class="no">${no}</span>`
+  + `<span class="sg">${l.t === ' ' ? '' : l.t === '-' ? '−' : '+'}</span>`
+  + `<span class="tx">${marked(l.s, l.hl)}</span>`;
+
+/* Side-by-side: a változatlan sor mindkét oldalon (balra a régi sorszámmal), a
+   törölt blokk és az utána jövő hozzáadott blokk sorai páronként egymás mellé —
+   ugyanaz a párosítás, amiből a Python a szó-kiemelést számolja. */
+function splitRows(h) {
+  const L = h.lines, side = (l, no) => l
+    ? `<div class="half${KIND[l.t]}">${diffCell(l, no)}</div>` : '<div class="half none"></div>';
+  let out = '', old = h.old, i = 0;
+  while (i < L.length) {
+    if (L[i].t === ' ') {
+      out += `<div class="split-row mono">${side(L[i], old)}${side(L[i], L[i].n)}</div>`;
+      old++; i++;
+      continue;
+    }
+    let j = i; while (j < L.length && L[j].t === '-') j++;
+    let k = j; while (k < L.length && L[k].t === '+') k++;
+    for (let r = 0; r < Math.max(j - i, k - j); r++) {
+      const del = r < j - i ? L[i + r] : null, add = r < k - j ? L[j + r] : null;
+      out += `<div class="split-row mono">${side(del, del && del.n)}${side(add, add && add.n)}</div>`;
+    }
+    old += j - i; i = k;
+  }
+  return out;
+}
+
+/* Az ablak (Artifact-panel) átméretezése sortörést és nézetváltást hozhat: a
+   sorok Y-pozíciója elmozdul, a gráfnak követnie kell. */
+new ResizeObserver(() => drawGraph()).observe(rowsEl);
+
+const marked = (s, hl) => {
+  if (!hl || !hl.length) return esc(s);
+  let out = '', at = 0;
+  for (const [a, b] of hl) { out += esc(s.slice(at, a)) + `<mark>${esc(s.slice(a, b))}</mark>`; at = b; }
+  return out + esc(s.slice(at));
+};
+
 rowsEl.addEventListener('click', e => {
   if (e.target.closest('a[href]')) return;   // GitHub-link: nyíljon, a sor ne csukódjon
+  const file = e.target.closest('.file');
+  if (file) { toggleFile(file, expanded, file.getAttribute('aria-expanded') !== 'true'); return; }
   const jump = e.target.closest('[data-jump]');
   if (jump) {
     const target = rowsEl.querySelector(`.row[data-sha="${jump.dataset.jump}"]`);
@@ -1106,15 +1393,24 @@ const scroller = document.querySelector('.scroll');
 
 function httpSource() {
   const get = path => fetch(path + location.search, { cache: 'no-store' }).then(r => r.json());
-  return { fingerprint: () => get('/fingerprint'), data: () => get('/data'), where: 'gg --serve' };
+  const diff = (sha, path) => {
+    const q = new URLSearchParams(location.search);
+    q.set('sha', sha);
+    q.set('path', path);
+    return fetch('/diff?' + q, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : r.text().then(t => { throw new Error(t.trim()); }));
+  };
+  return { fingerprint: () => get('/fingerprint'), data: () => get('/data'), diff,
+           where: 'gg --serve' };
 }
 
 async function mcpSource() {
   const mcp = window.claude && await window.claude.use('mcp');
   if (!mcp) return null;
-  const call = tool => mcp.callTool(MCP_SERVER, tool, { repo: SLUG }, { cache: false })
-    .then(r => r.payload);
+  const call = (tool, args) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
+    { cache: false }).then(r => r.payload);
   return { fingerprint: () => call('fingerprint'), data: () => call('graph_data'),
+           diff: (sha, path) => call('file_diff', { sha, path }),
            where: 'a gépeden futó git-graph' };
 }
 
@@ -1144,6 +1440,7 @@ function mcpProblem(e) {
 function startLive(src) {
   let last = MODE === 'http' ? null : '';   // http: a beágyazott adat friss
   let change = '';                          // az utolsó változás: mikor, mennyi idő alatt
+  SRC = src;
   async function poll() {
     let wait = POLL_MS;
     try {
@@ -1155,6 +1452,7 @@ function startLive(src) {
         const t1 = performance.now();
         DATA = await src.data();
         const td = performance.now() - t1;
+        for (const [k, v] of diffCache) if (k.startsWith('*uncommitted\n')) v.stale = true;
         const top = scroller.scrollTop;
         hydrate();
         fillBranches();
@@ -1366,7 +1664,7 @@ GATE_POLL_S = 0.3        # az Artifact tool késve kapcsol be — ennyinként k�
 GATE_TRIES = 30
 # A lap ezen át éri el a gépen futó gg --mcp-t (enélkül use("mcp") null).
 PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
-                                     "tools": ["fingerprint", "graph_data"]}]}}
+                                     "tools": ["fingerprint", "graph_data", "file_diff"]}]}}
 
 
 def claude_bin() -> str | None:
@@ -1658,7 +1956,8 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
         def do_GET(self) -> None:
             split = urllib.parse.urlsplit(self.path)
             route = split.path.rstrip("/") or "/"
-            wanted = urllib.parse.parse_qs(split.query).get("repo", [None])[0]
+            query = urllib.parse.parse_qs(split.query)
+            wanted = query.get("repo", [None])[0]
             # `<slug>.localhost` — a launch.json csak origint enged localhostra,
             # így a repó a hostnévben utazik.
             host = self.headers.get("Host", "").split(":")[0].lower()
@@ -1668,6 +1967,10 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
                     repo = switch(wanted, slug)
                     if route == "/fingerprint":
                         return self.reply(200, json.dumps(fingerprint()).encode(),
+                                          "application/json; charset=utf-8")
+                    if route == "/diff":
+                        diff = file_diff(query.get("sha", [""])[0], query.get("path", [""])[0])
+                        return self.reply(200, json.dumps(diff, ensure_ascii=False).encode(),
                                           "application/json; charset=utf-8")
                     if route in ("/", "/index.html", "/data"):
                         payload = collect_payload(limit)
@@ -1734,6 +2037,12 @@ MCP_TOOLS = [
                     "ha változott, kérd a graph_data-t."},
     {"name": "graph_data", "inputSchema": _REPO_ARG, "annotations": {"readOnlyHint": True},
      "description": "A commit-gráf teljes adata: commitok, élek, fájlstatisztika, ágak, meta."},
+    {"name": "file_diff", "annotations": {"readOnlyHint": True},
+     "inputSchema": {"type": "object", "required": ["repo", "sha", "path"], "properties": {
+         **_REPO_ARG["properties"],
+         "sha": {"type": "string", "description": "commit sha, vagy *uncommitted"},
+         "path": {"type": "string", "description": "a fájl útja, ahogy a graph_data adja"}}},
+     "description": "Egy fájl diffje egy commitban, hunkokra és sorokra bontva."},
 ]
 
 
@@ -1755,7 +2064,9 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
             return text({"refs": refs, "files": files})
         if name == "graph_data":
             return text(collect_payload(limit))
-    except (subprocess.CalledProcessError, OSError) as exc:
+        if name == "file_diff":
+            return text(file_diff(str(args.get("sha", "")), str(args.get("path", ""))))
+    except (subprocess.CalledProcessError, OSError, ValueError) as exc:
         return text(f"git-hiba ({repo}): {exc}", True)
     return text(f"ismeretlen tool: {name}", True)
 
