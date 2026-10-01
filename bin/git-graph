@@ -33,9 +33,11 @@ A kimenet a repón KÍVÜL, mindig ugyanott keletkezik (`~/.git-graph/<slug>/`),
 innen frissül ugyanaz az Artifact oldal — a projektmappában nincs mit
 ignorálni. A régi, repón belüli `.git-graph/` mappát a script eltávolítja.
 
-Telepítés: saját repó (`git-graph`), az `install.sh` symlinkeli a
-`~/.local/bin`-be `git-graph` és `gg` néven. Függősége nincs a Python 3 stdliben
-túl; minden git-hívás csak olvas.
+Telepítés: Claude Code plugin (`claude plugin install git-graph@git-graph`).
+Az első session SessionStart hookja beállítja a többit: a stabil másolatot
+(`~/.git-graph/bin`), a `~/.local/bin` parancsokat, a launchd agentet és a
+Claude app MCP-configját. Függősége nincs a Python 3 stdliben túl; minden
+git-hívás csak olvas.
 """
 from __future__ import annotations
 
@@ -1434,7 +1436,7 @@ function mcpProblem(e) {
   switch (e && e.code) {
     case 'server_not_connected':
       return 'A lap nem éri el a gépeden futó git-graph-ot. Élő adat csak a Claude appban, a saját '
-        + 'gépeden jön — és ott is csak, ha az app configjában benne van (install.sh --live, majd az app újraindítása).';
+        + 'gépeden jön — és ott is csak, ha az app configjában benne van (a git-graph plugin teszi be; utána az app újraindítása).';
     case 'not_in_manifest': case 'cancelled':
       return 'A git-graph szervert nem engedélyezted ehhez a laphoz — töltsd újra, és engedd meg.';
     case 'tool_error':
@@ -2026,6 +2028,7 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
     print("  Artifactok: indításkor és új repónál ellenőrizve (a lap élő — adat a gg --mcp-ből)",
           flush=True)
     threading.Thread(target=ensure_artifacts, daemon=True).start()
+    threading.Thread(target=watch_uninstall, daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -2079,7 +2082,7 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
 
 
 def mcp_serve(limit: int | None) -> int:
-    """MCP szerver stdio-n — a Claude app indítja a configjából (install.sh --live).
+    """MCP szerver stdio-n — a Claude app indítja a configjából (a plugin hookja írja be).
 
     Az Artifact vékony lapja a Claude app host-hídján át ezt hívja: az olcsó
     `fingerprint`-et sűrűn, a `graph_data`-t csak változáskor. Stdlib JSON-RPC
@@ -2122,6 +2125,279 @@ def mcp_serve(limit: int | None) -> int:
     return 0
 
 
+# ── Plugin-telepítés (SessionStart hook) és leszerelés (`--serve`) ──────────
+#
+# A Claude Code pluginnak nincs install/update/uninstall eseménye. Ami a gépen
+# túl van a pluginon (launchd agent, a Claude app MCP-configja, terminálos
+# parancsok), azt a SessionStart hook állítja be — idempotensen, csak
+# változáskor írva —, a leszerelést pedig a futó szerver végzi, amikor a plugin
+# eltűnik a Claude Code nyilvántartásából.
+
+PLUGIN_ID = "git-graph@"     # bármelyik marketplace-ből telepítve
+INSTALLED_PLUGINS = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
+# A plugin útvonala verziónként más (…/cache/<marketplace>/git-graph/<verzió>/),
+# a régi verzió mappája el is tűnhet — a launchd és az app ezt a másolatot futtatja.
+BIN_DIR = STATE_DIR / "bin"
+STABLE = BIN_DIR / "git-graph"
+ALIASES = ("gg", "ggl")
+USER_BIN = Path.home() / ".local" / "bin"
+AGENT_LABEL = "ai.torma.git-graph"
+OLD_AGENT_LABEL = "co.torma.gitgraph"
+AGENT_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{AGENT_LABEL}.plist"
+# Az Artifact `host:git-graph` hívásai csak az innen indított szervert érik el
+# (a `claude mcp add`-os nem számít — mérve).
+APP_CONFIG = (Path.home() / "Library" / "Application Support" / "Claude"
+              / "claude_desktop_config.json")
+USER_SETTINGS = Path.home() / ".claude" / "settings.json"
+LEGACY_COMMAND = Path.home() / ".claude" / "commands" / "git-graph.md"
+# A rendszer Pythonja: a launchd minimális környezetében is megvan, és nem tűnik
+# el egy homebrew-frissítéssel.
+SYSTEM_PYTHON = "/usr/bin/python3"
+UNINSTALL_POLL_S = 60
+UNINSTALL_MISSES = 2         # frissítés közben a nyilvántartás egy pillanatra hiányos lehet
+
+
+def log(message: str) -> None:
+    """Napló stderr-re — a hook és az MCP stdout-ja a protokollé."""
+    print(message, file=sys.stderr, flush=True)
+
+
+def read_json(path: Path) -> dict | None:
+    """A JSON-fájl tartalma; `{}`, ha nincs; None, ha olvashatatlan (akkor nem nyúlunk hozzá)."""
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def write_json(path: Path, data: dict) -> None:
+    """Írás mentéssel — idegen config-fájlt csak így írunk felül."""
+    if path.exists():
+        shutil.copy2(path, path.with_name(f"{path.name}.bak-{time.strftime('%Y%m%d%H%M%S')}"))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def launchctl(*args: str) -> bool:
+    return subprocess.run(["launchctl", *args], capture_output=True).returncode == 0
+
+
+def install_copy() -> bool:
+    """A futó script másolata a stabil helyre (+ aliasok); True, ha változott."""
+    new = Path(__file__).resolve().read_bytes()
+    changed = not STABLE.exists() or STABLE.read_bytes() != new
+    if changed:
+        BIN_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = STABLE.with_name(".git-graph.tmp")
+        tmp.write_bytes(new)
+        tmp.chmod(0o755)
+        tmp.replace(STABLE)
+    for name in ALIASES:
+        if not (BIN_DIR / name).is_symlink():
+            (BIN_DIR / name).symlink_to(STABLE.name)
+    return changed
+
+
+def link_user_bin() -> None:
+    """Terminálos parancsok (`~/.local/bin`) a stabil példányra.
+
+    A régi telepítés symlinkjét átirányítja; valódi fájlhoz és idegen
+    symlinkhez nem nyúl.
+    """
+    if not USER_BIN.is_dir():
+        return
+    for name in ("git-graph", *ALIASES):
+        link = USER_BIN / name
+        if link.is_symlink():
+            target = os.readlink(link)
+            if target == str(STABLE) or "git-graph" not in target:
+                continue
+            link.unlink()
+        elif link.exists():
+            continue
+        link.symlink_to(STABLE)
+
+
+def drop_legacy_install() -> None:
+    """A plugin előtti, `install.sh`-s telepítés maradványai.
+
+    A globális settings hookja különben a plugin hookja mellett is lefutna.
+    """
+    if LEGACY_COMMAND.is_symlink():
+        LEGACY_COMMAND.unlink()
+    data = read_json(USER_SETTINGS)
+    hooks = (data or {}).get("hooks")
+    groups = hooks.get("SessionStart") if isinstance(hooks, dict) else None
+    if not isinstance(groups, list):
+        return
+    kept = [g for g in groups if not any("graph --session-hook" in h.get("command", "")
+                                         for h in g.get("hooks", []))]
+    if len(kept) == len(groups):
+        return
+    if kept:
+        hooks["SessionStart"] = kept
+    else:
+        hooks.pop("SessionStart")
+        if not hooks:
+            data.pop("hooks")
+    write_json(USER_SETTINGS, data)
+    log("git-graph: a régi SessionStart hook kikerült a ~/.claude/settings.json-ből")
+
+
+def agent_plist(port: int) -> str:
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>{AGENT_LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{SYSTEM_PYTHON}</string>
+    <string>{STABLE}</string>
+    <string>--serve</string>
+    <string>--port</string>
+    <string>{port}</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>{STATE_DIR / "serve.log"}</string>
+  <key>StandardErrorPath</key><string>{STATE_DIR / "serve.log"}</string>
+</dict>
+</plist>
+"""
+
+
+def install_agent(port: int, restart: bool) -> None:
+    """A `gg --serve` launchd agentje; új kódnál újraindítja."""
+    domain = f"gui/{os.getuid()}"
+    if launchctl("bootout", f"{domain}/{OLD_AGENT_LABEL}"):
+        log(f"git-graph: a régi agent ({OLD_AGENT_LABEL}) leállítva")
+    (AGENT_PLIST.parent / f"{OLD_AGENT_LABEL}.plist").unlink(missing_ok=True)
+
+    content = agent_plist(port)
+    loaded = launchctl("print", f"{domain}/{AGENT_LABEL}")
+    if not AGENT_PLIST.exists() or AGENT_PLIST.read_text(encoding="utf-8") != content:
+        AGENT_PLIST.parent.mkdir(parents=True, exist_ok=True)
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        AGENT_PLIST.write_text(content, encoding="utf-8")
+        if loaded:
+            launchctl("bootout", f"{domain}/{AGENT_LABEL}")
+            loaded = False
+    if loaded:
+        if restart:
+            launchctl("kickstart", "-k", f"{domain}/{AGENT_LABEL}")
+        else:
+            return
+    else:
+        # A bootout aszinkron: amíg a régi példány le nem állt, a bootstrap
+        # „5: Input/output error"-ral elbukik (mérve) — ezért próbálkozunk.
+        for _ in range(10):
+            if launchctl("bootstrap", domain, str(AGENT_PLIST)):
+                break
+            time.sleep(0.5)
+        else:
+            log(f"git-graph: a launchd agent nem indult — napló: {STATE_DIR / 'serve.log'}")
+            return
+    for _ in range(30):                  # a hook ugyanebben a körben már a szervert kérdezi
+        if port_open(port):
+            break
+        time.sleep(0.1)
+
+
+def install_app_mcp() -> bool:
+    """A git-graph MCP a Claude app configjában; True, ha most került be / változott."""
+    if not APP_CONFIG.parent.is_dir():   # nincs Claude app ezen a gépen
+        return False
+    data = read_json(APP_CONFIG)
+    if data is None:
+        log(f"git-graph: {APP_CONFIG} nem érvényes JSON — kézzel kell javítani")
+        return False
+    servers = data.setdefault("mcpServers", {})
+    entry = {"command": SYSTEM_PYTHON, "args": [str(STABLE), "--mcp"]}
+    if servers.get(MCP_NAME) == entry:
+        return False
+    servers[MCP_NAME] = entry
+    write_json(APP_CONFIG, data)
+    return True
+
+
+def ensure_installed(port: int) -> str | None:
+    """Pluginból futva a gépi rész beállítása; a modellnek szóló üzenet, ha van.
+
+    Csak a plugin hookjából fut (CLAUDE_PLUGIN_ROOT alatti script): egy kézi
+    `gg --session-hook` ne telepítsen.
+    """
+    root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if not root or Path(root).resolve() not in Path(__file__).resolve().parents:
+        return None
+    changed = install_copy()
+    link_user_bin()
+    drop_legacy_install()
+    if sys.platform != "darwin":
+        return None
+    install_agent(port, restart=changed)
+    if not install_app_mcp():
+        return None
+    # Mérve: a futó app a beállítások mentésekor a memóriabeli configgal
+    # felülírja a fájlt — az újraindításig a bejegyzés elveszhet.
+    return ("A git-graph plugin most vette fel a git-graph MCP-t a Claude app configjába. "
+            "Mondd meg a Fejlesztőnek egy mondatban: a Claude appot most újra kell indítani "
+            "(Cmd+Q, majd indítás) — enélkül az Artifact nem kap élő adatot.")
+
+
+def plugin_installed() -> bool | None:
+    """Telepítve van-e a plugin; None, ha a nyilvántartásból nem dönthető el.
+
+    Az `installed_plugins.json` a Claude Code belső fájlja — ismeretlen
+    formátumnál inkább nem döntünk, mint hogy tévesen leszereljünk.
+    """
+    data = read_json(INSTALLED_PLUGINS)
+    if not data or data.get("version") != 2 or not isinstance(data.get("plugins"), dict):
+        return None
+    return any(key.startswith(PLUGIN_ID) for key in data["plugins"])
+
+
+def uninstall() -> None:
+    """Minden, amit az `ensure_installed` a gépre tett — utoljára a saját agent."""
+    data = read_json(APP_CONFIG) if APP_CONFIG.exists() else None
+    servers = (data or {}).get("mcpServers")
+    if isinstance(servers, dict) and MCP_NAME in servers:
+        servers.pop(MCP_NAME)
+        if not servers:
+            data.pop("mcpServers")
+        write_json(APP_CONFIG, data)
+    for name in ("git-graph", *ALIASES):
+        link = USER_BIN / name
+        if link.is_symlink() and os.readlink(link) == str(STABLE):
+            link.unlink()
+    shutil.rmtree(STATE_DIR, ignore_errors=True)
+    AGENT_PLIST.unlink(missing_ok=True)
+    launchctl("bootout", f"gui/{os.getuid()}/{AGENT_LABEL}")   # ez ezt a folyamatot is leállítja
+
+
+def watch_uninstall() -> None:
+    """A `--serve` szála: ha a plugint eltávolították, leszereli a gépi részt.
+
+    Csak a plugin telepítette példányban (a stabil másolat) fut — egy kézi
+    `gg --serve` a fejlesztői checkoutból nem szerel le semmit.
+    """
+    if Path(__file__).resolve() != STABLE.resolve():
+        return
+    misses = 0
+    while True:
+        time.sleep(UNINSTALL_POLL_S)
+        misses = misses + 1 if plugin_installed() is False else 0
+        if misses >= UNINSTALL_MISSES:
+            print("A git-graph plugin nincs telepítve — leszerelés.", flush=True)
+            uninstall()
+            return
+
+
 def session_hook(port: int) -> int:
     """Claude Code SessionStart hook: eltárolja a session repóját.
 
@@ -2134,11 +2410,16 @@ def session_hook(port: int) -> int:
         payload = json.load(sys.stdin)
     except Exception:
         payload = {}
+    try:
+        notice = ensure_installed(port)
+    except Exception as exc:                       # a telepítés hibája ne vigye el a sessiont
+        log(f"git-graph: telepítési hiba: {type(exc).__name__}: {exc}")
+        notice = None
     start = Path(payload.get("cwd") or Path.cwd())
     try:
         repo = resolve_repo(start)
     except SystemExit:
-        return 0                                   # nem repó: nincs mit mutatni
+        return emit_context(notice)                # nem repó: nincs mit mutatni
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     CURRENT.write_text(f"{repo}\n", encoding="utf-8")
     REPO = repo
@@ -2148,7 +2429,7 @@ def session_hook(port: int) -> int:
         # slug-feloldásához, és a szerver ebből hozza létre a hiányzó Artifactot.
         slug = register(repo)
     elif not artifact:
-        return 0                                   # se Artifact, se szerver: néma kilépés
+        return emit_context(notice)                # se Artifact, se szerver: néma kilépés
     if artifact:
         context = (f"A(z) {repo} repó élő git-graph Artifactja: {artifact} (a gépen futó "
                    "git-graph-ból élőben frissül).\nA session elején nyisd meg EGYSZER az "
@@ -2162,8 +2443,15 @@ def session_hook(port: int) -> int:
                    f"(most a(z) {repo} repót mutatja, magától frissül).\n"
                    "A session elején nyisd meg EGYSZER a Browser panelen — "
                    "preview_start, url paraméterrel —, és ne írj róla üzenetet.")
-    json.dump({"hookSpecificOutput": {"hookEventName": "SessionStart",
-                                      "additionalContext": context}}, sys.stdout)
+    return emit_context(context, notice)
+
+
+def emit_context(*parts: str | None) -> int:
+    """A hook kimenete: a nem üres részek additionalContextként; ha nincs, semmi."""
+    context = "\n\n".join(p for p in parts if p)
+    if context:
+        json.dump({"hookSpecificOutput": {"hookEventName": "SessionStart",
+                                          "additionalContext": context}}, sys.stdout)
     return 0
 
 
@@ -2237,7 +2525,7 @@ def main() -> int:
                   "más gépen nem érvényes.")
         if not port_open(args.port):
             print(f"  FIGYELEM: a {args.port} porton nem fut szerver "
-                  "(./install.sh --live vagy gg --serve)")
+                  "(a git-graph plugin launchd agentje, vagy gg --serve)")
         print("  A Browser panel innen veszi a címet; a sessionöd hookja magától "
               "megnyittatja. Kézzel: illeszd be a fenti URL-t a panel címsorába.")
         return 0

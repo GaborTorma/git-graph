@@ -28,26 +28,48 @@ Három nézet, más-más célra:
 
 ## Telepítés
 
+Claude Code plugin, saját marketplace-szel (maga ez a repó):
+
 ```sh
-./install.sh          # symlinkek
-./install.sh --live   # + élő szerver (launchd) és SessionStart hook
+claude plugin marketplace add GaborTorma/git-graph
+claude plugin install git-graph@git-graph
 ```
 
-Symlinkeli a `git-graph`-ot és a `gg`-t a `~/.local/bin`-be, a slash commandot a
-`~/.claude/commands`-ba. Idempotens. Függősége nincs a Python 3 stdliben túl;
-minden git-hívás **csak olvas**.
+A plugin hozza a `/git-graph:git-graph` skillt, a SessionStart hookot, és a Claude
+Bash eszközének PATH-jára a `git-graph` / `gg` / `ggl` parancsokat. Függősége
+nincs a Python 3 stdliben túl; minden git-hívás **csak olvas**.
 
-A `--live` ezen felül:
+A pluginnak nincs telepítési eseménye, ezért a gépi részt az **első session
+hookja** állítja be — és minden verzióváltáskor frissíti (idempotens, csak
+változáskor ír):
 
-- `~/Library/LaunchAgents/ai.torma.git-graph.plist` — a szervert a bejelentkezés
-  indítja és életben tartja (`/usr/bin/python3`, napló: `~/.git-graph/serve.log`),
-- `~/.claude/settings.json` → `SessionStart` hook (a saját bejegyzését ismeri fel,
-  idegen hookhoz nem nyúl; a fájlról mentés készül),
+- `~/.git-graph/bin/git-graph` (+ `gg`, `ggl`) — a script stabil másolata. A
+  plugin útvonala verziónként más, a launchd és az app ezt futtatja.
+- `~/.local/bin/{git-graph,gg,ggl}` — terminálos parancsok a másolatra (ha a
+  mappa létezik; valódi fájlhoz és idegen symlinkhez nem nyúl).
+- `~/Library/LaunchAgents/ai.torma.git-graph.plist` — a `gg --serve`-et a
+  bejelentkezés indítja és életben tartja (`/usr/bin/python3`, napló:
+  `~/.git-graph/serve.log`). Új verziónál újraindul.
 - `~/Library/Application Support/Claude/claude_desktop_config.json` → `git-graph`
-  MCP szerver (`/usr/bin/python3 …/git-graph --mcp`; csak változáskor ír, előtte
-  mentés). Az app csak induláskor olvassa: **egyszer újra kell indítani**.
+  MCP szerver (előtte mentés). Az app csak induláskor olvassa: ilyenkor a
+  session szól, hogy **egyszer újra kell indítani**.
+- A plugin előtti, `install.sh`-s telepítés maradványait (globális hook a
+  `~/.claude/settings.json`-ben, `~/.claude/commands/git-graph.md`) eltakarítja.
 
-Leszerelés: `./install.sh --uninstall-live` (a symlinkek maradnak).
+**Eltávolítás:** `claude plugin uninstall git-graph@git-graph`. A futó szerver
+percenként megnézi a Claude Code nyilvántartását (`installed_plugins.json`), és
+ha a plugin két egymást követő ellenőrzésnél hiányzik, leszereli a fentieket — az
+MCP-bejegyzést, a `~/.local/bin` linkjeit, a `~/.git-graph`-ot és végül saját
+magát. Olvashatatlan vagy ismeretlen formátumú nyilvántartásnál nem töröl
+semmit. A repók `.git/config`-jában a `git-graph.*` kulcsok maradnak.
+
+**Verziózás:** SemVer, a verzió egyetlen forrása a
+`.claude-plugin/plugin.json`. Bump nélkül a `claude plugin update` nem hoz le
+semmit. Kiadás: `vX.Y.Z` tag.
+
+Fejlesztés közben, bump nélkül: `claude --plugin-dir .` (csak az adott
+sessionre). Ilyenkor a hook ugyanúgy telepít, de mivel a nyilvántartásban nincs
+benne, a szerver ~2 perc múlva leszerel — a következő session újra telepít.
 
 ## Élő mód a Claude Desktopban
 
@@ -105,18 +127,20 @@ ugyan, de csak framebuffer (VNC) forrásokra — egy oda tett preview-bejegyzés
 > URL-t a Browser panel címsorába. Rendszer-böngészőben: `open <URL>`.
 
 A hook némán kilép, ha a mappa nem git repó, vagy ha se Artifactja nincs, se a
-szerver nem fut — az „off kapcsoló" tehát az `./install.sh --uninstall-live`
-(leveszi a hookot is).
+szerver nem fut — az „off kapcsoló" a plugin kikapcsolása
+(`claude plugin disable git-graph@git-graph`).
 
 ## Felépítés
 
 | Útvonal | Mi |
 | --- | --- |
-| `git-graph` | maga a script (~930 sor: adatgyűjtés + beágyazott HTML/CSS/JS sablon) |
-| `gg` | symlink a `git-graph`-ra — rövid alias |
-| `ggl` | symlink a `git-graph`-ra; ezen a néven a `--launch-config` a default |
-| `install.sh` | symlinkek a PATH-ra és a Claude commands mappájába |
-| `commands/git-graph.md` | `/git-graph` slash command: `gg --publish`, majd megnyitja az Artifactot |
+| `bin/git-graph` | maga a script: adatgyűjtés + beágyazott HTML/CSS/JS sablon + szerverek + telepítés |
+| `bin/gg` | symlink a `git-graph`-ra — rövid alias |
+| `bin/ggl` | symlink a `git-graph`-ra; ezen a néven a `--launch-config` a default |
+| `.claude-plugin/plugin.json` | a plugin manifestje — a verzió egyetlen forrása |
+| `.claude-plugin/marketplace.json` | a `git-graph` marketplace (egyetlen plugin: ez a repó) |
+| `hooks/hooks.json` | SessionStart hook: `git-graph --session-hook` (telepít + megnyittatja a gráfot) |
+| `skills/git-graph/SKILL.md` | `/git-graph:git-graph`: `gg --publish`, majd megnyitja az Artifactot |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |
 | `docs/desktop-live.md` | miért a Browser panel + lokális szerver az élő út — mérésekkel |
 | `docs/mcp-plan.md` | terv az élő, magától frissülő verzióhoz (blokkolva, lásd findings) |
@@ -149,7 +173,7 @@ Megkötések (a platformé, mérve — [docs/artifact-findings.md](docs/artifact
 - csak a **Claude appban**, a saját gépeden, tulajdonosként megy — böngészőben,
   telefonon a lap annyit ír ki, hogy az appban kell megnyitni;
 - a `git-graph` MCP-nek a **Claude app configjában** kell lennie (az
-  `install.sh --live` teszi be; a `claude mcp add` nem elég), és az app csak
+  plugin hookja teszi be; a `claude mcp add` nem elég), és az app csak
   induláskor olvassa be;
 - az első megnyitáskor az app engedélyt kér a `git-graph` szerverhez.
 

@@ -10,11 +10,13 @@ Használat és felépítés: [README.md](README.md).
 
 | Útvonal | Mi ez |
 | --- | --- |
-| `git-graph` | a teljes eszköz egyetlen fájlban: git-adatgyűjtés + HTML/CSS/JS sablon (3 mód: `static`, `http`, `mcp`) + élő szerver (`--serve`) + MCP szerver a Claude appnak (`--mcp`) + headless Artifact-publikálás (`--publish`) + SessionStart hook (`--session-hook`) |
-| `gg` | symlink a `git-graph`-ra (rövid alias) |
-| `ggl` | ugyanaz a script; a `sys.argv[0]` neve kapcsolja a `--launch-config`-ot |
-| `install.sh` | symlinkek; `--live`: launchd agent + SessionStart hook + `git-graph` MCP a Claude app configjában |
-| `commands/git-graph.md` | a `/git-graph` slash command (`gg --publish`, majd megnyitja) |
+| `bin/git-graph` | a teljes eszköz egyetlen fájlban: git-adatgyűjtés + HTML/CSS/JS sablon (3 mód: `static`, `http`, `mcp`) + élő szerver (`--serve`) + MCP szerver a Claude appnak (`--mcp`) + headless Artifact-publikálás (`--publish`) + SessionStart hook (`--session-hook`), benne a plugin gépi telepítése és leszerelése |
+| `bin/gg` | symlink a `git-graph`-ra (rövid alias) |
+| `bin/ggl` | ugyanaz a script; a `sys.argv[0]` neve kapcsolja a `--launch-config`-ot |
+| `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
+| `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
+| `hooks/hooks.json` | a plugin SessionStart hookja (`--session-hook`) |
+| `skills/git-graph/SKILL.md` | a `/git-graph:git-graph` skill (`gg --publish`, majd megnyitja) |
 | `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
 | `docs/desktop-live.md` | **mérési napló**: miért a Browser panel + lokális szerver az élő út |
 | `docs/mcp-plan.md` | a korábbi terv az élő Artifacthoz (azóta a `host:` híddal megvalósult) |
@@ -23,8 +25,9 @@ Használat és felépítés: [README.md](README.md).
 ## Parancsok
 
 ```sh
-./install.sh          # symlinkek felrakása (idempotens)
-./install.sh --live   # + launchd agent (gg --serve), SessionStart hook, app MCP config
+claude plugin install git-graph@git-graph   # a hook az első sessionben telepít mindent
+claude --plugin-dir .                      # fejlesztés: a working tree pluginként, bump nélkül
+claude plugin validate . --strict          # manifestek, skill, hook
 gg --help             # a teljes súgó
 gg                    # az aktuális repó → ~/.git-graph/<slug>/index.html (pillanatkép)
 gg --publish          # az Artifact vékony lapja (headless claude -p)
@@ -32,7 +35,7 @@ gg --serve            # élő kiszolgálás a Browser panelnek + Artifactok karb
 gg --mcp              # MCP szerver stdio-n — a Claude app indítja, nem kézzel
 gg --launch-config    # .claude/launch.json bejegyzés (preview_start git-graph)
 ggl                   # ugyanaz — a hívás neve kapcsolja
-python3 git-graph …    # symlink nélkül, közvetlenül
+python3 bin/git-graph …    # közvetlenül, a working tree-ből
 ```
 
 Három mód, egy sablon (`build(..., mode=…)`): `static` — beágyazott
@@ -52,9 +55,11 @@ panelen egy `srcdoc` iframe-ben próbálható: a szerver lapját `MODE='mcp'`-re
 írva, egy ál-`window.claude`-dal, amely a `/fingerprint`-ből és a `/data`-ból
 válaszol. A publikálásé: `gg --publish` kétszer (a második „naprakész”). A
 launchd más környezet, mint egy Desktop session shellje — ami onnan működik,
-azt launchd alatt is ki kell próbálni.
+azt launchd alatt is ki kell próbálni. A telepítésé (`ensure_installed`,
+`uninstall`): kamu `HOME`-mal, a modult betöltve, a `launchctl` függvényt
+rögzítőre cserélve — a valódi agenthez ne nyúljon a próba, a label közös.
 
-- **Check**: `syntax=python3 -c "import ast; ast.parse(open('git-graph').read())" && bash -n install.sh` · `js=sed -n '/^<script>$/,/^<\/script>$/{//!p;}' git-graph | node --check -`
+- **Check**: `syntax=/usr/bin/python3 -m py_compile bin/git-graph && claude plugin validate . --strict` · `js=sed -n '/^<script>$/,/^<\/script>$/{//!p;}' bin/git-graph | node --check -`
 
 ## Konvenciók
 
@@ -72,7 +77,9 @@ azt launchd alatt is ki kell próbálni.
   sosem commitolódik —, valamint a `--launch-config`, ami
   `.claude/launch.json`-t ír: az **commitolható** fájl, ezért csak kifejezett
   kérésre fut, sosem mellékhatásként.
-- **Verziókezelés**: SemVer, kézi `vX.Y.Z` tag, Conventional Commits.
+- **Verziókezelés**: SemVer, a verzió egyetlen forrása a
+  `.claude-plugin/plugin.json` (a `marketplace.json` nem ismétli); kézi
+  `vX.Y.Z` tag, Conventional Commits.
 - **Env**: a toolnak nincs env-függősége, ezért nincs `.env.example`. Ha a
   tunneles MCP-irány megvalósul (`docs/mcp-plan.md` B változat), a bearer token
   `.env`-be megy.
@@ -177,7 +184,26 @@ azt launchd alatt is ki kell próbálni.
     `ToolSearch` nélkül minden MCP-séma betöltődik).
 - **A publikálás a lock NÉLKÜL fut**: a `REPO`-váltás és a git-hívások lockban,
   a claude-folyamat kívül — különben addig a lap sem szolgálna ki.
-- **`install.sh`: a `launchctl bootout` aszinkron** — a közvetlenül utána jövő
+- **A `launchctl bootout` aszinkron** — a közvetlenül utána jövő
   `bootstrap` „5: Input/output error”-ral bukott, ezért próbálkozik újra.
+- **Plugin: nincs install/update/uninstall esemény** (docs). Ezért:
+  - A gépi részt a SessionStart hook állítja be (`ensure_installed`), csak ha a
+    script a `CLAUDE_PLUGIN_ROOT` alatt fut — egy kézi `--session-hook` nem
+    telepít. Minden lépés idempotens, csak változáskor ír; a hook stdout-ja a
+    hook-JSON-é, napló csak stderr-re (`log`).
+  - A `CLAUDE_PLUGIN_ROOT` verziónként más (`…/cache/git-graph/git-graph/<verzió>/`),
+    ezért a launchd és az app a **stabil másolatot** futtatja
+    (`~/.git-graph/bin/git-graph`) — symlinket nem, mert a régi verzió mappája
+    eltűnhet. Változott másolatnál az agent `kickstart -k`-val újraindul.
+  - A leszerelést a `--serve` szála végzi (`watch_uninstall`): az
+    `installed_plugins.json`-ban (Claude Code belső fájl, `version: 2`) keresi a
+    `git-graph@…` kulcsot. Ismeretlen formátumnál nem dönt, és csak két
+    egymást követő hiány után szerel le (frissítés közbeni pillanat). Csak a
+    stabil példányban fut — a fejlesztői `gg --serve` nem szerel le.
+  - A `bin/` csak a Claude **Bash eszközének** PATH-ja, a hooké és a terminálé
+    nem: a hook a `${CLAUDE_PLUGIN_ROOT}/bin/git-graph`-ot hívja, a terminál a
+    `~/.local/bin` linkjeit használja.
+  - Bump nélkül a `claude plugin update` nem hoz le semmit (a `plugin.json`
+    `version`-je dönt).
 
 Részletes platform-tanulságok (CSP, capabilities, MCP): `docs/artifact-findings.md`.
