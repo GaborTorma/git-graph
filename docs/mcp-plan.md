@@ -101,7 +101,7 @@ A `git-graph` ma ezt ágyazza be `const DATA = …`-ként. Az MCP szervernek
 }
 ```
 
-Az adatgyűjtő függvények készen vannak a [`../git-graph`](../git-graph) scriptben:
+Az adatgyűjtő függvények készen vannak a [`../bin/git-graph`](../bin/git-graph) scriptben:
 `collect_commits`, `parse_refs`, `collect_stats`, `assign_lanes`,
 `collect_branches`, `repo_name`, `collect_meta`, `resolve_repo`.
 

@@ -1,6 +1,7 @@
 ---
+name: git-graph
+description: Az aktuális repó élő, Git Graph stílusú Artifact oldalát publikálja (ha kell) és megnyitja — meglévőt frissít, nem hoz létre duplikátumot. Használd, ha a Fejlesztő a repó commit-gráfját, ágait, history-ját akarja látni, vagy /git-graph-ot ír.
 allowed-tools: Bash(gg:*), Artifact
-description: Az aktuális repó élő, Git Graph stílusú Artifact oldalát publikálja (ha kell) és megnyitja — meglévőt frissít, nem hoz létre duplikátumot.
 ---
 
 ## Feladat
@@ -26,7 +27,7 @@ A kimenet `✓` sorában ott az Artifact URL-je. Nyisd meg az Artifact eszközze
 
 Egy rövid mondat + a link: frissítés volt, új oldal, vagy már naprakész volt
 („nincs mit feltölteni"). Ha az oldal azt írja, hogy nem éri el a gépen futó
-git-graph-ot, mondd meg: az `install.sh --live` után a Claude appot egyszer újra
-kell indítani.
+git-graph-ot, mondd meg: a plugin telepítése után a Claude appot egyszer újra
+kell indítani (az app csak induláskor olvassa a configját).
 
 Ne írj összegzést a gráf tartalmáról: az oldal magáért beszél.
