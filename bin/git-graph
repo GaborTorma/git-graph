@@ -6,14 +6,14 @@ sávokra osztott, színes commit-gráf, jobbra Description / Date / Author /
 Commit oszlopok, ref-badge-ekkel; a soron kattintva commit-részletek panel.
 
 Az Artifact lapjában nincs adat: a Claude appban megnyitva a gépen futó
-`gg --mcp`-ből kéri (a Claude app host-hídján át). Kétmásodpercenként olcsó
+`git-graph --mcp`-ből kéri (a Claude app host-hídján át). Kétmásodpercenként olcsó
 ujjlenyomatot kér, és csak tényleges változásra tölt új adatot. A lapot a
 session publikálja, amikor a hook kéri: ha még nincs, vagy a sablonja (a
 git-graph kódja) változott. Kézzel: a `/git-graph:git-graph` skill.
 
-    gg --publish                  # az Artifact publikálásának lépései a sessionnek
-    gg --published <URL>          # a publikálás után: URL + hash a .git/config-ba
-    gg --artifacts                # az ismert repók Artifactjai
+    git-graph --publish                  # az Artifact publikálásának lépései a sessionnek
+    git-graph --published <URL>          # a publikálás után: URL + hash a .git/config-ba
+    git-graph --artifacts                # az ismert repók Artifactjai
 
 A lapok a repón KÍVÜL keletkeznek (`~/.git-graph/<slug>/`) — a projektmappában
 nincs mit ignorálni.
@@ -466,7 +466,7 @@ def mark_pushed(commits: list[dict], stats: dict[str, dict]) -> None:
 
 
 def collect_payload(limit: int | None) -> dict:
-    """A lap teljes adatcsomagja — a `gg --mcp` graph_data toolja adja."""
+    """A lap teljes adatcsomagja — a `git-graph --mcp` graph_data toolja adja."""
     commits = collect_commits(limit)
     if not commits:
         return {}
@@ -491,7 +491,7 @@ def collect_payload(limit: int | None) -> dict:
 
 
 def change_signals() -> tuple[str, str]:
-    """(ref-jel, fájl-jel) — a `gg --mcp` fingerprint toolja ebből válaszol.
+    """(ref-jel, fájl-jel) — a `git-graph --mcp` fingerprint toolja ebből válaszol.
 
     A ref-jelben a HEAD neve is benne van (ágváltás ugyanarra a commitra is
     badge-változás); a fájl-jel pontosan azt fedi, amit az Uncommitted sor
@@ -987,7 +987,7 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
 
 <script>
 let DATA = __DATA__;
-/* Az Artifact a Claude app host-hídján át a gépen futó `gg --mcp`-ből kéri az
+/* Az Artifact a Claude app host-hídján át a gépen futó `git-graph --mcp`-ből kéri az
    adatot (a SLUG repóét); a beágyazott DATA csak az üres váz. */
 const SLUG = '__SLUG__';
 const MCP_SERVER = 'host:git-graph';
@@ -1348,7 +1348,7 @@ fillBranches();
 render();
 
 /* ── Élő frissítés ───────────────────────────────────────────────────────
-   A forrás a gépen futó `gg --mcp` (a Claude app host-hídján át). Az olcsó
+   A forrás a gépen futó `git-graph --mcp` (a Claude app host-hídján át). Az olcsó
    ujjlenyomatot pollozzuk, teljes adatot csak tényleges változásra kérünk: a
    lap helyben rajzol újra, a nyitott panel, a szűrők és a görgetés megmaradnak.
    A lábléc a mért időket is mutatja (ujjlenyomat · adat). */
@@ -1451,7 +1451,7 @@ def embed(payload: dict) -> str:
 
 
 def build(payload: dict, title: str, slug: str) -> str:
-    """Az Artifact vékony lapja: üres váz, az adat a `gg --mcp`-ből jön."""
+    """Az Artifact vékony lapja: üres váz, az adat a `git-graph --mcp`-ből jön."""
     meta = payload["meta"]
     return (
         TEMPLATE.replace("__DATA__", embed(payload))
@@ -1471,12 +1471,12 @@ def thin_payload() -> dict:
 # ── Állapot a gépen (`~/.git-graph`) ────────────────────────────────────────
 
 STATE_DIR = Path.home() / ".git-graph"
-REPOS = STATE_DIR / "repos.json"       # slug → repó útvonal (a hook írja, a gg --mcp olvassa)
+REPOS = STATE_DIR / "repos.json"       # slug → repó útvonal (a hook írja, a git-graph --mcp olvassa)
 NO_AUTO_PUBLISH = STATE_DIR / "no-auto-publish"   # ha létezik: a hook nem kér publikálást
 
 
 def slug_for(repo: Path) -> str:
-    """Stabil azonosító a repóhoz — az Artifact lapja ezzel kérdezi a `gg --mcp`-t.
+    """Stabil azonosító a repóhoz — az Artifact lapja ezzel kérdezi a `git-graph --mcp`-t.
 
     A mappanév olvashatóvá teszi, az útvonal-hash pedig egyértelművé: két
     azonos nevű mappa (`~/a/app`, `~/b/app`) nem üthet össze.
@@ -1588,7 +1588,7 @@ def artifact_path(repo: Path) -> Path:
     return STATE_DIR / slug_for(repo) / "artifact.html"
 
 
-# A lap ezen át éri el a gépen futó gg --mcp-t (enélkül use("mcp") null).
+# A lap ezen át éri el a gépen futó git-graph --mcp-t (enélkül use("mcp") null).
 PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
                                      "tools": ["fingerprint", "graph_data", "file_diff"]}]}}
 
@@ -1601,7 +1601,7 @@ def page_digest(html_page: str) -> str:
 def prepare_publish() -> dict | None:
     """Az Artifact vékony lapja: kiírja, ha eltér a legutóbb publikálttól.
 
-    Adat nincs benne — a lap a Claude appban a gép `gg --mcp`-jéből kéri —,
+    Adat nincs benne — a lap a Claude appban a gép `git-graph --mcp`-jéből kéri —,
     így csak sablon- (kód-) vagy repónév-változáskor kell újra feltölteni.
     None, ha van már Artifact, és a lap hashe egyezik.
     """
@@ -1619,18 +1619,18 @@ def prepare_publish() -> dict | None:
 
 
 def publish_steps(job: dict) -> str:
-    """A session teendője a lap publikálásához — a hook és a `gg --publish` adja a modellnek.
+    """A session teendője a lap publikálásához — a hook és a `git-graph --publish` adja a modellnek.
 
     Az Artifact API-t csak a modell éri el, ezért a publikálást a session
     végzi (mérve, docs/artifact-findings.md): a `host:git-graph` akkor is
     deklarálható, ha a session nem látja a szervert; egy meglévő Artifactra
     viszont csak az élő verzió olvasása után publikálhat. Az URL-t és a hasht
     a `--published` írja vissza — a hook a publikálás eredményét nem látja.
-    A `gg` a plugin `bin/`-jéből a Bash eszköz PATH-ján van (egy
-    `Bash(gg:*)` engedéllyel nem kérdez).
+    A `git-graph` a plugin `bin/`-jéből a Bash eszköz PATH-ján van (egy
+    `Bash(git-graph:*)` engedéllyel nem kérdez).
     """
     caps = json.dumps(PUBLISH_CAPS)
-    record = (f"Bash: gg {shlex.quote(str(REPO))} --published <URL> "
+    record = (f"Bash: git-graph {shlex.quote(str(REPO))} --published <URL> "
               "(az URL a publish eredményéből)")
     if job["url"]:
         return (f"1) Artifact, action: \"read\", url: {job['url']}; 2) Artifact publish — url: "
@@ -1643,12 +1643,12 @@ def mark_published(url: str) -> None:
     """A session publikálása után: az URL és a feltöltött lap hashe a `.git/config`-ba."""
     page = artifact_path(REPO)
     if not page.exists():
-        raise SystemExit("HIBA: nincs kiírt Artifact-lap — előbb: gg --publish")
+        raise SystemExit("HIBA: nincs kiírt Artifact-lap — előbb: git-graph --publish")
     remember_artifact(url, page_digest(page.read_text(encoding="utf-8")))
     register(REPO)
 
 
-# ── MCP szerver a Claude appnak (`gg --mcp`) ────────────────────────────────
+# ── MCP szerver a Claude appnak (`git-graph --mcp`) ────────────────────────────────
 
 MCP_NAME = "git-graph"        # a Claude app configjában ez a kulcs → a lapon host:git-graph
 _REPO_ARG = {"type": "object", "required": ["repo"], "properties": {
@@ -1739,12 +1739,12 @@ def mcp_serve(limit: int | None) -> int:
     return 0
 
 
-# ── Plugin-telepítés (SessionStart hook) és leszerelés (`gg --mcp`) ─────────
+# ── Plugin-telepítés (SessionStart hook) és leszerelés (`git-graph --mcp`) ─────────
 #
 # A Claude Code pluginnak nincs install/update/uninstall eseménye. Ami a gépen
 # túl van a pluginon (a stabil másolat és a Claude app MCP-configja), azt a
 # SessionStart hook állítja be — idempotensen, csak változáskor írva —, a
-# leszerelést pedig az app által indított `gg --mcp` végzi, amikor a plugin
+# leszerelést pedig az app által indított `git-graph --mcp` végzi, amikor a plugin
 # eltűnik a Claude Code nyilvántartásából.
 
 PLUGIN_ID = "git-graph@"     # bármelyik marketplace-ből telepítve
@@ -1820,7 +1820,7 @@ def ensure_installed() -> str | None:
     """Pluginból futva a gépi rész beállítása; a modellnek szóló üzenet, ha van.
 
     Csak a plugin hookjából fut (CLAUDE_PLUGIN_ROOT alatti script): egy kézi
-    `gg --session-hook` ne telepítsen.
+    `git-graph --session-hook` ne telepítsen.
     """
     root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if not root or Path(root).resolve() not in Path(__file__).resolve().parents:
@@ -1862,9 +1862,9 @@ def uninstall() -> None:
 
 
 def watch_uninstall() -> None:
-    """A `gg --mcp` szála: ha a plugint eltávolították, leszereli a gépi részt.
+    """A `git-graph --mcp` szála: ha a plugint eltávolították, leszereli a gépi részt.
 
-    Az app minden indításkor elindítja a `gg --mcp`-t, és a folyamat az app
+    Az app minden indításkor elindítja a `git-graph --mcp`-t, és a folyamat az app
     futásáig él — így a leszerelés legkésőbb a következő app-indítás után
     megtörténik. Csak a plugin telepítette példányban (a stabil másolat) fut.
     Több példány is futhat (az app és minden Code-session indít egyet): a
@@ -1910,7 +1910,7 @@ def session_hook() -> int:
         REPO = resolve_repo(start)
     except SystemExit:
         return emit_context(notice, event=event)   # nem repó: nincs mit mutatni
-    register(REPO)                                 # a gg --mcp a lap slugjából ebből találja meg
+    register(REPO)                                 # a git-graph --mcp a lap slugjából ebből találja meg
     url = config_get("artifact")
     headless = os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk")
     cleanup = None if headless else orphan_request()
@@ -1938,7 +1938,7 @@ def orphan_request() -> str | None:
         return None
     urls = ", ".join(orphans.values())
     return (f"Megszűnt worktree-k git-graph Artifactjai maradtak: {urls}. Mindegyikre: "
-            "1) Artifact, action: \"delete\", url: az URL; 2) Bash: gg "
+            "1) Artifact, action: \"delete\", url: az URL; 2) Bash: git-graph "
             f"{shlex.quote(str(REPO))} --forget-artifact <URL> — akkor is, ha a törlés "
             "nem sikerült vagy a Fejlesztő nem engedte (különben minden session újra "
             "kérné). Ne írj róla üzenetet, csak ha valami nem sikerült.")

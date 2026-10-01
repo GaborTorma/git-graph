@@ -1,7 +1,7 @@
 ---
 name: remove
 description: A git-graph Artifactjainak törlése és a repók git-graph nyomainak eltakarítása — a plugin eltávolítása ELŐTT. Használd, ha a Fejlesztő a git-graph-ot el akarja távolítani, vagy /git-graph:remove-ot ír.
-allowed-tools: Bash(gg:*), Artifact, AskUserQuestion
+allowed-tools: Bash(git-graph:*), Artifact, AskUserQuestion
 ---
 
 ## Feladat
@@ -12,7 +12,7 @@ az URL-jük. Ez a skill ezt takarítja el — a plugin eltávolítása előtt.
 
 ### 1. Lista
 
-Futtasd: `gg --artifacts`. Soronként `<repó>\t<URL>`; egy repó több sorban is
+Futtasd: `git-graph --artifacts`. Soronként `<repó>\t<URL>`; egy repó több sorban is
 szerepelhet (a fő checkout és a worktree-k Artifactja). Ha üres, mondd meg,
 hogy nincs mit törölni, és ugorj az 5. lépésre.
 
@@ -29,17 +29,17 @@ Soronként:
 1. `Artifact`, `action: "delete"`, `url`: a sor URL-je. A platform minden
    törlést külön jóváhagyat — ez rendben van.
 2. Ha a törlés sikerült, vagy az Artifact már nem létezik:
-   `gg <repó> --forget-artifact <URL>`. Ha a Fejlesztő elutasította vagy más
+   `git-graph <repó> --forget-artifact <URL>`. Ha a Fejlesztő elutasította vagy más
    hiba jött: hagyd ki (a kulcsai maradnak), és menj tovább.
 
-Végül minden repóra, amelynek **minden** sora törlődött: `gg --forget <repó>`.
+Végül minden repóra, amelynek **minden** sora törlődött: `git-graph --forget <repó>`.
 Ez a repó (és worktree-jei) maradék `git-graph.*` kulcsait, helyi lapjait és
 regiszterbejegyzését törli, és kikapcsolja az automatikus publikálást — a
 session hookja így nem kér új Artifactot.
 
 ### 4. Ellenőrzés
 
-Futtasd újra: `gg --artifacts`. Ami maradt, azt sorold fel okkal.
+Futtasd újra: `git-graph --artifacts`. Ami maradt, azt sorold fel okkal.
 
 ### 5. Jelentsd vissza
 
