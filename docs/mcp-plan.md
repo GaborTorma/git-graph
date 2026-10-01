@@ -1,5 +1,11 @@
 # Terv: élő, magától frissülő git-gráf
 
+> **2026-09-30 — megvalósult, a `host:` híddal.** A blokkoló megszűnt (contract
+> 0.2.66, mérve: [artifact-findings.md](artifact-findings.md)). Az Artifact
+> vékony lap, a `gg --mcp` (stdlib MCP stdio-n, a Claude app configjából
+> indítva) adja a `fingerprint` és a `graph_data` toolt — az alábbi
+> adatszerződés és tool-felosztás szerint. Tunnel és egyéni konnektor nem kellett.
+
 > **2026-09-15 — ez a terv okafogyott.** Az élő gráf megvan, de nem Artifactként:
 > a Claude Desktop Browser panelje + lokális `gg --serve` szerver adja
 > ([desktop-live.md](desktop-live.md)). Az alábbi **B változat** — tunnel és

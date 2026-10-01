@@ -5,25 +5,26 @@ A VS Code [`mhutchie.git-graph`](https://marketplace.visualstudio.com/items?item
 elrendezését és Dark+/Light+ palettáját követi.
 
 ```sh
-gg                    # az aktuális repó → ~/.git-graph/<slug>/index.html
-gg --open             # …és megnyitja (Artifactot, ha az aktuális; különben a helyi fájlt)
+gg                    # az aktuális repó → ~/.git-graph/<slug>/index.html (pillanatkép)
+gg --open             # …és megnyitja a böngészőben
 gg ~/dev/masik-repo   # másik repó
 gg --limit 200        # csak az utolsó 200 commit (alap: mind)
 gg --out graf.html    # máshova (relatív út a hívás helyéhez)
-gg --publish          # Artifactként publikálja (headless claude-dal)
-gg --serve            # élő kiszolgálás: http://127.0.0.1:7788 + háttér-publikálás
+gg --publish          # az Artifact élő lapjának publikálása (headless claude-dal)
+gg --serve            # élő kiszolgálás: http://127.0.0.1:7788
+gg --mcp              # MCP szerver a Claude appnak (az app indítja, nem kézzel)
 gg --launch-config    # .claude/launch.json bejegyzés a Browser panelhez
 ggl                   # ugyanaz, rövidebben
 ```
 
-Két üzemmód van, és más-más célra:
+Három nézet, más-más célra:
 
-| | Statikus (`gg`) | Élő (`gg --serve`) |
-| --- | --- | --- |
-| Mi | egy önálló HTML fájl | loopback szerver, kérésenként újragenerál |
-| Frissülés | az Artifact magától, ha fut a szerver (lásd lent) | magától, ~2 mp-en belül |
-| Hol nézed | böngésző / Artifact | a Claude Desktop **Browser panelje** |
-| Mire jó | megosztás, archiválás | napi munka közben |
+| | Pillanatkép (`gg`) | Browser panel (`gg --serve`) | Artifact |
+| --- | --- | --- | --- |
+| Mi | önálló HTML fájl, beágyazott adattal | loopback szerver | adat nélküli lap a claude.ai-on |
+| Adat | a generálás pillanatáé | élő, HTTP-n | élő, a gépen futó `gg --mcp`-ből |
+| Frissülés | kézi újrafuttatás | ~2 mp-en belül | ~2 mp-en belül |
+| Hol nézed | böngésző | a Claude Desktop **Browser panelje** | a **Claude appban**, a saját gépeden |
 
 ## Telepítés
 
@@ -41,7 +42,10 @@ A `--live` ezen felül:
 - `~/Library/LaunchAgents/ai.torma.git-graph.plist` — a szervert a bejelentkezés
   indítja és életben tartja (`/usr/bin/python3`, napló: `~/.git-graph/serve.log`),
 - `~/.claude/settings.json` → `SessionStart` hook (a saját bejegyzését ismeri fel,
-  idegen hookhoz nem nyúl; a fájlról mentés készül).
+  idegen hookhoz nem nyúl; a fájlról mentés készül),
+- `~/Library/Application Support/Claude/claude_desktop_config.json` → `git-graph`
+  MCP szerver (`/usr/bin/python3 …/git-graph --mcp`; csak változáskor ír, előtte
+  mentés). Az app csak induláskor olvassa: **egyszer újra kell indítani**.
 
 Leszerelés: `./install.sh --uninstall-live` (a symlinkek maradnak).
 
@@ -118,60 +122,60 @@ A hook némán kilép, ha a mappa nem git repó, vagy ha a szerver nem fut — a
 
 ## Kimenet
 
-Mindig **ugyanoda**, a repón **kívülre**: `~/.git-graph/<slug>/index.html` —
-ugyanaz a slug, mint a `<slug>.localhost` címben. A projektmappába nem kerül
-semmi; a régi, repón belüli `.git-graph/` mappát a `gg` eltávolítja (ha csak a
-saját `index.html`-je van benne, és nem követett fájl).
+A repón **kívülre**, `~/.git-graph/<slug>/` alá — ugyanaz a slug, mint a
+`<slug>.localhost` címben:
+
+| Fájl | Mi |
+| --- | --- |
+| `index.html` | a `gg` pillanatképe, beágyazott adattal |
+| `artifact.html` | az Artifact vékony lapja — adat nélkül, ezt tölti fel a `gg --publish` |
+
+A projektmappába nem kerül semmi; a régi, repón belüli `.git-graph/` mappát a
+`gg` eltávolítja (ha csak a saját `index.html`-je van benne, és nem követett fájl).
 
 ## Artifact
 
-A `gg --publish` egy headless `claude -p`-vel tölti fel a lapot (az Artifact
-API-t csak a modell éri el): meglévőt frissít, ha nincs, létrehozza,
-**változatlan tartalomnál nem tölt fel**. A cím `<repónév> Git Graph` (a repónév
-az `origin` remote URL-jéből). A `/git-graph` slash command is ezt hívja, majd
-megnyitja az oldalt.
+Az Artifact **élő**, de adatot nem tárol: a lap a Claude appban megnyitva a
+gépeden futó `gg --mcp`-ből kéri, az app **host-hídján** át
+(`callTool("host:git-graph", …)`). Ugyanaz a logika, mint a Browser panelen:
+2 mp-enként az olcsó `fingerprint` (refek, HEAD, munkakönyvtár — ~40 ms), és
+csak változáskor a teljes `graph_data` (150–300 ms). A lábléc kiírja a mért
+időket.
 
-**Háttér-publikálás:** a `gg --serve` a dev szerver által ismert minden repót
-(`~/.git-graph/repos.json` + a hook repója) figyeli, és mindegyiknek Artifactot
-tart fenn — ahol még nincs, létrehozza:
+Megkötések (a platformé, mérve — [docs/artifact-findings.md](docs/artifact-findings.md)):
 
-| Változás | Várakozás | Mi számít |
-| --- | --- | --- |
-| HEAD, ág, tag | 2 mp csend | `for-each-ref` + a HEAD neve |
-| munkakönyvtár | 10 mp csend | `git status` + `git diff --numstat HEAD` |
+- csak a **Claude appban**, a saját gépeden, tulajdonosként megy — böngészőben,
+  telefonon a lap annyit ír ki, hogy az appban kell megnyitni;
+- a `git-graph` MCP-nek a **Claude app configjában** kell lennie (az
+  `install.sh --live` teszi be; a `claude mcp add` nem elég), és az app csak
+  induláskor olvassa be;
+- az első megnyitáskor az app engedélyt kér a `git-graph` szerverhez.
 
-Mindkettő „csendre” vár: újabb változás újraindítja az órát. Feltöltés csak
-akkor van, ha a lap tartalom-hashe eltér a legutóbb publikálttól. Egyszerre
-legfeljebb 3 feltöltés fut; napló: `~/.git-graph/serve.log`.
-
-Egy feltöltés kis repón ~6 mp, 150–200 KB-os lapnál 20–50 mp: a feltöltő modell
-csak végigolvasott fájlt publikál, frissítéskor az élő változatot is. A mérések
-és a beállítások indoklása: [docs/artifact-findings.md](docs/artifact-findings.md).
+**Publikálás:** a lap csak sablon, így feltölteni csak akkor kell, ha a UI-kód
+vagy a repó neve változik. A `gg --publish` egy headless `claude -p`-vel tölti
+fel (az Artifact API-t csak a modell éri el): meglévőt frissít, ha nincs,
+létrehozza, **változatlan lapnál nem tölt fel**. A `gg --serve` indításkor és új
+repó regisztrálásakor minden ismert repóra (`~/.git-graph/repos.json` + a hook
+repója) megteszi — így minden repónak van Artifactja. Egy feltöltés ~6 mp.
 
 A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 
 | Kulcs | Mi |
 | --- | --- |
 | `git-graph.artifact` | a közzétett oldal URL-je |
-| `git-graph.artifactHead` | a HEAD a publikálás pillanatában |
-| `git-graph.artifactHash` | a publikált lap tartalom-hashe (változatlanra nem tölt fel) |
+| `git-graph.artifactHash` | a publikált lap hashe (változatlanra nem tölt fel) |
 
-Ettől a `gg` minden futásnál kiírja a linket, és jelzi, ha azóta új commit jött
-(`← ELAVULT`). Kézi URL-megadás: `gg --set-artifact <url>`.
+Kézi URL-megadás: `gg --set-artifact <url>`.
 
 ## `--open`
 
-Az Artifact **pillanatkép**, a helyi fájl mindig friss — a `--open` ezért nem
-vakon választ:
-
 | Parancs | Mit nyit |
 | --- | --- |
-| `gg --open` | az Artifactot, **ha** az a mostani HEAD-et mutatja; különben a helyi fájlt |
-| `gg --open artifact` | mindig az Artifactot (ha nincs megjegyezve, a helyit) |
-| `gg --open local` | mindig a frissen generált helyi fájlt |
+| `gg --open` / `gg --open local` | a frissen generált helyi pillanatképet |
+| `gg --open artifact` | az Artifactot — böngészőben élő adat nélkül, csak a figyelmeztetéssel |
 
 Mindegyik a **rendszer böngészőjében** nyit. A Claude Artifact-ablakát külső
-folyamat nem tudja vezérelni — részletek és mérés: [docs/artifact-findings.md](docs/artifact-findings.md).
+folyamat nem tudja vezérelni — azt a `/git-graph` nyitja meg.
 
 ## Uncommitted Changes
 

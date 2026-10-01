@@ -115,7 +115,9 @@ konnektoraidat**. Az `assets`-et és a `host:`-ot **nem** érinti.
   rendszer böngészőjében nyit. A panel útja a sessionön belülről a
   `/git-graph`, illetve a `ctrl+]`. (A beépített `/artifacts` lista `o`
   billentyűje is böngészőben nyit.)
-- **Élő adat csak claude.ai konnektorból jöhet.** Git-gráfhoz ez GitHub
+- **~~Élő adat csak claude.ai konnektorból jöhet.~~** Megdőlt (2026-09-30): a
+  `host:` híd működik — lásd lent: *Élő Artifact a `host:` hídon*. Az eredeti
+  gondolatmenet: git-gráfhoz ez GitHub
   konnektor lenne — de az csak a **felpusholt** állapotot látja, a lokális,
   pusholatlan commitokat nem. Alternatíva: a helyi MCP szervert tunnellel
   kitenni és **egyéni** claude.ai konnektorként felvenni — ez működne a lokális
@@ -179,6 +181,24 @@ publikálásnál a hideg is elég (senki nem vár rá). Egy tétlen meleg folyam
 Modellek (hideg, direkt prompt): a Sonnet 5.5 low a leggyorsabb megbízható; az
 Opus 5.5 low 15 s körül; a Haiku 4.5 hasonló idő, de a skill-es úton 78 s-ig
 is elhúzódott. A Sonnet `medium` effort nem gyorsabb, és többet `Read`-el.
+
+## Élő Artifact a `host:` hídon (2026-09-30)
+
+A beágyazott adatú lap minden változásnál újra feltöltendő volt — nagy repón
+~50 s, mert a modell az élő és a helyi példányt is végigolvassa. Ezért az
+Artifact most **vékony lap**: csak a sablon, adat nélkül. A Claude appban
+megnyitva a gépen futó `gg --mcp`-t hívja (`callTool("host:git-graph", …)`):
+2 s-onként az olcsó `fingerprint`-et, és csak változáskor a `graph_data`-t.
+
+| Mérés | Eredmény |
+| --- | --- |
+| `fingerprint`, a `gg --mcp` saját ideje | 36–42 ms |
+| `graph_data`, 31 KB / 151 KB adat | 152 ms / 274 ms |
+| vékony lap (~27 KB) feltöltése | 5–8 s (régi nagy lap első cseréje: 20–30 s) |
+| teljes MCP-ág a lapon, hamis híddal (Browser panel) | `fingerprint` ~130 ms, `graph_data` ~190 ms |
+
+A vékony lapot csak sablon- (kód-) vagy repónév-változáskor kell feltölteni;
+a `gg --serve` indításkor és új repó regisztrálásakor ellenőrzi (hash).
 
 ## Implementációs tanulságok (a generátorból)
 

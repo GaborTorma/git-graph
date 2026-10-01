@@ -3,7 +3,8 @@
 # Idempotens — újrafuttatható, meglévő azonos symlinket nem bánt.
 #
 #   ./install.sh                  symlinkek (git-graph, gg, /git-graph parancs)
-#   ./install.sh --live [--port N]  + élő szerver (launchd) és SessionStart hook
+#   ./install.sh --live [--port N]  + élő szerver (launchd), SessionStart hook és
+#                                   a git-graph MCP a Claude app configjában
 #   ./install.sh --uninstall-live   az élő rész leszerelése (symlinkek maradnak)
 set -euo pipefail
 
@@ -11,6 +12,9 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$HOME/.local/bin"
 CMD_DIR="$HOME/.claude/commands"
 SETTINGS="$HOME/.claude/settings.json"
+# A Claude app saját MCP-configja: az Artifact `host:git-graph` hívásai csak az
+# innen indított szervert érik el (a `claude mcp add`-os nem számít — mérve).
+APP_CONFIG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
 LABEL="ai.torma.git-graph"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 OLD_LABEL="co.torma.gitgraph"   # korábbi név — telepítéskor/leszereléskor eltávolítjuk
@@ -98,6 +102,45 @@ path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding=
 PY
 }
 
+# A git-graph MCP be-/kivétele a Claude app configjából. Csak változáskor ír,
+# előtte mentést készít; a többi szerver-bejegyzéshez és kulcshoz nem nyúl.
+patch_app_config() {   # $1: "add" | "remove"
+  "$PY_BIN" - "$1" "$APP_CONFIG" "$PY_BIN" "$REPO_DIR/git-graph" <<'PY'
+import json, shutil, sys, time
+from pathlib import Path
+
+action, path, python, script = sys.argv[1], Path(sys.argv[2]), sys.argv[3], sys.argv[4]
+data = {}
+if path.exists():
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        sys.exit(f"HIBA: {path} nem érvényes JSON — kézzel kell javítani.")
+
+servers = data.setdefault("mcpServers", {})
+entry = {"command": python, "args": [script, "--mcp"]}
+if action == "add":
+    if servers.get("git-graph") == entry:
+        print("Claude app config: a git-graph MCP naprakész.")
+        sys.exit(0)
+    servers["git-graph"] = entry
+    done = "Claude app config: git-graph MCP felvéve — az app újraindítása után él."
+else:
+    if servers.pop("git-graph", None) is None:
+        print("Claude app config: nem volt benne git-graph MCP.")
+        sys.exit(0)
+    if not servers:
+        data.pop("mcpServers")
+    done = "Claude app config: git-graph MCP eltávolítva (az app újraindításával szűnik meg)."
+
+if path.exists():
+    shutil.copy2(path, path.with_name(path.name + f".bak-{time.strftime('%Y%m%d%H%M%S')}"))
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+print(done)
+PY
+}
+
 # A régi néven futó agent: különben a régi plist a következő bejelentkezéskor
 # újraindulna, és a két szerver ugyanazért a portért versenyezne.
 remove_old_agent() {
@@ -132,7 +175,14 @@ install_agent() {
 PLIST_EOF
   remove_old_agent
   launchctl bootout "gui/$UID/$LABEL" 2>/dev/null || true
-  launchctl bootstrap "gui/$UID" "$PLIST"
+  # A bootout aszinkron: amíg a régi példány le nem állt, a bootstrap
+  # „5: Input/output error"-ral elbukik (mérve). Az utolsó próba hibája látszik.
+  local tries=0
+  until launchctl bootstrap "gui/$UID" "$PLIST" 2>/dev/null; do
+    tries=$((tries + 1))
+    [ "$tries" -lt 10 ] || { launchctl bootstrap "gui/$UID" "$PLIST"; break; }
+    sleep 0.5
+  done
   echo "launchd agent: $LABEL (port $PORT)"
 }
 
@@ -151,6 +201,7 @@ case "$MODE" in
     echo
     install_agent
     patch_settings add
+    patch_app_config add
     sleep 1
     if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/fingerprint"; then
       echo "Szerver válaszol: http://127.0.0.1:$PORT"
@@ -159,6 +210,8 @@ case "$MODE" in
     fi
     echo
     echo "Kész. A következő session indulásakor a Browser panelen magától megjelenik a gráf."
+    echo "Az Artifactok élő adatához a Claude appot egyszer újra kell indítani (az app csak"
+    echo "induláskor olvassa a configját, onnan indítja a git-graph MCP-t)."
     ;;
   uninstall)
     echo
@@ -167,6 +220,7 @@ case "$MODE" in
     remove_old_agent
     echo "launchd agent eltávolítva."
     patch_settings remove
+    patch_app_config remove
     ;;
   links)
     echo
