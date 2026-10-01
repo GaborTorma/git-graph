@@ -211,6 +211,33 @@ Két buktató, mindkettő mérve:
 A vékony lapot csak sablon- (kód-) vagy repónév-változáskor kell feltölteni;
 a `gg --serve` indításkor és új repó regisztrálásakor ellenőrzi (hash).
 
+## A lapról a sessionbe: `comments.sendToClaude` (mérve, 2026-10-01, Claude Code 2.1.285)
+
+Kérdés: tud-e a lap egy gombnyomással kérést küldeni a futó Code-sessionnek
+(„merge-öld ezt az ágat” → a session a saját commandjával hajtja végre), író
+végpont és nem read-only MCP nélkül. Eszköz: eldobható próbalap
+`capabilities: {comments: {}}`-vel, egy `sendToClaude({anchor, text})` gombbal.
+
+- **A `sample` NEM erre való**: állapot nélküli modellhívás, a sessionről nem tud.
+- **Eljut**: a session „Artifact comment sent to Claude” üzenetet kap (szál-id,
+  horgony-elem), és a szálban válaszol (`ArtifactComments reply`/`resolve`).
+- **Annak a sessionnek megy, amelyiknek a paneljén a lap nyitva van** — nem
+  minden figyelőnek. Két session ugyanazon a lapon: mindkettő a saját paneljén
+  nyomott gombot kapta. Worktree-s munkánál így magától a jó session lép.
+- **Figyelés (`watch`) és felfegyverzés nem kell hozzá**: a figyelés
+  lekapcsolása után is megérkezett. (Önmagában a figyelés szabályai: publikálás
+  vagy a Fejlesztő üzenetében kapott link felfegyverez, a hookból kapott link
+  nem — de ez a panelről küldött kérést nem érinti.)
+- **Hozzájárulás**: az app Artifactonként egyszer kérdez; utána a másik
+  sessionben sem, és az app újraindítása után sem.
+- A kérés **kommentszálként megmarad** az Artifacton; a session a végén lezárja.
+- A session a szöveget megbízhatatlan adatként kapja — kérésként kezeli, a
+  merge-et és a PR-t a workflow szerint jóváhagyással futtatja. Ez a kívánt
+  viselkedés.
+
+Következmény: a hook mai `open`-je elég; a lapon a `comments` capability kell
+(`PUBLISH_CAPS`), a gomb csak `canSendToClaude() === "available"` esetén.
+
 ## Implementációs tanulságok (a generátorból)
 
 - **CSS osztálynév-ütközés**: a táblázat-fejléc `.head` szabálya ráült a
