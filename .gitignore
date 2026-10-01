@@ -18,3 +18,6 @@ __pycache__/
 
 # Claude Code worktree-k
 .claude/worktrees/
+
+# Parkoló (lokális teendőlista)
+.parked.md
