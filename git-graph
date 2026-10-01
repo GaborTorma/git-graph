@@ -417,6 +417,13 @@ def repo_name() -> str:
     return name or REPO.name
 
 
+def page_title(name: str) -> str:
+    """A lap és az Artifact neve. „Git Graph” elöl; a repó zárójelben, mert
+    repónként külön Artifact van — azonos nevekkel a választóban nem lennének
+    megkülönböztethetők. A lap JS-e (`hydrate`) ugyanezt a formát írja."""
+    return f"Git Graph ({name})"
+
+
 def repo_url() -> str:
     """Az `origin` GitHub-webcíme (`https://github.com/<owner>/<repo>`), különben üres.
 
@@ -1038,7 +1045,7 @@ function hydrate() {
   graphW = Math.max(28, X0 * 2 + (laneCount - 1) * LANE_W);
   document.documentElement.style.setProperty('--graph-w', graphW + 'px');
   document.getElementById('repoName').textContent = DATA.meta.repo;
-  document.title = DATA.meta.repo + ' Git Graph';
+  document.title = 'Git Graph (' + DATA.meta.repo + ')';   // = page_title() a Pythonban
   document.getElementById('headRef').textContent = DATA.meta.head
     ? DATA.meta.head + ' · ' + DATA.meta.totalCommits + ' commit' : '';
 }
@@ -1628,7 +1635,7 @@ def prepare_publish() -> dict | None:
     fájlírás — a lassú feltöltés (`publish_page`) külön, lock nélkül fut.
     """
     name = repo_name()
-    title = f"{name} Git Graph"
+    title = page_title(name)
     html_page = build(thin_payload(), title, mode="mcp", slug=register(REPO))
     # A capability-deklaráció is része a publikált lapnak: ha változik, újra kell.
     digest = hashlib.sha256((html_page + json.dumps(PUBLISH_CAPS)).encode()).hexdigest()
@@ -1979,7 +1986,7 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
                         if route == "/data":
                             body = json.dumps(payload, ensure_ascii=False).encode()
                             return self.reply(200, body, "application/json; charset=utf-8")
-                        title = f"{payload['meta']['repo']} Git Graph"
+                        title = page_title(payload["meta"]["repo"])
                         body = build(payload, title, mode="http").encode()
                         return self.reply(200, body, "text/html; charset=utf-8")
                 self.reply(404, b"nincs ilyen utvonal\n", "text/plain; charset=utf-8")
@@ -2279,7 +2286,7 @@ def main() -> int:
         return 1
     commits, edges = payload["commits"], payload["edges"]
     branches, meta = payload["branches"], payload["meta"]
-    title = args.title or f"{meta['repo']} Git Graph"
+    title = args.title or page_title(meta["repo"])
 
     if args.out:
         out = Path(args.out).expanduser()
