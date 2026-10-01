@@ -197,7 +197,10 @@ A részletek-panel fájlsorai lenyithatók (a sorra kattintva — a fájlnév ma
 GitHub-link marad): alatta a fájl diffje, a Claude app diff-nézetének mintájára —
 sorszám, `+`/`−`, a cserélt soroknál a megváltozott szavak erősebb háttérrel, a
 hunkok közt „N változatlan sor”. Az Uncommitted sornál a HEAD-hez képesti diff,
-követetlen fájlnál a teljes tartalom hozzáadottként.
+követetlen fájlnál a teljes tartalom hozzáadottként. Ha a diff legalább 1000 px
+széles (széles Artifact-ablak, Browser panel), **side-by-side** nézetre vált:
+balra a régi, jobbra az új oldal, a cserélt sorok egymás mellett — átméretezéskor
+magától, újratöltés nélkül.
 
 A diff nincs a teljes adatban: a lap lenyitáskor kéri, fájlonként (`/diff`,
 illetve az Artifactban a `file_diff` tool). A commitok diffje gyorstárazva, az

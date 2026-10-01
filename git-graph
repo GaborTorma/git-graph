@@ -935,17 +935,27 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
   font-size: 12px;
   line-height: 18px;
   overflow: hidden;
+  container-type: inline-size;         /* a nézetet a saját szélessége dönti el */
 }
-.diff-line { display: grid; grid-template-columns: 5ch 2ch minmax(0, 1fr); padding-right: 8px; }
-.diff-line .no { color: var(--fg-faint); text-align: right; padding-right: 1ch; user-select: none; }
-.diff-line .sg { user-select: none; }
-.diff-line .tx { white-space: pre-wrap; overflow-wrap: anywhere; }
-.diff-line.add { background: var(--add-bg); box-shadow: inset 2px 0 var(--add); }
-.diff-line.del { background: var(--del-bg); box-shadow: inset 2px 0 var(--del); }
-.diff-line.add .no, .diff-line.add .sg { color: var(--add); }
-.diff-line.del .no, .diff-line.del .sg { color: var(--del); }
-.diff-line.add mark { background: var(--add-hl); color: inherit; border-radius: 2px; }
-.diff-line.del mark { background: var(--del-hl); color: inherit; border-radius: 2px; }
+/* Egymás alatti nézet: `.diff-line`; side-by-side: `.split-row` két `.half`-fel. */
+.diff-line, .half { display: grid; grid-template-columns: 5ch 2ch minmax(0, 1fr); padding-right: 8px; }
+.diff .no { color: var(--fg-faint); text-align: right; padding-right: 1ch; user-select: none; }
+.diff .sg { user-select: none; }
+.diff .tx { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff .add { background: var(--add-bg); box-shadow: inset 2px 0 var(--add); }
+.diff .del { background: var(--del-bg); box-shadow: inset 2px 0 var(--del); }
+.diff .add .no, .diff .add .sg { color: var(--add); }
+.diff .del .no, .diff .del .sg { color: var(--del); }
+.diff .add mark { background: var(--add-hl); color: inherit; border-radius: 2px; }
+.diff .del mark { background: var(--del-hl); color: inherit; border-radius: 2px; }
+.split-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.split-row .half + .half { border-left: 1px solid var(--border-soft); }
+.half.none { background: var(--bg-elevated); }
+.diff-split { display: none; }
+@container (min-width: 1000px) {
+  .diff-uni { display: none; }
+  .diff-split { display: block; }
+}
 .diff-gap, .diff-note {
   font-size: 12px; color: var(--fg-dim); padding: 4px 8px; margin: 0;
 }
@@ -1224,26 +1234,59 @@ function toggleFile(fileEl, sha, on) {
       (e && (e.message || e.code)) || e)}</p>`); });
 }
 
-/* Hunkok közt a kihagyott sorok száma a régi oldal sorszámaiból jön. */
+/* Mindkét nézet elkészül (egymás alatti és side-by-side); hogy melyik látszik,
+   azt a `.diff` szélessége dönti el egy container queryvel — átméretezéskor
+   újrarenderelés nélkül vált. Hunkok közt a kihagyott sorok száma a régi oldal
+   sorszámaiból jön. */
 function diffHtml(d) {
   if (d.note) return `<p class="diff-note">${esc(d.note)}</p>`;
   if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
   if (!d.hunks.length) return '<p class="diff-note">Nincs megjeleníthető változás.</p>';
-  let out = '', oldEnd = 1;
+  let uni = '', split = '', oldEnd = 1;
   for (const h of d.hunks) {
     const gap = h.old - oldEnd;
-    if (gap > 0) out += `<p class="diff-gap">${gap} változatlan sor</p>`;
-    for (const l of h.lines) {
-      const cls = l.t === '+' ? ' add' : l.t === '-' ? ' del' : '';
-      out += `<div class="diff-line mono${cls}"><span class="no">${l.n}</span>`
-        + `<span class="sg">${l.t === ' ' ? '' : l.t === '-' ? '−' : '+'}</span>`
-        + `<span class="tx">${marked(l.s, l.hl)}</span></div>`;
-    }
+    const gapHtml = gap > 0 ? `<p class="diff-gap">${gap} változatlan sor</p>` : '';
+    uni += gapHtml + h.lines.map(l => `<div class="diff-line mono${KIND[l.t]}">`
+      + diffCell(l, l.n) + '</div>').join('');
+    split += gapHtml + splitRows(h);
     oldEnd = h.old + h.lines.filter(l => l.t !== '+').length;
   }
-  if (d.truncated) out += '<p class="diff-note">… a diff túl hosszú, a vége le van vágva.</p>';
+  return `<div class="diff-uni">${uni}</div><div class="diff-split">${split}</div>`
+    + (d.truncated ? '<p class="diff-note">… a diff túl hosszú, a vége le van vágva.</p>' : '');
+}
+
+const KIND = { ' ': '', '+': ' add', '-': ' del' };
+const diffCell = (l, no) => `<span class="no">${no}</span>`
+  + `<span class="sg">${l.t === ' ' ? '' : l.t === '-' ? '−' : '+'}</span>`
+  + `<span class="tx">${marked(l.s, l.hl)}</span>`;
+
+/* Side-by-side: a változatlan sor mindkét oldalon (balra a régi sorszámmal), a
+   törölt blokk és az utána jövő hozzáadott blokk sorai páronként egymás mellé —
+   ugyanaz a párosítás, amiből a Python a szó-kiemelést számolja. */
+function splitRows(h) {
+  const L = h.lines, side = (l, no) => l
+    ? `<div class="half${KIND[l.t]}">${diffCell(l, no)}</div>` : '<div class="half none"></div>';
+  let out = '', old = h.old, i = 0;
+  while (i < L.length) {
+    if (L[i].t === ' ') {
+      out += `<div class="split-row mono">${side(L[i], old)}${side(L[i], L[i].n)}</div>`;
+      old++; i++;
+      continue;
+    }
+    let j = i; while (j < L.length && L[j].t === '-') j++;
+    let k = j; while (k < L.length && L[k].t === '+') k++;
+    for (let r = 0; r < Math.max(j - i, k - j); r++) {
+      const del = r < j - i ? L[i + r] : null, add = r < k - j ? L[j + r] : null;
+      out += `<div class="split-row mono">${side(del, del && del.n)}${side(add, add && add.n)}</div>`;
+    }
+    old += j - i; i = k;
+  }
   return out;
 }
+
+/* Az ablak (Artifact-panel) átméretezése sortörést és nézetváltást hozhat: a
+   sorok Y-pozíciója elmozdul, a gráfnak követnie kell. */
+new ResizeObserver(() => drawGraph()).observe(rowsEl);
 
 const marked = (s, hl) => {
   if (!hl || !hl.length) return esc(s);
