@@ -157,6 +157,8 @@ fel (az Artifact API-t csak a modell éri el): meglévőt frissít, ha nincs,
 létrehozza, **változatlan lapnál nem tölt fel**. A `gg --serve` indításkor és új
 repó regisztrálásakor minden ismert repóra (`~/.git-graph/repos.json` + a hook
 repója) megteszi — így minden repónak van Artifactja. Egy feltöltés ~6 mp.
+Ha létezik a `~/.git-graph/no-auto-publish` fájl, a szerver nem publikál
+(fejlesztés közben: csak a kézi `gg --publish` megy).
 
 A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 
@@ -208,13 +210,9 @@ A hash és a fájl csak **pusholt** commitnál link (az `origin` valamelyik ága
 eléri) — a helyi commit a GitHubon 404 lenne. Más hoston (GitLab, …) nincs
 linkesítés: ott a `#szám` mást jelent.
 
-A linkek nem `<a href>` elemek: a lapon csak egy osztály jelöli őket (`gh-c`
-commit, `gh-f` fájl, `gh-i` issue), az URL-t kattintáskor egyetlen kezelő rakja
-össze a sor `data-sha`-jából és a szövegből — az adatban és a DOM-ban nincs
-URL. A fájl-diff horgonyát (`#diff-<sha256(út)>`) is ekkor számolja
-(`crypto.subtle`, ami csak secure contextben van: Artifact, `*.localhost`;
-máshol a commit-oldal nyílik, horgony nélkül). Ára: nincs jobbklikkes
-„link másolása” és középső gombos megnyitás.
+A linkek valódi `<a target="_blank">` elemek — az Artifact keretéből a Claude
+app csak ezt engedi át (mérve: a `window.open` el sem jutott hozzá). A
+fájl-diff horgonyát (`#diff-<sha256(út)>`) a Python számolja az adatba.
 
 ## Hogyan rajzol
 
