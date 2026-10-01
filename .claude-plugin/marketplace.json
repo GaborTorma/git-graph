@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "git-graph",
-      "description": "Git Graph-szerű, élő commit-gráf bármelyik repóból (Artifact, Browser panel, HTML)",
+      "description": "Git Graph-szerű, élő commit-gráf bármelyik repóból (Artifact, HTML)",
       "source": "./"
     }
   ]

@@ -1,5 +1,10 @@
 # Élő gráf a Claude Desktopban — mérési napló
 
+> **Történeti (2026-10-01):** a Browser panel + `gg --serve` út kivezetve. Az
+> élő nézet az Artifact a `host:` hídon ([artifact-findings.md](artifact-findings.md)),
+> amely ugyanoda (a Claude appba, a tulajdonosnak) ér el, publikálni pedig a
+> session publikál. A mérések megmaradnak.
+
 Mérés dátuma: **2026-09-15**, Claude Desktop **1.52386.6**, Claude Code CLI
 **2.1.195**, Artifact runtime contract **0.2.49**, macOS.
 

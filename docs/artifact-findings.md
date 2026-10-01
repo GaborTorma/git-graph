@@ -109,8 +109,8 @@ konnektoraidat**. Az `assets`-et és a `host:`-ot **nem** érinti.
 
 - **~~A `gg`-ből soha nem lesz Artifact-frissítés.~~** Megdőlt (2026-09-30):
   CLI-alparancs továbbra sincs, de egy headless `claude -p` publikálni tud —
-  lásd lent: *Headless publikálás*. Ezen megy a `gg --publish` és a szerver
-  háttér-publikálása.
+  lásd lent: *Headless publikálás*. 2026-10-01 óta ez sem kell: a **session**
+  publikál, a hook kérésére — lásd lent: *Publikálás a sessionből*.
 - **A Claude Artifact-ablakát külső folyamat nem nyitja meg.** A `--open` a
   rendszer böngészőjében nyit. A panel útja a sessionön belülről a
   `/git-graph`, illetve a `ctrl+]`. (A beépített `/artifacts` lista `o`
@@ -130,7 +130,11 @@ konnektoraidat**. Az `assets`-et és a `host:`-ot **nem** érinti.
 
 ## Headless publikálás (mérve, 2026-09-30, Claude Code 2.1.285)
 
-Egy `claude -p` folyamat publikál; a végleges beállítás a `publish_page()`-ben.
+> **Kivezetve (2026-10-01):** a publikálás a sessionbe költözött (lásd lent:
+> *Publikálás a sessionből*), a `publish_page()` és a launchd agent kikerült.
+> A mérések megmaradnak — ha egyszer mégis session nélkül kellene publikálni.
+
+Egy `claude -p` folyamat publikált; a beállítás a `publish_page()`-ben volt.
 Az út buktatói, sorrendben:
 
 1. **A `-p "/git-graph"` nem fut le**: a slash command helyi parancsként nyelődik
@@ -202,14 +206,40 @@ megnyitva a gépen futó `gg --mcp`-t hívja (`callTool("host:git-graph", …)`)
 Két buktató, mindkettő mérve:
 
 - **A lap capability-deklaráció nélkül nem kap MCP-t** (`use("mcp")` → `null`).
-  A headless publikáló csak akkor tudja deklarálni a `host:git-graph`-ot, ha a
-  sessionje is látja a szervert (`--mcp-config`).
+  ~~A headless publikáló csak akkor tudja deklarálni a `host:git-graph`-ot, ha
+  a sessionje is látja a szervert (`--mcp-config`).~~ 2026-10-01-én újramérve:
+  a deklaráció a szerver nélkül is átmegy (lásd lent).
 - **A futó Claude app felülírja a `claude_desktop_config.json`-t** a
   memóriabeli változattal (beállítás-mentéskor) — a közben beírt bejegyzés
   elveszett. Beírás után azonnal újra kell indítani.
 
 A vékony lapot csak sablon- (kód-) vagy repónév-változáskor kell feltölteni;
-a `gg --serve` indításkor és új repó regisztrálásakor ellenőrzi (hash).
+a SessionStart hook ellenőrzi (hash).
+
+## Publikálás a sessionből (mérve, 2026-10-01, Claude Code 2.1.285, contract 0.2.66)
+
+Kérdés: kiváltható-e a headless `claude -p` és a launchd agent azzal, hogy a
+hook a futó sessiont kéri meg a publikálásra? A kód csak plugin-frissítéssel
+változik, az pedig csak új sessionnel lép életbe — ilyenkor először a hook fut.
+
+| Mérés | Eredmény |
+| --- | --- |
+| `host:git-graph` deklarálása Code-tab sessionből, a szerver **nélkül** (nem volt az app configjában) | **átmegy**, csak figyelmeztetés: *„no successful call to it was observed in this session"* |
+| Látja-e a Code-tab session az app configjának szerverét | **igen**: `mcp__git-graph__*` toolok; az app minden sessionnek külön `gg --mcp`-t indít |
+| Artifact tool az első körben — Desktop (Code tab) | **van**, nem deferred |
+| Artifact tool az első körben — interaktív terminál-CLI (pty, `CLAUDE_CODE_*` env nélkül) | **van** (`ARTIFACT=YES`, miközben a SessionStart hookok még futottak) |
+| Publish meglévő Artifactra, `read` nélkül, friss sessionből | **elutasítva**; az elutasítás az élő verziót adja, és *„now counts as viewed"* — a második publish átmegy |
+| A sessionből publikált lap az appban | **működik**: `callTool("host:git-graph", "fingerprint")` friss payloadot adott |
+
+Következmény: a hook a hash-eltérésnél `additionalContext`-ben adja a
+lépéseket (`read` → `publish` a `PUBLISH_CAPS`-szal → `gg --published <URL>`,
+ami a hasht visszaírja). A headless út, a `--mcp-config` és a launchd agent
+kikerült; a leszerelés figyelését a `gg --mcp` vette át. Headless (`-p`, SDK)
+sessionben a hook nem kér publikálást.
+
+Az app MCP-naplója (`~/Library/Logs/Claude/mcp-server-git-graph.log`) a
+host-híd `tools/call` hívásait **nem** naplózza — a lap működését onnan nem
+lehet ellenőrizni.
 
 ## A lapról a sessionbe: `comments.sendToClaude` (mérve, 2026-10-01, Claude Code 2.1.285)
 

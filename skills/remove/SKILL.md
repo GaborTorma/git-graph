@@ -12,8 +12,9 @@ az URL-jük. Ez a skill ezt takarítja el — a plugin eltávolítása előtt.
 
 ### 1. Lista
 
-Futtasd: `gg --artifacts`. Soronként `<repó>\t<URL>`. Ha üres, mondd meg, hogy
-nincs mit törölni, és ugorj az 5. lépésre.
+Futtasd: `gg --artifacts`. Soronként `<repó>\t<URL>`; egy repó több sorban is
+szerepelhet (a fő checkout és a worktree-k Artifactja). Ha üres, mondd meg,
+hogy nincs mit törölni, és ugorj az 5. lépésre.
 
 ### 2. Megerősítés
 
@@ -23,17 +24,18 @@ ezt mondd ki. Mégse → állj meg.
 
 ### 3. Törlés
 
-Repónként, sorban:
+Soronként:
 
 1. `Artifact`, `action: "delete"`, `url`: a sor URL-je. A platform minden
    törlést külön jóváhagyat — ez rendben van.
-2. Ha a törlés sikerült, vagy az Artifact már nem létezik: `gg --forget <repó>`.
-   Ha a Fejlesztő elutasította vagy más hiba jött: a repót hagyd ki (a
-   kulcsai maradnak), és menj tovább.
+2. Ha a törlés sikerült, vagy az Artifact már nem létezik:
+   `gg <repó> --forget-artifact <URL>`. Ha a Fejlesztő elutasította vagy más
+   hiba jött: hagyd ki (a kulcsai maradnak), és menj tovább.
 
-A `gg --forget` a repó `git-graph.*` kulcsait, helyi lapjait és
-regiszterbejegyzését törli, és kikapcsolja az automatikus publikálást — a futó
-szerver így nem hoz létre új Artifactot.
+Végül minden repóra, amelynek **minden** sora törlődött: `gg --forget <repó>`.
+Ez a repó (és worktree-jei) maradék `git-graph.*` kulcsait, helyi lapjait és
+regiszterbejegyzését törli, és kikapcsolja az automatikus publikálást — a
+session hookja így nem kér új Artifactot.
 
 ### 4. Ellenőrzés
 
@@ -47,5 +49,6 @@ Hány Artifact törlődött, mi maradt. Utolsó sorként a plugin eltávolítás
 claude plugin uninstall git-graph@git-graph
 ```
 
-Mondd meg: a háttérszerver ~2 percen belül leszereli a többit, és az appot
-csak utána érdemes újraindítani.
+Mondd meg: a Claude app által indított git-graph ~1 percen belül leszereli a
+többit (ha az app nem fut, a következő indulása után), és az appot csak utána
+érdemes újraindítani.

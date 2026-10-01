@@ -8,26 +8,37 @@ allowed-tools: Bash(gg:*), Artifact
 
 Az Artifact **élő**: adat nincs benne, a Claude appban megnyitva a gépen futó
 `gg --mcp`-ből olvas. Feltölteni csak akkor kell, ha még nincs, vagy a lap
-sablonja (a git-graph kódja) változott — ezt a `gg --publish` dönti el
-(változatlan lapnál nem tölt fel). Te csak futtatod és megnyitod.
+sablonja (a git-graph kódja) változott — ezt a `gg --publish` dönti el. A
+publikálást te végzed (az Artifact API-t csak a modell éri el).
 
-> Ha fut a `gg --serve` (launchd), az ismert repók Artifactját magától is
-> karbantartja — ez a parancs a kézi, azonnali út.
+> A session indulásakor a hook ugyanezt kéri, ha kell — ez a parancs a kézi,
+> azonnali út.
 
-### 1. Publikálás
+### 1. Kell-e publikálni?
 
 Futtasd: `gg --publish`. Ha `HIBA:`-val tér vissza, idézd szó szerint, és állj meg.
 
-### 2. Megnyitás
+- `✓ Az Artifact naprakész…` → a sor végén az URL; ugorj a 3. lépésre.
+- `PUBLIKÁLD: …` → 2. lépés.
 
-A kimenet `✓` sorában ott az Artifact URL-je. Nyisd meg az Artifact eszközzel
-(`action: "open"`, `url`: ez az URL) — nem publikálsz vele, csak megmutatod.
+### 2. Publikálás
 
-### 3. Jelentsd vissza
+Hajtsd végre a `PUBLIKÁLD:` sor lépéseit sorban, pontosan a megadott
+paraméterekkel (a `capabilities` értékét változatlanul add át). Ha a publish-t
+a platform elutasítja, kövesd az elutasítás utasítását. A végén a
+`gg … --published <URL>` hívással írd vissza az URL-t. Az épp publikált
+Artifactot nem kell külön megnyitni — ugorj a 4. lépésre.
 
-Egy rövid mondat + a link: frissítés volt, új oldal, vagy már naprakész volt
-(„nincs mit feltölteni"). Ha az oldal azt írja, hogy nem éri el a gépen futó
-git-graph-ot, mondd meg: a plugin telepítése után a Claude appot egyszer újra
-kell indítani (az app csak induláskor olvassa a configját).
+### 3. Megnyitás
+
+Nyisd meg az Artifact eszközzel (`action: "open"`, `url`: az URL) — nem
+publikálsz vele, csak megmutatod.
+
+### 4. Jelentsd vissza
+
+Egy rövid mondat + a link: frissítés volt, új oldal, vagy már naprakész volt.
+Ha az oldal azt írja, hogy nem éri el a gépen futó git-graph-ot, mondd meg: a
+plugin telepítése után a Claude appot egyszer újra kell indítani (az app csak
+induláskor olvassa a configját).
 
 Ne írj összegzést a gráf tartalmáról: az oldal magáért beszél.
