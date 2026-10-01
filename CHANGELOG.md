@@ -1,3 +1,13 @@
+## [0.4.1] - 2026-10-01
+
+### 📚 Documentation
+
+- *(worklog)* Drop gg alias
+
+### 🚜 Refactor
+
+- [**breaking**] Drop the gg alias, call git-graph everywhere
+
 ## [0.4.0] - 2026-10-01
 
 ### 🚀 Features
