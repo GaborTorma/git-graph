@@ -1,7 +1,7 @@
 {
   "name": "git-graph",
   "description": "Git Graph-szerű, élő commit-gráf bármelyik repóból — Artifactként a Claude appban, a Browser panelen és önálló HTML-ként.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Gábor Torma",
     "email": "gabor@torma.ai"

@@ -14,6 +14,8 @@ gg --publish          # az Artifact élő lapjának publikálása (headless clau
 gg --serve            # élő kiszolgálás: http://127.0.0.1:7788
 gg --mcp              # MCP szerver a Claude appnak (az app indítja, nem kézzel)
 gg --launch-config    # .claude/launch.json bejegyzés a Browser panelhez
+gg --artifacts        # az ismert repók Artifactjai (<repó>\t<URL>)
+gg --forget           # a repó git-graph nyomai törlése (az Artifactot nem törli)
 ggl                   # ugyanaz, rövidebben
 ```
 
@@ -53,15 +55,21 @@ változáskor ír):
 - `~/Library/Application Support/Claude/claude_desktop_config.json` → `git-graph`
   MCP szerver (előtte mentés). Az app csak induláskor olvassa: ilyenkor a
   session szól, hogy **egyszer újra kell indítani**.
-- A plugin előtti, `install.sh`-s telepítés maradványait (globális hook a
-  `~/.claude/settings.json`-ben, `~/.claude/commands/git-graph.md`) eltakarítja.
 
-**Eltávolítás:** `claude plugin uninstall git-graph@git-graph`. A futó szerver
-percenként megnézi a Claude Code nyilvántartását (`installed_plugins.json`), és
-ha a plugin két egymást követő ellenőrzésnél hiányzik, leszereli a fentieket — az
-MCP-bejegyzést, a `~/.local/bin` linkjeit, a `~/.git-graph`-ot és végül saját
-magát. Olvashatatlan vagy ismeretlen formátumú nyilvántartásnál nem töröl
-semmit. A repók `.git/config`-jában a `git-graph.*` kulcsok maradnak.
+**Eltávolítás:** két lépés.
+
+1. `/git-graph:remove` egy sessionben — törli az Artifactokat (a `gg --artifacts`
+   listája alapján, mindegyiket külön jóváhagyással), és repónként a `gg
+   --forget`-tel a `git-graph.*` kulcsokat, a helyi lapokat és a
+   regiszterbejegyzést. Közben kikapcsolja az automatikus publikálást, hogy a
+   futó szerver ne hozzon létre újat. Kihagyható: akkor az Artifactok és a
+   kulcsok maradnak, és egy újratelepítés ugyanazokat éleszti újra.
+2. `claude plugin uninstall git-graph@git-graph`. A futó szerver percenként
+   megnézi a Claude Code nyilvántartását (`installed_plugins.json`), és ha a
+   plugin két egymást követő ellenőrzésnél hiányzik, leszereli a fentieket — az
+   MCP-bejegyzést, a `~/.local/bin` linkjeit, a `~/.git-graph`-ot és végül
+   saját magát. Olvashatatlan vagy ismeretlen formátumú nyilvántartásnál nem
+   töröl semmit. Az appot csak utána érdemes újraindítani.
 
 **Verziózás:** SemVer, a verzió egyetlen forrása a
 `.claude-plugin/plugin.json`. Bump nélkül a `claude plugin update` nem hoz le
@@ -141,6 +149,7 @@ szerver nem fut — az „off kapcsoló" a plugin kikapcsolása
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace (egyetlen plugin: ez a repó) |
 | `hooks/hooks.json` | SessionStart hook: `git-graph --session-hook` (telepít + megnyittatja a gráfot) |
 | `skills/git-graph/SKILL.md` | `/git-graph:git-graph`: `gg --publish`, majd megnyitja az Artifactot |
+| `skills/remove/SKILL.md` | `/git-graph:remove`: az Artifactok törlése és a repók kitakarítása az eltávolítás előtt |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |
 | `docs/desktop-live.md` | miért a Browser panel + lokális szerver az élő út — mérésekkel |
 | `docs/mcp-plan.md` | terv az élő, magától frissülő verzióhoz (blokkolva, lásd findings) |
@@ -156,8 +165,7 @@ A repón **kívülre**, `~/.git-graph/<slug>/` alá — ugyanaz a slug, mint a
 | `index.html` | a `gg` pillanatképe, beágyazott adattal |
 | `artifact.html` | az Artifact vékony lapja — adat nélkül, ezt tölti fel a `gg --publish` |
 
-A projektmappába nem kerül semmi; a régi, repón belüli `.git-graph/` mappát a
-`gg` eltávolítja (ha csak a saját `index.html`-je van benne, és nem követett fájl).
+A projektmappába nem kerül semmi.
 
 ## Artifact
 
@@ -184,7 +192,8 @@ létrehozza, **változatlan lapnál nem tölt fel**. A `gg --serve` indításkor
 repó regisztrálásakor minden ismert repóra (`~/.git-graph/repos.json` + a hook
 repója) megteszi — így minden repónak van Artifactja. Egy feltöltés ~6 mp.
 Ha létezik a `~/.git-graph/no-auto-publish` fájl, a szerver nem publikál
-(fejlesztés közben: csak a kézi `gg --publish` megy).
+(fejlesztés közben, és a `gg --forget` után: csak a kézi `gg --publish` megy).
+Futás közben is kapcsolható.
 
 A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 

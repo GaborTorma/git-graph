@@ -17,6 +17,7 @@ Használat és felépítés: [README.md](README.md).
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
 | `hooks/hooks.json` | a plugin SessionStart hookja (`--session-hook`) |
 | `skills/git-graph/SKILL.md` | a `/git-graph:git-graph` skill (`gg --publish`, majd megnyitja) |
+| `skills/remove/SKILL.md` | a `/git-graph:remove` skill: Artifactok törlése + `gg --forget` az uninstall előtt |
 | `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
 | `docs/desktop-live.md` | **mérési napló**: miért a Browser panel + lokális szerver az élő út |
 | `docs/mcp-plan.md` | a korábbi terv az élő Artifacthoz (azóta a `host:` híddal megvalósult) |
@@ -34,6 +35,8 @@ gg --publish          # az Artifact vékony lapja (headless claude -p)
 gg --serve            # élő kiszolgálás a Browser panelnek + Artifactok karbantartása
 gg --mcp              # MCP szerver stdio-n — a Claude app indítja, nem kézzel
 gg --launch-config    # .claude/launch.json bejegyzés (preview_start git-graph)
+gg --artifacts        # ismert repók Artifactjai (regiszter + a szülőmappák repói)
+gg --forget           # a repó git-graph nyomai + automatikus publikálás KI
 ggl                   # ugyanaz — a hívás neve kapcsolja
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
 ```
@@ -72,8 +75,7 @@ rögzítőre cserélve — a valódi agenthez ne nyúljon a próba, a label köz
   `claude` CLI kell (külső program, `claude_bin()` keresi a launchd PATH-ján
   kívül is); nélküle minden más működik.
 - **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a
-  `.git/info/exclude` és a `.git/config` `git-graph.*` kulcsai (a régi
-  `gitgraph.*` nevet még olvassuk, íráskor töröljük) — mindkettő lokális,
+  `.git/info/exclude` és a `.git/config` `git-graph.*` kulcsai — mindkettő lokális,
   sosem commitolódik —, valamint a `--launch-config`, ami
   `.claude/launch.json`-t ír: az **commitolható** fájl, ezért csak kifejezett
   kérésre fut, sosem mellékhatásként.
@@ -143,8 +145,7 @@ rögzítőre cserélve — a valódi agenthez ne nyúljon a próba, a label köz
 - **A kimenet a repón KÍVÜL, `~/.git-graph/<slug>/`**: `index.html` a `gg`
   pillanatképe, `artifact.html` az Artifact vékony lapja — a headless claude ezt
   a mappát kapja munkakönyvtárnak (az Artifact csak onnan olvas). Ne tedd
-  konfigurálhatóvá. A projektmappába nem írunk; a régi `<repó>/.git-graph/`-ot a
-  `gg` törli.
+  konfigurálhatóvá. A projektmappába nem írunk.
 - **Az Artifact nem tárol adatot** — ez a lényeg, nem optimalizálás. Egy
   beágyazott adatú lap frissítése nagy repón ~50 s volt (a feltöltő modell az
   élő és a helyi példányt is végigolvassa); a vékony lapot csak sablon- vagy

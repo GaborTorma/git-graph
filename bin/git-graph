@@ -31,7 +31,7 @@ lap tartalma változott.
 
 A kimenet a repón KÍVÜL, mindig ugyanott keletkezik (`~/.git-graph/<slug>/`),
 innen frissül ugyanaz az Artifact oldal — a projektmappában nincs mit
-ignorálni. A régi, repón belüli `.git-graph/` mappát a script eltávolítja.
+ignorálni.
 
 Telepítés: Claude Code plugin (`claude plugin install git-graph@git-graph`).
 Az első session SessionStart hookja beállítja a többit: a stabil másolatot
@@ -335,17 +335,11 @@ def is_tracked(path: Path) -> bool:
 
 
 def config_get(key: str) -> str:
-    """Érték a repó lokális git configjából (hiányzó kulcsnál üres sztring).
-
-    A régi `gitgraph.*` kulcsokat is olvassa: a korábban közzétett Artifact
-    URL-je így nem vész el, és a következő publikálás átírja az új névre.
-    """
-    for section in ("git-graph", "gitgraph"):
-        try:
-            return git("config", "--local", "--get", f"{section}.{key}").strip()
-        except subprocess.CalledProcessError:
-            pass
-    return ""
+    """Érték a repó lokális git configjából (hiányzó kulcsnál üres sztring)."""
+    try:
+        return git("config", "--local", "--get", f"git-graph.{key}").strip()
+    except subprocess.CalledProcessError:
+        return ""
 
 
 def remember_artifact(url: str, digest: str | None = None) -> None:
@@ -357,17 +351,11 @@ def remember_artifact(url: str, digest: str | None = None) -> None:
     git("config", "--local", "git-graph.artifact", url)
     if digest:
         git("config", "--local", "git-graph.artifactHash", digest)
-    # Kézi --set-artifact után a hash már nem érvényes; az `artifactHead` a
-    # pillanatkép-korszak „elavult?" jelzése volt — az élő lapnál nincs értelme.
-    for stale in ([] if digest else ["artifactHash"]) + ["artifactHead"]:
+    if not digest:                        # kézi --set-artifact: a hash már nem érvényes
         try:
-            git("config", "--local", "--unset", f"git-graph.{stale}")
+            git("config", "--local", "--unset", "git-graph.artifactHash")
         except subprocess.CalledProcessError:
             pass
-    try:                                  # a régi név kitakarítása, ha még ott van
-        git("config", "--local", "--remove-section", "gitgraph")
-    except subprocess.CalledProcessError:
-        pass
 
 
 def collect_branches() -> list[dict]:
@@ -1588,6 +1576,59 @@ def repo_for_slug(slug: str) -> Path | None:
     return Path(path) if path else None
 
 
+def registered_repos() -> dict:
+    try:
+        data = json.loads(REPOS.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def list_artifacts() -> list[tuple[Path, str]]:
+    """(repó, Artifact URL) párok — a `/git-graph:remove` ebből dolgozik.
+
+    A regiszter hiányos lehet (leszereléskor törlődik, és csak a hook tölti
+    újra), ezért a regisztrált repók szülőmappáinak többi repóját is nézi.
+    """
+    global REPO
+    candidates: set[Path] = set()
+    for path in registered_repos().values():
+        repo = Path(path)
+        candidates.add(repo)
+        try:
+            candidates.update(p for p in repo.parent.iterdir() if (p / ".git").exists())
+        except OSError:
+            pass
+    found = []
+    for repo in sorted(candidates):
+        REPO = repo
+        url = config_get("artifact")
+        if url:
+            found.append((repo, url))
+    return found
+
+
+def forget(repo: Path) -> None:
+    """A repó minden git-graph nyoma: `.git/config` kulcsai, helyi lapjai, regiszterbejegyzése.
+
+    Az automatikus publikálást is kikapcsolja — különben a szerver a
+    következő regiszterváltozáskor új Artifactot hozna létre.
+    """
+    global REPO
+    REPO = repo
+    try:
+        git("config", "--local", "--remove-section", "git-graph")
+    except subprocess.CalledProcessError:
+        pass
+    shutil.rmtree(STATE_DIR / slug_for(repo), ignore_errors=True)
+    data = registered_repos()
+    if data.pop(slug_for(repo), None) is not None:
+        REPOS.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                         encoding="utf-8")
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    NO_AUTO_PUBLISH.touch()
+
+
 # ── Publikálás ──────────────────────────────────────────────────────────────
 
 def page_path(repo: Path) -> Path:
@@ -1607,28 +1648,10 @@ def artifact_path(repo: Path) -> Path:
     return STATE_DIR / slug_for(repo) / "artifact.html"
 
 
-def drop_legacy_out() -> None:
-    """A régi, repón belüli kimenet (`<repó>/.git-graph/`) eltávolítása.
-
-    Csak ha kizárólag a mi `index.html`-ünk van benne, és nem követett fájl —
-    idegen tartalomhoz nem nyúlunk.
-    """
-    legacy = REPO / ".git-graph"
-    if not legacy.is_dir():
-        return
-    files = list(legacy.iterdir())
-    if {p.name for p in files} <= {"index.html"} and not any(
-            is_tracked(p.relative_to(REPO)) for p in files):
-        for p in files:
-            p.unlink()
-        legacy.rmdir()
-
-
 def write_page(payload: dict, title: str) -> Path:
     page = page_path(REPO)
     page.parent.mkdir(parents=True, exist_ok=True)
     page.write_text(build(payload, title), encoding="utf-8")
-    drop_legacy_out()
     return page
 
 
@@ -1935,12 +1958,14 @@ def serve(port: int, fallback: Path | None, limit: int | None) -> int:
         if not claude_bin():
             print("  Artifact-publikálás: KI — nem található a claude CLI", flush=True)
             return
-        if NO_AUTO_PUBLISH.exists():          # fejlesztés közben: csak kézi gg --publish
-            print(f"  Artifact-publikálás: KI — {NO_AUTO_PUBLISH} létezik", flush=True)
-            return
         busy: set = set()
         stamp: float | None = -1.0
         while True:
+            # Futás közben is kapcsolható (fejlesztés, `gg --forget`): akkor csak
+            # a kézi gg --publish megy.
+            if NO_AUTO_PUBLISH.exists():
+                time.sleep(5)
+                continue
             try:
                 mtime: float | None = REPOS.stat().st_mtime
             except OSError:
@@ -2146,14 +2171,11 @@ STABLE = BIN_DIR / "git-graph"
 ALIASES = ("gg", "ggl")
 USER_BIN = Path.home() / ".local" / "bin"
 AGENT_LABEL = "ai.torma.git-graph"
-OLD_AGENT_LABEL = "co.torma.gitgraph"
 AGENT_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{AGENT_LABEL}.plist"
 # Az Artifact `host:git-graph` hívásai csak az innen indított szervert érik el
 # (a `claude mcp add`-os nem számít — mérve).
 APP_CONFIG = (Path.home() / "Library" / "Application Support" / "Claude"
               / "claude_desktop_config.json")
-USER_SETTINGS = Path.home() / ".claude" / "settings.json"
-LEGACY_COMMAND = Path.home() / ".claude" / "commands" / "git-graph.md"
 # A rendszer Pythonja: a launchd minimális környezetében is megvan, és nem tűnik
 # el egy homebrew-frissítéssel.
 SYSTEM_PYTHON = "/usr/bin/python3"
@@ -2208,47 +2230,14 @@ def install_copy() -> bool:
 def link_user_bin() -> None:
     """Terminálos parancsok (`~/.local/bin`) a stabil példányra.
 
-    A régi telepítés symlinkjét átirányítja; valódi fájlhoz és idegen
-    symlinkhez nem nyúl.
+    Ami a néven már ott van (fájl vagy idegen symlink), ahhoz nem nyúl.
     """
     if not USER_BIN.is_dir():
         return
     for name in ("git-graph", *ALIASES):
         link = USER_BIN / name
-        if link.is_symlink():
-            target = os.readlink(link)
-            if target == str(STABLE) or "git-graph" not in target:
-                continue
-            link.unlink()
-        elif link.exists():
-            continue
-        link.symlink_to(STABLE)
-
-
-def drop_legacy_install() -> None:
-    """A plugin előtti, `install.sh`-s telepítés maradványai.
-
-    A globális settings hookja különben a plugin hookja mellett is lefutna.
-    """
-    if LEGACY_COMMAND.is_symlink():
-        LEGACY_COMMAND.unlink()
-    data = read_json(USER_SETTINGS)
-    hooks = (data or {}).get("hooks")
-    groups = hooks.get("SessionStart") if isinstance(hooks, dict) else None
-    if not isinstance(groups, list):
-        return
-    kept = [g for g in groups if not any("graph --session-hook" in h.get("command", "")
-                                         for h in g.get("hooks", []))]
-    if len(kept) == len(groups):
-        return
-    if kept:
-        hooks["SessionStart"] = kept
-    else:
-        hooks.pop("SessionStart")
-        if not hooks:
-            data.pop("hooks")
-    write_json(USER_SETTINGS, data)
-    log("git-graph: a régi SessionStart hook kikerült a ~/.claude/settings.json-ből")
+        if not os.path.lexists(link):
+            link.symlink_to(STABLE)
 
 
 def agent_plist(port: int) -> str:
@@ -2279,10 +2268,6 @@ def agent_plist(port: int) -> str:
 def install_agent(port: int, restart: bool) -> None:
     """A `gg --serve` launchd agentje; új kódnál újraindítja."""
     domain = f"gui/{os.getuid()}"
-    if launchctl("bootout", f"{domain}/{OLD_AGENT_LABEL}"):
-        log(f"git-graph: a régi agent ({OLD_AGENT_LABEL}) leállítva")
-    (AGENT_PLIST.parent / f"{OLD_AGENT_LABEL}.plist").unlink(missing_ok=True)
-
     content = agent_plist(port)
     loaded = launchctl("print", f"{domain}/{AGENT_LABEL}")
     if not AGENT_PLIST.exists() or AGENT_PLIST.read_text(encoding="utf-8") != content:
@@ -2341,7 +2326,6 @@ def ensure_installed(port: int) -> str | None:
         return None
     changed = install_copy()
     link_user_bin()
-    drop_legacy_install()
     if sys.platform != "darwin":
         return None
     install_agent(port, restart=changed)
@@ -2481,6 +2465,13 @@ def main() -> int:
                          "a Claude Artifact-ablakát a /git-graph nyitja)")
     ap.add_argument("--set-artifact", metavar="URL", default=None,
                     help="a repóhoz tartozó Artifact URL kézi megjegyzése")
+    ap.add_argument("--artifacts", action="store_true",
+                    help="az ismert repók Artifactjai, soronként: <repó>\\t<URL> "
+                         "(a /git-graph:remove ebből dolgozik)")
+    ap.add_argument("--forget", action="store_true",
+                    help="a repó git-graph nyomainak törlése (.git/config kulcsok, "
+                         "helyi lapok, regiszter) és az automatikus publikálás "
+                         "kikapcsolása — az Artifactot nem törli")
     ap.add_argument("--publish", action="store_true",
                     help="az Artifact vékony lapjának publikálása egy headless "
                          "claude-dal (meglévőt frissít, ha nincs, létrehozza; "
@@ -2515,6 +2506,18 @@ def main() -> int:
 
     if args.mcp:
         return mcp_serve(args.limit or None)
+
+    if args.artifacts:
+        for repo, url in list_artifacts():
+            print(f"{repo}\t{url}")
+        return 0
+
+    if args.forget:
+        repo = resolve_repo(Path(args.repo).expanduser().resolve())
+        forget(repo)
+        print(f"✓ {repo}: a git-graph nyomai törölve; automatikus publikálás KI "
+              f"({NO_AUTO_PUBLISH})")
+        return 0
 
     if args.launch_config:
         repo = resolve_repo(Path(args.repo).expanduser().resolve())
@@ -2586,7 +2589,6 @@ def main() -> int:
             out = Path.cwd() / out          # relatív út a hívás helyéhez
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(build(payload, title), encoding="utf-8")
-        drop_legacy_out()
     else:
         out = write_page(payload, title)    # a repón kívül: ~/.git-graph/<slug>/
 
