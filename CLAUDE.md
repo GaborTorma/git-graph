@@ -70,7 +70,11 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   `.git/config` `git-graph.*` kulcsai — lokális, sosem commitolódik.
 - **Verziókezelés**: SemVer, a verzió egyetlen forrása a
   `.claude-plugin/plugin.json` (a `marketplace.json` nem ismétli); kézi
-  `vX.Y.Z` tag, Conventional Commits.
+  `vX.Y.Z` tag, Conventional Commits. A bump a feature-commitban történik,
+  a `/release` a `plugin.json` verzióját tageli (a `git cliff` számítását nem).
+- **Deploy**: a marketplace forrása a repó `main`-je, tehát a merge már
+  élesít; a `/release` deploy-lépése a helyi frissítés:
+  `claude plugin marketplace update git-graph && claude plugin update git-graph@git-graph`.
 - **Env**: a toolnak nincs env-függősége, ezért nincs `.env.example`. Ha a
   tunneles MCP-irány megvalósul (`docs/mcp-plan.md` B változat), a bearer token
   `.env`-be megy.
