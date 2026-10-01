@@ -72,8 +72,7 @@ rögzítőre cserélve — a valódi agenthez ne nyúljon a próba, a label köz
   `claude` CLI kell (külső program, `claude_bin()` keresi a launchd PATH-ján
   kívül is); nélküle minden más működik.
 - **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a
-  `.git/info/exclude` és a `.git/config` `git-graph.*` kulcsai (a régi
-  `gitgraph.*` nevet még olvassuk, íráskor töröljük) — mindkettő lokális,
+  `.git/info/exclude` és a `.git/config` `git-graph.*` kulcsai — mindkettő lokális,
   sosem commitolódik —, valamint a `--launch-config`, ami
   `.claude/launch.json`-t ír: az **commitolható** fájl, ezért csak kifejezett
   kérésre fut, sosem mellékhatásként.
@@ -143,8 +142,7 @@ rögzítőre cserélve — a valódi agenthez ne nyúljon a próba, a label köz
 - **A kimenet a repón KÍVÜL, `~/.git-graph/<slug>/`**: `index.html` a `gg`
   pillanatképe, `artifact.html` az Artifact vékony lapja — a headless claude ezt
   a mappát kapja munkakönyvtárnak (az Artifact csak onnan olvas). Ne tedd
-  konfigurálhatóvá. A projektmappába nem írunk; a régi `<repó>/.git-graph/`-ot a
-  `gg` törli.
+  konfigurálhatóvá. A projektmappába nem írunk.
 - **Az Artifact nem tárol adatot** — ez a lényeg, nem optimalizálás. Egy
   beágyazott adatú lap frissítése nagy repón ~50 s volt (a feltöltő modell az
   élő és a helyi példányt is végigolvassa); a vékony lapot csak sablon- vagy

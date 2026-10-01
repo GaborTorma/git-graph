@@ -53,8 +53,6 @@ változáskor ír):
 - `~/Library/Application Support/Claude/claude_desktop_config.json` → `git-graph`
   MCP szerver (előtte mentés). Az app csak induláskor olvassa: ilyenkor a
   session szól, hogy **egyszer újra kell indítani**.
-- A plugin előtti, `install.sh`-s telepítés maradványait (globális hook a
-  `~/.claude/settings.json`-ben, `~/.claude/commands/git-graph.md`) eltakarítja.
 
 **Eltávolítás:** `claude plugin uninstall git-graph@git-graph`. A futó szerver
 percenként megnézi a Claude Code nyilvántartását (`installed_plugins.json`), és
@@ -156,8 +154,7 @@ A repón **kívülre**, `~/.git-graph/<slug>/` alá — ugyanaz a slug, mint a
 | `index.html` | a `gg` pillanatképe, beágyazott adattal |
 | `artifact.html` | az Artifact vékony lapja — adat nélkül, ezt tölti fel a `gg --publish` |
 
-A projektmappába nem kerül semmi; a régi, repón belüli `.git-graph/` mappát a
-`gg` eltávolítja (ha csak a saját `index.html`-je van benne, és nem követett fájl).
+A projektmappába nem kerül semmi.
 
 ## Artifact
 
