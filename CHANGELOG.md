@@ -1,3 +1,15 @@
+## [0.4.0] - 2026-10-01
+
+### 🚀 Features
+
+- [**breaking**] Drop the static snapshot, terminal commands and legacy cleanup
+- Name worktree artifacts after their folder
+
+### 📚 Documentation
+
+- *(claude)* Record release versioning and deploy mode
+- *(worklog)* Drop static snapshot, worktree artifact names, release deploy mode
+
 ## [0.3.0] - 2026-10-01
 
 ### 🚀 Features
