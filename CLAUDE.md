@@ -1,7 +1,7 @@
 # git-graph
 
-Git Graph-szerű commit-gráf **bármelyik repóból**: önálló HTML pillanatkép, és
-élő Artifact, amely a Claude appban a gépen futó `gg --mcp`-ből olvas. A VS Code `mhutchie.git-graph` elrendezését követi.
+Git Graph-szerű commit-gráf **bármelyik repóból**: élő Artifact, amely a
+Claude appban a gépen futó `gg --mcp`-ből olvas. A VS Code `mhutchie.git-graph` elrendezését követi.
 
 Használat és felépítés: [README.md](README.md).
 
@@ -9,7 +9,7 @@ Használat és felépítés: [README.md](README.md).
 
 | Útvonal | Mi ez |
 | --- | --- |
-| `bin/git-graph` | a teljes eszköz egyetlen fájlban: git-adatgyűjtés + HTML/CSS/JS sablon (2 mód: `static`, `mcp`) + MCP szerver a Claude appnak (`--mcp`, benne a leszerelés figyelése) + a publikálás lépései a sessionnek (`--publish`, `--published`) + SessionStart hook (`--session-hook`), benne a plugin gépi telepítése |
+| `bin/git-graph` | a teljes eszköz egyetlen fájlban: git-adatgyűjtés + HTML/CSS/JS sablon (az Artifact vékony lapja) + MCP szerver a Claude appnak (`--mcp`, benne a leszerelés figyelése) + a publikálás lépései a sessionnek (`--publish`, `--published`) + SessionStart hook (`--session-hook`), benne a plugin gépi telepítése |
 | `bin/gg` | symlink a `git-graph`-ra (rövid alias) |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
@@ -28,7 +28,6 @@ claude plugin install git-graph@git-graph   # a hook az első sessionben telepí
 claude --plugin-dir .                      # fejlesztés: a working tree pluginként, bump nélkül
 claude plugin validate . --strict          # manifestek, skill, hook
 gg --help             # a teljes súgó
-gg                    # az aktuális repó → ~/.git-graph/<slug>/index.html (pillanatkép)
 gg --publish          # az Artifact vékony lapja + a publikálás lépései a sessionnek
 gg --published <URL>  # a session publikálása után: URL + hash a .git/config-ba
 gg --mcp              # MCP szerver stdio-n — a Claude app indítja, nem kézzel
@@ -38,13 +37,14 @@ gg --forget-artifact <URL>   # egyetlen Artifact nyomai (megszűnt worktree)
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
 ```
 
-Két mód, egy sablon (`build(..., mode=…)`): `static` — beágyazott
-pillanatkép; `mcp` — az Artifact vékony lapja (üres váz, az adatot a Claude app
-host-hídján át a `gg --mcp`-ből kéri, a `startLive` pollozójával).
+Egy sablon (`build()`): az Artifact vékony lapja — üres váz, az adatot a
+Claude app host-hídján át a `gg --mcp`-ből kéri, a `startLive` pollozójával.
+A `gg` a Claude Bash eszközének parancsa (a plugin `bin/`-je), terminálos
+link és pillanatkép nincs; parancs nélkül a súgót írja ki.
 
 Nincs teszt-suite és nincs build — egyfájlos stdlib script. Változtatás után az
-ellenőrzés: `gg` futtatása több repón (eltérő sávszámmal, merge-ekkel), és a
-generált HTML megnyitása. A JS-t a fájlból kivágva `node --check`-kel lehet
+ellenőrzés: a `gg --mcp` `graph_data`-ja több repón (eltérő sávszámmal,
+merge-ekkel), és a lap az appban. A JS-t a fájlból kivágva `node --check`-kel lehet
 szintaxis-ellenőrizni. Az MCP-é: a `gg --mcp`-t stdio-n kézfogással,
 `tools/list`-tel és a toolok hívásával (`/usr/bin/python3`-mal, ahogy az app
 indítja). Az élő lapé: a sessionből publikálva, a Claude appban megnyitva (az
@@ -128,9 +128,8 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   Artifactot, majd `--forget-artifact` — a `/worktree-close` erről nem tud.
   Az `EnterWorktree` session közben történik, ezért a hook PostToolUse-ként
   is fut: a `cwd` ilyenkor már az új munkakönyvtár (docs).
-- **A kimenet a repón KÍVÜL, `~/.git-graph/<slug>/`**: `index.html` a `gg`
-  pillanatképe, `artifact.html` az Artifact vékony lapja — innen publikál a
-  session. Ne tedd konfigurálhatóvá. A projektmappába nem írunk.
+- **A kimenet a repón KÍVÜL, `~/.git-graph/<slug>/`**: `artifact.html` az
+  Artifact vékony lapja — innen publikál a session. Ne tedd konfigurálhatóvá. A projektmappába nem írunk.
 - **Az Artifact nem tárol adatot** — ez a lényeg, nem optimalizálás. Egy
   beágyazott adatú lap frissítése nagy repón ~50 s volt (a feltöltő modell az
   élő és a helyi példányt is végigolvassa); a vékony lapot csak sablon- vagy
@@ -165,8 +164,6 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
     át (az elutasítás maga is olvasásnak számít).
   - A lépésekben `gg` áll, nem abszolút út: a plugin `bin/`-je a Bash PATH-ján
     van, és egy `Bash(gg:*)` engedély lefedi.
-  - A 0.2-es launchd agentet (`ai.torma.git-graph`, `gg --serve`) és a `ggl`
-    linket a hook `drop_legacy()`-vel leszereli.
 - **Plugin: nincs install/update/uninstall esemény** (docs). Ezért:
   - A gépi részt a SessionStart hook állítja be (`ensure_installed`), csak ha a
     script a `CLAUDE_PLUGIN_ROOT` alatt fut — egy kézi `--session-hook` nem
@@ -183,9 +180,8 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
     stabil példányban fut — a working tree-ből indított `gg --mcp` nem szerel
     le. Több példány fut (az app és minden Code-session indít egyet), a
     leszerelés idempotens. Ha az app nem fut, a következő indulásáig vár.
-  - A `bin/` csak a Claude **Bash eszközének** PATH-ja, a hooké és a terminálé
-    nem: a hook a `${CLAUDE_PLUGIN_ROOT}/bin/git-graph`-ot hívja, a terminál a
-    `~/.local/bin` linkjeit használja.
+  - A `bin/` csak a Claude **Bash eszközének** PATH-ja, a hooké nem: a hook a
+    `${CLAUDE_PLUGIN_ROOT}/bin/git-graph`-ot hívja. Terminálos parancs nincs.
   - Bump nélkül a `claude plugin update` nem hoz le semmit (a `plugin.json`
     `version`-je dönt).
 

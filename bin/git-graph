@@ -1,36 +1,27 @@
 #!/usr/bin/env python3
-"""Git Graph-szerű commit-gráf generálása a repóból, önálló HTML-be.
+"""Git Graph-szerű, élő commit-gráf bármelyik repóból — Artifactként a Claude appban.
 
 A VS Code `mhutchie.git-graph` extension elrendezését követi: bal oldalon
 sávokra osztott, színes commit-gráf, jobbra Description / Date / Author /
 Commit oszlopok, ref-badge-ekkel; a soron kattintva commit-részletek panel.
 
-Az adat a generálás pillanatában készül (statikus pillanatkép) — a frissítéshez
-futtasd újra. Bármelyik repóban működik: a git gyökeret a megadott (vagy az
-aktuális) könyvtárból oldja fel, magától a script helyétől függetlenül.
+Az Artifact lapjában nincs adat: a Claude appban megnyitva a gépen futó
+`gg --mcp`-ből kéri (a Claude app host-hídján át). Kétmásodpercenként olcsó
+ujjlenyomatot kér, és csak tényleges változásra tölt új adatot. A lapot a
+session publikálja, amikor a hook kéri: ha még nincs, vagy a sablonja (a
+git-graph kódja) változott. Kézzel: a `/git-graph:git-graph` skill.
 
-    gg                            # az aktuális repó → ~/.git-graph/<slug>/index.html
-    gg --open                     # …és rögtön meg is nyitja
-    gg ~/dev/masik-repo           # másik repó
-    gg --out graf.html            # máshova (relatív út a CWD-hez)
-    gg --limit 200                # csak az utolsó 200 commit (alap: mind)
     gg --publish                  # az Artifact publikálásának lépései a sessionnek
-    gg --open artifact            # a közzétett Artifact oldal (ha van)
+    gg --published <URL>          # a publikálás után: URL + hash a .git/config-ba
+    gg --artifacts                # az ismert repók Artifactjai
 
-Az élő nézet az Artifact: adat nincs benne, a Claude appban megnyitva a gépen
-futó `gg --mcp`-ből kéri (a Claude app host-hídján át). Kétmásodpercenként
-olcsó ujjlenyomatot kér, és csak tényleges változásra tölt új adatot. A lapot
-a session publikálja, amikor a SessionStart hook kéri: ha még nincs, vagy a
-sablonja (a git-graph kódja) változott.
-
-A kimenet a repón KÍVÜL, mindig ugyanott keletkezik (`~/.git-graph/<slug>/`) —
-a projektmappában nincs mit ignorálni.
+A lapok a repón KÍVÜL keletkeznek (`~/.git-graph/<slug>/`) — a projektmappában
+nincs mit ignorálni.
 
 Telepítés: Claude Code plugin (`claude plugin install git-graph@git-graph`).
-Az első session SessionStart hookja beállítja a többit: a stabil másolatot
-(`~/.git-graph/bin`), a `~/.local/bin` parancsokat és a Claude app
-MCP-configját. Függősége nincs a Python 3 stdliben túl; minden git-hívás csak
-olvas.
+Az első session hookja beállítja a többit: a stabil másolatot
+(`~/.git-graph/bin`) és a Claude app MCP-configját. Függősége nincs a Python 3
+stdliben túl; minden git-hívás csak olvas.
 """
 from __future__ import annotations
 
@@ -48,7 +39,6 @@ import subprocess
 import sys
 import threading
 import time
-import webbrowser
 from pathlib import Path
 
 # A vizsgált repó gyökere — a `main()` állítja be a --repo / CWD alapján.
@@ -471,7 +461,7 @@ def mark_pushed(commits: list[dict], stats: dict[str, dict]) -> None:
 
 
 def collect_payload(limit: int | None) -> dict:
-    """A lap teljes adatcsomagja — ugyanaz statikus fájlba és élő kiszolgáláshoz."""
+    """A lap teljes adatcsomagja — a `gg --mcp` graph_data toolja adja."""
     commits = collect_commits(limit)
     if not commits:
         return {}
@@ -988,14 +978,12 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
     <svg id="lanes" aria-hidden="true"></svg>
     <div class="rows" id="rows"></div>
   </div>
-  <p class="foot" id="foot">__FOOT__</p>
+  <p class="foot" id="foot">Élő — kapcsolódás…</p>
 
 <script>
 let DATA = __DATA__;
-/* Honnan él a lap: `static` — beágyazott pillanatkép (gg), `mcp` — Artifact,
-   amely a Claude app host-hídján át a gépen futó `gg --mcp`-ből kéri az adatot
-   (a SLUG repóét). */
-const MODE = '__MODE__';
+/* Az Artifact a Claude app host-hídján át a gépen futó `gg --mcp`-ből kéri az
+   adatot (a SLUG repóét); a beágyazott DATA csak az üres váz. */
 const SLUG = '__SLUG__';
 const MCP_SERVER = 'host:git-graph';
 
@@ -1178,7 +1166,7 @@ function open(sha) {
    új meg nem jön, így a 2 mp-es frissítés nem villog. */
 const openFiles = new Set();   // sha + '\n' + út
 const diffCache = new Map();   // ugyanígy kulcsolva → { data, stale }
-let SRC = null;                // az élő adatforrás (startLive állítja); statikusan nincs
+let SRC = null;                // az élő adatforrás (startLive állítja); az appon kívül nincs
 
 function toggleFile(fileEl, sha, on) {
   const key = sha + '\n' + fileEl.dataset.path;
@@ -1435,19 +1423,12 @@ function startLive(src) {
   poll();
 }
 
-if (MODE === 'mcp') {
-  notice('Kapcsolódás a gépeden futó git-graph-hoz…');
-  mcpSource().then(src => src ? startLive(src) : notice(
-    'Ezt a lapot a Claude appban nyisd meg: az adatot élőben a gépeden futó git-graph adja, '
-    + 'böngészőből és telefonról nem érhető el.', true));
-}
+notice('Kapcsolódás a gépeden futó git-graph-hoz…');
+mcpSource().then(src => src ? startLive(src) : notice(
+  'Ezt a lapot a Claude appban nyisd meg: az adatot élőben a gépeden futó git-graph adja, '
+  + 'böngészőből és telefonról nem érhető el.', true));
 </script>
 """
-
-
-STATIC_FOOT = ("Statikus pillanatkép — a <code class=\"mono\">gg</code> generálta. Élő nézet: "
-               "az Artifact a Claude appban.")
-LIVE_FOOT = "Élő — kapcsolódás…"
 
 
 def embed(payload: dict) -> str:
@@ -1465,15 +1446,12 @@ def embed(payload: dict) -> str:
                .replace("\u2029", "\\u2029"))
 
 
-def build(payload: dict, title: str, mode: str = "static", slug: str = "") -> str:
-    """A lap: `static` — beágyazott pillanatkép, `mcp` — az Artifact vékony lapja
-    (üres váz; az adat a `gg --mcp`-ből jön)."""
+def build(payload: dict, title: str, slug: str) -> str:
+    """Az Artifact vékony lapja: üres váz, az adat a `gg --mcp`-ből jön."""
     meta = payload["meta"]
     return (
         TEMPLATE.replace("__DATA__", embed(payload))
-        .replace("__MODE__", mode)
         .replace("__SLUG__", slug)
-        .replace("__FOOT__", STATIC_FOOT if mode == "static" else LIVE_FOOT)
         .replace("__REPO__", html.escape(meta["repo"]))
         .replace("__TITLE__", html.escape(title))
     )
@@ -1601,24 +1579,9 @@ def forget_artifact(url: str) -> bool:
 
 # ── Publikálás ──────────────────────────────────────────────────────────────
 
-def page_path(repo: Path) -> Path:
-    """A `gg` statikus pillanatképe: `~/.git-graph/<slug>/index.html`.
-
-    A projektmappán KÍVÜL — a repóban nincs mit ignorálni.
-    """
-    return STATE_DIR / slug_for(repo) / "index.html"
-
-
 def artifact_path(repo: Path) -> Path:
     """Az Artifact vékony lapja: `~/.git-graph/<slug>/artifact.html` — innen publikál a session."""
     return STATE_DIR / slug_for(repo) / "artifact.html"
-
-
-def write_page(payload: dict, title: str) -> Path:
-    page = page_path(REPO)
-    page.parent.mkdir(parents=True, exist_ok=True)
-    page.write_text(build(payload, title), encoding="utf-8")
-    return page
 
 
 # A lap ezen át éri el a gépen futó gg --mcp-t (enélkül use("mcp") null).
@@ -1638,7 +1601,7 @@ def prepare_publish() -> dict | None:
     így csak sablon- (kód-) vagy repónév-változáskor kell újra feltölteni.
     None, ha van már Artifact, és a lap hashe egyezik.
     """
-    html_page = build(thin_payload(), page_title(repo_name()), mode="mcp", slug=register(REPO))
+    html_page = build(thin_payload(), page_title(repo_name()), register(REPO))
     url = config_get("artifact")
     if url and page_digest(html_page) == config_get("artifactHash"):
         return None
@@ -1772,7 +1735,7 @@ def mcp_serve(limit: int | None) -> int:
 # ── Plugin-telepítés (SessionStart hook) és leszerelés (`gg --mcp`) ─────────
 #
 # A Claude Code pluginnak nincs install/update/uninstall eseménye. Ami a gépen
-# túl van a pluginon (a Claude app MCP-configja, terminálos parancsok), azt a
+# túl van a pluginon (a stabil másolat és a Claude app MCP-configja), azt a
 # SessionStart hook állítja be — idempotensen, csak változáskor írva —, a
 # leszerelést pedig az app által indított `gg --mcp` végzi, amikor a plugin
 # eltűnik a Claude Code nyilvántartásából.
@@ -1783,12 +1746,6 @@ INSTALLED_PLUGINS = Path.home() / ".claude" / "plugins" / "installed_plugins.jso
 # a régi verzió mappája el is tűnhet — az app ezt a másolatot futtatja.
 BIN_DIR = STATE_DIR / "bin"
 STABLE = BIN_DIR / "git-graph"
-ALIASES = ("gg",)
-USER_BIN = Path.home() / ".local" / "bin"
-# A 0.2-es verziók launchd agentje (`gg --serve`): a publikálás azóta a
-# sessionben fut, a Browser panel megszűnt — a hook leszereli, ha még fent van.
-LEGACY_AGENT = "ai.torma.git-graph"
-LEGACY_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{LEGACY_AGENT}.plist"
 # Az Artifact `host:git-graph` hívásai csak az innen indított szervert érik el
 # (a `claude mcp add`-os nem számít — mérve).
 APP_CONFIG = (Path.home() / "Library" / "Application Support" / "Claude"
@@ -1825,7 +1782,7 @@ def write_json(path: Path, data: dict) -> None:
 
 
 def install_copy() -> None:
-    """A futó script másolata a stabil helyre (+ aliasok)."""
+    """A futó script másolata a stabil helyre."""
     new = Path(__file__).resolve().read_bytes()
     if not STABLE.exists() or STABLE.read_bytes() != new:
         BIN_DIR.mkdir(parents=True, exist_ok=True)
@@ -1833,35 +1790,6 @@ def install_copy() -> None:
         tmp.write_bytes(new)
         tmp.chmod(0o755)
         tmp.replace(STABLE)
-    for name in ALIASES:
-        if not (BIN_DIR / name).is_symlink():
-            (BIN_DIR / name).symlink_to(STABLE.name)
-
-
-def link_user_bin() -> None:
-    """Terminálos parancsok (`~/.local/bin`) a stabil példányra.
-
-    Ami a néven már ott van (fájl vagy idegen symlink), ahhoz nem nyúl.
-    """
-    if not USER_BIN.is_dir():
-        return
-    for name in ("git-graph", *ALIASES):
-        link = USER_BIN / name
-        if not os.path.lexists(link):
-            link.symlink_to(STABLE)
-
-
-def drop_legacy() -> None:
-    """A 0.2-es verziók gépi maradéka: launchd agent, `ggl` parancs, szervernapló."""
-    if LEGACY_PLIST.exists():
-        LEGACY_PLIST.unlink()
-        subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}/{LEGACY_AGENT}"],
-                       capture_output=True)
-    for link in (USER_BIN / "ggl", BIN_DIR / "ggl"):
-        if link.is_symlink() and os.readlink(link) in (str(STABLE), STABLE.name):
-            link.unlink()
-    for name in ("serve.log", "current"):
-        (STATE_DIR / name).unlink(missing_ok=True)
 
 
 def install_app_mcp() -> bool:
@@ -1891,10 +1819,8 @@ def ensure_installed() -> str | None:
     if not root or Path(root).resolve() not in Path(__file__).resolve().parents:
         return None
     install_copy()
-    link_user_bin()
     if sys.platform != "darwin":
         return None
-    drop_legacy()
     if not install_app_mcp():
         return None
     # Mérve: a futó app a beállítások mentésekor a memóriabeli configgal
@@ -1925,11 +1851,6 @@ def uninstall() -> None:
         if not servers:
             data.pop("mcpServers")
         write_json(APP_CONFIG, data)
-    drop_legacy()
-    for name in ("git-graph", *ALIASES):
-        link = USER_BIN / name
-        if link.is_symlink() and os.readlink(link) == str(STABLE):
-            link.unlink()
     shutil.rmtree(STATE_DIR, ignore_errors=True)
 
 
@@ -2027,24 +1948,15 @@ def emit_context(*parts: str | None, event: str = "SessionStart") -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Git Graph-szerű commit-gráf egyetlen HTML fájlba.",
+        description="Git Graph-szerű, élő commit-gráf Artifactként a Claude appban.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
     ap.add_argument("repo", nargs="?", default=".",
                     help="a repó (bármelyik könyvtára); alap: az aktuális")
-    ap.add_argument("--out", default=None,
-                    help="kimeneti HTML (relatív út a CWD-hez); "
-                         "alap: ~/.git-graph/<slug>/index.html")
     ap.add_argument("--limit", type=int, default=0,
-                    help="max. commit (0 = a teljes history, ez az alap)")
-    ap.add_argument("--title", default=None, help="oldalcím")
-    ap.add_argument("--open", nargs="?", const="auto", default=None,
-                    choices=["auto", "local", "artifact"], dest="open_mode",
-                    help="megnyitás a BÖNGÉSZŐBEN: auto/local (alap) = a helyi "
-                         "pillanatkép; artifact = a közzétett Artifact (az élő "
-                         "adatot csak a Claude appban kapja — böngészőben nem; "
-                         "a Claude Artifact-ablakát a /git-graph nyitja)")
+                    help="a --mcp graph_data-ja legfeljebb ennyi commitot ad "
+                         "(0 = a teljes history, ez az alap)")
     ap.add_argument("--set-artifact", metavar="URL", default=None,
                     help="a repóhoz tartozó Artifact URL kézi megjegyzése")
     ap.add_argument("--artifacts", action="store_true",
@@ -2052,7 +1964,7 @@ def main() -> int:
                          "(a /git-graph:remove ebből dolgozik)")
     ap.add_argument("--forget", action="store_true",
                     help="a repó git-graph nyomainak törlése (.git/config kulcsok, "
-                         "helyi lapok, regiszter) és az automatikus publikálás "
+                         "helyi lap, regiszter) és az automatikus publikálás "
                          "kikapcsolása — az Artifactot nem törli")
     ap.add_argument("--forget-artifact", metavar="URL", default=None, dest="forget_artifact",
                     help="egyetlen Artifact nyomainak törlése (egy megszűnt worktree-é; "
@@ -2114,8 +2026,6 @@ def main() -> int:
         print(f"  {repo_name()} @ {git('rev-parse', '--short', 'HEAD').strip()}")
         return 0
 
-    limit = args.limit or None
-
     if args.publish:
         job = prepare_publish()
         if job is None:
@@ -2124,45 +2034,7 @@ def main() -> int:
             print("PUBLIKÁLD: " + publish_steps(job))
         return 0
 
-    payload = collect_payload(limit)
-    if not payload:
-        print("Nincs commit a repóban.", file=sys.stderr)
-        return 1
-    commits, edges = payload["commits"], payload["edges"]
-    branches, meta = payload["branches"], payload["meta"]
-    title = args.title or page_title(meta["repo"])
-
-    if args.out:
-        out = Path(args.out).expanduser()
-        if not out.is_absolute():
-            out = Path.cwd() / out          # relatív út a hívás helyéhez
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(build(payload, title), encoding="utf-8")
-    else:
-        out = write_page(payload, title)    # a repón kívül: ~/.git-graph/<slug>/
-
-    print(f"✓ {out}  ({out.stat().st_size:,} B)")
-    print(f"  {meta['repo']}: {len(commits)} commit"
-          f"{'' if limit is None or len(commits) < limit else f' (a {limit}-es limitig)'}"
-          f" · {max(c['lane'] for c in commits) + 1} sáv · {len(edges)} él"
-          f" · {len(branches)} ág")
-
-    url = config_get("artifact")
-    if url:
-        print(f"  Artifact (élő, a Claude appban): {url}")
-
-    if args.open_mode:
-        mode = args.open_mode
-        if mode == "artifact" and not url:
-            print("  Nincs megjegyzett Artifact ehhez a repóhoz — a helyi fájlt nyitom.")
-            mode = "local"
-        elif mode == "auto":
-            # Böngészőben az Artifact nem kap élő adatot (az csak a Claude appban
-            # megy) — ott a friss helyi pillanatkép a hasznos.
-            mode = "local"
-        webbrowser.open(url if mode == "artifact" else out.as_uri())
-        where = "Artifact (böngészőben)" if mode == "artifact" else "helyi fájl"
-        print(f"  Megnyitva: {where}")
+    ap.print_help()
     return 0
 
 
