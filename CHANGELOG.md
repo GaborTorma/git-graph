@@ -1,3 +1,16 @@
+## [0.10.0] - 2026-10-02
+
+### 🚀 Features
+
+- *(page)* Highlight the latest commit burst for five minutes
+
+### 🐛 Bug Fixes
+
+- *(hook)* Open the artifact after publishing it
+
+### 📚 Documentation
+
+- *(worklog)* Open after publish, fresh commits
 ## [0.9.0] - 2026-10-02
 
 ### 🚀 Features
