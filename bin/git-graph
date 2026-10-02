@@ -681,13 +681,23 @@ def file_diff(sha: str, path: str) -> dict:
     return parse_diff(raw)
 
 
-TEMPLATE = r"""<meta charset="utf-8">
-<title>__TITLE__</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
+# ── A lap: betöltő + élő kód ────────────────────────────────────────────────
+#
+# Az Artifactként publikált lap csak egy betöltő (`LOADER`): a rajzoló kódot
+# (`PAGE_CSS`, `PAGE_BODY`, `PAGE_JS`) a `page_code` toollal a gépen futó
+# `git-graph --mcp`-ből kéri, és `import(blob:)`-bal futtatja (az Artifact
+# CSP-je engedi — mérve, docs/artifact-findings.md). Így egy kódfrissítés az
+# app újraindításával él, újrapublikálás nélkül: a betöltő csak a saját
+# változásakor, repónév- vagy capability-változáskor publikálandó.
+
+LOADER_API = 1   # a betöltő és a `page_code` szerződése — csak a betöltővel együtt lép
+
+PAGE_HEAD = """<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
-<style>
-/* ── Tokenek ───────────────────────────────────────────────────────────────
+"""
+
+PAGE_CSS = r"""/* ── Tokenek ───────────────────────────────────────────────────────────────
    Sötét-elsődleges: a :root a VS Code Dark+ palettája (ez a Git Graph ismerős
    arca), a világos változat mind a rendszer-preferenciára, mind az explicit
    [data-theme="light"] kapcsolóra felülír. Minden szín tokenen keresztül megy —
@@ -996,11 +1006,11 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
-</style>
+"""
 
-<div class="chrome">
+PAGE_BODY = r"""<div class="chrome">
   <div class="repo">
-    <span class="repo-name" id="repoName">__REPO__</span>
+    <span class="repo-name" id="repoName"></span>
     <span class="repo-sub mono" id="headRef"></span>
   </div>
 
@@ -1033,13 +1043,18 @@ select:focus-visible, .btn:focus-visible, .row:focus-visible {
     <div class="rows" id="rows"></div>
   </div>
   <p class="foot" id="foot">Élő — kapcsolódás…</p>
+"""
 
-<script>
-let DATA = __DATA__;
-/* Az Artifact a Claude app host-hídján át a gépen futó `git-graph --mcp`-ből kéri az
-   adatot (a SLUG repóét); a beágyazott DATA csak az üres váz. */
-const SLUG = '__SLUG__';
-const MCP_SERVER = 'host:git-graph';
+PAGE_JS = r"""
+/* A betöltő (az Artifact publikált lapja) adja: a repó slugja és neve, az MCP
+   kliens. Az adatot a lap a Claude app host-hídján át a gépen futó
+   `git-graph --mcp`-ből kéri (a SLUG repóét); induláskor csak az üres váz van. */
+const CTX = globalThis.GIT_GRAPH;
+const SLUG = CTX.slug;
+const MCP_SERVER = CTX.server;
+let DATA = { commits: [], edges: [], stats: {}, branches: [],
+  meta: { repo: CTX.repo, repoUrl: '', head: '', totalCommits: 0, shown: 0, dirty: 0,
+          generated: '', worktrees: [] } };
 
 // A Git Graph alap sáv-palettája: sávindex szerint ciklikusan.
 const LANE_COLORS = ['#0085d9','#d9008f','#00d90a','#d9c000','#d90000',
@@ -1412,9 +1427,8 @@ const POLL_MS = 2000;
 const foot = document.getElementById('foot');
 const scroller = document.querySelector('.scroll');
 
-async function mcpSource() {
-  const mcp = window.claude && await window.claude.use('mcp');
-  if (!mcp) return null;
+function mcpSource() {
+  const mcp = CTX.mcp;
   const call = (tool, args) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
     { cache: false }).then(r => r.payload);
   return { fingerprint: () => call('fingerprint'), data: () => call('graph_data'),
@@ -1484,11 +1498,77 @@ function startLive(src) {
 }
 
 notice('Kapcsolódás a gépeden futó git-graph-hoz…');
-mcpSource().then(src => src ? startLive(src) : notice(
-  'Ezt a lapot a Claude appban nyisd meg: az adatot élőben a gépeden futó git-graph adja, '
-  + 'böngészőből és telefonról nem érhető el.', true));
+startLive(mcpSource());
+"""
+
+LOADER = r"""<meta charset="utf-8">
+<title>__TITLE__</title>
+<style id="boot-css">
+:root { --bg: #1e1e1e; --fg: #8b8b8b; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --bg: #ffffff; --fg: #6a6a6a; }
+}
+:root[data-theme="light"] { --bg: #ffffff; --fg: #6a6a6a; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+       font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+#boot { margin: 0; padding: 40px 16px; text-align: center; }
+</style>
+<p id="boot">Kapcsolódás a gépeden futó git-graph-hoz…</p>
+<script>
+/* A git-graph lapja: a rajzoló kódot a gépen futó `git-graph --mcp` adja
+   (`page_code`), ez a betöltő csak lekéri és elindítja. */
+(async () => {
+  const ctx = __CTX__;
+  const boot = document.getElementById('boot');
+  try {
+    const mcp = window.claude && await window.claude.use('mcp');
+    if (!mcp) throw { code: 'no_app' };
+    const code = (await mcp.callTool(ctx.server, 'page_code',
+      { repo: ctx.slug, api: ctx.api }, { cache: false })).payload;
+    // A platform a lapot a body-ba teszi (a <title>-lel együtt): csak a betöltő
+    // saját elemei cserélődnek, és a stílusa sem írhatja felül a lapét.
+    document.head.insertAdjacentHTML('beforeend', code.head);
+    document.getElementById('boot-css').remove();
+    boot.remove();
+    document.body.insertAdjacentHTML('beforeend', code.body);
+    globalThis.GIT_GRAPH = { ...ctx, mcp };
+    await import(URL.createObjectURL(new Blob([code.js], { type: 'text/javascript' })));
+  } catch (e) {
+    const msg = String((e && e.message) || '');
+    boot.textContent =
+      e && e.code === 'no_app' ? 'Ezt a lapot a Claude appban nyisd meg: az adatot élőben a '
+        + 'gépeden futó git-graph adja, böngészőből és telefonról nem érhető el.'
+      : e && e.code === 'server_not_connected' ? 'A lap nem éri el a gépeden futó git-graph-ot. '
+        + 'Élő adat csak a Claude appban, a saját gépeden jön — és ott is csak, ha az app '
+        + 'configjában benne van (a git-graph plugin teszi be; utána az app újraindítása).'
+      : e && e.code === 'cancelled'
+        ? 'A git-graph szervert nem engedélyezted ehhez a laphoz — töltsd újra, és engedd meg.'
+      // A régi szervernek nincs `page_code` toolja: az app ezt `not_in_manifest`-tel
+      // jelzi (mérve), nem a szerver „ismeretlen tool" hibájával.
+      : e && e.code === 'not_in_manifest' || /ismeretlen tool/.test(msg)
+        ? 'A gépeden futó git-graph régebbi, mint ez a lap — indítsd újra a Claude appot. '
+          + '(Ha az engedélyt elutasítottad: töltsd újra a lapot, és engedd meg.)'
+      : 'A git-graph lap nem tölthető be: ' + (msg || (e && e.code) || e);
+  }
+})();
 </script>
 """
+
+
+def page_api_mismatch(api: object) -> str | None:
+    """Ha a lap betöltője más szerződést vár, mint amit ez a git-graph ad: a teendő."""
+    if api == LOADER_API:
+        return None
+    todo = ("írj egy üzenetet a repó Claude sessionjébe, az újrapublikálja a lapot"
+            if isinstance(api, int) and api < LOADER_API else "indítsd újra a Claude appot")
+    return (f"a lap betöltője (api {api}) és a gépen futó git-graph (api {LOADER_API}) "
+            f"nem illik össze — {todo}")
+
+
+def page_code() -> dict:
+    """A lap élő kódja a betöltőnek (`page_code` tool): head-elemek, body, JS-modul."""
+    return {"head": PAGE_HEAD + "<style>\n" + PAGE_CSS + "</style>\n",
+            "body": PAGE_BODY, "js": PAGE_JS}
 
 
 def embed(payload: dict) -> str:
@@ -1506,22 +1586,10 @@ def embed(payload: dict) -> str:
                .replace("\u2029", "\\u2029"))
 
 
-def build(payload: dict, title: str, slug: str) -> str:
-    """Az Artifact vékony lapja: üres váz, az adat a `git-graph --mcp`-ből jön."""
-    meta = payload["meta"]
-    return (
-        TEMPLATE.replace("__DATA__", embed(payload))
-        .replace("__SLUG__", slug)
-        .replace("__REPO__", html.escape(meta["repo"]))
-        .replace("__TITLE__", html.escape(title))
-    )
-
-
-def thin_payload() -> dict:
-    """Az Artifact-lap üres váza — csak a repó neve; az adatot a lap kéri."""
-    return {"commits": [], "edges": [], "stats": {}, "branches": [],
-            "meta": {"repo": repo_name(), "repoUrl": "", "head": "", "totalCommits": 0,
-                     "shown": 0, "dirty": 0, "generated": "", "worktrees": []}}
+def build(title: str, slug: str) -> str:
+    """Az Artifact lapja: a betöltő — sem adat, sem rajzoló kód nincs benne."""
+    ctx = {"slug": slug, "repo": repo_name(), "server": f"host:{MCP_NAME}", "api": LOADER_API}
+    return LOADER.replace("__CTX__", embed(ctx)).replace("__TITLE__", html.escape(title))
 
 
 # ── Állapot a gépen (`~/.git-graph`) ────────────────────────────────────────
@@ -1679,7 +1747,8 @@ def artifact_path(repo: Path) -> Path:
 
 # A lap ezen át éri el a gépen futó git-graph --mcp-t (enélkül use("mcp") null).
 PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
-                                     "tools": ["fingerprint", "graph_data", "file_diff"]}]}}
+                                     "tools": ["fingerprint", "graph_data", "file_diff",
+                                               "page_code"]}]}}
 
 
 def page_digest(html_page: str) -> str:
@@ -1697,7 +1766,7 @@ def prepare_publish() -> dict | None:
     # Worktree-ben a mappa neve is a címbe kerül: a fő checkout és a worktree-k
     # Artifactjai különben azonos néven állnának a választóban.
     name = f"{repo_name()} · {REPO.name}" if is_linked_worktree() else repo_name()
-    html_page = build(thin_payload(), page_title(name), register(REPO))
+    html_page = build(page_title(name), register(REPO))
     url = config_get("artifact")
     if url and page_digest(html_page) == config_get("artifactHash"):
         return None
@@ -1754,6 +1823,11 @@ MCP_TOOLS = [
          "sha": {"type": "string", "description": "commit sha, vagy *uncommitted"},
          "path": {"type": "string", "description": "a fájl útja, ahogy a graph_data adja"}}},
      "description": "Egy fájl diffje egy commitban, hunkokra és sorokra bontva."},
+    {"name": "page_code", "annotations": {"readOnlyHint": True},
+     "inputSchema": {"type": "object", "required": ["repo", "api"], "properties": {
+         **_REPO_ARG["properties"],
+         "api": {"type": "integer", "description": "a lap betöltőjének szerződés-verziója"}}},
+     "description": "A git-graph lap élő kódja (CSS, HTML, JS) a publikált betöltőnek."},
 ]
 
 
@@ -1777,6 +1851,9 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
             return text(collect_payload(limit))
         if name == "file_diff":
             return text(file_diff(str(args.get("sha", "")), str(args.get("path", ""))))
+        if name == "page_code":
+            mismatch = page_api_mismatch(args.get("api"))
+            return text(mismatch, True) if mismatch else text(page_code())
     except (subprocess.CalledProcessError, OSError, ValueError) as exc:
         return text(f"git-hiba ({repo}): {exc}", True)
     return text(f"ismeretlen tool: {name}", True)
