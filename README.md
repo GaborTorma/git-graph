@@ -92,7 +92,9 @@ kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
 
 | Útvonal | Mi |
 | --- | --- |
-| `bin/git-graph` | maga a script: adatgyűjtés + a lap kódja és az Artifact betöltője + MCP szerver + telepítés |
+| `bin/git-graph` | maga a script: adatgyűjtés + MCP szerver + telepítés |
+| `page/` | a lap: az Artifact betöltője (`loader.html`) és az élő kód (HTML, CSS, JS), amit a szerver ad |
+| `tests/` | füstteszt az MCP szerverre (stdlib `unittest`) |
 | `.claude-plugin/plugin.json` | a plugin manifestje — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace (egyetlen plugin: ez a repó) |
 | `hooks/hooks.json` | SessionStart és worktree-váltás (PostToolUse) hook: `git-graph --session-hook` (telepít + megnyittatja vagy publikáltatja a gráfot + az árva worktree-Artifactokat töröltet) |

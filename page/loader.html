@@ -1,0 +1,51 @@
+<meta charset="utf-8">
+<title>__TITLE__</title>
+<style id="boot-css">
+:root { --bg: #1e1e1e; --fg: #8b8b8b; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --bg: #ffffff; --fg: #6a6a6a; }
+}
+:root[data-theme="light"] { --bg: #ffffff; --fg: #6a6a6a; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+       font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+#boot { margin: 0; padding: 40px 16px; text-align: center; }
+</style>
+<p id="boot">Kapcsolódás a gépeden futó git-graph-hoz…</p>
+<script>
+/* A git-graph lapja: a rajzoló kódot a gépen futó `git-graph --mcp` adja
+   (`page_code`), ez a betöltő csak lekéri és elindítja. */
+(async () => {
+  const ctx = __CTX__;
+  const boot = document.getElementById('boot');
+  try {
+    const mcp = window.claude && await window.claude.use('mcp');
+    if (!mcp) throw { code: 'no_app' };
+    const code = (await mcp.callTool(ctx.server, 'page_code',
+      { repo: ctx.slug, api: ctx.api }, { cache: false })).payload;
+    // A platform a lapot a body-ba teszi (a <title>-lel együtt): csak a betöltő
+    // saját elemei cserélődnek, és a stílusa sem írhatja felül a lapét.
+    document.head.insertAdjacentHTML('beforeend', code.head);
+    document.getElementById('boot-css').remove();
+    boot.remove();
+    document.body.insertAdjacentHTML('beforeend', code.body);
+    globalThis.GIT_GRAPH = { ...ctx, mcp };
+    await import(URL.createObjectURL(new Blob([code.js], { type: 'text/javascript' })));
+  } catch (e) {
+    const msg = String((e && e.message) || '');
+    boot.textContent =
+      e && e.code === 'no_app' ? 'Ezt a lapot a Claude appban nyisd meg: az adatot élőben a '
+        + 'gépeden futó git-graph adja, böngészőből és telefonról nem érhető el.'
+      : e && e.code === 'server_not_connected' ? 'A lap nem éri el a gépeden futó git-graph-ot. '
+        + 'Élő adat csak a Claude appban, a saját gépeden jön — és ott is csak, ha az app '
+        + 'configjában benne van (a git-graph plugin teszi be; utána az app újraindítása).'
+      : e && e.code === 'cancelled'
+        ? 'A git-graph szervert nem engedélyezted ehhez a laphoz — töltsd újra, és engedd meg.'
+      // A régi szervernek nincs `page_code` toolja: az app ezt `not_in_manifest`-tel
+      // jelzi (mérve), nem a szerver „ismeretlen tool" hibájával.
+      : e && e.code === 'not_in_manifest' || /ismeretlen tool/.test(msg)
+        ? 'A gépeden futó git-graph régebbi, mint ez a lap — indítsd újra a Claude appot. '
+          + '(Ha az engedélyt elutasítottad: töltsd újra a lapot, és engedd meg.)'
+      : 'A git-graph lap nem tölthető be: ' + (msg || (e && e.code) || e);
+  }
+})();
+</script>
