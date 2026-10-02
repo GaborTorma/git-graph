@@ -75,7 +75,7 @@ def resolve_repo(start: Path) -> Path:
 
 def collect_commits(limit: int | None) -> list[dict]:
     """Commitok minden refről, szülőkkel, ref-dekorációval és törzzsel."""
-    fmt = FS.join(["%H", "%P", "%an", "%aI", "%D", "%s", "%b"])
+    fmt = FS.join(["%H", "%P", "%an", "%aI", "%cI", "%D", "%s", "%b"])
     args = ["log", "--all", "--date-order", f"--pretty=format:{RS}{fmt}"]
     if limit:
         args.append(f"-{limit}")
@@ -86,9 +86,9 @@ def collect_commits(limit: int | None) -> list[dict]:
         if not record.strip():
             continue
         parts = record.split(FS)
-        if len(parts) < 7:
+        if len(parts) < 8:
             continue
-        sha, parents, author, date, refs, subject, body = parts[:7]
+        sha, parents, author, date, committed, refs, subject, body = parts[:8]
         commits.append(
             {
                 "sha": sha.strip(),
@@ -96,6 +96,8 @@ def collect_commits(limit: int | None) -> list[dict]:
                 "parents": parents.split() if parents.strip() else [],
                 "author": author,
                 "date": date,
+                # Mikor került a repóba (amend, rebase is frissít) — a friss-kiemelésé.
+                "committed": committed,
                 "refs": parse_refs(refs),
                 "subject": subject,
                 "body": body.strip(),
@@ -1061,6 +1063,11 @@ let DATA = { commits: [], edges: [], stats: {}, branches: [],
 const LANE_COLORS = ['#0085d9','#d9008f','#00d90a','#d9c000','#d90000',
                      '#4d00d9','#d94a00','#00d9cc','#e138e8','#85d900'];
 const ROW_H = 24, LANE_W = 16, X0 = 12, DOT_R = 4;
+// Friss commitok: a legújabbtól visszafelé, amíg a szomszédok közt ≤ 10 mp telt
+// el — és csak 5 percig. Egy újabb sorozat így magától leváltja az előzőt.
+const FRESH_GAP_MS = 10 * 1000, FRESH_FOR_MS = 5 * 60 * 1000;
+let fresh = new Set();
+let freshTimer = 0;
 
 const rowsEl = document.getElementById('rows');
 const svg = document.getElementById('lanes');
@@ -1070,8 +1077,27 @@ let visible = DATA.commits; // szűrés utáni lista
 
 let graphW = 72;
 
+/* A friss sorozat sha-i; lejáratkor a lap magától újrarajzol (a pollozás csak
+   git-változásra rajzol). Az ál-sornak nincs `committed`-je: sosem friss. */
+function computeFresh() {
+  clearTimeout(freshTimer);
+  const times = DATA.commits.filter(c => c.committed)
+    .map(c => ({ sha: c.sha, t: Date.parse(c.committed) }))
+    .sort((a, b) => b.t - a.t);
+  fresh = new Set();
+  if (!times.length) return;
+  const left = times[0].t + FRESH_FOR_MS - Date.now();
+  if (left <= 0) return;
+  for (let i = 0; i < times.length; i++) {
+    if (i && times[i - 1].t - times[i].t > FRESH_GAP_MS) break;
+    fresh.add(times[i].sha);
+  }
+  freshTimer = setTimeout(() => { fresh = new Set(); render(); }, left);
+}
+
 /* Minden, ami a DATA-ból származik és adatcserekor újraszámolandó. */
 function hydrate() {
+  computeFresh();
   const laneCount = DATA.commits.reduce((m, c) => Math.max(m, c.lane), 0) + 1;
   // Csak annyi, amennyit a sávok kérnek — a fejlécben ikon van, nem felirat.
   graphW = Math.max(28, X0 * 2 + (laneCount - 1) * LANE_W);
@@ -1114,6 +1140,7 @@ function drawGraph() {
     // Az ál-sor pontja üres karika: a szaggatott vonal már jelzi, hogy nem
     // commit — a pöttyözött körvonal ezen a méreten csak elmosódna.
     const hollow = merge || c.uncommitted;
+    if (fresh.has(c.sha)) out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="8" fill="${color}" opacity=".3"/>`;
     out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="${hollow ? DOT_R + 1 : DOT_R}"`
         +  ` fill="${hollow ? 'var(--bg)' : color}" stroke="${color}" stroke-width="2"/>`;
   });
@@ -1172,7 +1199,8 @@ function render() {
   rowsEl.innerHTML = visible.map((c, i) => `
     <button class="row${c.uncommitted ? ' uncommitted' : ''}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="cell"></span>
-      <span class="cell desc">${badges(c)}<span class="subject">${linkify(c.subject)}</span></span>
+      <span class="cell desc">${badges(c)}<span class="subject"${fresh.has(c.sha)
+        ? ` style="color:${LANE_COLORS[c.lane % LANE_COLORS.length]}"` : ''}>${linkify(c.subject)}</span></span>
       <span class="cell date">${fmtDate(c.date)}</span>
       <span class="cell author">${esc(c.author)}</span>
       <span class="cell sha mono">${shaHtml(c, c.short)}</span>
