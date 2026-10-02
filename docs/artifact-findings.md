@@ -268,6 +268,26 @@ végpont és nem read-only MCP nélkül. Eszköz: eldobható próbalap
 Következmény: a hook mai `open`-je elég; a lapon a `comments` capability kell
 (`PUBLISH_CAPS`), a gomb csak `canSendToClaude() === "available"` esetén.
 
+## Dinamikus kódfuttatás a lapon (mérve, 2026-10-02, contract 0.2.66)
+
+Kérdés: le tudja-e kérni a lap a saját rajzoló kódját az MCP-ből, és le tudja-e
+futtatni? Ha igen, egy plugin-frissítés után nem kell újrapublikálni.
+Eldobható mérőlap, `mcp` capabilityvel publikálva, a Claude appban megnyitva:
+
+| Mód | Eredmény |
+| --- | --- |
+| `eval`, `new Function`, `setTimeout(string)` | **megy** |
+| inline `<script>` (`textContent`), `<script src=blob:>` | **megy** |
+| `import(blob:)` (ES modul) | **megy** |
+| `<script src=data:>`, `import(data:)` | tiltott (`script-src-elem`) |
+| inline `<style>` beszúrása | **megy** |
+
+A CSP HTTP-headerben jön (`<meta>` nincs). A lényeges része:
+`script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: <CDN-lista>`,
+`style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+`connect-src 'self' <Google Fonts>`. A külső `fetch` tehát továbbra is tiltott,
+de az MCP-ből kapott szöveg futtatható.
+
 ## Implementációs tanulságok (a generátorból)
 
 - **CSS osztálynév-ütközés**: a táblázat-fejléc `.head` szabálya ráült a
