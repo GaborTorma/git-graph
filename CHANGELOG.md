@@ -1,3 +1,12 @@
+## [0.6.2] - 2026-10-02
+
+### 🐛 Bug Fixes
+
+- *(diff)* Align similar lines in the side-by-side view
+
+### 📚 Documentation
+
+- *(worklog)* Side-by-side diff line alignment
 ## [0.6.1] - 2026-10-02
 
 ### 🐛 Bug Fixes
