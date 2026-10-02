@@ -1531,8 +1531,15 @@ def shown_in_session(session_id: str, slug: str) -> bool:
     data = {sid: slugs for sid, slugs in data.items() if slugs}
     seen = slug in data.get(session_id, {})
     data.setdefault(session_id, {})[slug] = now
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    SESSIONS.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    # Az app indulásakor több session hookja fut egyszerre: atomi csere, hogy
+    # egyik se olvasson félig írt fájlt. Írási hiba nem viheti el a hookot.
+    tmp = SESSIONS.with_name(f".sessions.{os.getpid()}.tmp")
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, SESSIONS)
+    except OSError as exc:
+        log(f"git-graph: a session-napló nem írható: {exc}")
     return seen
 
 
@@ -1942,7 +1949,8 @@ def session_hook() -> int:
     headless = os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk")
     cleanup = None if headless else orphan_request()
     job = None if headless or NO_AUTO_PUBLISH.exists() else prepare_publish()
-    seen = shown_in_session(payload["session_id"], slug) if payload.get("session_id") else False
+    seen = (shown_in_session(payload["session_id"], slug)
+            if payload.get("session_id") and not headless else False)
     if job:
         state = "elavult (a git-graph frissült)" if job["url"] else "még nincs"
         context = (f"A(z) {REPO} repó élő git-graph Artifactja {state}. Most, a "
