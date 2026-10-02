@@ -1474,6 +1474,8 @@ def thin_payload() -> dict:
 STATE_DIR = Path.home() / ".git-graph"
 REPOS = STATE_DIR / "repos.json"       # slug → repó útvonal (a hook írja, a git-graph --mcp olvassa)
 NO_AUTO_PUBLISH = STATE_DIR / "no-auto-publish"   # ha létezik: a hook nem kér publikálást
+SESSIONS = STATE_DIR / "sessions.json"  # session_id → {slug: időbélyeg}: ezekben már megnyílt a lap
+SESSION_TTL = 7 * 24 * 3600            # ennyi idő után a bejegyzés törlődik (archiválásra nincs hook)
 
 
 def slug_for(repo: Path) -> str:
@@ -1508,6 +1510,30 @@ def repo_for_slug(slug: str) -> Path | None:
         return None
     path = data.get(slug)
     return Path(path) if path else None
+
+
+def shown_in_session(session_id: str, slug: str) -> bool:
+    """Igaz, ha ebben a sessionben a hook már kérte a lap megnyitását vagy publikálását.
+
+    Egyúttal felveszi a mostanit, és törli a `SESSION_TTL`-nél régebbi
+    bejegyzéseket. A `resume` és a `/clear` a sessionben megnyitott Artifactot
+    nem zárja be, a `compact` sem — ezért a forrást (`source`) nem nézzük.
+    """
+    now = time.time()
+    try:
+        data = json.loads(SESSIONS.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    data = {sid: {k: t for k, t in slugs.items() if now - t < SESSION_TTL}
+            for sid, slugs in data.items() if isinstance(slugs, dict)}
+    data = {sid: slugs for sid, slugs in data.items() if slugs}
+    seen = slug in data.get(session_id, {})
+    data.setdefault(session_id, {})[slug] = now
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    SESSIONS.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return seen
 
 
 def registered_repos() -> dict:
@@ -1891,8 +1917,8 @@ def session_hook() -> int:
     nincs Artifact, vagy a lapja elavult, a sessiont kéri meg, hogy
     publikálja: a lap csak kódfrissítéskor változik, az pedig csak új
     sessionnel lép életbe — és ilyenkor először ez a hook fut. Különben a
-    meglévőt nyittatja meg. A megszűnt worktree-k Artifactjainak törlését is
-    kéri. Headless (`-p`, SDK) sessionben nem kér publikálást: ott nincs, aki
+    meglévőt nyittatja meg — de egy sessionben csak egyszer (`shown_in_session`).
+    A megszűnt worktree-k Artifactjainak törlését is kéri. Headless (`-p`, SDK) sessionben nem kér publikálást: ott nincs, aki
     a gráfot nézné.
     """
     global REPO
@@ -1911,24 +1937,25 @@ def session_hook() -> int:
         REPO = resolve_repo(start)
     except SystemExit:
         return emit_context(notice, event=event)   # nem repó: nincs mit mutatni
-    register(REPO)                                 # a git-graph --mcp a lap slugjából ebből találja meg
+    slug = register(REPO)                          # a git-graph --mcp a lap slugjából ebből találja meg
     url = config_get("artifact")
     headless = os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk")
     cleanup = None if headless else orphan_request()
     job = None if headless or NO_AUTO_PUBLISH.exists() else prepare_publish()
+    seen = shown_in_session(payload["session_id"], slug) if payload.get("session_id") else False
     if job:
         state = "elavult (a git-graph frissült)" if job["url"] else "még nincs"
         context = (f"A(z) {REPO} repó élő git-graph Artifactja {state}. Most, a "
                    "Fejlesztő kérésének folytatása előtt publikáld, és ne írj róla üzenetet: "
                    + publish_steps(job) + "\nHa valamelyik lépés nem sikerül, egy mondatban "
                    "jelezd, és folytasd a Fejlesztő kérésével.")
-    elif url:
+    elif url and not seen:
         context = (f"A(z) {REPO} repó élő git-graph Artifactja: {url} (a gépen futó "
                    "git-graph-ból élőben frissül).\nMost nyisd meg EGYSZER az "
                    "Artifact eszközzel — action: \"open\", url paraméterrel —, és ne írj "
                    "róla üzenetet.")
     else:
-        context = None                             # nincs Artifact, és nem is kérünk
+        context = None                             # nincs Artifact, nem kérünk, vagy már nyitva van
     return emit_context(context, cleanup, notice, event=event)
 
 
