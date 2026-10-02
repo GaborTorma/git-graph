@@ -205,3 +205,9 @@ vár (a gyereke foglalta le); az első szülő viszi tovább a sávot, a tovább
 (merge) szülők új vagy meglévő sávot kapnak. A vonal merge-nél rögtön a merge
 commit alatt hajlik, leágazásnál közvetlenül a szülő fölött. Sávonként ciklikus
 Git Graph-színek.
+
+A **friss commitok** pöttye körül halvány gyűrű van, az üzenetük a gyűrű (a
+sáv) színét kapja. Friss a legújabb commit és a vele egy sorozatban készültek:
+visszafelé addig, amíg két szomszéd között legfeljebb 10 mp telt el — minden
+ágon, a committer-idő szerint (`--amend`, rebase is frissít). A kiemelés 5
+percig tart; egy újabb sorozat leváltja az előzőt.

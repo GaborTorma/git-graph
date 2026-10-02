@@ -26,8 +26,8 @@ Futtasd: `git-graph --publish`. Ha `HIBA:`-val tér vissza, idézd szó szerint,
 Hajtsd végre a `PUBLIKÁLD:` sor lépéseit sorban, pontosan a megadott
 paraméterekkel (a `capabilities` értékét változatlanul add át). Ha a publish-t
 a platform elutasítja, kövesd az elutasítás utasítását. A végén a
-`git-graph … --published <URL>` hívással írd vissza az URL-t. Az épp publikált
-Artifactot nem kell külön megnyitni — ugorj a 4. lépésre.
+`git-graph … --published <URL>` hívással írd vissza az URL-t, majd nyisd meg
+(a sor utolsó lépése: a publikálás magától nem nyitja meg) — ugorj a 4. lépésre.
 
 ### 3. Megnyitás
 
