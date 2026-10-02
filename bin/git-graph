@@ -1804,11 +1804,15 @@ def publish_steps(job: dict) -> str:
     caps = json.dumps(PUBLISH_CAPS)
     record = (f"Bash: git-graph {shlex.quote(str(REPO))} --published <URL> "
               "(az URL a publish eredményéből)")
+    # A publikálás magától nem nyitja meg a lapot (mérve: csak a kártya jelent
+    # meg) — a hook pedig ebben a sessionben már nem kéri (`shown_in_session`).
+    show = "Artifact, action: \"open\", url: <URL>"
     if job["url"]:
         return (f"1) Artifact, action: \"read\", url: {job['url']}; 2) Artifact publish — url: "
-                f"{job['url']}, file_path: {job['page']}, capabilities: {caps}; 3) {record}.")
+                f"{job['url']}, file_path: {job['page']}, capabilities: {caps}; 3) {record}; "
+                f"4) {show}.")
     return (f"1) Artifact publish — file_path: {job['page']}, icon: \"branch\", "
-            f"capabilities: {caps}; 2) {record}.")
+            f"capabilities: {caps}; 2) {record}; 3) {show}.")
 
 
 def mark_published(url: str) -> None:
