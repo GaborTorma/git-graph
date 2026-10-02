@@ -1,3 +1,12 @@
+## [0.9.0] - 2026-10-02
+
+### 🚀 Features
+
+- *(mcp)* Update the running server in place after a plugin update
+
+### 📚 Documentation
+
+- *(worklog)* Mcp self update
 ## [0.8.0] - 2026-10-02
 
 ### 🚀 Features
