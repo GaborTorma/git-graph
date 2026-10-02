@@ -1198,9 +1198,10 @@ function toggleFile(fileEl, sha, on) {
 
 /* Mindkét nézet elkészül (egymás alatti és side-by-side); hogy melyik látszik,
    azt a `.diff` szélessége dönti el egy container queryvel — átméretezéskor
-   újrarenderelés nélkül vált. Új vagy egészében törölt fájlnál (csak `+` vagy
-   csak `−` sor) a side-by-side fél oldala üres lenne: ott csak az egymás alatti
-   nézet készül. Hunkok közt a kihagyott sorok száma a régi oldal sorszámaiból jön. */
+   újrarenderelés nélkül vált. Ha a diffben csak hozzáadás vagy csak törlés van
+   (új fájl, vagy beszúrás / kivágás a változatlan sorok közt), a side-by-side
+   egyik oldala végig üres lenne: ott csak az egymás alatti nézet készül.
+   Hunkok közt a kihagyott sorok száma a régi oldal sorszámaiból jön. */
 function diffHtml(d) {
   if (d.note) return `<p class="diff-note">${esc(d.note)}</p>`;
   if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
@@ -1215,7 +1216,7 @@ function diffHtml(d) {
     oldEnd = h.old + h.lines.filter(l => l.t !== '+').length;
   }
   const kinds = new Set(d.hunks.flatMap(h => h.lines.map(l => l.t)));
-  const oneSided = kinds.size === 1 && !kinds.has(' ');
+  const oneSided = !(kinds.has('+') && kinds.has('-'));   // a változatlan sor nem számít
   return (oneSided ? `<div>${uni}</div>`
     : `<div class="diff-uni">${uni}</div><div class="diff-split">${split}</div>`)
     + (d.truncated ? '<p class="diff-note">… a diff túl hosszú, a vége le van vágva.</p>' : '');
