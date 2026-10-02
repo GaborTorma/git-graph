@@ -5,6 +5,7 @@ A valódi `~/.git-graph`-hoz és az app configjához nem nyúl.
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.machinery
 import importlib.util
 import json
@@ -104,9 +105,11 @@ class McpServerTest(unittest.TestCase):
             data = client.call("graph_data", repo=SLUG)
             self.assertTrue(data["commits"])
             self.assertIn("edges", data)
+            self.assertIn("avatars", data)
+            self.assertTrue(all("email" in c for c in data["commits"] if not c.get("uncommitted")))
             self.assertIn("refs", client.call("fingerprint", repo=SLUG))
 
-            sha = git("rev-parse", "HEAD").strip()
+            sha = git("log", "-1", "--no-merges", "--format=%H").strip()   # a merge-nek nincs fájllistája
             path = git("show", "--format=", "--name-only", sha).split()[0]
             self.assertIsInstance(client.call("file_diff", repo=SLUG, sha=sha, path=path), dict)
             with self.assertRaises(AssertionError):            # opcióként menne a gitnek
@@ -142,6 +145,32 @@ class McpServerTest(unittest.TestCase):
             "git-graph@git-graph": [{"version": version, "installPath": str(ROOT)}]}}), encoding="utf-8")
         self.check_server(stable)
         self.assertTrue((state / "page" / "page.js").is_file())
+
+    def test_dev_install(self) -> None:
+        """A fejlesztői példány `+dev` verzióval kerül a stabil helyre, és nem frissít vissza."""
+        module = load_module(self.home)
+        with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink):
+            self.assertEqual(module.dev_install(), 0)
+        state = self.home / ".git-graph"
+        version = json.loads((state / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
+        self.assertIn("+dev.", version)
+        self.assertTrue((state / "page" / "page.js").is_file())
+        self.check_server(state / "bin" / "git-graph")
+
+    def test_avatar_cache(self) -> None:
+        """Gyorstárból jön a kép; friss bejegyzésre nem indul letöltés."""
+        module = load_module(self.home)
+        now = module.time.time()
+        (self.home / ".git-graph" / "avatars.json").write_text(json.dumps({
+            "a@x.hu": {"img": "data:image/png;base64,AAAA", "at": now},
+            "b@x.hu": {"img": None, "at": now}}), encoding="utf-8")
+        commits = [{"sha": "1" * 40, "email": "a@x.hu", "pushed": True},
+                   {"sha": "2" * 40, "email": "b@x.hu", "pushed": True}]
+        found = module.avatars_for(commits, "https://github.com/o/r")
+        self.assertEqual(found, {"a@x.hu": "data:image/png;base64,AAAA"})
+        self.assertEqual(module._AVATAR_JOBS, set())
+        self.assertEqual(module.avatar_signal(), 1)
+        self.assertEqual(module.avatars_for(commits, ""), {})          # nem GitHub-os repó
 
     def test_loader(self) -> None:
         """A betöltőbe a kontextus és a cím kerül, `</script>`-biztosan."""

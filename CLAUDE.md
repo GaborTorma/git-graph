@@ -37,6 +37,7 @@ git-graph --artifacts        # ismert repók Artifactjai (regiszter + a szülőm
 git-graph --forget           # a repó git-graph nyomai + automatikus publikálás KI
 git-graph --forget-artifact <URL>   # egyetlen Artifact nyomai (megszűnt worktree)
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
+python3 bin/git-graph --dev-install   # a working tree az appban futó git-graph helyére (+dev), a lap élőben
 ```
 
 Az Artifact csak egy betöltő (`page/loader.html`, `build()`): a lap kódját
@@ -53,8 +54,12 @@ Biome), és lefuttatja a füsttesztet: az MCP-t stdio-n kézfogással, `tools/li
 és a toolok hívásával (`/usr/bin/python3`-mal, ahogy az app indítja), a stabil
 másolatból is. A lintereket a `uvx` / `pnpm dlx` hozza, a repóba nem kerül
 függőség. Ezen túl kézzel: a `git-graph --mcp` `graph_data`-ja több repón
-(eltérő sávszámmal, merge-ekkel), és a lap az appban. Az élő lapé: a sessionből publikálva, a Claude appban megnyitva (az
-app MCP-naplója a host-híd hívásait nem mutatja — a lapot kell nézni). A hooké
+(eltérő sávszámmal, merge-ekkel), és a lap az appban. Az élő lapé: `python3 bin/git-graph --dev-install`. Ez a working treet az
+appban futó szerver helyére teszi `+dev` verzióval; a szerver egy percen belül
+átvált, a lap újratölt, és az app minden git-graph lapja az új kódot mutatja.
+A következő session hookja visszaállítja a telepítettet. Utána a sessionből
+publikált lapot kell nézni a Claude appban (az app MCP-naplója a host-híd
+hívásait nem mutatja). A hooké
 és a publikálásé: `--session-hook` kamu `HOME`-mal, `CLAUDE_PLUGIN_ROOT`-tal
 és `CLAUDE_CODE_ENTRYPOINT`-tal, eldobható klónon (a `--published` a
 `.git/config`-ba ír); a hook kimenete a publikálás lépéseit vagy a megnyitást
@@ -67,14 +72,24 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 ## Konvenciók
 
 - **Nyelv**: magyar — kommentek, doksi, commit-body, a generált UI feliratai.
-  A táblázat-fejlécek (`Description / Date / Author / Commit`) viszont
-  **angolul** maradnak: az a Git Graph felismerhető arca. A Graph oszlop
-  fejléce ikon (a felirat feleslegesen szélesre nyomta az oszlopot).
+- **Megjelenés**: a Claude app nyelvét követi (a Git Graph-ból a gráf marad).
+  Meleg palettát használ, és a Claude Light / Dark kódszíneket. Betűk:
+  Anthropic Sans / Mono, ahol nincs, a rendszeré; webfont nincs. A
+  kontrollok az app mintájára épülnek: kapcsoló, menügomb, háromállású
+  témaváltó, ikonok inline stroke-SVG-ként (`ICONS`). A lista egysoros,
+  napokra bontott, táblázatfej nélküli. A dátum `Europe/Budapest` szerint,
+  magyar formában jelenik meg.
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
   futnia kell, `pip install` nélkül. Ne hozz be libet. A lintek (ruff, Biome)
   csak fejlesztői eszközök, `uvx` / `pnpm dlx` futtatja őket, verzióra rögzítve.
 - **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a
   `.git/config` `git-graph.*` kulcsai — lokális, sosem commitolódik.
+- **Hálózat csak az avatarért.** GitHub-os repónál a szerzők képét a Python
+  tölti le háttérszálon (`avatars_for`). Noreply címnél közvetlenül, különben az
+  API-ból, egy pusholt commitjukon át. A kép data URI-ként kerül a
+  `graph_data`-ba (az Artifact CSP-je külső képet nem enged), gyorstárazva
+  (`~/.git-graph/avatars.json`). Ami nem jött, 6 óra múlva újrapróbálódik. Az
+  ujjlenyomatban az `avatars` szám jelzi a lapnak, hogy új kép érkezett.
 - **Verziókezelés**: SemVer, a verzió egyetlen forrása a
   `.claude-plugin/plugin.json` (a `marketplace.json` nem ismétli); kézi
   `vX.Y.Z` tag, Conventional Commits. A bump a feature-commitban történik,
@@ -88,9 +103,9 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 
 ## Gotchák
 
-- **Osztálynév-ütközés az egyfájlos oldalon**: a `.head` (táblázat-fejléc) egyszer
-  már ráült a `badge head` elemre. A badge-variánsok azóta `ref-*` névtérben, a
-  fejléc `.thead`. Rövid, generikus osztálynevet ne vezess be.
+- **Osztálynév-ütközés a lap egyetlen stíluslapján**: a `.head` (az egykori
+  táblázat-fejléc) egyszer már ráült a `badge head` elemre. A badge-variánsok
+  azóta `ref-*` névtérben vannak. Rövid, generikus osztálynevet ne vezess be.
 - **`<meta charset="utf-8">` a generált fájl legelső sora** — enélkül
   `file://`-ról latin-1-ként olvasódik.
 - **Repónév az `origin` remote-ból**, nem a mappanévből (a mappa eltérhet:
@@ -102,14 +117,15 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   A `build()` ezért az `embed()`-en át ágyaz (`</` → `<\/`, U+2028/29 escape).
   Bármi, ami a lapra kerül, ezen menjen át.
 - **A `drawGraph()` a DOM-ból olvassa a sorok Y-pozícióját** (`offsetTop`), nem
-  sorszám × magasságból: kinyitott commit-panelnél az alatta lévő sorok
-  lejjebb csúsznak. Ezért minden DOM-változás után újra kell hívni (nyitás,
+  sorszám × magasságból: a napok fejléce (`.day`) és a kinyitott commit-panel
+  az alattuk lévő sorokat lejjebb tolja. A sor magassága pontosan `ROW_H`
+  legyen (a pötty a sor közepére kerül). Ezért minden DOM-változás után újra kell hívni (nyitás,
   zárás, Escape, `render`). A panel `margin-left: var(--graph-w)` — a gráf-oszlop
   szabadon marad, a vonal mellette fut végig.
 - **A sor-kiemelés nem mehet a gráf-oszlopra**: a pöttyöket az `#lanes` SVG
   rajzolja a sorok MÖGÉ, az átlátszatlan `:hover` / kiválasztott háttér pedig
-  eltakarta őket. Ezért a háttér a cellákra megy, az elsőt kihagyva
-  (`.cell ~ .cell`). Az SVG-t a sorok fölé emelni nem megoldás: a `.rows`
+  eltakarta őket. Ezért a sor bal paddingje a gráf szélessége, és a háttér a
+  belső sávra (`.row-in`) megy. Az SVG-t a sorok fölé emelni nem megoldás: a `.rows`
   (`z-index: 2`) saját rétegkontextust nyit, így a benne lévő `.details` sosem
   kerülhet a testvér `#lanes` fölé — a kinyitott panelen átlógnának a vonalak.
 - **Az `Uncommitted Changes` ál-sor a `commits` lista 0. eleme** (`sha`:

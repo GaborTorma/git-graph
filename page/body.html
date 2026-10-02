@@ -1,36 +1,44 @@
 <div class="chrome">
   <div class="repo">
     <span class="repo-name" id="repoName"></span>
-    <span class="repo-sub mono" id="headRef"></span>
+    <span class="head-chip" id="headChip" hidden>
+      <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="3.5" r="1.5"/><circle cx="5" cy="12.5" r="1.5"/><circle cx="11" cy="5.5" r="1.5"/><path d="M5 5v6M11 7c0 2.5-3 2.5-6 4"/></svg>
+      <span id="headName"></span>
+    </span>
   </div>
 
-  <div class="control">
-    <label for="branchSel">Branch</label>
-    <select id="branchSel"></select>
-  </div>
+  <label class="select" title="Ág szűrése">
+    <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="3.5" r="1.5"/><circle cx="5" cy="12.5" r="1.5"/><circle cx="11" cy="5.5" r="1.5"/><path d="M5 5v6M11 7c0 2.5-3 2.5-6 4"/></svg>
+    <select id="branchSel" aria-label="Ág szűrése"></select>
+    <svg class="ic chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5 8 10l3.5-3.5"/></svg>
+  </label>
 
-  <label class="switch"><input type="checkbox" id="showRemotes" checked> Show Remote Branches</label>
-  <label class="switch"><input type="checkbox" id="onlyRefs"> Csak ref-es commitok</label>
+  <label class="switch"><input type="checkbox" id="showRemotes" checked><span class="track"></span>Remote ágak</label>
+  <label class="switch"><input type="checkbox" id="onlyRefs"><span class="track"></span>Csak ref-es commitok</label>
 
   <div class="spacer"></div>
-  <div class="stat" id="counter"></div>
-  <button class="btn" id="themeBtn" type="button">Téma</button>
+  <div class="seg">
+    <button type="button" data-theme-set="auto" aria-label="Téma: automatikus" title="Automatikus">
+      <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/></svg>
+    </button>
+    <button type="button" data-theme-set="light" aria-label="Téma: világos" title="Világos">
+      <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.75"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></svg>
+    </button>
+    <button type="button" data-theme-set="dark" aria-label="Téma: sötét" title="Sötét">
+      <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z"/></svg>
+    </button>
+  </div>
 </div>
 
 <div class="scroll">
-  <div class="thead">
-    <div class="thead-graph" role="img" title="Graph" aria-label="Graph">
-      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
-        <path d="M4 4v8" stroke="currentColor" stroke-width="1.25" fill="none"/>
-        <path d="M4 7h4a3 3 0 0 1 3 3v1" stroke="currentColor" stroke-width="1.25" fill="none"/>
-        <circle cx="4" cy="3" r="1.7" fill="currentColor"/>
-        <circle cx="11" cy="12.6" r="1.7" fill="currentColor"/>
-      </svg>
-    </div><div>Description</div><div>Date</div><div>Author</div><div>Commit</div>
-  </div>
   <div class="graph-wrap">
     <svg id="lanes" aria-hidden="true"></svg>
     <div class="rows" id="rows"></div>
   </div>
-  <p class="foot" id="foot">Élő — kapcsolódás…</p>
+</div>
+
+<div class="foot" id="foot">
+  <span class="live"><span class="dot" aria-hidden="true"></span><span id="liveText">Kapcsolódás…</span></span>
+  <span class="count" id="counter"></span>
+  <span class="ver" id="version"></span>
 </div>

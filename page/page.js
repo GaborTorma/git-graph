@@ -5,14 +5,14 @@
 const CTX = globalThis.GIT_GRAPH;
 const SLUG = CTX.slug;
 const MCP_SERVER = CTX.server;
-let DATA = { commits: [], edges: [], stats: {}, branches: [],
+let DATA = { commits: [], edges: [], stats: {}, branches: [], avatars: {},
   meta: { repo: CTX.repo, repoUrl: '', head: '', totalCommits: 0, shown: 0, dirty: 0,
           generated: '', worktrees: [] } };
 
-// A Git Graph alap sáv-palettája: sávindex szerint ciklikusan.
-const LANE_COLORS = ['#0085d9','#d9008f','#00d90a','#d9c000','#d90000',
-                     '#4d00d9','#d94a00','#00d9cc','#e138e8','#85d900'];
-const ROW_H = 24, LANE_W = 16, X0 = 12, DOT_R = 4;
+// Sáv-paletta: a 0. sáv a Claude narancs, a többi vele egyező telítettségű.
+const LANE_COLORS = ['#d97757', '#5b8def', '#4fa564', '#a07ad6', '#cf9a2c',
+                     '#2f9c9a', '#d0628f', '#8a9a3a', '#6a7fd1', '#c4573a'];
+const ROW_H = 30, LANE_W = 14, X0 = 16, DOT_R = 4;
 // Friss commitok: a legújabbtól visszafelé, amíg a szomszédok közt ≤ 10 mp telt
 // el — és csak 5 percig. Egy újabb sorozat így magától leváltja az előzőt.
 const FRESH_GAP_MS = 10 * 1000, FRESH_FOR_MS = 5 * 60 * 1000;
@@ -26,6 +26,21 @@ let expanded = null;      // a kinyitott commit sha-ja
 let visible = DATA.commits; // szűrés utáni lista
 
 let graphW = 72;
+
+/* ── Ikonok ── stroke-os, 16×16-os rácson; a CSS `.ic` színezi. */
+const ICONS = {
+  branch: '<circle cx="5" cy="3.5" r="1.5"/><circle cx="5" cy="12.5" r="1.5"/><circle cx="11" cy="5.5" r="1.5"/><path d="M5 5v6M11 7c0 2.5-3 2.5-6 4"/>',
+  tag: '<path d="M2.5 2.5h5l6 6-5 5-6-6z"/><circle cx="5.5" cy="5.5" r="1"/>',
+  cloud: '<path d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.3 7.6 2.5 2.5 0 0 0 4.5 12.5z"/>',
+  commit: '<path d="M4 4v8"/><path d="M4 7h4a3 3 0 0 1 3 3v1"/><circle cx="4" cy="3" r="1.4" fill="currentColor"/><circle cx="11" cy="12.6" r="1.4" fill="currentColor"/>',
+  parent: '<circle cx="8" cy="5" r="2.25"/><path d="M8 7.25v6.25M5.5 11 8 13.5 10.5 11"/>',
+  open: '<path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"/>',
+  copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
+  check: '<path d="m3.5 8.5 3 3 6-7"/>',
+  file: '<path d="M4 1.5h5l3.5 3.5v9.5H4z"/><path d="M9 1.5V5h3.5"/>',
+  chev: '<path d="M6.5 4.5 10 8l-3.5 3.5"/>',
+};
+const icon = (name, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
 
 /* A friss sorozat sha-i; lejáratkor a lap magától újrarajzol (a pollozás csak
    git-változásra rajzol). Az ál-sornak nincs `committed`-je: sosem friss. */
@@ -49,20 +64,19 @@ function computeFresh() {
 function hydrate() {
   computeFresh();
   const laneCount = DATA.commits.reduce((m, c) => Math.max(m, c.lane), 0) + 1;
-  // Csak annyi, amennyit a sávok kérnek — a fejlécben ikon van, nem felirat.
-  graphW = Math.max(28, X0 * 2 + (laneCount - 1) * LANE_W);
+  graphW = Math.max(32, X0 * 2 + (laneCount - 1) * LANE_W);
   document.documentElement.style.setProperty('--graph-w', graphW + 'px');
   document.getElementById('repoName').textContent = DATA.meta.repo;
-  document.getElementById('headRef').textContent = DATA.meta.head
-    ? DATA.meta.head + ' · ' + DATA.meta.totalCommits + ' commit' : '';
+  document.getElementById('headName').textContent = DATA.meta.head;
+  document.getElementById('headChip').hidden = !DATA.meta.head;
 }
 
 /* ── Gráf rajzolása ──────────────────────────────────────────────────────── */
 function laneX(l) { return X0 + l * LANE_W; }
 
-/* A sorok Y-pozíciója a DOM-ból jön, nem sorszám × magasság: kinyitott
-   commit-panel esetén az alatta lévő sorok lejjebb csúsznak, és a pöttyöknek
-   velük kell menniük — a panel mellett a vonal egyszerűen hosszabb lesz. */
+/* A sorok Y-pozíciója a DOM-ból jön, nem sorszám × magasság: a napok fejléce
+   és a kinyitott commit-panel az alattuk lévő sorokat lejjebb tolja, és a
+   pöttyöknek velük kell menniük — közben a vonal egyszerűen hosszabb lesz. */
 function drawGraph() {
   const rowIndexBySha = new Map(visible.map((c, i) => [c.sha, i]));
   const tops = [...rowsEl.querySelectorAll('.row')].map(el => el.offsetTop);
@@ -90,7 +104,7 @@ function drawGraph() {
     // Az ál-sor pontja üres karika: a szaggatott vonal már jelzi, hogy nem
     // commit — a pöttyözött körvonal ezen a méreten csak elmosódna.
     const hollow = merge || c.uncommitted;
-    if (fresh.has(c.sha)) out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="8" fill="${color}" opacity=".3"/>`;
+    if (fresh.has(c.sha)) out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="8" fill="${color}" opacity=".28"/>`;
     out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="${hollow ? DOT_R + 1 : DOT_R}"`
         +  ` fill="${hollow ? 'var(--bg)' : color}" stroke="${color}" stroke-width="2"/>`;
   });
@@ -109,19 +123,33 @@ function edgePath(x1, y1, x2, y2, merge) {
   return `M ${x1} ${y1} L ${x1} ${bend} C ${x1} ${y2}, ${x2} ${bend}, ${x2} ${y2}`;
 }
 
+/* ── Dátum ── budapesti idő szerint, magyar formában. */
+const TZ = 'Europe/Budapest';
+const fmtParts = (iso, opts) => Object.fromEntries(new Intl.DateTimeFormat('hu-HU',
+  { timeZone: TZ, ...opts }).formatToParts(new Date(iso)).map(p => [p.type, p.value]));
+const dayKey = iso => { const p = fmtParts(iso, { year: 'numeric', month: '2-digit', day: '2-digit' });
+  return `${p.year}-${p.month}-${p.day}`; };
+const fmtTime = iso => { const p = fmtParts(iso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return `${p.hour}:${p.minute}`; };
+const fmtDate = iso => `${dayKey(iso).replaceAll('-', '.')}. ${fmtTime(iso)}`;
+function dayLabel(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  const long = new Intl.DateTimeFormat('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    .format(new Date(Date.UTC(y, m - 1, d)));
+  const today = dayKey(new Date().toISOString());
+  const yesterday = dayKey(new Date(Date.now() - 864e5).toISOString());
+  return key === today ? `Ma · ${long}` : key === yesterday ? `Tegnap · ${long}` : long;
+}
+
 /* ── Sorok ───────────────────────────────────────────────────────────────── */
 const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-const pad = n => String(n).padStart(2, '0');
-const fmtDate = iso => { const d = new Date(iso);
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} `
-       + `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 /* GitHub-linkek: valódi `<a target="_blank">` — az Artifact keretéből a Claude
    app csak ezt engedi át (mérve: a `window.open` el sem jutott hozzá). Commit
    és fájl csak pusholt commitnál (`pushed`, a Python jelöli): a helyi a
    GitHubon 404 lenne. A fájl-diff horgonyát (`anchor`) is a Python számolja. */
-const ghLink = (href, html) =>
-  `<a class="gh-link" href="${href}" target="_blank" rel="noopener">${html}</a>`;
+const ghLink = (href, html, cls = 'gh-link', label = '') =>
+  `<a class="${cls}" href="${href}" target="_blank" rel="noopener"${label ? ` aria-label="${esc(label)}" title="${esc(label)}"` : ''}>${html}</a>`;
 
 /* `#12` és `owner/repo#12` → issue/PR (a `/issues/N` a PR-ra átirányít).
    Előtte nem állhat szó- vagy URL-karakter: a `C#1` és a `lap.html#3` marad szöveg. */
@@ -133,35 +161,90 @@ function linkify(s) {
     pre + ghLink(`${repo ? 'https://github.com/' + repo : base}/issues/${n}`, `${repo || ''}#${n}`));
 }
 const commitUrl = c => `${DATA.meta.repoUrl}/commit/${c.sha}`;
-const shaHtml = (c, text) => c.pushed ? ghLink(commitUrl(c), text) : text;
-const pathHtml = (c, f) => c.pushed
-  ? ghLink(commitUrl(c) + (f.anchor ? '#diff-' + f.anchor : ''), esc(f.path)) : esc(f.path);
+const fileUrl = (c, f) => commitUrl(c) + (f.anchor ? '#diff-' + f.anchor : '');
 
+/* Ha a helyi ág és a remote-ja ugyanazon a commiton áll, egy badge-ben
+   látszanak (`main | origin`); ha szétváltak, külön-külön. */
+function mergedRefs(refs) {
+  const names = new Set(refs.map(r => r.name));
+  const used = new Set(), out = [];
+  for (const r of refs) {
+    if (used.has(r.name)) continue;
+    const remotes = (r.kind === 'branch' || r.kind === 'head')
+      ? refs.filter(o => o.kind === 'remote' && o.name.endsWith('/' + r.name)
+          && names.has(o.name) && o.name.slice(0, -r.name.length - 1).indexOf('/') < 0)
+      : [];
+    remotes.forEach(o => used.add(o.name));
+    out.push({ ...r, remotes: remotes.map(o => o.name.slice(0, -r.name.length - 1)) });
+  }
+  return out;
+}
+
+const REF_ICON = { head: 'branch', detached: 'commit', branch: 'branch', remote: 'cloud', tag: 'tag' };
 function badges(c) {
-  return c.refs.map(r => {
-    const label = r.kind === 'head' ? r.name : r.name;
-    const title = r.kind === 'head' ? 'HEAD → ' + r.name : r.kind + ': ' + r.name;
-    return `<span class="badge ref-${r.kind}" title="${esc(title)}"><span class="dot"></span>${esc(label)}</span>`;
+  return mergedRefs(c.refs).map(r => {
+    const title = (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name
+      + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o}/${r.name}`).join(', ') : '');
+    const remotes = r.remotes.map(o => `<span class="div"></span><span class="origin">${esc(o)}</span>`).join('');
+    return `<span class="badge ref-${r.kind}" title="${esc(title)}">${icon(REF_ICON[r.kind] || 'branch')}`
+      + `${esc(r.name)}${remotes}</span>`;
   }).join('');
 }
 
+function rowHtml(c) {
+  const color = fresh.has(c.sha) ? ` style="color:${LANE_COLORS[c.lane % LANE_COLORS.length]}"` : '';
+  const meta = c.uncommitted ? '' : `<span class="meta"><span>${esc(c.author)}</span><span class="sep">·</span>`
+    + `<span class="time">${fmtTime(c.date)}</span><span class="sep">·</span><span class="sha">${c.short}</span></span>`;
+  const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
+  return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
+      <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>${badges(c)}</span>${meta}</span>
+    </button>`;
+}
+
 function render() {
-  rowsEl.innerHTML = visible.map((c, i) => `
-    <button class="row${c.uncommitted ? ' uncommitted' : ''}" type="button" data-sha="${c.sha}" aria-expanded="false">
-      <span class="cell"></span>
-      <span class="cell desc">${badges(c)}<span class="subject"${fresh.has(c.sha)
-        ? ` style="color:${LANE_COLORS[c.lane % LANE_COLORS.length]}"` : ''}>${linkify(c.subject)}</span></span>
-      <span class="cell date">${fmtDate(c.date)}</span>
-      <span class="cell author">${esc(c.author)}</span>
-      <span class="cell sha mono">${shaHtml(c, c.short)}</span>
-    </button>`).join('') || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
+  let day = '', html = '';
+  for (const c of visible) {
+    const key = c.uncommitted ? '' : dayKey(c.date);
+    if (key && key !== day) { html += `<div class="day">${dayLabel(key)}</div>`; day = key; }
+    html += rowHtml(c);
+  }
+  rowsEl.innerHTML = html || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
   drawGraph();
   const shown = visible.filter(c => !c.uncommitted).length;   // az ál-sor nem commit
-  counter.innerHTML = `<b>${shown}</b> commit látszik / ${DATA.meta.totalCommits}`;
+  counter.innerHTML = DATA.meta.totalCommits ? `<b>${shown}</b> / ${DATA.meta.totalCommits} commit` : '';
   if (expanded && visible.some(c => c.sha === expanded)) open(expanded); else expanded = null;
 }
 
 /* ── Commit-részletek ────────────────────────────────────────────────────── */
+const miniBtn = (name, label, attrs = '') =>
+  `<button class="mini" type="button" aria-label="${esc(label)}" title="${esc(label)}" ${attrs}>${icon(name)}</button>`;
+
+/* Változásjelölő: 6 szegmens, a hozzáadás / törlés arányában. */
+function bars(f) {
+  const total = f.add + f.del;
+  if (!total) return '';
+  const a = Math.round(6 * f.add / total);
+  return `<span class="bars" aria-hidden="true">${Array.from({ length: 6 },
+    (_, i) => `<i class="${i < a ? 'a' : 'd'}"></i>`).join('')}</span>`;
+}
+
+function headHtml(c) {
+  const avatar = DATA.avatars && DATA.avatars[c.email];
+  const who = c.uncommitted ? '<span class="name">Munkakönyvtár</span>'
+    : `${avatar ? `<img src="${esc(avatar)}" alt="">` : ''}<span class="name">${esc(c.author)}</span>`
+      + `<span class="sep">·</span><span>${fmtDate(c.date)}</span>`;
+  const parents = c.parents.map(p => `<button type="button" class="hash" data-jump="${p}" title="Ugrás a szülőre">${p.slice(0, 7)}</button>`
+    + miniBtn('open', `Szülő megnyitása: ${p.slice(0, 7)}`, `data-jump="${p}"`)).join('');
+  const parentChip = c.parents.length ? `<span class="chip" title="Szülő${c.parents.length > 1 ? 'k' : ''}">`
+    + `${icon('parent')}${parents}</span>` : '';
+  const commitChip = c.uncommitted ? '' : `<span class="chip">${icon('commit')}`
+    + (c.pushed ? ghLink(commitUrl(c), c.short, 'hash', 'Commit a GitHubon')
+        + ghLink(commitUrl(c), icon('open'), 'mini', 'Commit megnyitása a GitHubon')
+      : `<span class="hash plain">${c.short}</span>`)
+    + miniBtn('copy', 'Hash másolása', `data-copy="${c.sha}"`) + '</span>';
+  return `<div class="d-head"><span class="who">${who}</span><span class="chips">${parentChip}${commitChip}</span></div>`;
+}
+
 function open(sha) {
   document.querySelectorAll('.details').forEach(d => d.remove());
   const row = rowsEl.querySelector(`.row[data-sha="${sha}"]`);
@@ -171,30 +254,22 @@ function open(sha) {
 
   const c = DATA.commits.find(x => x.sha === sha);
   const st = DATA.stats[sha] || { files: [], add: 0, del: 0 };
-  const parents = c.parents.length
-    ? c.parents.map(p => `<a data-jump="${p}">${p.slice(0, 7)}</a>`).join(' · ')
-    : '—';
 
   const el = document.createElement('div');
   el.className = 'details';
   el.innerHTML = `
-    <h2>${linkify(c.subject)}</h2>
-    <dl class="meta">
-      <dt>Commit</dt><dd class="mono">${shaHtml(c, c.sha)}</dd>
-      <dt>Szülő</dt><dd class="mono">${parents}</dd>
-      <dt>Szerző</dt><dd>${esc(c.author)}</dd>
-      <dt>Dátum</dt><dd>${fmtDate(c.date)}</dd>
-    </dl>
+    ${headHtml(c)}
     ${c.body ? `<p class="body-text">${linkify(c.body)}</p>` : ''}
     <div class="files">
-      <div class="files-head">${st.files.length} fájl ·
-        <span style="color:var(--add)">+${st.add}</span>
-        <span style="color:var(--del)">−${st.del}</span></div>
+      <div class="files-head">Fájlok<span class="n">${st.files.length}</span>
+        <span class="a" style="color:var(--add)">+${st.add}</span>
+        <span class="d" style="color:var(--del)">−${st.del}</span></div>
       ${st.files.map(f => `<div class="file" data-path="${esc(f.path)}" aria-expanded="false">
-        <span class="chev" aria-hidden="true">›</span>
-        <span class="path mono">${pathHtml(c, f)}</span>
-        <span class="churn mono">${f.new ? 'új' : f.bin ? 'bin'
-          : `<span class="a">+${f.add}</span> <span class="d">−${f.del}</span>`}</span></div>
+        <span class="chev">${icon('chev')}</span>${icon('file', 'ic fic')}
+        <span class="path">${esc(f.path)}</span>
+        <span class="churn">${f.new ? '<span class="tag">új</span>' : f.bin ? '<span class="tag">bin</span>'
+          : `<span class="a">+${f.add}</span><span class="d">−${f.del}</span>${bars(f)}`}</span>
+        ${c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : '<span></span>'}</div>
         <div class="diff" hidden></div>`).join('')}
     </div>`;
   row.after(el);
@@ -204,6 +279,19 @@ function open(sha) {
     if (openFiles.has(sha + '\n' + f.dataset.path)) toggleFile(f, sha, true);
   });
   drawGraph();               // a panel alatti sorok lejjebb kerültek
+}
+
+/* A vágólap az Artifact keretében tiltott lehet: akkor a régi `execCommand`. */
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const t = Object.assign(document.createElement('textarea'), { value: text });
+    document.body.append(t); t.select();
+    try { document.execCommand('copy'); } finally { t.remove(); }
+  }
+  btn.classList.add('done');
+  btn.innerHTML = icon('check');
+  setTimeout(() => { btn.classList.remove('done'); btn.innerHTML = icon('copy'); }, 1200);
 }
 
 /* ── Fájl-diff ───────────────────────────────────────────────────────────────
@@ -223,6 +311,7 @@ function toggleFile(fileEl, sha, on) {
   if (!on) { openFiles.delete(key); drawGraph(); return; }
   openFiles.add(key);
 
+  const lang = langOf(fileEl.dataset.path);
   const show = html => {
     if (!fileEl.isConnected || fileEl.getAttribute('aria-expanded') !== 'true') return;
     box.innerHTML = html;
@@ -231,12 +320,12 @@ function toggleFile(fileEl, sha, on) {
   const cached = diffCache.get(key);
   if (!SRC) return show('<p class="diff-note">A diff csak élő nézetben látszik '
     + '(az Artifact a Claude appban).</p>');
-  show(cached ? diffHtml(cached.data) : '<p class="diff-note">Betöltés…</p>');
+  show(cached ? diffHtml(cached.data, lang) : '<p class="diff-note">Betöltés…</p>');
   if (cached && !cached.stale) return;
   SRC.diff(sha, fileEl.dataset.path).then(
-    d => { diffCache.set(key, { data: d }); show(diffHtml(d)); },
+    d => { diffCache.set(key, { data: d }); show(diffHtml(d, lang)); },
     e => { if (!cached) show(`<p class="diff-note">A diff nem tölthető be: ${esc(
-      (e && (e.message || e.code)) || e)}</p>`); });
+      e?.message || e?.code || e)}</p>`); });
 }
 
 /* Mindkét nézet elkészül (egymás alatti és side-by-side); hogy melyik látszik,
@@ -245,17 +334,17 @@ function toggleFile(fileEl, sha, on) {
    (új fájl, vagy beszúrás / kivágás a változatlan sorok közt), a side-by-side
    egyik oldala végig üres lenne: ott csak az egymás alatti nézet készül.
    Hunkok közt a kihagyott sorok száma a régi oldal sorszámaiból jön. */
-function diffHtml(d) {
+function diffHtml(d, lang) {
   if (d.note) return `<p class="diff-note">${esc(d.note)}</p>`;
   if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
   if (!d.hunks.length) return '<p class="diff-note">Nincs megjeleníthető változás.</p>';
   let uni = '', split = '', oldEnd = 1;
   for (const h of d.hunks) {
     const gap = h.old - oldEnd;
-    const gapHtml = gap > 0 ? `<p class="diff-gap">${gap} változatlan sor</p>` : '';
+    const gapHtml = gap > 0 ? `<p class="diff-gap" title="${gap} változatlan sor">···</p>` : '';
     uni += gapHtml + h.lines.map(l => `<div class="diff-line mono${KIND[l.t]}">`
-      + diffCell(l, l.n) + '</div>').join('');
-    split += gapHtml + splitRows(h);
+      + diffCell(l, l.n, lang) + '</div>').join('');
+    split += gapHtml + splitRows(h, lang);
     oldEnd = h.old + h.lines.filter(l => l.t !== '+').length;
   }
   const kinds = new Set(d.hunks.flatMap(h => h.lines.map(l => l.t)));
@@ -266,17 +355,17 @@ function diffHtml(d) {
 }
 
 const KIND = { ' ': '', '+': ' add', '-': ' del' };
-const diffCell = (l, no) => `<span class="no">${no}</span>`
+const diffCell = (l, no, lang) => `<span class="no">${no ?? ''}</span>`
   + `<span class="sg">${l.t === ' ' ? '' : l.t === '-' ? '−' : '+'}</span>`
-  + `<span class="tx">${marked(l.s, l.hl)}</span>`;
+  + `<span class="tx">${highlight(l.s, l.hl, lang)}</span>`;
 
 /* Side-by-side: a változatlan sor mindkét oldalon (balra a régi sorszámmal), a
    törölt blokk és az utána jövő hozzáadott blokk párjai (`p`, a Python
    `pair_lines`-a) egy sorba, a pár nélküliek egyedül, a párok közé —
    ugyanaz a párosítás, amiből a Python a szó-kiemelést számolja. */
-function splitRows(h) {
+function splitRows(h, lang) {
   const L = h.lines, side = (l, no) => l
-    ? `<div class="half${KIND[l.t]}">${diffCell(l, no)}</div>` : '<div class="half none"></div>';
+    ? `<div class="half${KIND[l.t]}">${diffCell(l, no, lang)}</div>` : '<div class="half none"></div>';
   let out = '', old = h.old, i = 0;
   while (i < L.length) {
     if (L[i].t === ' ') {
@@ -287,7 +376,7 @@ function splitRows(h) {
     let j = i; while (j < L.length && L[j].t === '-') j++;
     let k = j; while (k < L.length && L[k].t === '+') k++;
     const row = (del, add) =>
-      out += `<div class="split-row mono">${side(del, del && del.n)}${side(add, add && add.n)}</div>`;
+      out += `<div class="split-row mono">${side(del, del?.n)}${side(add, add?.n)}</div>`;
     let a = j;
     for (let d = i; d < j; d++) {
       if (L[d].p == null) { row(L[d], null); continue; }
@@ -300,27 +389,89 @@ function splitRows(h) {
   return out;
 }
 
+/* ── Szintaxis-színezés ──────────────────────────────────────────────────
+   Soronkénti, könnyű tokenizáló a gyakori nyelvcsaládokra: megjegyzés,
+   string, kulcsszó, szám, függvényhívás, típus. Többsoros string és
+   megjegyzés belseje sima szöveg marad — a diff soronként jön. A szó-kiemelés
+   (`hl`, a Python számolja) a tokenek fölött, karakterpontosan fut. */
+const KW = {
+  py: 'and as assert async await break class continue def del elif else except False finally for from global if import in is lambda None nonlocal not or pass raise return True try while with yield',
+  js: 'async await break case catch class const continue default delete do else export extends false finally for from function if import in instanceof let new null of return static super switch this throw true try typeof undefined var void while yield',
+  sh: 'case do done elif else esac export fi for function if in local return then until while',
+  css: 'important',
+};
+const LANGS = {
+  py: 'py', js: 'js', mjs: 'js', cjs: 'js', ts: 'js', tsx: 'js', jsx: 'js', json: 'json',
+  css: 'css', html: 'html', md: 'md', sh: 'sh', bash: 'sh', zsh: 'sh', toml: 'sh', yml: 'sh', yaml: 'sh',
+  swift: 'js', go: 'js', rs: 'js', java: 'js', kt: 'js', c: 'js', h: 'js', cpp: 'js',
+};
+function langOf(path) {
+  const name = path.split('/').pop();
+  const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+  return LANGS[ext] || (name === 'git-graph' ? 'py' : '');
+}
+const TOKENIZERS = {};
+function tokenizer(lang) {
+  if (TOKENIZERS[lang]) return TOKENIZERS[lang];
+  const comment = { py: '#.*$', sh: '#.*$', js: '//.*$|/\\*.*?(?:\\*/|$)', css: '/\\*.*?(?:\\*/|$)',
+                    html: '<!--.*?(?:-->|$)' }[lang];
+  const parts = [
+    comment && `(?<cm>${comment})`,
+    `(?<st>${lang === 'py' ? '[rbfuRBFU]{0,2}' : ''}"(?:[^"\\\\]|\\\\.)*"?|'(?:[^'\\\\]|\\\\.)*'?${lang === 'js' ? '|`(?:[^`\\\\]|\\\\.)*`?' : ''})`,
+    KW[lang] && `(?<kw>\\b(?:${KW[lang].split(' ').join('|')})\\b)`,
+    '(?<nu>\\b\\d[\\d_.]*(?:e[+-]?\\d+)?\\b|\\b0x[\\da-f]+\\b)',
+    lang === 'css' ? '(?<fn>[\\w-]+(?=\\s*:))' : '(?<fn>\\b[A-Za-z_$][\\w$]*(?=\\s*\\())',
+    lang !== 'css' && '(?<ty>\\b[A-Z][A-Za-z0-9_]*[a-z][A-Za-z0-9_]*\\b)',
+  ].filter(Boolean);
+  TOKENIZERS[lang] = new RegExp(parts.join('|'), lang === 'css' ? 'gi' : 'g');
+  return TOKENIZERS[lang];
+}
+const MD_RE = /(?<kw>^#{1,6} .*$)|(?<st>`[^`]*`)|(?<ty>\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g;
+const HTML_RE = /(?<cm><!--.*?(?:-->|$))|(?<kw><\/?[\w-]+|\/?>)|(?<fn>\s[\w:-]+(?==))|(?<st>"[^"]*"?|'[^']*'?)/g;
+
+function highlight(s, hl, lang) {
+  const re = lang === 'md' ? MD_RE : lang === 'html' ? HTML_RE : lang ? tokenizer(lang) : null;
+  const cls = new Array(s.length).fill('');
+  if (re) {
+    re.lastIndex = 0;
+    for (const m of s.matchAll(re)) {
+      const kind = Object.keys(m.groups).find(k => m.groups[k] !== undefined);
+      const start = m.index + (kind === 'fn' && lang === 'html' ? 1 : 0);
+      for (let i = start; i < m.index + m[0].length; i++) cls[i] = kind;
+    }
+  }
+  const mark = new Array(s.length).fill(false);
+  for (const [a, b] of hl || []) for (let i = a; i < b; i++) mark[i] = true;
+  let out = '', i = 0;
+  while (i < s.length) {
+    let j = i;
+    while (j < s.length && cls[j] === cls[i] && mark[j] === mark[i]) j++;
+    let seg = esc(s.slice(i, j));
+    if (cls[i]) seg = `<span class="s-${cls[i]}">${seg}</span>`;
+    if (mark[i]) seg = `<mark>${seg}</mark>`;
+    out += seg;
+    i = j;
+  }
+  return out;
+}
+
 /* Az ablak (Artifact-panel) átméretezése sortörést és nézetváltást hozhat: a
    sorok Y-pozíciója elmozdul, a gráfnak követnie kell. */
 new ResizeObserver(() => drawGraph()).observe(rowsEl);
 
-const marked = (s, hl) => {
-  if (!hl || !hl.length) return esc(s);
-  let out = '', at = 0;
-  for (const [a, b] of hl) { out += esc(s.slice(at, a)) + `<mark>${esc(s.slice(a, b))}</mark>`; at = b; }
-  return out + esc(s.slice(at));
-};
-
 rowsEl.addEventListener('click', e => {
   if (e.target.closest('a[href]')) return;   // GitHub-link: nyíljon, a sor ne csukódjon
-  const file = e.target.closest('.file');
-  if (file) { toggleFile(file, expanded, file.getAttribute('aria-expanded') !== 'true'); return; }
+  const copy = e.target.closest('[data-copy]');
+  if (copy) { copyText(copy.dataset.copy, copy); return; }
   const jump = e.target.closest('[data-jump]');
   if (jump) {
     const target = rowsEl.querySelector(`.row[data-sha="${jump.dataset.jump}"]`);
     if (target) { open(jump.dataset.jump); target.scrollIntoView({ block: 'center' }); }
     return;
   }
+  const file = e.target.closest('.file');
+  if (file) { toggleFile(file, expanded, file.getAttribute('aria-expanded') !== 'true'); return; }
+  if (e.target.closest('.details')) return;   // a panelben kattintás ne csukja be
   const row = e.target.closest('.row');
   if (!row) return;
   if (row.getAttribute('aria-expanded') === 'true') {
@@ -385,13 +536,18 @@ function applyFilters() {
 ['branchSel', 'showRemotes', 'onlyRefs'].forEach(id =>
   document.getElementById(id).addEventListener('change', applyFilters));
 
-/* ── Téma ────────────────────────────────────────────────────────────────── */
-document.getElementById('themeBtn').addEventListener('click', () => {
+/* ── Téma ── automatikus / világos / sötét; a választás nézőnként megmarad. */
+const THEME_KEY = 'git-graph:theme';
+function setTheme(mode) {
   const root = document.documentElement;
-  const dark = root.getAttribute('data-theme') === 'dark' ||
-    (!root.hasAttribute('data-theme') && !matchMedia('(prefers-color-scheme: light)').matches);
-  root.setAttribute('data-theme', dark ? 'light' : 'dark');
-});
+  if (mode === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', mode);
+  document.querySelectorAll('[data-theme-set]').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.themeSet === mode)));
+  try { localStorage.setItem(THEME_KEY, mode); } catch { /* privát ablak: nem baj */ }
+}
+document.querySelectorAll('[data-theme-set]').forEach(b =>
+  b.addEventListener('click', () => setTheme(b.dataset.themeSet)));
+setTheme((() => { try { return localStorage.getItem(THEME_KEY) || 'auto'; } catch { return 'auto'; } })());
 
 hydrate();
 fillBranches();
@@ -401,9 +557,11 @@ render();
    A forrás a gépen futó `git-graph --mcp` (a Claude app host-hídján át). Az olcsó
    ujjlenyomatot pollozzuk, teljes adatot csak tényleges változásra kérünk: a
    lap helyben rajzol újra, a nyitott panel, a szűrők és a görgetés megmaradnak.
-   A lábléc a mért időket is mutatja (ujjlenyomat · adat). */
+   A mért időket a lábléc élő-felirata tooltipben mutatja. */
 const POLL_MS = 2000;
 const foot = document.getElementById('foot');
+const liveText = document.getElementById('liveText');
+const versionEl = document.getElementById('version');
 const scroller = document.querySelector('.scroll');
 
 function mcpSource() {
@@ -411,21 +569,21 @@ function mcpSource() {
   const call = (tool, args) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
     { cache: false }).then(r => r.payload);
   return { fingerprint: () => call('fingerprint'), data: () => call('graph_data'),
-           diff: (sha, path) => call('file_diff', { sha, path }),
-           where: 'a gépeden futó git-graph' };
+           diff: (sha, path) => call('file_diff', { sha, path }) };
 }
 
-/* Adat még nincs (MCP-lap induláskor): az üzenet a sorok helyére kerül. */
+/* Adat még nincs (MCP-lap induláskor): az üzenet a sorok helyére is kerül. */
 function notice(text, stale = false) {
   if (!DATA.commits.length) rowsEl.innerHTML = `<p class="empty">${esc(text)}</p>`;
   foot.className = stale ? 'foot stale' : 'foot';
-  foot.textContent = text;
+  liveText.textContent = text;
+  liveText.title = text;
 }
 
 /* MCP-hibakód → teendő. A nem `retryable` hibák nem múlnak el maguktól:
    ott megáll a pollozás (újratöltés próbálja újra). */
 function mcpProblem(e) {
-  switch (e && e.code) {
+  switch (e?.code) {
     case 'server_not_connected':
       return 'A lap nem éri el a gépeden futó git-graph-ot. Élő adat csak a Claude appban, a saját '
         + 'gépeden jön — és ott is csak, ha az app configjában benne van (a git-graph plugin teszi be; utána az app újraindítása).';
@@ -434,16 +592,18 @@ function mcpProblem(e) {
     case 'tool_error':
       return 'A git-graph hibát jelzett: ' + e.message;
     default:
-      return 'A git-graph nem válaszol (' + ((e && e.code) || e) + ').';
+      return 'A git-graph nem válaszol (' + (e?.code || e) + ').';
   }
 }
 
 /* A futó git-graph verziója; ha a telepített más, a teendővel együtt — a futó
    `git-graph --mcp` a régi kódot futtatja, amíg az app újra nem indul. */
-function versionText(f) {
-  if (!f.version) return '';
-  if (!f.installed || f.installed === f.version) return ` v${f.version}`;
-  return ` v${f.version} fut, v${f.installed} telepítve — indítsd újra a Claude appot`;
+function showVersion(f) {
+  const stale = f.version && f.installed && f.installed !== f.version && !f.version.includes('+');
+  versionEl.className = stale ? 'ver warn' : 'ver';
+  versionEl.textContent = !f.version ? '' : stale
+    ? `git-graph ${f.version} fut, ${f.installed} telepítve — indítsd újra a Claude appot`
+    : `git-graph ${f.version}`;
 }
 
 function startLive(src) {
@@ -472,17 +632,18 @@ function startLive(src) {
         fillBranches();
         applyFilters();
         scroller.scrollTop = top;
-        change = ` · utolsó változás ${new Date().toLocaleTimeString()}: adat ${Math.round(td)} ms,`
+        change = `\nutolsó változás ${new Date().toLocaleTimeString('hu-HU')}: adat ${Math.round(td)} ms,`
           + ` kirajzolva ${Math.round(performance.now() - t1)} ms alatt`;
       }
       last = key;
-      foot.className = 'foot';
-      foot.textContent = `Élő · ${src.where}${versionText(f)} · ${new Date().toLocaleTimeString()}`
-        + ` · ujjlenyomat ${Math.round(tf)} ms` + change;
+      foot.className = 'foot on';
+      liveText.textContent = `Élő · frissítve ${new Date().toLocaleTimeString('hu-HU')}`;
+      liveText.title = `ujjlenyomat ${Math.round(tf)} ms` + change;
+      showVersion(f);
     } catch (e) {
       notice(mcpProblem(e), true);
-      if (!(e && e.retryable)) return;          // magától nem javul: nincs több kör
-      wait = Math.max(POLL_MS, (e && e.retryAfterMs) || 0) * 2;
+      if (!e?.retryable) return;                // magától nem javul: nincs több kör
+      wait = Math.max(POLL_MS, e.retryAfterMs || 0) * 2;
     }
     setTimeout(poll, wait);                     // a következő kör az előző után
   }
