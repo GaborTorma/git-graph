@@ -92,7 +92,7 @@ kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
 
 | Útvonal | Mi |
 | --- | --- |
-| `bin/git-graph` | maga a script: adatgyűjtés + beágyazott HTML/CSS/JS sablon + MCP szerver + telepítés |
+| `bin/git-graph` | maga a script: adatgyűjtés + a lap kódja és az Artifact betöltője + MCP szerver + telepítés |
 | `.claude-plugin/plugin.json` | a plugin manifestje — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace (egyetlen plugin: ez a repó) |
 | `hooks/hooks.json` | SessionStart és worktree-váltás (PostToolUse) hook: `git-graph --session-hook` (telepít + megnyittatja vagy publikáltatja a gráfot + az árva worktree-Artifactokat töröltet) |
@@ -110,14 +110,15 @@ A repón **kívülre**, `~/.git-graph/<slug>/` alá — a slug a mappanév és a
 
 | Fájl | Mi |
 | --- | --- |
-| `artifact.html` | az Artifact vékony lapja — adat nélkül, ezt publikálja a session |
+| `artifact.html` | az Artifact betöltője — adat és kód nélkül, ezt publikálja a session |
 
 A projektmappába nem kerül semmi.
 
 ## Artifact
 
-Az Artifact **élő**, de adatot nem tárol: a lap a Claude appban megnyitva a
-gépeden futó `git-graph --mcp`-ből kéri, az app **host-hídján** át
+Az Artifact **élő**, de sem adatot, sem kódot nem tárol: egy betöltő, amely a
+Claude appban megnyitva a lap kódját (`page_code`) és az adatot is a gépeden
+futó `git-graph --mcp`-ből kéri, az app **host-hídján** át
 (`callTool("host:git-graph", …)`): 2 mp-enként az olcsó `fingerprint` (refek, HEAD, munkakönyvtár — ~40 ms), és
 csak változáskor a teljes `graph_data` (150–300 ms). A lábléc kiírja a mért
 időket. Egy lenyitott fájl diffje a `file_diff` toolból jön.
@@ -131,8 +132,9 @@ Megkötések (a platformé, mérve — [docs/artifact-findings.md](docs/artifact
   induláskor olvassa be;
 - az első megnyitáskor az app engedélyt kér a `git-graph` szerverhez.
 
-**Publikálás:** a lap csak sablon, így feltölteni csak akkor kell, ha a UI-kód
-vagy a repó neve változik. Az Artifact API-t csak a modell éri el, ezért a
+**Publikálás:** a lap csak betöltő, így feltölteni csak akkor kell, ha maga a
+betöltő vagy a repó neve változik — egy plugin-frissítés után elég az app
+újraindítása. Az Artifact API-t csak a modell éri el, ezért a
 **session** publikál: a hook (vagy a `/git-graph:artifact` skill a `git-graph --publish`-sal)
 kiírja az `artifact.html`-t és a lépéseket — meglévő Artifactnál előbb `read`
 (friss sessionből a platform különben elutasítja), majd `publish` a
