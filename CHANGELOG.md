@@ -1,3 +1,13 @@
+## [0.6.1] - 2026-10-02
+
+### 🐛 Bug Fixes
+
+- *(hook)* Write the session log atomically and survive write errors
+
+### 📚 Documentation
+
+- *(worklog)* Session log hardening
+
 ## [0.6.0] - 2026-10-02
 
 ### 🚀 Features
