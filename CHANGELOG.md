@@ -1,3 +1,13 @@
+## [0.7.0] - 2026-10-02
+
+### 🚀 Features
+
+- *(page)* Load the page code live from the local mcp server
+
+### 📚 Documentation
+
+- *(findings)* Measure dynamic code execution under the artifact CSP
+- *(worklog)* Live page code
 ## [0.6.2] - 2026-10-02
 
 ### 🐛 Bug Fixes
