@@ -193,6 +193,10 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
     ezért az app a **stabil másolatot** futtatja
     (`~/.git-graph/bin/git-graph`) — symlinket nem, mert a régi verzió mappája
     eltűnhet. Új kód az app újraindításával él (a futó `git-graph --mcp` a régit futtatja).
+    A másolat mellé a manifest is kerül (`~/.git-graph/.claude-plugin/plugin.json`):
+    ebből olvassa a futó szerver induláskor a verzióját (`RUNNING_VERSION`), a
+    `fingerprint` pedig a telepítettel együtt adja — a lábléc így jelzi, ha az
+    app még a régi kódot futtatja.
   - A leszerelést a `git-graph --mcp` szála végzi (`watch_uninstall`): az
     `installed_plugins.json`-ban (Claude Code belső fájl, `version: 2`) keresi a
     `git-graph@…` kulcsot. Ismeretlen formátumnál nem dönt, és csak két

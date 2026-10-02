@@ -1459,6 +1459,14 @@ function mcpProblem(e) {
   }
 }
 
+/* A futó git-graph verziója; ha a telepített más, a teendővel együtt — a futó
+   `git-graph --mcp` a régi kódot futtatja, amíg az app újra nem indul. */
+function versionText(f) {
+  if (!f.version) return '';
+  if (!f.installed || f.installed === f.version) return ` v${f.version}`;
+  return ` v${f.version} fut, v${f.installed} telepítve — indítsd újra a Claude appot`;
+}
+
 function startLive(src) {
   let last = '';                            // a váz üres: az első kör adatot kér
   let change = '';                          // az utolsó változás: mikor, mennyi idő alatt
@@ -1485,7 +1493,7 @@ function startLive(src) {
       }
       last = key;
       foot.className = 'foot';
-      foot.textContent = `Élő · ${src.where} · ${new Date().toLocaleTimeString()}`
+      foot.textContent = `Élő · ${src.where}${versionText(f)} · ${new Date().toLocaleTimeString()}`
         + ` · ujjlenyomat ${Math.round(tf)} ms` + change;
     } catch (e) {
       notice(mcpProblem(e), true);
@@ -1846,7 +1854,10 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
     try:
         if name == "fingerprint":
             refs, files = change_signals()
-            return text({"refs": refs, "files": files})
+            # A verziók is ide kerülnek: a lap 2 mp-enként kérdezi, így egy
+            # frissítés utáni, még újra nem indított app a láblécben azonnal látszik.
+            return text({"refs": refs, "files": files,
+                         "version": RUNNING_VERSION, "installed": installed_version()})
         if name == "graph_data":
             return text(collect_payload(limit))
         if name == "file_diff":
@@ -1919,6 +1930,9 @@ INSTALLED_PLUGINS = Path.home() / ".claude" / "plugins" / "installed_plugins.jso
 # a régi verzió mappája el is tűnhet — az app ezt a másolatot futtatja.
 BIN_DIR = STATE_DIR / "bin"
 STABLE = BIN_DIR / "git-graph"
+# A verzió egyetlen forrása; a script mappájának szülőjében keressük — a
+# pluginban, a working tree-ben és a stabil másolat mellett (`install_copy`) is ott van.
+MANIFEST = Path(".claude-plugin") / "plugin.json"
 # Az Artifact `host:git-graph` hívásai csak az innen indított szervert érik el
 # (a `claude mcp add`-os nem számít — mérve).
 APP_CONFIG = (Path.home() / "Library" / "Application Support" / "Claude"
@@ -1954,15 +1968,44 @@ def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def own_version() -> str | None:
+    """A futó script verziója a mellette lévő manifestből; None, ha nincs."""
+    data = read_json(Path(__file__).resolve().parent.parent / MANIFEST)
+    version = data.get("version") if data else None
+    return version if isinstance(version, str) else None
+
+
+# Induláskor rögzítve: a futó `git-graph --mcp` ezt a kódot futtatja, akkor is,
+# ha közben a hook már újabbat másolt a stabil helyre.
+RUNNING_VERSION = own_version()
+
+
+def installed_version() -> str | None:
+    """A Claude Code nyilvántartása szerint telepített verzió; None, ha nem dönthető el."""
+    data = read_json(INSTALLED_PLUGINS)
+    if not data or data.get("version") != 2 or not isinstance(data.get("plugins"), dict):
+        return None
+    for key, entries in data["plugins"].items():
+        if key.startswith(PLUGIN_ID) and isinstance(entries, list) and entries:
+            version = entries[0].get("version") if isinstance(entries[0], dict) else None
+            return version if isinstance(version, str) else None
+    return None
+
+
 def install_copy() -> None:
-    """A futó script másolata a stabil helyre."""
-    new = Path(__file__).resolve().read_bytes()
-    if not STABLE.exists() or STABLE.read_bytes() != new:
-        BIN_DIR.mkdir(parents=True, exist_ok=True)
-        tmp = STABLE.with_name(".git-graph.tmp")
-        tmp.write_bytes(new)
-        tmp.chmod(0o755)
-        tmp.replace(STABLE)
+    """A futó script és a manifestje másolata a stabil helyre."""
+    here = Path(__file__).resolve()
+    for src, dst, mode in ((here.parent.parent / MANIFEST, STATE_DIR / MANIFEST, 0o644),
+                           (here, STABLE, 0o755)):
+        if not src.exists():
+            continue
+        new = src.read_bytes()
+        if not dst.exists() or dst.read_bytes() != new:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            tmp = dst.with_name(f".{dst.name}.tmp")
+            tmp.write_bytes(new)
+            tmp.chmod(mode)
+            tmp.replace(dst)
 
 
 def install_app_mcp() -> bool:
