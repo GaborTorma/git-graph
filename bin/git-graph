@@ -9,7 +9,7 @@ Az Artifact lapjában nincs adat: a Claude appban megnyitva a gépen futó
 `git-graph --mcp`-ből kéri (a Claude app host-hídján át). Kétmásodpercenként olcsó
 ujjlenyomatot kér, és csak tényleges változásra tölt új adatot. A lapot a
 session publikálja, amikor a hook kéri: ha még nincs, vagy a sablonja (a
-git-graph kódja) változott. Kézzel: a `/git-graph:git-graph` skill.
+git-graph kódja) változott. Kézzel: a `/git-graph:artifact` skill.
 
     git-graph --publish                  # az Artifact publikálásának lépései a sessionnek
     git-graph --published <URL>          # a publikálás után: URL + hash a .git/config-ba
@@ -1979,7 +1979,7 @@ def main() -> int:
                          "a hook kéri, miután az Artifactot törölte)")
     ap.add_argument("--publish", action="store_true",
                     help="az Artifact vékony lapjának kiírása, és a publikálás lépései "
-                         "a sessionnek (változatlan lapnál: naprakész) — a /git-graph "
+                         "a sessionnek (változatlan lapnál: naprakész) — a /git-graph:artifact "
                          "ezt hívja")
     ap.add_argument("--published", metavar="URL", default=None,
                     help="a session publikálása után: az URL és a lap hashe a "

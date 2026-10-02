@@ -1,6 +1,6 @@
 ---
-name: git-graph
-description: Az aktuális repó élő, Git Graph stílusú Artifact oldalát publikálja (ha kell) és megnyitja — meglévőt frissít, nem hoz létre duplikátumot. Használd, ha a Fejlesztő a repó commit-gráfját, ágait, history-ját akarja látni, vagy /git-graph-ot ír.
+name: artifact
+description: Az aktuális repó élő, Git Graph stílusú Artifact oldalát publikálja (ha kell) és megnyitja — meglévőt frissít, nem hoz létre duplikátumot. Használd, ha a Fejlesztő a repó commit-gráfját, ágait, history-ját akarja látni, vagy /git-graph:artifact-ot ír.
 allowed-tools: Bash(git-graph:*), Artifact
 ---
 

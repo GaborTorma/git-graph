@@ -13,7 +13,7 @@ Használat és felépítés: [README.md](README.md).
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
 | `hooks/hooks.json` | a plugin hookja (`--session-hook`): SessionStart, és PostToolUse az `EnterWorktree` / `ExitWorktree` után |
-| `skills/git-graph/SKILL.md` | a `/git-graph:git-graph` skill (`git-graph --publish`, és publikálja vagy megnyitja) |
+| `skills/artifact/SKILL.md` | a `/git-graph:artifact` skill (`git-graph --publish`, és publikálja vagy megnyitja) |
 | `skills/remove/SKILL.md` | a `/git-graph:remove` skill: Artifactok törlése + `git-graph --forget` az uninstall előtt |
 | `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
 | `docs/desktop-live.md` | **mérési napló** (történeti): a kivezetett Browser panel-út |
