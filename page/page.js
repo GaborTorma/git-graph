@@ -518,23 +518,50 @@ function ancestryOf(name) {
   return keep;
 }
 
+/* Keresés: minden szó (szóközzel elválasztva) szerepeljen a commit
+   üzenetében, törzsében, szerzőjében, e-mail-címében, ref-neveiben — vagy a
+   hash eleje legyen. Kis- és nagybetű, ékezet nem számít. */
+const searchEl = document.getElementById('search');
+const fold = s => String(s).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+function matches(c, words) {
+  if (!words.length) return true;
+  const hay = fold([c.subject, c.body, c.author, c.email, ...c.refs.map(r => r.name)].join('\n'));
+  return words.every(w => hay.includes(w) || c.sha.startsWith(w));
+}
+
 function applyFilters() {
   const branch = branchSel.value;
   const remotes = document.getElementById('showRemotes').checked;
   const refsOnly = document.getElementById('onlyRefs').checked;
+  const words = fold(searchEl.value).split(/\s+/).filter(Boolean);
   const keep = branch ? ancestryOf(branch) : null;
 
   visible = DATA.commits.filter(c => {
-    if (c.uncommitted) return true;       // állapot, nem commit: mindig látszik
+    if (c.uncommitted) return !words.length;   // állapot, nem commit: keresésnél nem kell
     if (keep && !keep.has(c.sha)) return false;
     if (refsOnly && c.refs.length === 0) return false;
     if (!remotes && c.refs.length && c.refs.every(r => r.kind === 'remote')) return false;
-    return true;
+    return matches(c, words);
   });
   render();
 }
 ['branchSel', 'showRemotes', 'onlyRefs'].forEach(id =>
   document.getElementById(id).addEventListener('change', applyFilters));
+searchEl.addEventListener('input', applyFilters);
+
+/* ⌘F / Ctrl+F a keresőbe (a lap saját keresője helyett); Escape előbb a
+   keresést üríti, aztán a kinyitott commitot csukja be. */
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+    e.preventDefault();
+    searchEl.focus();
+    searchEl.select();
+  } else if (e.key === 'Escape' && document.activeElement === searchEl && searchEl.value) {
+    e.stopImmediatePropagation();
+    searchEl.value = '';
+    applyFilters();
+  }
+}, true);
 
 /* ── Téma ── automatikus / világos / sötét; a választás nézőnként megmarad. */
 const THEME_KEY = 'git-graph:theme';

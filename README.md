@@ -7,7 +7,9 @@ mintáját követi, a megjelenés a Claude appét: meleg paletta, Claude Light /
 kódszínek, napokra bontott egysoros lista. A soron kattintva lefelé nyílik a
 commit: szerző GitHub-avatarral, szülő(k), GitHub-link, fájlok és
 szintaxisszínezett diff. Ha a helyi ág és a remote-ja ugyanott áll, egy
-badge-ben látszanak (`main | origin`).
+badge-ben látszanak (`main | origin`). A kereső (⌘F) az üzenetben, a
+szerzőben, a ref-nevekben és a hash elején keres, ékezettől függetlenül;
+minden szónak egyeznie kell, Escape törli.
 
 A `git-graph` parancs a Claude Bash eszközének szól (a plugin `bin/`-jéből), nem a
 terminálnak — a skillek és a hook ezt hívják:
