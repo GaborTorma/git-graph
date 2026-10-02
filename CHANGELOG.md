@@ -1,3 +1,13 @@
+## [0.5.0] - 2026-10-02
+
+### 📚 Documentation
+
+- *(worklog)* Artifact skill rename
+
+### 🚜 Refactor
+
+- [**breaking**] Rename the git-graph skill to artifact
+
 ## [0.4.2] - 2026-10-02
 
 ### 🐛 Bug Fixes
