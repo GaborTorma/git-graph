@@ -1,0 +1,7 @@
+# Az app a `/usr/bin/python3`-mal indítja a szervert: a script maradjon 3.9-kompatibilis.
+target-version = "py39"
+include = ["bin/git-graph", "tests/*.py"]
+line-length = 120
+
+[lint]
+select = ["E4", "E7", "E9", "F", "B", "UP", "PLE"]

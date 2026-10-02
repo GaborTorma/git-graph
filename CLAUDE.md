@@ -9,7 +9,10 @@ Használat és felépítés: [README.md](README.md).
 
 | Útvonal | Mi ez |
 | --- | --- |
-| `bin/git-graph` | a teljes eszköz egyetlen fájlban: git-adatgyűjtés + a lap kódja (`PAGE_*`, a `page_code` tool adja) és az Artifact betöltője (`LOADER`) + MCP szerver a Claude appnak (`--mcp`, benne a leszerelés figyelése) + a publikálás lépései a sessionnek (`--publish`, `--published`) + SessionStart hook (`--session-hook`), benne a plugin gépi telepítése |
+| `bin/git-graph` | a Python-oldal egyetlen fájlban: git-adatgyűjtés + MCP szerver a Claude appnak (`--mcp`, benne a leszerelés figyelése; a `page_code` tool a `page/` fájljait adja) + a publikálás lépései a sessionnek (`--publish`, `--published`) + SessionStart hook (`--session-hook`), benne a plugin gépi telepítése |
+| `page/` | a lap: `loader.html` (az Artifact betöltője, `build()`), `head.html`, `page.css`, `body.html`, `page.js` (a `page_code` adja) |
+| `tests/test_mcp.py` | füstteszt: `git-graph --mcp` stdio-n kamu `HOME`-mal, a working tree-ből és a stabil másolatból |
+| `ruff.toml`, `biome.json` | lint: Python (3.9-célverzióval) és a `page/` JS / CSS / HTML-je |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
 | `hooks/hooks.json` | a plugin hookja (`--session-hook`): SessionStart, és PostToolUse az `EnterWorktree` / `ExitWorktree` után |
@@ -36,8 +39,8 @@ git-graph --forget-artifact <URL>   # egyetlen Artifact nyomai (megszűnt worktr
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
 ```
 
-Az Artifact csak egy betöltő (`LOADER`, `build()`): a lap kódját (`PAGE_HEAD`,
-`PAGE_CSS`, `PAGE_BODY`, `PAGE_JS`) a `page_code` toollal, az adatot a
+Az Artifact csak egy betöltő (`page/loader.html`, `build()`): a lap kódját
+(`page/head.html`, `page.css`, `body.html`, `page.js`) a `page_code` toollal, az adatot a
 `graph_data`-val kéri a Claude app host-hídján át a `git-graph --mcp`-ből, a
 `startLive` pollozójával. Kódváltozás így újrapublikálás nélkül él: a
 `claude plugin update` után a futó szerver percen belül frissíti magát, a lap
@@ -45,12 +48,12 @@ pedig újratölt.
 A `git-graph` a Claude Bash eszközének parancsa (a plugin `bin/`-je), terminálos
 link és pillanatkép nincs; parancs nélkül a súgót írja ki.
 
-Nincs teszt-suite és nincs build — egyfájlos stdlib script. Változtatás után az
-ellenőrzés: a `git-graph --mcp` `graph_data`-ja több repón (eltérő sávszámmal,
-merge-ekkel), és a lap az appban. A JS-t a fájlból kivágva `node --check`-kel lehet
-szintaxis-ellenőrizni. Az MCP-é: a `git-graph --mcp`-t stdio-n kézfogással,
-`tools/list`-tel és a toolok hívásával (`/usr/bin/python3`-mal, ahogy az app
-indítja). Az élő lapé: a sessionből publikálva, a Claude appban megnyitva (az
+Nincs build — stdlib script és statikus lapfájlok. A **Check** lintel (ruff,
+Biome), és lefuttatja a füsttesztet: az MCP-t stdio-n kézfogással, `tools/list`-tel
+és a toolok hívásával (`/usr/bin/python3`-mal, ahogy az app indítja), a stabil
+másolatból is. A lintereket a `uvx` / `pnpm dlx` hozza, a repóba nem kerül
+függőség. Ezen túl kézzel: a `git-graph --mcp` `graph_data`-ja több repón
+(eltérő sávszámmal, merge-ekkel), és a lap az appban. Az élő lapé: a sessionből publikálva, a Claude appban megnyitva (az
 app MCP-naplója a host-híd hívásait nem mutatja — a lapot kell nézni). A hooké
 és a publikálásé: `--session-hook` kamu `HOME`-mal, `CLAUDE_PLUGIN_ROOT`-tal
 és `CLAUDE_CODE_ENTRYPOINT`-tal, eldobható klónon (a `--published` a
@@ -59,7 +62,7 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
 `HOME`-mal, a modult betöltve, a `launchctl`-t rögzítőre cserélve — a régi
 agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 
-- **Check**: `syntax=/usr/bin/python3 -m py_compile bin/git-graph && claude plugin validate . --strict` · `js=sed -n '/^PAGE_JS = r"""$/,/^"""$/{//!p;}' bin/git-graph | node --input-type=module --check - && sed -n '/^<script>$/,/^<\/script>$/{//!p;}' bin/git-graph | node --check -`
+- **Check**: `syntax=/usr/bin/python3 -m py_compile bin/git-graph && node --check page/page.js && claude plugin validate . --strict` · `lint=uvx ruff@0.16.10 check && pnpm dlx @biomejs/biome@2.5.15 lint` · `test=/usr/bin/python3 -m unittest discover -s tests`
 
 ## Konvenciók
 
@@ -68,7 +71,8 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   **angolul** maradnak: az a Git Graph felismerhető arca. A Graph oszlop
   fejléce ikon (a felirat feleslegesen szélesre nyomta az oszlopot).
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
-  futnia kell, `pip install` nélkül. Ne hozz be libet.
+  futnia kell, `pip install` nélkül. Ne hozz be libet. A lintek (ruff, Biome)
+  csak fejlesztői eszközök, `uvx` / `pnpm dlx` futtatja őket, verzióra rögzítve.
 - **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a
   `.git/config` `git-graph.*` kulcsai — lokális, sosem commitolódik.
 - **Verziókezelés**: SemVer, a verzió egyetlen forrása a
@@ -149,7 +153,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   vagy a capability-lista változásakor kell feltölteni. Adatot és kódot ne tegyél
   vissza a lapba.
 - **A lap kódja élőben jön** (`page_code`, mérve: az Artifact CSP-je engedi az
-  `import(blob:)`-ot, docs/artifact-findings.md). A `PAGE_JS` ES-modulként fut
+  `import(blob:)`-ot, docs/artifact-findings.md). A `page/page.js` ES-modulként fut
   (strict mode), a kontextust (`slug`, `repo`, MCP kliens) a betöltő adja a
   `globalThis.GIT_GRAPH`-ban. A betöltő és a `page_code` szerződése a
   `LOADER_API`: csak akkor lép, ha a kettő közti megállapodás változik — eltérésnél
@@ -194,13 +198,16 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
     ezért az app a **stabil másolatot** futtatja
     (`~/.git-graph/bin/git-graph`) — symlinket nem, mert a régi verzió mappája
     eltűnhet.
-    A másolat mellé a manifest is kerül (`~/.git-graph/.claude-plugin/plugin.json`):
-    ebből olvassa a futó szerver induláskor a verzióját (`RUNNING_VERSION`), a
+    A másolat mellé a lap fájljai (`~/.git-graph/page/`) és a manifest is kerül
+    (`~/.git-graph/.claude-plugin/plugin.json`) — ebben a sorrendben, a script
+    utolsóként. A lap fájljait a szerver induláskor egyszer olvassa be
+    (`page_file`), így a futó verzió a saját kódját adja akkor is, ha a hook már
+    újat másolt. A manifestből olvassa a futó szerver induláskor a verzióját (`RUNNING_VERSION`), a
     `fingerprint` pedig a telepítettel együtt adja — a lábléc így jelzi, ha az
     app még a régi kódot futtatja.
   - **A futó szerver frissíti magát** (`watch_plugin` → `pull_update` →
     `restart`): ha a nyilvántartás más verziót mond, mint ami fut, a plugin
-    `installPath`-jából átmásolja a scriptet és a manifestet (vagy a hook már
+    `installPath`-jából átmásolja a scriptet, a lap fájljait és a manifestet (vagy a hook már
     lecserélte), majd két kérés között `os.execv`-vel újraindul ugyanazokon a
     stdio-csöveken. Ezért puffereletlen a stdin-olvasás (`select` + `os.read`,
     saját sorpuffer): csak üres pufferrel indul újra, a csőben maradt kérést az

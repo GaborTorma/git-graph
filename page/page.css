@@ -1,0 +1,309 @@
+/* ── Tokenek ───────────────────────────────────────────────────────────────
+   Sötét-elsődleges: a :root a VS Code Dark+ palettája (ez a Git Graph ismerős
+   arca), a világos változat mind a rendszer-preferenciára, mind az explicit
+   [data-theme="light"] kapcsolóra felülír. Minden szín tokenen keresztül megy —
+   így egyik témában sem marad definiálatlan érték.                            */
+:root {
+  --bg:            #1e1e1e;
+  --bg-chrome:     #252526;
+  --bg-elevated:   #2d2d30;
+  --bg-hover:      #2a2d2e;
+  --bg-selected:   #094771;
+  --fg:            #cccccc;
+  --fg-strong:     #ffffff;
+  --fg-dim:        #8b8b8b;
+  --fg-faint:      #6a6a6a;
+  --border:        #3c3c3c;
+  --border-soft:   #333336;
+  --accent:        #0098ff;
+  --add:           #6a9955;
+  --del:           #f14c4c;
+  --add-bg:        rgba(106, 153, 85, .16);
+  --add-hl:        rgba(106, 153, 85, .40);
+  --del-bg:        rgba(241, 76, 76, .13);
+  --del-hl:        rgba(241, 76, 76, .36);
+  --badge-fg:      #ffffff;
+  --tag-bg:        #b8860b;
+  --shadow:        0 2px 12px rgba(0, 0, 0, .5);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg:          #ffffff;
+    --bg-chrome:   #f3f3f3;
+    --bg-elevated: #f8f8f8;
+    --bg-hover:    #e8e8e8;
+    --bg-selected: #cce5ff;
+    --fg:          #333333;
+    --fg-strong:   #000000;
+    --fg-dim:      #6a6a6a;
+    --fg-faint:    #8a8a8a;
+    --border:      #dcdcdc;
+    --border-soft: #ececec;
+    --accent:      #005fb8;
+    --add:         #388a34;
+    --del:         #c72e2e;
+    --add-bg:      rgba(56, 138, 52, .11);
+    --add-hl:      rgba(56, 138, 52, .27);
+    --del-bg:      rgba(199, 46, 46, .09);
+    --del-hl:      rgba(199, 46, 46, .22);
+    --badge-fg:    #ffffff;
+    --tag-bg:      #9a6b00;
+    --shadow:      0 2px 12px rgba(0, 0, 0, .14);
+  }
+}
+:root[data-theme="light"] {
+  --bg:          #ffffff;
+  --bg-chrome:   #f3f3f3;
+  --bg-elevated: #f8f8f8;
+  --bg-hover:    #e8e8e8;
+  --bg-selected: #cce5ff;
+  --fg:          #333333;
+  --fg-strong:   #000000;
+  --fg-dim:      #6a6a6a;
+  --fg-faint:    #8a8a8a;
+  --border:      #dcdcdc;
+  --border-soft: #ececec;
+  --accent:      #005fb8;
+  --add:         #388a34;
+  --del:         #c72e2e;
+  --add-bg:      rgba(56, 138, 52, .11);
+  --add-hl:      rgba(56, 138, 52, .27);
+  --del-bg:      rgba(199, 46, 46, .09);
+  --del-hl:      rgba(199, 46, 46, .22);
+  --badge-fg:    #ffffff;
+  --tag-bg:      #9a6b00;
+  --shadow:      0 2px 12px rgba(0, 0, 0, .14);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI",
+               system-ui, "Ubuntu", "Droid Sans", sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  /* VS Code-panel elrendezés: a kontroll-sor fix, alatta egyetlen görgethető
+     régió — a fejléc-sor ehhez tapad, a body pedig sosem görget sehova. */
+  height: 100dvh;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono",
+               Menlo, Consolas, "Liberation Mono", monospace;
+  font-variant-ligatures: none;
+}
+
+/* ── Fejléc-sáv (a Git Graph kontroll-sora) ───────────────────────────────── */
+.chrome {
+  flex: none;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 9px 14px;
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--border);
+}
+.repo { display: flex; align-items: baseline; gap: 8px; }
+.repo-name { font-size: 14px; font-weight: 600; color: var(--fg-strong); }
+.repo-sub { font-size: 11px; color: var(--fg-dim); }
+
+.control { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.control label { color: var(--fg-dim); }
+select, .btn {
+  background: var(--bg-elevated);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 3px 7px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+select:focus-visible, .btn:focus-visible, .row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.btn:hover, select:hover { background: var(--bg-hover); }
+.switch { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.switch input { accent-color: var(--accent); margin: 0; cursor: pointer; }
+
+.spacer { margin-left: auto; }
+.stat { font-size: 11px; color: var(--fg-dim); white-space: nowrap; }
+.stat b { color: var(--fg); font-weight: 600; }
+
+/* ── Táblázat ─────────────────────────────────────────────────────────────── */
+.scroll { flex: 1 1 auto; overflow: auto; }
+.thead, .row {
+  display: grid;
+  grid-template-columns: var(--graph-w, 96px) minmax(320px, 1fr) 136px 148px 92px;
+  align-items: center;
+  min-width: 860px;
+}
+.thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  height: 26px;
+}
+.thead > div { padding: 0 10px; border-left: 1px solid var(--border-soft); }
+/* Balra zárva, a sávok fölé; színe a fejléc-feliratoké. */
+.thead > .thead-graph {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 0 0 6px;
+  color: var(--fg-dim);
+}
+.thead > div:first-child { border-left: 0; }
+
+.graph-wrap { position: relative; }
+#lanes { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
+
+.rows { position: relative; z-index: 2; }
+.row {
+  height: 24px;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  padding: 0;
+}
+.row:hover .cell ~ .cell { background: var(--bg-hover); }
+.row[aria-expanded="true"] .cell ~ .cell { background: var(--bg-selected); }
+.row[aria-expanded="true"] .desc, .row[aria-expanded="true"] .sha { color: var(--fg-strong); }
+.row.dim { opacity: .28; }
+.row.uncommitted .subject { font-style: italic; color: var(--fg-faint); }
+
+.cell { padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desc { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.date, .author { color: var(--fg-dim); font-size: 12px; }
+.date { font-variant-numeric: tabular-nums; }
+.sha { color: var(--fg-dim); font-size: 12px; }
+
+/* ── Ref-badge-ek ─────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  max-width: 260px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 15px;
+  color: var(--badge-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.badge.ref-head, .badge.ref-detached { background: #0e7a3d; font-weight: 900; }
+.badge.ref-branch { background: #1f6feb; }
+.badge.ref-remote { background: #6e4bb8; }
+.badge.ref-tag    { background: var(--tag-bg); border-radius: 3px; }
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.85); flex: none; }
+.badge.ref-tag .dot { border-radius: 1px; }
+
+/* ── Commit-részletek panel ──────────────────────────────────────────────── */
+.details {
+  margin-left: var(--graph-w, 96px);   /* a gráf-oszlop szabadon marad */
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 18px 16px;
+  box-shadow: var(--shadow);
+}
+.details h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-strong);
+  text-wrap: balance;
+}
+.meta { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; font-size: 12px; margin-bottom: 12px; }
+.meta dt { color: var(--fg-dim); }
+.meta dd { margin: 0; }
+.meta a { color: var(--accent); text-decoration: none; cursor: pointer; }
+.meta a:hover { text-decoration: underline; }
+.body-text { white-space: pre-wrap; font-size: 12px; color: var(--fg); margin: 0 0 12px; max-width: 68ch; }
+.gh-link { color: var(--accent); text-decoration: none; }
+.gh-link:hover { text-decoration: underline; }
+
+.files { border-top: 1px solid var(--border-soft); padding-top: 10px; }
+.files-head { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-dim); margin-bottom: 6px; }
+.file {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) 84px; gap: 6px; align-items: center;
+  font-size: 12px; padding: 1px 4px; margin: 0 -4px; border-radius: 3px; cursor: pointer;
+}
+.file:hover { background: var(--bg-hover); }
+.file .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; justify-self: start; max-width: 100%; }
+.file .chev { color: var(--fg-dim); transition: transform .12s; }
+.file[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.churn { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Fájl-diff (lenyitott fájlsor) ── a Claude app diff-nézetének mintájára:
+   sorszám · jel · szöveg, a cserélt szavak erősebb háttérrel. */
+.diff {
+  margin: 4px 0 8px 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  background: var(--bg);
+  font-size: 12px;
+  line-height: 18px;
+  overflow: hidden;
+  container-type: inline-size;         /* a nézetet a saját szélessége dönti el */
+}
+/* Egymás alatti nézet: `.diff-line`; side-by-side: `.split-row` két `.half`-fel. */
+.diff-line, .half { display: grid; grid-template-columns: 5ch 2ch minmax(0, 1fr); padding-right: 8px; }
+.diff .no { color: var(--fg-faint); text-align: right; padding-right: 1ch; user-select: none; }
+.diff .sg { user-select: none; }
+.diff .tx { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff .add { background: var(--add-bg); box-shadow: inset 2px 0 var(--add); }
+.diff .del { background: var(--del-bg); box-shadow: inset 2px 0 var(--del); }
+.diff .add .no, .diff .add .sg { color: var(--add); }
+.diff .del .no, .diff .del .sg { color: var(--del); }
+.diff .add mark { background: var(--add-hl); color: inherit; border-radius: 2px; }
+.diff .del mark { background: var(--del-hl); color: inherit; border-radius: 2px; }
+.split-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.split-row .half + .half { border-left: 1px solid var(--border-soft); }
+.half.none { background: var(--bg-elevated); }
+.diff-split { display: none; }
+@container (min-width: 1000px) {
+  .diff-uni { display: none; }
+  .diff-split { display: block; }
+}
+.diff-gap, .diff-note {
+  font-size: 12px; color: var(--fg-dim); padding: 4px 8px; margin: 0;
+}
+.diff-gap { padding: 8px 8px; }
+.diff-gap:first-child { padding-top: 6px; }
+.churn .a { color: var(--add); }
+.churn .d { color: var(--del); }
+
+.empty { padding: 40px; text-align: center; color: var(--fg-dim); }
+.foot { padding: 14px 18px 28px; font-size: 11px; color: var(--fg-faint); border-top: 1px solid var(--border-soft); }
+.foot.stale { color: var(--del); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
