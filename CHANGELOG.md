@@ -1,3 +1,12 @@
+## [0.8.0] - 2026-10-02
+
+### 🚀 Features
+
+- *(page)* Show the running and installed version in the footer
+
+### 📚 Documentation
+
+- *(worklog)* Footer version
 ## [0.7.0] - 2026-10-02
 
 ### 🚀 Features
