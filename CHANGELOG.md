@@ -1,3 +1,13 @@
+## [0.4.2] - 2026-10-02
+
+### 🐛 Bug Fixes
+
+- *(ui)* Skip the side-by-side diff when a file only adds or only removes lines
+
+### 📚 Documentation
+
+- *(worklog)* One-sided diff view
+
 ## [0.4.1] - 2026-10-01
 
 ### 📚 Documentation
