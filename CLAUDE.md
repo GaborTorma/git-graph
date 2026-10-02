@@ -9,7 +9,7 @@ Használat és felépítés: [README.md](README.md).
 
 | Útvonal | Mi ez |
 | --- | --- |
-| `bin/git-graph` | a teljes eszköz egyetlen fájlban: git-adatgyűjtés + HTML/CSS/JS sablon (az Artifact vékony lapja) + MCP szerver a Claude appnak (`--mcp`, benne a leszerelés figyelése) + a publikálás lépései a sessionnek (`--publish`, `--published`) + SessionStart hook (`--session-hook`), benne a plugin gépi telepítése |
+| `bin/git-graph` | a teljes eszköz egyetlen fájlban: git-adatgyűjtés + a lap kódja (`PAGE_*`, a `page_code` tool adja) és az Artifact betöltője (`LOADER`) + MCP szerver a Claude appnak (`--mcp`, benne a leszerelés figyelése) + a publikálás lépései a sessionnek (`--publish`, `--published`) + SessionStart hook (`--session-hook`), benne a plugin gépi telepítése |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
 | `hooks/hooks.json` | a plugin hookja (`--session-hook`): SessionStart, és PostToolUse az `EnterWorktree` / `ExitWorktree` után |
@@ -36,8 +36,11 @@ git-graph --forget-artifact <URL>   # egyetlen Artifact nyomai (megszűnt worktr
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
 ```
 
-Egy sablon (`build()`): az Artifact vékony lapja — üres váz, az adatot a
-Claude app host-hídján át a `git-graph --mcp`-ből kéri, a `startLive` pollozójával.
+Az Artifact csak egy betöltő (`LOADER`, `build()`): a lap kódját (`PAGE_HEAD`,
+`PAGE_CSS`, `PAGE_BODY`, `PAGE_JS`) a `page_code` toollal, az adatot a
+`graph_data`-val kéri a Claude app host-hídján át a `git-graph --mcp`-ből, a
+`startLive` pollozójával. Kódváltozás így az app újraindításával él,
+újrapublikálás nélkül.
 A `git-graph` a Claude Bash eszközének parancsa (a plugin `bin/`-je), terminálos
 link és pillanatkép nincs; parancs nélkül a súgót írja ki.
 
@@ -55,7 +58,7 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_uninstall`): kam
 `HOME`-mal, a modult betöltve, a `launchctl`-t rögzítőre cserélve — a régi
 agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 
-- **Check**: `syntax=/usr/bin/python3 -m py_compile bin/git-graph && claude plugin validate . --strict` · `js=sed -n '/^<script>$/,/^<\/script>$/{//!p;}' bin/git-graph | node --check -`
+- **Check**: `syntax=/usr/bin/python3 -m py_compile bin/git-graph && claude plugin validate . --strict` · `js=sed -n '/^PAGE_JS = r"""$/,/^"""$/{//!p;}' bin/git-graph | node --input-type=module --check - && sed -n '/^<script>$/,/^<\/script>$/{//!p;}' bin/git-graph | node --check -`
 
 ## Konvenciók
 
@@ -138,11 +141,19 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   Az `EnterWorktree` session közben történik, ezért a hook PostToolUse-ként
   is fut: a `cwd` ilyenkor már az új munkakönyvtár (docs).
 - **A kimenet a repón KÍVÜL, `~/.git-graph/<slug>/`**: `artifact.html` az
-  Artifact vékony lapja — innen publikál a session. Ne tedd konfigurálhatóvá. A projektmappába nem írunk.
+  Artifact betöltője — innen publikál a session. Ne tedd konfigurálhatóvá. A projektmappába nem írunk.
 - **Az Artifact nem tárol adatot** — ez a lényeg, nem optimalizálás. Egy
   beágyazott adatú lap frissítése nagy repón ~50 s volt (a feltöltő modell az
-  élő és a helyi példányt is végigolvassa); a vékony lapot csak sablon- vagy
-  repónév-változáskor kell feltölteni (~6 s). Adatot ne tegyél vissza a lapba.
+  élő és a helyi példányt is végigolvassa); a betöltőt csak a saját, a repónév
+  vagy a capability-lista változásakor kell feltölteni. Adatot és kódot ne tegyél
+  vissza a lapba.
+- **A lap kódja élőben jön** (`page_code`, mérve: az Artifact CSP-je engedi az
+  `import(blob:)`-ot, docs/artifact-findings.md). A `PAGE_JS` ES-modulként fut
+  (strict mode), a kontextust (`slug`, `repo`, MCP kliens) a betöltő adja a
+  `globalThis.GIT_GRAPH`-ban. A betöltő és a `page_code` szerződése a
+  `LOADER_API`: csak akkor lép, ha a kettő közti megállapodás változik — eltérésnél
+  a `page_code` hibával adja vissza a teendőt, a betöltő kiírja. A betöltő nem
+  írhatja felül a `body`-t: a platform a `<title>`-t is oda teszi.
 - **Host-híd (`host:git-graph`)** — mérve, docs/artifact-findings.md:
   - Csak a Claude app configjában (`claude_desktop_config.json`) felvett szerver
     érhető el; a `claude mcp add`-os nem. Az app csak induláskor olvassa, és
