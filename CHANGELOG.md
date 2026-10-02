@@ -1,3 +1,13 @@
+## [0.6.0] - 2026-10-02
+
+### 🚀 Features
+
+- *(hook)* Open the artifact only once per session
+
+### 📚 Documentation
+
+- *(worklog)* Artifact open once per session
+
 ## [0.5.0] - 2026-10-02
 
 ### 📚 Documentation
