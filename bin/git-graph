@@ -33,6 +33,7 @@ import html
 import json
 import os
 import re
+import select
 import shlex
 import shutil
 import subprocess
@@ -1470,6 +1471,7 @@ function versionText(f) {
 function startLive(src) {
   let last = '';                            // a váz üres: az első kör adatot kér
   let change = '';                          // az utolsó változás: mikor, mennyi idő alatt
+  let version = null;                       // a szerver verziója, amikor a lap betöltött
   SRC = src;
   async function poll() {
     let wait = POLL_MS;
@@ -1477,6 +1479,10 @@ function startLive(src) {
       const t0 = performance.now();
       const f = await src.fingerprint();
       const tf = performance.now() - t0;
+      // A szerver frissült és újraindult (`restart`): a lap kódja is az övé,
+      // újratöltve a betöltő az új `page_code`-ot kéri.
+      if (version && f.version && f.version !== version) { location.reload(); return; }
+      version = version || f.version;
       const key = JSON.stringify(f);
       if (key !== last) {
         const t1 = performance.now();
@@ -1877,43 +1883,74 @@ def mcp_serve(limit: int | None) -> int:
     `fingerprint`-et sűrűn, a `graph_data`-t csak változáskor. Stdlib JSON-RPC
     2.0, soronként egy üzenet; a stdout-ra csak protokoll mehet. Mindkét tool
     read-only-nak jelölt: így az app nem kér hívásonként megerősítést. Közben
-    figyeli, eltávolították-e a plugint (`watch_uninstall`).
+    figyeli, eltávolították-e vagy frissítették-e a plugint (`watch_plugin`).
     """
     out = sys.stdout.buffer
-    threading.Thread(target=watch_uninstall, daemon=True).start()
+    threading.Thread(target=watch_plugin, daemon=True).start()
 
     def send(message: dict) -> None:
         out.write(json.dumps(message).encode() + b"\n")   # ASCII: nem függ a locale-tól
         out.flush()
 
-    for raw in sys.stdin.buffer:
+    # Puffereletlen olvasás, saját sorpufferrel: újraindulni (`restart`) csak
+    # akkor szabad, ha nincs beolvasott, de feldolgozatlan bemenet — a csőben
+    # maradt bájtokat az új folyamat olvassa tovább. A `select` időkorlátja
+    # azért kell, hogy kérés nélkül is észrevegyük a frissítést.
+    fd, pending = sys.stdin.fileno(), b""
+    while True:
+        if UPDATED.is_set() and not pending:
+            restart()
+        if not select.select([fd], [], [], 1.0)[0]:
+            continue
+        chunk = os.read(fd, 65536)
+        if not chunk:
+            return 0
+        pending += chunk
+        while b"\n" in pending:
+            raw, pending = pending.split(b"\n", 1)
+            respond(raw, send, limit)
+
+
+def respond(raw: bytes, send, limit: int | None) -> None:
+    """Egy JSON-RPC üzenet megválaszolása (az értesítésre nincs válasz).
+
+    Állapotot nem tart: egy `restart` utáni folyamat a kézfogás nélkül is
+    kiszolgálja a következő kérést.
+    """
+    try:
+        msg = json.loads(raw.decode("utf-8"))
+    except ValueError:
+        return
+    mid, method = msg.get("id"), msg.get("method")
+    if mid is None:
+        return                                 # értesítés, pl. notifications/initialized
+    params = msg.get("params") or {}
+    if method == "initialize":
+        result: dict = {"protocolVersion": params.get("protocolVersion", "2025-06-18"),
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": MCP_NAME, "version": "1"}}
+    elif method == "ping":
+        result = {}
+    elif method == "tools/list":
+        result = {"tools": MCP_TOOLS}
+    elif method == "tools/call":
         try:
-            msg = json.loads(raw.decode("utf-8"))
-        except ValueError:
-            continue
-        mid, method = msg.get("id"), msg.get("method")
-        if mid is None:
-            continue                               # értesítés, pl. notifications/initialized
-        params = msg.get("params") or {}
-        if method == "initialize":
-            result: dict = {"protocolVersion": params.get("protocolVersion", "2025-06-18"),
-                            "capabilities": {"tools": {}},
-                            "serverInfo": {"name": MCP_NAME, "version": "1"}}
-        elif method == "ping":
-            result = {}
-        elif method == "tools/list":
-            result = {"tools": MCP_TOOLS}
-        elif method == "tools/call":
-            try:
-                result = mcp_tool(params.get("name", ""), params.get("arguments") or {}, limit)
-            except Exception as exc:               # a szerver éljen tovább
-                result = {"content": [{"type": "text", "text": f"hiba: {exc}"}], "isError": True}
-        else:
-            send({"jsonrpc": "2.0", "id": mid,
-                  "error": {"code": -32601, "message": f"ismeretlen metódus: {method}"}})
-            continue
-        send({"jsonrpc": "2.0", "id": mid, "result": result})
-    return 0
+            result = mcp_tool(params.get("name", ""), params.get("arguments") or {}, limit)
+        except Exception as exc:               # a szerver éljen tovább
+            result = {"content": [{"type": "text", "text": f"hiba: {exc}"}], "isError": True}
+    else:
+        send({"jsonrpc": "2.0", "id": mid,
+              "error": {"code": -32601, "message": f"ismeretlen metódus: {method}"}})
+        return
+    send({"jsonrpc": "2.0", "id": mid, "result": result})
+
+
+def restart() -> None:
+    """A frissült stabil másolat futtatása ugyanebben a folyamatban (stdio marad)."""
+    log(f"git-graph: frissült ({RUNNING_VERSION} → {stable_version()}) — újraindulás")
+    sys.stdout.flush()
+    python = sys.executable or SYSTEM_PYTHON
+    os.execv(python, [python, str(STABLE), *sys.argv[1:]])
 
 
 # ── Plugin-telepítés (SessionStart hook) és leszerelés (`git-graph --mcp`) ─────────
@@ -1940,7 +1977,8 @@ APP_CONFIG = (Path.home() / "Library" / "Application Support" / "Claude"
 # A rendszer Pythonja: az app minimális környezetében is megvan, és nem tűnik
 # el egy homebrew-frissítéssel.
 SYSTEM_PYTHON = "/usr/bin/python3"
-UNINSTALL_POLL_S = 60
+PLUGIN_POLL_S = 60           # a nyilvántartás figyelése: leszerelés és frissítés
+UPDATED = threading.Event()  # a figyelőszál jelzi: a főszál két kérés között újraindul
 UNINSTALL_MISSES = 2         # frissítés közben a nyilvántartás egy pillanatra hiányos lehet
 
 
@@ -1980,32 +2018,65 @@ def own_version() -> str | None:
 RUNNING_VERSION = own_version()
 
 
-def installed_version() -> str | None:
-    """A Claude Code nyilvántartása szerint telepített verzió; None, ha nem dönthető el."""
+def installed_entry() -> dict | None:
+    """A plugin bejegyzése a Claude Code nyilvántartásában; None, ha nem dönthető el."""
     data = read_json(INSTALLED_PLUGINS)
     if not data or data.get("version") != 2 or not isinstance(data.get("plugins"), dict):
         return None
     for key, entries in data["plugins"].items():
         if key.startswith(PLUGIN_ID) and isinstance(entries, list) and entries:
-            version = entries[0].get("version") if isinstance(entries[0], dict) else None
-            return version if isinstance(version, str) else None
+            return entries[0] if isinstance(entries[0], dict) else None
     return None
 
 
-def install_copy() -> None:
-    """A futó script és a manifestje másolata a stabil helyre."""
-    here = Path(__file__).resolve()
-    for src, dst, mode in ((here.parent.parent / MANIFEST, STATE_DIR / MANIFEST, 0o644),
-                           (here, STABLE, 0o755)):
+def installed_version() -> str | None:
+    """A Claude Code nyilvántartása szerint telepített verzió; None, ha nem dönthető el."""
+    version = (installed_entry() or {}).get("version")
+    return version if isinstance(version, str) else None
+
+
+def stable_version() -> str | None:
+    """A stabil másolat mellé tett manifest verziója — amit egy újraindulás futtatna."""
+    data = read_json(STATE_DIR / MANIFEST)
+    version = data.get("version") if data else None
+    return version if isinstance(version, str) else None
+
+
+def install_copy(root: Path | None = None) -> None:
+    """A script és a manifestje másolata a stabil helyre — a futóé, vagy egy plugin-mappáé.
+
+    Előbb a manifest, aztán a script; mindkettő atomi cserével, folyamatonként
+    saját ideiglenes fájlból (több `git-graph --mcp` is másolhat egyszerre).
+    """
+    root = root or Path(__file__).resolve().parent.parent
+    for src, dst, mode in ((root / MANIFEST, STATE_DIR / MANIFEST, 0o644),
+                           (root / "bin" / "git-graph", STABLE, 0o755)):
         if not src.exists():
             continue
         new = src.read_bytes()
         if not dst.exists() or dst.read_bytes() != new:
             dst.parent.mkdir(parents=True, exist_ok=True)
-            tmp = dst.with_name(f".{dst.name}.tmp")
+            tmp = dst.with_name(f".{dst.name}.{os.getpid()}.tmp")
             tmp.write_bytes(new)
             tmp.chmod(mode)
             tmp.replace(dst)
+
+
+def pull_update() -> bool:
+    """Igaz, ha a futó szerver alatt frissült a git-graph (újra kell indulnia).
+
+    Ha a nyilvántartás más verziót mond, mint ami fut, a plugin mappájából maga
+    másolja a stabil helyre — a `claude plugin update` után így sem
+    app-újraindítás, sem új session nem kell. A hook ugyanígy cserélheti alatta.
+    """
+    entry = installed_entry() or {}
+    version, path = entry.get("version"), entry.get("installPath")
+    if isinstance(version, str) and version != RUNNING_VERSION and isinstance(path, str):
+        root = Path(path)
+        manifest = read_json(root / MANIFEST) if (root / MANIFEST).exists() else None
+        if manifest and manifest.get("version") == version and (root / "bin" / "git-graph").exists():
+            install_copy(root)
+    return stable_version() not in (None, RUNNING_VERSION)
 
 
 def install_app_mcp() -> bool:
@@ -2070,25 +2141,30 @@ def uninstall() -> None:
     shutil.rmtree(STATE_DIR, ignore_errors=True)
 
 
-def watch_uninstall() -> None:
-    """A `git-graph --mcp` szála: ha a plugint eltávolították, leszereli a gépi részt.
+def watch_plugin() -> None:
+    """A `git-graph --mcp` szála: leszerelés, ha a plugint eltávolították; frissítés, ha újult.
 
     Az app minden indításkor elindítja a `git-graph --mcp`-t, és a folyamat az app
     futásáig él — így a leszerelés legkésőbb a következő app-indítás után
-    megtörténik. Csak a plugin telepítette példányban (a stabil másolat) fut.
-    Több példány is futhat (az app és minden Code-session indít egyet): a
-    leszerelés idempotens.
+    megtörténik. Frissüléskor (`pull_update`) jelez a főszálnak, az két kérés
+    között újraindul (`restart`). Csak a plugin telepítette példányban (a
+    stabil másolat) fut. Több példány is futhat (az app és minden Code-session
+    indít egyet): a leszerelés és a másolás idempotens.
     """
     if Path(__file__).resolve() != STABLE.resolve():
         return
     misses = 0
     while True:
-        misses = misses + 1 if plugin_installed() is False else 0
+        installed = plugin_installed()
+        misses = misses + 1 if installed is False else 0
         if misses >= UNINSTALL_MISSES:
             log("A git-graph plugin nincs telepítve — leszerelés.")
             uninstall()
             return
-        time.sleep(UNINSTALL_POLL_S)
+        if installed and pull_update():
+            UPDATED.set()
+            return
+        time.sleep(PLUGIN_POLL_S)
 
 
 def session_hook() -> int:

@@ -39,8 +39,9 @@ python3 bin/git-graph …    # közvetlenül, a working tree-ből
 Az Artifact csak egy betöltő (`LOADER`, `build()`): a lap kódját (`PAGE_HEAD`,
 `PAGE_CSS`, `PAGE_BODY`, `PAGE_JS`) a `page_code` toollal, az adatot a
 `graph_data`-val kéri a Claude app host-hídján át a `git-graph --mcp`-ből, a
-`startLive` pollozójával. Kódváltozás így az app újraindításával él,
-újrapublikálás nélkül.
+`startLive` pollozójával. Kódváltozás így újrapublikálás nélkül él: a
+`claude plugin update` után a futó szerver percen belül frissíti magát, a lap
+pedig újratölt.
 A `git-graph` a Claude Bash eszközének parancsa (a plugin `bin/`-je), terminálos
 link és pillanatkép nincs; parancs nélkül a súgót írja ki.
 
@@ -54,7 +55,7 @@ app MCP-naplója a host-híd hívásait nem mutatja — a lapot kell nézni). A 
 és a publikálásé: `--session-hook` kamu `HOME`-mal, `CLAUDE_PLUGIN_ROOT`-tal
 és `CLAUDE_CODE_ENTRYPOINT`-tal, eldobható klónon (a `--published` a
 `.git/config`-ba ír); a hook kimenete a publikálás lépéseit vagy a megnyitást
-kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_uninstall`): kamu
+kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
 `HOME`-mal, a modult betöltve, a `launchctl`-t rögzítőre cserélve — a régi
 agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 
@@ -170,7 +171,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   - Csak az appban megy (böngészőben `server_not_connected`), csak a
     tulajdonosnak. A lap nem `retryable` hibánál leáll, és kiírja a teendőt.
   - Új tool → a `PUBLISH_CAPS` tool-listájába is (különben `not_in_manifest`),
-    és az app újraindítása: az app által indított `git-graph --mcp` a régi kódot futtatja.
+    és az új betöltő publikálása (a capability-lista a hash része).
 - **A `file_diff` bemenete a lapról jön**: a `sha` csak hex lehet
   (különben `--output=…`-szerű opcióként menne a gitnek), fájlt közvetlenül
   csak akkor olvasunk, ha a git követetlennek mondja — a lapon át ne legyen
@@ -192,12 +193,22 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   - A `CLAUDE_PLUGIN_ROOT` verziónként más (`…/cache/git-graph/git-graph/<verzió>/`),
     ezért az app a **stabil másolatot** futtatja
     (`~/.git-graph/bin/git-graph`) — symlinket nem, mert a régi verzió mappája
-    eltűnhet. Új kód az app újraindításával él (a futó `git-graph --mcp` a régit futtatja).
+    eltűnhet.
     A másolat mellé a manifest is kerül (`~/.git-graph/.claude-plugin/plugin.json`):
     ebből olvassa a futó szerver induláskor a verzióját (`RUNNING_VERSION`), a
     `fingerprint` pedig a telepítettel együtt adja — a lábléc így jelzi, ha az
     app még a régi kódot futtatja.
-  - A leszerelést a `git-graph --mcp` szála végzi (`watch_uninstall`): az
+  - **A futó szerver frissíti magát** (`watch_plugin` → `pull_update` →
+    `restart`): ha a nyilvántartás más verziót mond, mint ami fut, a plugin
+    `installPath`-jából átmásolja a scriptet és a manifestet (vagy a hook már
+    lecserélte), majd két kérés között `os.execv`-vel újraindul ugyanazokon a
+    stdio-csöveken. Ezért puffereletlen a stdin-olvasás (`select` + `os.read`,
+    saját sorpuffer): csak üres pufferrel indul újra, a csőben maradt kérést az
+    új folyamat olvassa. A szerver nem tart állapotot a kézfogás után, a
+    `respond` így az újraindult folyamatban is válaszol. A lap a `fingerprint`
+    verzióváltásán újratölt (`location.reload`), így az új `page_code` is megjön.
+    Mérve kamu `HOME`-mal: 12/12 kérés megválaszolva a csere körül.
+  - A leszerelést is ez a szál végzi (`watch_plugin`): az
     `installed_plugins.json`-ban (Claude Code belső fájl, `version: 2`) keresi a
     `git-graph@…` kulcsot. Ismeretlen formátumnál nem dönt, és csak két
     egymást követő hiány után szerel le (frissítés közbeni pillanat). Csak a
