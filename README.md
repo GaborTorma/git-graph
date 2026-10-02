@@ -133,8 +133,8 @@ Megkötések (a platformé, mérve — [docs/artifact-findings.md](docs/artifact
 - az első megnyitáskor az app engedélyt kér a `git-graph` szerverhez.
 
 **Publikálás:** a lap csak betöltő, így feltölteni csak akkor kell, ha maga a
-betöltő vagy a repó neve változik — egy plugin-frissítés után elég az app
-újraindítása. Az Artifact API-t csak a modell éri el, ezért a
+betöltő vagy a repó neve változik. Egy plugin-frissítés után a gépen futó
+git-graph percen belül magától frissül, a lap újratölt — app-újraindítás sem kell. Az Artifact API-t csak a modell éri el, ezért a
 **session** publikál: a hook (vagy a `/git-graph:artifact` skill a `git-graph --publish`-sal)
 kiírja az `artifact.html`-t és a lépéseket — meglévő Artifactnál előbb `read`
 (friss sessionből a platform különben elutasítja), majd `publish` a
