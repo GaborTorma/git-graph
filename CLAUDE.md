@@ -119,7 +119,11 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   Python eltűnhet egy frissítéssel) — a script maradjon 3.9-kompatibilis.
 - **A hook publikáltat vagy megnyittat.** Ha a repónak nincs Artifactja, vagy a
   lap hashe eltér a `git-graph.artifactHash`-től, a publikálás lépéseit adja a
-  sessionnek (`publish_steps`); különben a meglévőt nyittatja meg. Headless
+  sessionnek (`publish_steps`); különben a meglévőt nyittatja meg — sessionönként
+  egyszer: a `~/.git-graph/sessions.json` (`session_id → slug`, 7 nap után
+  törlődik) szerint, a `source`-tól függetlenül (`resume`, `/clear`, `compact`
+  nem zárja be a lapot; archiválásra nincs hook, a `SessionEnd` app-bezáráskor
+  is fut). Headless
   (`CLAUDE_CODE_ENTRYPOINT=sdk-*`) sessionben és `no-auto-publish` mellett nem
   kér publikálást. Némán kilép, ha a mappa nem repó: egy SessionStart hook
   minden sessionben lefut, zajt nem csinálhat. A repót mindig regisztrálja — a
