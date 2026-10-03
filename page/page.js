@@ -208,7 +208,7 @@ function render() {
   let day = '', html = '';
   for (const c of visible) {
     const key = c.uncommitted ? '' : dayKey(c.date);
-    if (key && key !== day) { html += `<div class="day">${dayLabel(key)}</div>`; day = key; }
+    if (key && key !== day) { html += `<div class="day"><span class="lbl">${dayLabel(key)}</span></div>`; day = key; }
     html += rowHtml(c);
   }
   rowsEl.innerHTML = html || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
