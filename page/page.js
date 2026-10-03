@@ -565,13 +565,34 @@ function highlight(s, hl, lang) {
    bezárt fájl maradjon a tetején, a commit eleje kicsúszva. */
 function showWholeCommit(fileEl) {
   const panel = fileEl.closest('.details');
-  if (!panel) return;
+  if (panel) commitInView(panel, false);
+}
+
+/* A kinyitott commit (sor + panel) egészben a nézetbe: ha elfér, úgy görget,
+   hogy az egész látsszon; ha nem, `alignTall` esetén a sora kerül a
+   napfejléc alá, különben marad, ahogy van. */
+function commitInView(panel, alignTall) {
   const row = panel.previousElementSibling?.classList.contains('row') ? panel.previousElementSibling : null;
   const s = scroller.getBoundingClientRect();
   const top = (row || panel).getBoundingClientRect().top, bottom = panel.getBoundingClientRect().bottom;
-  if (bottom - top > s.height - STEP_TOP) return;            // nem fér ki: marad, ahogy van
+  if (bottom - top > s.height - STEP_TOP) {
+    if (alignTall) scroller.scrollTop -= Math.round(s.top + STEP_TOP - top);
+    return;
+  }
   if (top < s.top + STEP_TOP) scroller.scrollTop -= Math.round(s.top + STEP_TOP - top);
   else if (bottom > s.bottom) scroller.scrollTop += Math.round(bottom - s.bottom);
+}
+
+/* Lefelé haladva (görgetés, nyíl): ha a kinyitott commit sora előbukkan, de a
+   panelje a nézet alá lógna, az egész commit kerül a nézetbe. */
+function revealExpandedBelow() {
+  const panel = rowsEl.querySelector('.details');
+  const row = panel?.previousElementSibling;
+  if (!row?.classList.contains('row')) return;
+  const s = scroller.getBoundingClientRect(), r = row.getBoundingClientRect();
+  if (r.top < s.bottom && r.bottom > s.top && panel.getBoundingClientRect().bottom > s.bottom) {
+    commitInView(panel, true);
+  }
 }
 
 /* Az ablak (Artifact-panel) átméretezése sortörést és nézetváltást hozhat: a
@@ -929,6 +950,8 @@ function select(el) {
   if (!el) return false;
   el.focus({ preventScroll: true });
   ensureVisible(el);
+  // A kinyitott commit sorára lépve: ha a panelje a nézet alá lóg, az egész commit a nézetbe.
+  if (el.getAttribute('aria-expanded') === 'true') revealExpandedBelow();
   return true;
 }
 function selectCommit(c) {
@@ -1105,6 +1128,7 @@ function stepRows(dir) {
   const target = dir > 0 ? (tops.find(t => t > from + 1) ?? max)
                          : ([...tops].reverse().find(t => t < from - 1) ?? 0);
   scroller.scrollTop = Math.min(target, max);
+  if (dir > 0) revealExpandedBelow();
 }
 scroller.addEventListener('wheel', e => {
   if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
