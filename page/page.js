@@ -358,7 +358,7 @@ function toggleFile(fileEl, sha, on) {
   const box = fileEl.nextElementSibling;
   fileEl.setAttribute('aria-expanded', on ? 'true' : 'false');
   box.hidden = !on;
-  if (!on) { openFiles.delete(key); drawGraph(); return; }
+  if (!on) { openFiles.delete(key); drawGraph(); showWholeCommit(fileEl); return; }
   openFiles.add(key);
 
   const lang = langOf(fileEl.dataset.path);
@@ -504,6 +504,20 @@ function highlight(s, hl, lang) {
     i = j;
   }
   return out;
+}
+
+/* Fájl bezárása után: ha a teljes commit (sor + panel) kifér a képernyőre, de
+   nem látszik egészben, a nézet úgy igazodik, hogy az egész látsszon — ne a
+   bezárt fájl maradjon a tetején, a commit eleje kicsúszva. */
+function showWholeCommit(fileEl) {
+  const panel = fileEl.closest('.details');
+  if (!panel) return;
+  const row = panel.previousElementSibling?.classList.contains('row') ? panel.previousElementSibling : null;
+  const s = scroller.getBoundingClientRect();
+  const top = (row || panel).getBoundingClientRect().top, bottom = panel.getBoundingClientRect().bottom;
+  if (bottom - top > s.height - STEP_TOP) return;            // nem fér ki: marad, ahogy van
+  if (top < s.top + STEP_TOP) scroller.scrollTop -= Math.round(s.top + STEP_TOP - top);
+  else if (bottom > s.bottom) scroller.scrollTop += Math.round(bottom - s.bottom);
 }
 
 /* Az ablak (Artifact-panel) átméretezése sortörést és nézetváltást hozhat: a
