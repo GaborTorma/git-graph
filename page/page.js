@@ -963,6 +963,7 @@ render();
 const POLL_MS = 2000;
 const foot = document.getElementById('foot');
 const liveText = document.getElementById('liveText');
+const liveDot = document.getElementById('liveDot');
 const versionEl = document.getElementById('version');
 /* A felül ragadó nap fejléce egyben tűnik el, amikor az alja eléri a
    következő nap fejlécét — nem csúszik ki fokozatosan, nem lóg rá a másikra. */
@@ -1053,6 +1054,8 @@ function notice(text, stale = false) {
   foot.className = stale ? 'foot stale' : 'foot';
   liveText.textContent = text;
   liveText.title = text;
+  liveDot.title = text;
+  liveDot.setAttribute('aria-label', stale ? 'Hiba' : 'Kapcsolódás');
   fitFoot();
 }
 
@@ -1093,16 +1096,6 @@ function fitFoot() {
 }
 new ResizeObserver(fitFoot).observe(document.getElementById('foot'));
 
-/* Frissítés közben pulzál az élő-pötty — legalább egy teljes ütemet, különben
-   egy gyors adatcserénél csak megrándulna. */
-const PULSE_MS = 800;
-let pulseSince = 0, pulseTimer = 0;
-function pulse(on) {
-  clearTimeout(pulseTimer);
-  if (on) { pulseSince = performance.now(); foot.classList.add('busy'); return; }
-  const rest = PULSE_MS - (performance.now() - pulseSince);
-  pulseTimer = setTimeout(() => foot.classList.remove('busy'), Math.max(0, rest));
-}
 
 function startLive(src) {
   let last = '';                            // a váz üres: az első kör adatot kér
@@ -1122,7 +1115,6 @@ function startLive(src) {
       const key = JSON.stringify(f);
       if (key !== last) {
         const t1 = performance.now();
-        pulse(true);
         DATA = await src.data();
         const td = performance.now() - t1;
         for (const [k, v] of diffCache) if (k.startsWith('*uncommitted\n')) v.stale = true;
@@ -1135,14 +1127,12 @@ function startLive(src) {
           + ` kirajzolva ${Math.round(performance.now() - t1)} ms alatt`;
       }
       last = key;
-      foot.classList.remove('stale');
-      foot.classList.add('on');               // a `busy` (pulzálás) marad
-      liveText.textContent = clock();         // az „élő” jelzés a zöld pötty
-      liveText.title = `Élő · frissítve ${clock()}\nujjlenyomat ${Math.round(tf)} ms` + change;
+      foot.className = 'foot on';
+      liveText.textContent = '';              // az „élő” jelzés a pulzáló zöld pötty
+      liveDot.title = `Élő · frissítve ${clock()}\nujjlenyomat ${Math.round(tf)} ms` + change;
+      liveDot.setAttribute('aria-label', 'Élő');
       showVersion(f);
-      pulse(false);
     } catch (e) {
-      pulse(false);
       notice(mcpProblem(e), true);
       if (!e?.retryable) return;                // magától nem javul: nincs több kör
       wait = Math.max(POLL_MS, e.retryAfterMs || 0) * 2;

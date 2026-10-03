@@ -562,12 +562,17 @@ button { font: inherit; color: inherit; }
 .foot .ver.cut { display: none; }
 .foot .ver.warn { color: var(--del); white-space: normal; }
 .foot .live:has(.ver.warn) { white-space: normal; }
-/* Frissítés közben (`pulse`) az élő-pötty pulzál. */
+/* Élőben a pötty folyamatosan pulzál: zölden, ha jön az adat, pirosan, ha a
+   frissítés elakadt. Élőben szöveg nincs, csak a verzió (elválasztó nélkül). */
+#liveText:empty { display: none; }
+#liveText:empty + .ver::before { content: none; }
+.foot.on .dot { --pulse: var(--live); }
+.foot.stale .dot { --pulse: var(--del); }
 @media (prefers-reduced-motion: no-preference) {
-  .foot.busy .dot { animation: live-pulse .8s ease-out infinite; }
+  .foot:is(.on, .stale) .dot { animation: live-pulse 1.6s ease-out infinite; }
 }
 @keyframes live-pulse {
-  0%   { transform: scale(1);    box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 55%, transparent); }
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 color-mix(in srgb, var(--pulse) 55%, transparent); }
   50%  { transform: scale(1.25); }
   100% { transform: scale(1);    box-shadow: 0 0 0 6px transparent; }
 }
