@@ -366,7 +366,8 @@ button { font: inherit; color: inherit; }
 .row.two .desc, .row.three .desc { flex: none; }
 .row.three .desc { flex-direction: column; align-items: flex-start; gap: 3px; }
 .row.three .subject { max-width: 100%; }
-.row.three .refs { max-width: 100%; overflow: hidden; }
+.row.two .refs { margin-left: auto; }          /* a badge-ek jobbra zárva */
+.row.three .refs { max-width: 100%; overflow: hidden; align-self: flex-end; }
 .row.two .meta .sum, .row.three .meta .sum { display: flex; min-width: 0; }
 .row.uncommitted .subject { font-style: italic; color: var(--fg-2); }
 .meta {
