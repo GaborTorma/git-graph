@@ -401,8 +401,9 @@ button { font: inherit; color: inherit; }
    Claude app diff-jelzője mintájára) — csak ha a sor elég széles. */
 .row-in { container-type: inline-size; }
 .sum { display: inline-flex; align-items: center; margin-left: 4px;
-       font: 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
-.sum > span { padding: 3px 5px; }
+       font: 10px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
+/* fix szélesség (5 karakter: `+1200`), hogy a sorok vége egy oszlopban álljon */
+.sum > span { padding: 2px 3px; min-width: 5ch; text-align: center; }
 .sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, transparent); border-radius: 4px 0 0 4px; }
 .sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, transparent); border-radius: 0 4px 4px 0; }
 @container (max-width: 460px) { .meta .sum { display: none; } }
