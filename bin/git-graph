@@ -1348,6 +1348,22 @@ def place(new: bytes, dst: Path, mode: int) -> None:
 
 
 DEV_MARK = "+dev"   # SemVer build-metaadat: a working treeből telepített, fejlesztői példány
+DEV_TTL = 12 * 3600  # ennyi ideig védett a fejlesztői példány a hook visszamásolásától
+
+
+def dev_active() -> bool:
+    """Friss `--dev-install` van a stabil helyen (`<verzió>+dev.<időbélyeg>`, DEV_TTL-en belül).
+
+    Ilyenkor a hook nem másolja vissza a telepített plugint — különben egy
+    másik session indulása vagy egy worktree-váltás egy percen belül
+    visszaállítaná. A védelem lejár, így egy elfelejtett dev-példány nem
+    ragad be a frissítések elé.
+    """
+    version = stable_version() or ""
+    if DEV_MARK not in version:
+        return False
+    stamp = version.rsplit(".", 1)[-1]
+    return stamp.isdigit() and time.time() - int(stamp) < DEV_TTL
 
 
 def dev_install() -> int:
@@ -1355,8 +1371,9 @@ def dev_install() -> int:
 
     A futó szerver a verzióváltáson egy percen belül újraindul erre a kódra,
     a lap pedig újratölt. A fejlesztői példány nem frissít vissza a
-    telepített pluginra (`pull_update`); a következő Claude Code session
-    hookja (`ensure_installed`) viszont visszamásolja a telepítettet.
+    telepített pluginra (`pull_update`), és DEV_TTL-ig a hook
+    (`ensure_installed`) sem másolja vissza a telepítettet (`dev_active`) —
+    ezt a védelmet csak a már ezzel a kóddal telepített plugin hookja tartja.
     """
     root = Path(__file__).resolve().parent.parent
     if root.resolve() == STATE_DIR.resolve():
@@ -1441,7 +1458,8 @@ def ensure_installed() -> str | None:
     root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if not root or Path(root).resolve() not in Path(__file__).resolve().parents:
         return None
-    install_copy()
+    if not dev_active():                 # a friss --dev-install-t nem írja felül
+        install_copy()
     if sys.platform != "darwin":
         return None
     if not install_app_mcp():

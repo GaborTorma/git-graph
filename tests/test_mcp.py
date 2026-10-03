@@ -164,6 +164,17 @@ class McpServerTest(unittest.TestCase):
         self.assertTrue((state / "page" / "page.js").is_file())
         self.check_server(state / "bin" / "git-graph")
 
+    def test_dev_active(self) -> None:
+        """A friss dev-példányt a hook nem írja felül, a lejártat igen."""
+        module = load_module(self.home)
+        manifest = self.home / ".git-graph" / ".claude-plugin" / "plugin.json"
+        manifest.parent.mkdir(parents=True)
+        for version, active in ((f"0.11.0+dev.{int(module.time.time())}", True),
+                                (f"0.11.0+dev.{int(module.time.time()) - module.DEV_TTL - 60}", False),
+                                ("0.11.0", False)):
+            manifest.write_text(json.dumps({"version": version}), encoding="utf-8")
+            self.assertEqual(module.dev_active(), active, version)
+
     def test_avatar_cache(self) -> None:
         """Gyorstárból jön a kép; friss bejegyzésre nem indul letöltés."""
         module = load_module(self.home)

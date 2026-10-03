@@ -57,7 +57,7 @@ függőség. Ezen túl kézzel: a `git-graph --mcp` `graph_data`-ja több repón
 (eltérő sávszámmal, merge-ekkel), és a lap az appban. Az élő lapé: `python3 bin/git-graph --dev-install`. Ez a working treet az
 appban futó szerver helyére teszi `+dev` verzióval; a szerver egy percen belül
 átvált, a lap újratölt, és az app minden git-graph lapja az új kódot mutatja.
-A következő session hookja visszaállítja a telepítettet. Utána a sessionből
+A hook 12 óráig nem másolja vissza a telepítettet (`dev_active`) — de ezt csak a már ezzel a kóddal telepített plugin hookja tudja; a 0.10.x hookja a következő session indulásakor visszaállítja. Utána a sessionből
 publikált lapot kell nézni a Claude appban (az app MCP-naplója a host-híd
 hívásait nem mutatja). A hooké
 és a publikálásé: `--session-hook` kamu `HOME`-mal, `CLAUDE_PLUGIN_ROOT`-tal
