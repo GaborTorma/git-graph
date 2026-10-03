@@ -562,6 +562,9 @@ button { font: inherit; color: inherit; }
 .foot .ver.cut { display: none; }
 .foot .ver.warn { color: var(--del); white-space: normal; }
 .foot .live:has(.ver.warn) { white-space: normal; }
+#liveText { display: inline-flex; align-items: center; gap: 5px; }
+#liveText .sep { color: var(--fg-3); margin-right: 2px; }
+#liveText .upd { width: 12px; height: 12px; }
 .foot .links { justify-self: end; display: flex; align-items: center; gap: 4px; }
 .foot .links .mini { width: 22px; height: 22px; }
 .foot .links .mini:hover { background: var(--bg-3); }
