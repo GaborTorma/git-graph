@@ -297,10 +297,9 @@ button { font: inherit; color: inherit; }
 }
 .search:focus-within kbd { visibility: hidden; }   /* a helye marad: a mező nem ugrik */
 
-/* Témaválasztó: ikonos menügomb, a menü jobbra zárva nyílik. */
-.select.icon-only { gap: 4px; padding: 0 6px 0 8px; color: var(--fg-1); }
-.select.icon-only .chev { width: 10px; height: 10px; margin-left: 0; color: var(--fg-2); }
+/* Témaválasztó (a láblécben): a menü jobbra zárva, felfelé nyílik. */
 .menu-pop.end { left: auto; right: 0; min-width: 170px; }
+.menu-pop.up { top: auto; bottom: calc(100% + 6px); }
 
 /* ── Uncommitted Changes ── fix sáv a lista fölött: mindig látszik. A pontja
    saját SVG-ben van, a szaggatott vonal innen fut le a HEAD-ig; görgetve a
@@ -585,6 +584,9 @@ button { font: inherit; color: inherit; }
 .foot .links .mini { width: 22px; height: 22px; }
 .foot .links .mini:hover { background: var(--bg-3); }
 .foot .links .ic { width: 14px; height: 14px; }
+.foot .links .gh { display: flex; align-items: center; gap: 4px; }
+/* a GitHub-linkek és a téma közt halvány elválasztó */
+.foot .links .gh:not(:empty)::after { content: ""; width: 1px; height: 14px; margin: 0 3px; background: var(--border); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }

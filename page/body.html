@@ -27,13 +27,6 @@
     <input type="search" id="search" placeholder="Keresés" aria-label="Commitok keresése: üzenet, szerző, hash, ág" autocomplete="off" spellcheck="false">
     <kbd>⌘F</kbd>
   </label>
-  <div class="menu">
-    <button type="button" class="select icon-only" id="themeBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Téma">
-      <svg class="ic" id="themeIcon" viewBox="0 0 16 16" aria-hidden="true"></svg>
-      <svg class="ic chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5 8 10l3.5-3.5"/></svg>
-    </button>
-    <div class="menu-pop end" id="themePop" role="listbox" aria-label="Téma" hidden></div>
-  </div>
   </div>
 </div>
 
@@ -49,5 +42,13 @@
 <div class="foot" id="foot">
   <span class="live" id="live"><span class="dot" id="liveDot" role="img" aria-label="Kapcsolódás"></span><span id="liveText">Kapcsolódás…</span><span class="ver" id="version"></span></span>
   <span class="count" id="counter"></span>
-  <span class="links" id="footLinks"></span>
+  <span class="links">
+    <span class="gh" id="footLinks"></span>
+    <span class="menu">
+      <button type="button" class="mini" id="themeBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Téma">
+        <svg class="ic" id="themeIcon" viewBox="0 0 16 16" aria-hidden="true"></svg>
+      </button>
+      <span class="menu-pop end up" id="themePop" role="listbox" aria-label="Téma" hidden></span>
+    </span>
+  </span>
 </div>
