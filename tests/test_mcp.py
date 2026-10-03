@@ -109,6 +109,13 @@ class McpServerTest(unittest.TestCase):
             self.assertTrue(all("email" in c for c in data["commits"] if not c.get("uncommitted")))
             self.assertIn("refs", client.call("fingerprint", repo=SLUG))
 
+            merge = git("log", "-1", "--merges", "--format=%H").strip()
+            if merge and merge in data["stats"]:                # a merge az első szülőjéhez képest
+                files = data["stats"][merge]["files"]
+                self.assertTrue(files, "a merge commit fájllistája üres")
+                diff = client.call("file_diff", repo=SLUG, sha=merge, path=files[0]["path"])
+                self.assertTrue(diff["hunks"] or diff.get("binary"))
+
             sha = git("log", "-1", "--no-merges", "--format=%H").strip()   # a merge-nek nincs fájllistája
             path = git("show", "--format=", "--name-only", sha).split()[0]
             self.assertIsInstance(client.call("file_diff", repo=SLUG, sha=sha, path=path), dict)

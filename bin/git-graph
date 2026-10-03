@@ -146,8 +146,13 @@ def remotes() -> set[str]:
 
 
 def collect_stats(limit: int | None) -> dict[str, dict]:
-    """Fájlonkénti +/− soronként, commitra bontva (`--numstat`)."""
-    args = ["log", "--all", "--date-order", "--numstat", f"--pretty=format:{RS}%H"]
+    """Fájlonkénti +/− soronként, commitra bontva (`--numstat`).
+
+    A merge commit az első szülőjéhez képest: amit a merge a fő ágra hozott
+    (alapból a git a merge-hez nem ad numstatot).
+    """
+    args = ["log", "--all", "--date-order", "--numstat", "--diff-merges=first-parent",
+            f"--pretty=format:{RS}%H"]
     if limit:
         args.append(f"-{limit}")
     raw = git(*args)
@@ -793,7 +798,8 @@ def file_diff(sha: str, path: str) -> dict:
                                            "--", path).splitlines():
             return untracked_diff(path)
     elif SHA_RE.match(sha):
-        raw = git("show", "--format=", "--no-color", "--no-ext-diff", "-M", sha, "--", old, new)
+        raw = git("show", "--format=", "--no-color", "--no-ext-diff", "-M",
+                  "--diff-merges=first-parent", sha, "--", old, new)
     else:
         raise ValueError(f"érvénytelen commit: {sha!r}")
     return parse_diff(raw)
