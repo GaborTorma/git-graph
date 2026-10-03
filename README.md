@@ -169,7 +169,7 @@ Kézi URL-megadás: `git-graph --set-artifact <url>`.
 | --- | --- | --- |
 | `↑` / `↓` | kijelölés az előző / következő commitra (nem nyit) | előző / következő fájl |
 | `→` | kinyitja a commitot, és belép a fájljaiba | kinyitja a diffet (vagy ha már nyitva van) és az első blokkra lép |
-| `←` | becsukja a commitot | nyitott diffet becsuk; bezárt fájlon vissza a commitra |
+| `←` | becsukja a commitot | nyitott diffet becsuk (blokkon is); bezárt fájlon vissza a commitra |
 | `⌘` / `Ctrl` + `↓` / `↑` | szülő / gyerek ugyanazon az ágon | |
 | `⇧⌘` / `⇧Ctrl` + `↓` / `↑` | merge-nél a beolvasztott ág (második szülő), visszafelé a merge | |
 | `H` | kijelölés a HEAD-en | |
@@ -178,7 +178,7 @@ Kézi URL-megadás: `git-graph --set-artifact <url>`.
 
 Fájlon a `→` kinyitja a diffet, és rögtön az első módosított blokkra lép (egy blokk a
 `···` elválasztóig tart); az utolsó után a következő fájlra, `↑`-ra visszafelé,
-`←`-re a fájlsorra. A görgő egy kattanása egy commitot lép.
+`←`-re bezárja a fájlt. A görgő egy kattanása egy commitot lép.
 
 ## Uncommitted Changes
 

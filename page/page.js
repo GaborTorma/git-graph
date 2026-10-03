@@ -787,7 +787,7 @@ document.addEventListener('keydown', e => {
     const blocks = hunksOf(fileEl), i = blocks.indexOf(hunk);
     if (k === 'ArrowDown') select(blocks[i + 1] || nextFile(fileEl));
     else if (k === 'ArrowUp') select(blocks[i - 1] || fileEl);
-    else if (k === 'ArrowLeft') select(fileEl);
+    else if (k === 'ArrowLeft') { toggleFile(fileEl, expanded, false); select(fileEl); }   // bezárja a fájlt
     else handled = false;
   } else if (file) {                                     // ── fájl-szint
     const files = [...file.parentElement.querySelectorAll('.file')];
