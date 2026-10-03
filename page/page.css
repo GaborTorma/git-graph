@@ -295,9 +295,11 @@ button { font: inherit; color: inherit; }
   position: sticky; top: 0; z-index: 3;
   height: 16px; display: flex; align-items: center;
   margin-left: var(--graph-w, 72px); padding: 0 16px 0 10px;
-  background: var(--bg);
+  background: var(--bg);   /* felül ragadva a sorok szövege ne látsszon át */
   font-size: 11.5px; line-height: 16px; font-weight: 600; color: var(--fg-2);
 }
+/* Ha a következő nap fejléce eléri, a felül ragadó egyben eltűnik (JS: `.gone`). */
+.day.gone { visibility: hidden; }
 /* Vékony vonal a lista teljes szélességében (a gráf-oszlopon át), a nap
    felirata mögött kihagyva. */
 .day::before {
@@ -307,7 +309,7 @@ button { font: inherit; color: inherit; }
 }
 .day .lbl { position: relative; padding-right: 8px; background: var(--bg); }
 .day.lead { margin-bottom: -16px; visibility: hidden; }
-.scroll.scrolled .day.lead { visibility: visible; }
+.scroll.scrolled .day.lead:not(.gone) { visibility: visible; }
 
 /* A sor háttere a belső sávon: a gráf-oszlop szabadon marad, a pöttyöket
    (`#lanes`, a sorok MÖGÖTT) semmi nem takarja. */

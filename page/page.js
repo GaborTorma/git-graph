@@ -22,6 +22,7 @@ let freshTimer = 0;
 const rowsEl = document.getElementById('rows');
 const svg = document.getElementById('lanes');
 const counter = document.getElementById('counter');
+const scroller = document.querySelector('.scroll');
 let expanded = null;      // a kinyitott commit sha-ja
 let visible = DATA.commits; // szűrés utáni lista
 
@@ -229,6 +230,7 @@ function render() {
   const shown = visible.filter(c => !c.uncommitted).length;   // az ál-sor nem commit
   counter.innerHTML = DATA.meta.totalCommits ? `<b>${shown}</b> / ${DATA.meta.totalCommits} commit` : '';
   if (expanded && visible.some(c => c.sha === expanded)) open(expanded); else expanded = null;
+  stackDays();
 }
 
 /* ── Commit-részletek ────────────────────────────────────────────────────── */
@@ -682,9 +684,19 @@ const POLL_MS = 2000;
 const foot = document.getElementById('foot');
 const liveText = document.getElementById('liveText');
 const versionEl = document.getElementById('version');
-const scroller = document.querySelector('.scroll');
-scroller.addEventListener('scroll', () =>
-  scroller.classList.toggle('scrolled', scroller.scrollTop > 0), { passive: true });
+/* A felül ragadó nap fejléce egyben tűnik el, amikor az alja eléri a
+   következő nap fejlécét — nem csúszik ki fokozatosan, nem lóg rá a másikra. */
+function stackDays() {
+  scroller.classList.toggle('scrolled', scroller.scrollTop > 0);
+  const days = rowsEl.querySelectorAll('.day');
+  for (let i = 0; i < days.length; i++) {
+    const next = days[i + 1];
+    const touching = next && next.getBoundingClientRect().top - days[i].getBoundingClientRect().top
+      <= days[i].offsetHeight + 0.5;
+    days[i].classList.toggle('gone', Boolean(touching));
+  }
+}
+scroller.addEventListener('scroll', stackDays, { passive: true });
 
 function mcpSource() {
   const mcp = CTX.mcp;
