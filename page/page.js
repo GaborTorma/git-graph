@@ -242,10 +242,10 @@ function rowHtml(c) {
   // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név hoverre (`data-name`).
   const avatar = DATA.avatars?.[c.email];
   const face = avatar ? `<img src="${esc(avatar)}" alt="">` : esc(initials(c.author));
-  // idő · avatar · diff; a hash a lenyitott commit fejében (és a keresés is megtalálja)
+  // idő · avatar · hash · diff: az avatar választja el az időt és a hasht, pont nélkül
   const meta = c.uncommitted ? '' : `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
     + `<span class="author${avatar ? '' : ' ini'}" data-name="${esc(c.author)}" aria-label="${esc(c.author)}">${face}</span>`
-    + `${sum}</span>`;
+    + `<span class="sha">${c.short}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>`
@@ -570,9 +570,9 @@ new ResizeObserver(() => {
 }).observe(rowsEl);
 
 /* Több soros sor: ha a tárgysor nagyon összepréselődne, a jobb oldali blokk
-   (idő · avatar · diff) alulra kerül (`.two`). Badge-es sornál (`.tight`)
-   fent a tárgy, lent balra a badge-ek, jobbra az idő, az avatar és a diff,
-   amennyi elfér.
+   (idő · avatar · hash · diff) alulra kerül (`.two`). Badge-es sornál
+   (`.tight`) fent a tárgy, lent balra a badge-ek, jobbra az idő, az avatar,
+   a hash és a diff, amennyi elfér.
    Minden lépés előbb mér, aztán egy körben ír. */
 const SQUEEZE = 260;   // ennél keskenyebb, csonkolt tárgysornál vált
 const SUM_GAP = 8;     // a diff előtti rés (page.css: .meta gap + .sum margin)
@@ -582,7 +582,7 @@ const squeezed = r => {
 };
 function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
-  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sum');
+  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sum', 'no-sha');
   rowsEl.classList.remove('no-sum');
   const two = rows.filter(squeezed);
   // A diff az egysoros sorokon egységesen látszik vagy nem: elmarad róluk, ha
@@ -598,9 +598,9 @@ function fitRows() {
   for (const r of two) r.classList.add('two');
   const tight = two.filter(r => r.querySelector('.refs'));
   for (const r of tight) r.classList.replace('two', 'tight');
-  // Fontossági sorrend: idő, avatar, diff — ami nem fér ki, hátulról marad el
-  // (előbb a diff, aztán az avatar); az idő mindig látszik.
-  const HIDE = ['no-sum', 'no-author'];
+  // Fontossági sorrend: idő, avatar, diff, hash — ami nem fér ki, hátulról
+  // marad el (előbb a hash, aztán a diff, végül az avatar); az idő mindig látszik.
+  const HIDE = ['no-sha', 'no-sum', 'no-author'];
   const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };
   const overlaps = r => { const m = r.querySelector('.meta'); return m.scrollWidth > m.clientWidth; };
   const plain = two.filter(r => r.classList.contains('two'));
