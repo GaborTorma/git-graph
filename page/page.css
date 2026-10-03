@@ -412,11 +412,17 @@ button { font: inherit; color: inherit; }
 .row-in { container-type: inline-size; }
 .sum { display: inline-flex; align-items: center; margin-left: 2px;   /* fitRows: SUM_GAP */
        font: 10px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
-/* fix szélesség (3 karakter: `888`, `12k` — a +/− jelet a szín adja), hogy a
-   sorok vége egy oszlopban álljon */
-.sum > span { box-sizing: border-box; padding: 2px 3px; min-width: 24px; text-align: right; }
-.sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, transparent); border-radius: 4px 0 0 4px; }
-.sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, transparent); border-radius: 0 4px 4px 0; }
+/* Fix szélesség (oldalanként 3 karakter: `888`, `12k` — a +/− jelet a szín
+   adja), hogy a sorok vége egy oszlopban álljon. A két fél a számjegyek
+   hossza szerint osztozik (`flex-grow` a sorban), a számok a középső
+   határhoz tapadnak; a nulla oldal elmarad, a másik kitölti. */
+.sum { width: 48px; }
+.sum > span { box-sizing: border-box; flex: 0 1 0; min-width: 0; padding: 2px 3px; }
+.sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, transparent);
+          border-radius: 4px 0 0 4px; text-align: right; }
+.sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, transparent);
+          border-radius: 0 4px 4px 0; text-align: left; }
+.sum > :only-child { border-radius: 4px; text-align: center; }
 
 .empty { padding: 40px; text-align: center; color: var(--fg-2); }
 
