@@ -387,6 +387,7 @@ button { font: inherit; color: inherit; }
 .sum.top .d { color: var(--del); }
 .row.tight .sum.top { display: flex; }
 .row.tight .meta .sum,
+.row.no-sum .meta .sum,
 .row.no-author .meta :is(.author, .s-author),
 .row.no-sha .meta :is(.sha, .s-sha) { display: none; }
 .row.uncommitted .subject { font-style: italic; color: var(--fg-2); }

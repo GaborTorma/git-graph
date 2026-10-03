@@ -567,8 +567,14 @@ const squeezed = r => {
 };
 function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
-  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sha');
+  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sha', 'no-sum');
   const two = rows.filter(squeezed);
+  // Egysoros sorban a diff marad el, ha miatta csonkolódik a tárgy.
+  const clipped = rows.filter(r => {
+    const s = r.querySelector('.subject');
+    return s && s.scrollWidth > s.clientWidth && !two.includes(r);
+  });
+  for (const r of clipped) r.classList.add('no-sum');
   for (const r of two) r.classList.add('two');
   const tight = two.filter(r => r.querySelector('.refs'));
   for (const r of tight) r.classList.replace('two', 'tight');
