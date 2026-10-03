@@ -725,6 +725,11 @@ function enterFirstHunk(fileEl) {
   obs.observe(box, { childList: true, subtree: true });
   setTimeout(() => obs.disconnect(), 3000);
 }
+/* A nyitott commit alatti commit sora — az utolsó fájlról / blokkról lefelé ide lép. */
+const belowCommit = () => {
+  const i = visible.findIndex(c => c.sha === expanded);
+  return i < 0 ? null : rowOf(visible[i + 1]);
+};
 const nextFile = fileEl => {
   const files = [...fileEl.parentElement.querySelectorAll('.file')];
   return files[files.indexOf(fileEl) + 1];
@@ -785,7 +790,7 @@ document.addEventListener('keydown', e => {
   if (hunk) {                                            // ── blokk-szint (nyitott diff)
     const fileEl = hunk.closest('.diff').previousElementSibling;
     const blocks = hunksOf(fileEl), i = blocks.indexOf(hunk);
-    if (k === 'ArrowDown' || k === 'ArrowRight') select(blocks[i + 1] || nextFile(fileEl));
+    if (k === 'ArrowDown' || k === 'ArrowRight') select(blocks[i + 1] || nextFile(fileEl) || belowCommit());
     else if (k === 'ArrowUp') select(blocks[i - 1] || fileEl);
     else if (k === 'ArrowLeft') { toggleFile(fileEl, expanded, false); select(fileEl); }   // bezárja a fájlt
     else handled = false;
@@ -793,8 +798,8 @@ document.addEventListener('keydown', e => {
     const files = [...file.parentElement.querySelectorAll('.file')];
     const isOpen = file.getAttribute('aria-expanded') === 'true';
     const prev = files[files.indexOf(file) - 1];
-    if (k === 'ArrowDown') select((isOpen && hunksOf(file)[0]) || files[files.indexOf(file) + 1]);
-    else if (k === 'ArrowUp') select((prev && hunksOf(prev).at(-1)) || prev);
+    if (k === 'ArrowDown') select((isOpen && hunksOf(file)[0]) || files[files.indexOf(file) + 1] || belowCommit());
+    else if (k === 'ArrowUp') select((prev && hunksOf(prev).at(-1)) || prev || rowOf(visible.find(c => c.sha === expanded)));
     else if (k === 'ArrowRight' && !isOpen) { toggleFile(file, expanded, true); enterFirstHunk(file); }
     else if (k === 'ArrowRight') enterFirstHunk(file);          // már nyitva: az első blokkra
     else if (k === 'ArrowLeft' && isOpen) toggleFile(file, expanded, false);

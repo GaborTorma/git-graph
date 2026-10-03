@@ -167,7 +167,7 @@ Kézi URL-megadás: `git-graph --set-artifact <url>`.
 
 | Billentyű | Commiton | Fájlon |
 | --- | --- | --- |
-| `↑` / `↓` | kijelölés az előző / következő commitra (nem nyit) | előző / következő fájl |
+| `↑` / `↓` | kijelölés az előző / következő commitra (nem nyit) | előző / következő fájl; az elsőről fel a commitra, az utolsóról le az alatta lévő commitra |
 | `→` | kinyitja a commitot, és belép a fájljaiba | kinyitja a diffet (vagy ha már nyitva van) és az első blokkra lép |
 | `←` | becsukja a commitot | nyitott diffet becsuk (blokkon is); bezárt fájlon vissza a commitra |
 | `⌘` / `Ctrl` + `↓` / `↑` | szülő / gyerek ugyanazon az ágon | |
