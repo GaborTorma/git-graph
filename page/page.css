@@ -281,8 +281,10 @@ button { font: inherit; color: inherit; }
 }
 
 /* ── Lista ───────────────────────────────────────────────────────────────── */
-.scroll { flex: 1 1 auto; overflow: auto; padding: 4px 0 12px; }
-.graph-wrap { position: relative; min-width: 560px; }
+.scroll { flex: 1 1 auto; overflow: auto; padding: 0 0 12px; }
+/* A felső hézag a tartalomban van, nem paddingben: így a ragadós napfejléc a
+   görgetőmező legtetejére tapad, és fölötte nem bukkan ki sor. */
+.graph-wrap { position: relative; min-width: 560px; margin-top: 4px; }
 #lanes { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
 .rows { position: relative; z-index: 2; }
 
@@ -303,6 +305,8 @@ button { font: inherit; color: inherit; }
   background: var(--border);
 }
 .day .lbl { position: relative; padding-right: 8px; background: var(--bg); }
+.day.lead { margin-bottom: -16px; visibility: hidden; }
+.scroll.scrolled .day.lead { visibility: visible; }
 
 /* A sor háttere a belső sávon: a gráf-oszlop szabadon marad, a pöttyöket
    (`#lanes`, a sorok MÖGÖTT) semmi nem takarja. */

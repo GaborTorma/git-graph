@@ -204,11 +204,19 @@ function rowHtml(c) {
     </button>`;
 }
 
+/* A legfelső nap fejléce, ha az a mai: alaphelyzetben nem foglal helyet és
+   nem látszik (a lista teteje magától értetődően ma), csak görgetéskor jelenik
+   meg fent. Ha a legfelső commit régebbi, a fejléce mindig látszik. */
 function render() {
   let day = '', html = '';
+  const today = dayKey(new Date().toISOString());
   for (const c of visible) {
     const key = c.uncommitted ? '' : dayKey(c.date);
-    if (key && key !== day) { html += `<div class="day"><span class="lbl">${dayLabel(key)}</span></div>`; day = key; }
+    if (key && key !== day) {
+      const lead = !day && key === today ? ' lead' : '';
+      html += `<div class="day${lead}"><span class="lbl">${dayLabel(key)}</span></div>`;
+      day = key;
+    }
     html += rowHtml(c);
   }
   rowsEl.innerHTML = html || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
@@ -639,6 +647,8 @@ const foot = document.getElementById('foot');
 const liveText = document.getElementById('liveText');
 const versionEl = document.getElementById('version');
 const scroller = document.querySelector('.scroll');
+scroller.addEventListener('scroll', () =>
+  scroller.classList.toggle('scrolled', scroller.scrollTop > 0), { passive: true });
 
 function mcpSource() {
   const mcp = CTX.mcp;
