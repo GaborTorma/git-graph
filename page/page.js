@@ -732,17 +732,17 @@ scroller.addEventListener('scroll', stackDays, { passive: true });
    kattanással több sort is átugrik). Ha egy kinyitott commit-panel látszik,
    azon belül szabad a görgetés — a következő lépés újra sorhoz igazít. */
 const STEP_TOP = 16, TRACKPAD_STEP = 40, NOTCH = 50;
-// Irányváltás után ennyi ideig a régi irány kis (lecsengő) eseményei nem
-// számítanak: a simító egérszoftverek (BetterMouse) lendülete ezeket még küldi.
-const REVERSE_GUARD_MS = 150;
-let wheelAcc = 0, stepGoal = null, stepDir = 0, reversedAt = 0;
+// Ennyi időn belül egy irány nem növekvő eseményei lecsengésnek számítanak.
+const COAST_MS = 120;
+let wheelAcc = 0, stepGoal = null, stepDir = 0;
+const lastMag = { 1: 0, '-1': 0 }, lastAt = { 1: -1e9, '-1': -1e9 };
 function stepRows(dir) {
   const base = scroller.getBoundingClientRect().top - scroller.scrollTop;
   const tops = [...rowsEl.querySelectorAll('.row')]
     .map(r => Math.max(0, Math.round(r.getBoundingClientRect().top - base - STEP_TOP)));
   // Irányváltáskor az aktuális helyzetből: a futó animáció célja a régi
   // irányban előrébb van, onnan számolva egy lépést még rossz felé menne.
-  if (stepDir && dir !== stepDir) { stepGoal = null; reversedAt = performance.now(); }
+  if (stepDir && dir !== stepDir) stepGoal = null;
   stepDir = dir;
   const from = stepGoal ?? scroller.scrollTop;
   const max = scroller.scrollHeight - scroller.clientHeight;
@@ -786,14 +786,19 @@ scroller.addEventListener('wheel', e => {
   e.preventDefault();
   const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * scroller.clientHeight : e.deltaY;
   if (!px) return;
-  // A régi irány lecsengő lendülete az irányváltás után: nem lép vissza.
-  if (stepDir && Math.sign(px) !== stepDir && Math.abs(px) < NOTCH
-      && performance.now() - reversedAt < REVERSE_GUARD_MS) return;
-  // Irányváltás: azonnal lép (a simítás után az új irány első eseményei kicsik,
-  // nem kell kivárni a küszöböt), és a régi irány maradéka sem tartja fel.
-  if (stepDir && Math.sign(px) !== stepDir && Math.abs(px) > 2) {
+  const sgn = Math.sign(px), mag = Math.abs(px), now = performance.now();
+  // Lecsengés: ugyanabban az irányban, rövid időn belül, nem növekvő nagyságú
+  // esemény — a simító egérszoftver (BetterMouse) lendülete. Fordulás után ez a
+  // régi irányból még az új irány eseményei KÖZÉ is beérkezhet.
+  const coasting = now - lastAt[sgn] < COAST_MS && mag <= lastMag[sgn] * 1.15;
+  lastMag[sgn] = mag;
+  lastAt[sgn] = now;
+  if (stepDir && sgn !== stepDir) {
+    if (coasting) return;                 // a régi irány lendülete: nem fordít vissza
+    // Valódi fordulás: azonnal lép (az új irány első eseményei kicsik, nem kell
+    // kivárni a küszöböt), és a régi irány maradéka sem tartja fel.
     wheelAcc = 0;
-    stepRows(Math.sign(px));
+    stepRows(sgn);
     return;
   }
   if (wheelAcc && Math.sign(px) !== Math.sign(wheelAcc)) wheelAcc = 0;
