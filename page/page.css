@@ -310,6 +310,7 @@ button { font: inherit; color: inherit; }
 }
 /* Ha a következő nap fejléce eléri, a felül ragadó egyben eltűnik (JS: `.gone`). */
 .day.gone { visibility: hidden; }
+.day.stuck::before { display: none; }
 /* Vékony vonal a lista teljes szélességében (a gráf-oszlopon át), a nap
    felirata mögött kihagyva. */
 .day::before {
