@@ -541,18 +541,22 @@ new ResizeObserver(() => {
   drawGraph();
 }).observe(rowsEl);
 
-/* Kétsoros sor: ha a tárgysor nagyon összepréselődne (a badge-ek vagy a
-   keskeny panel miatt), az első sorba a tárgy kerül, a másodikba a badge-ek és
-   a szerző. Előbb mind egysoros, úgy mér; az írás egy körben, a mérés után. */
+/* Több soros sor: ha a tárgysor nagyon összepréselődne, a jobb oldali blokk
+   (diff · szerző · idő · hash) alulra kerül (`.two`); ha a badge-ek így is
+   kiszorítják, azok is külön sorba (`.three`). Minden lépés előbb mér, aztán
+   egy körben ír. */
 const SQUEEZE = 200;   // ennél keskenyebb, csonkolt tárgysornál vált
+const squeezed = r => {
+  const s = r.querySelector('.subject');
+  return s && s.scrollWidth > s.clientWidth && s.clientWidth < SQUEEZE;
+};
 function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
-  for (const r of rows) r.classList.remove('two');
-  const tight = rows.filter(r => {
-    const s = r.querySelector('.subject');
-    return s && s.scrollWidth > s.clientWidth && s.clientWidth < SQUEEZE;
-  });
-  for (const r of tight) r.classList.add('two');
+  for (const r of rows) r.classList.remove('two', 'three');
+  const two = rows.filter(squeezed);
+  for (const r of two) r.classList.add('two');
+  const three = two.filter(r => r.querySelector('.refs') && squeezed(r));
+  for (const r of three) r.classList.replace('two', 'three');
 }
 
 /* Kompakt fejléc: ha a kontroll-sor feliratokkal két sorba törne, a

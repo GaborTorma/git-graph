@@ -305,7 +305,7 @@ button { font: inherit; color: inherit; }
 .scroll { flex: 1 1 auto; overflow: auto; padding: 0 0 12px; }
 /* A felső hézag a tartalomban van, nem paddingben: így a ragadós napfejléc a
    görgetőmező legtetejére tapad, és fölötte nem bukkan ki sor. */
-.graph-wrap { position: relative; min-width: 560px; margin-top: 4px; }
+.graph-wrap { position: relative; min-width: 320px; margin-top: 4px; }   /* szűkben a sor több soros */
 #lanes { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; overflow: visible; }
 .rows { position: relative; z-index: 2; }
 
@@ -356,15 +356,18 @@ button { font: inherit; color: inherit; }
 .subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.merge .desc { color: var(--fg-2); }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
-/* Kétsoros sor (`fitRows`): fent a tárgy teljes szélességben, lent a badge-ek
-   és a szerző-blokk. */
+/* Kétsoros sor (`fitRows`): fent a tárgy a badge-ekkel, alatta a diff, a
+   szerző, az idő és a hash. Háromsoros, ha a badge-ek így is kiszorítanák a
+   tárgyat: akkor azok is külön sorba kerülnek. */
 .row.two { height: 48px; }
-.row.two .row-in { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center;
-                   row-gap: 3px; column-gap: 12px; }
-.row.two .desc { display: contents; }
-.row.two .subject { grid-column: 1 / -1; }
-.row.two .refs { grid-column: 1; overflow: hidden; }
-.row.two .meta { grid-column: 2; grid-row: 2; justify-content: flex-end; }
+.row.three { height: 68px; }
+.row.two .row-in, .row.three .row-in { flex-direction: column; align-items: stretch;
+                                       justify-content: center; gap: 3px; }
+.row.two .desc, .row.three .desc { flex: none; }
+.row.three .desc { flex-direction: column; align-items: flex-start; gap: 3px; }
+.row.three .subject { max-width: 100%; }
+.row.three .refs { max-width: 100%; overflow: hidden; }
+.row.two .meta .sum, .row.three .meta .sum { display: flex; min-width: 0; }
 .row.uncommitted .subject { font-style: italic; color: var(--fg-2); }
 .meta {
   flex: none; display: flex; gap: 6px;
