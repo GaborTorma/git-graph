@@ -679,7 +679,8 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     searchEl.focus();
     searchEl.select();
-  } else if (e.key === 'Escape' && document.activeElement === searchEl && searchEl.value) {
+  } else if (e.key === 'Escape' && searchEl.value
+             && !document.querySelector('.menu-pop:not([hidden])')) {   // nyitott menüt a menü csuk
     e.stopImmediatePropagation();
     e.preventDefault();
     searchEl.value = '';
