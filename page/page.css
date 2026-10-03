@@ -412,12 +412,11 @@ button { font: inherit; color: inherit; }
 .row-in { container-type: inline-size; }
 .sum { display: inline-flex; align-items: center; margin-left: 2px;   /* fitRows: SUM_GAP */
        font: 10px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
-/* fix szélesség (5 karakter: `+1200`), hogy a sorok vége egy oszlopban álljon */
-.sum > span { box-sizing: border-box; padding: 2px 3px; min-width: 32px; text-align: right; }
+/* fix szélesség (3 karakter: `888`, `12k` — a +/− jelet a szín adja), hogy a
+   sorok vége egy oszlopban álljon */
+.sum > span { box-sizing: border-box; padding: 2px 3px; min-width: 24px; text-align: right; }
 .sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, transparent); border-radius: 4px 0 0 4px; }
 .sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, transparent); border-radius: 0 4px 4px 0; }
-/* 1000 fölött kisebb betű, ugyanabban a szélességben */
-.sum .big { font-size: 8.5px; }
 
 .empty { padding: 40px; text-align: center; color: var(--fg-2); }
 

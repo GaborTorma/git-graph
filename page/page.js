@@ -221,6 +221,9 @@ function badges(c) {
   }).join('');
 }
 
+/* A diff-címke száma legfeljebb 3 karakter: 999 fölött kerekített ezres (`1k`). */
+const kilo = n => n < 1000 ? String(n) : `${Math.round(n / 1000)}k`;
+
 /* `Gábor Torma` → `GT`: a név első két szavának kezdőbetűje. */
 const initials = name => String(name || '?').trim().split(/\s+/).slice(0, 2)
   .map(w => [...w][0] || '').join('').toUpperCase();
@@ -230,8 +233,8 @@ function rowHtml(c) {
   const refs = c.refs.length ? `<span class="refs">${badges(c)}</span>` : '';
   const st = DATA.stats[c.sha];
   const sum = st?.files.length
-    ? `<span class="sum"><span class="a${st.add > 999 ? ' big' : ''}">+${st.add}</span>`
-      + `<span class="d${st.del > 999 ? ' big' : ''}">−${st.del}</span></span>` : '';
+    ? `<span class="sum" title="+${st.add} −${st.del} sor"><span class="a">${kilo(st.add)}</span>`
+      + `<span class="d">${kilo(st.del)}</span></span>` : '';
   // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név hoverre (`data-name`).
   const avatar = DATA.avatars?.[c.email];
   const face = avatar ? `<img src="${esc(avatar)}" alt="">` : esc(initials(c.author));
