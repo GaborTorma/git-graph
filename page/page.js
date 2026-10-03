@@ -242,10 +242,10 @@ function rowHtml(c) {
   // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név hoverre (`data-name`).
   const avatar = DATA.avatars?.[c.email];
   const face = avatar ? `<img src="${esc(avatar)}" alt="">` : esc(initials(c.author));
-  // idő · avatar · diff · hash: a hash zár, szűk helyen az marad el először
+  // idő · avatar · hash · diff: az avatar választja el az időt és a hasht, pont nélkül
   const meta = c.uncommitted ? '' : `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
     + `<span class="author${avatar ? '' : ' ini'}" data-name="${esc(c.author)}" aria-label="${esc(c.author)}">${face}</span>`
-    + `${sum}<span class="sha">${c.short}</span></span>`;
+    + `<span class="sha">${c.short}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>`
@@ -570,9 +570,9 @@ new ResizeObserver(() => {
 }).observe(rowsEl);
 
 /* Több soros sor: ha a tárgysor nagyon összepréselődne, a jobb oldali blokk
-   (idő · avatar · diff · hash) alulra kerül (`.two`). Badge-es sornál
+   (idő · avatar · hash · diff) alulra kerül (`.two`). Badge-es sornál
    (`.tight`) fent a tárgy, lent balra a badge-ek, jobbra az idő, az avatar,
-   a diff és a hash, amennyi elfér.
+   a hash és a diff, amennyi elfér.
    Minden lépés előbb mér, aztán egy körben ír. */
 const SQUEEZE = 260;   // ennél keskenyebb, csonkolt tárgysornál vált
 const SUM_GAP = 8;     // a diff előtti rés (page.css: .meta gap + .sum margin)
