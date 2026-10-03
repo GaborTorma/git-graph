@@ -232,7 +232,10 @@ function rowHtml(c) {
     + `<span class="sep s-sha">·</span><span class="sha">${c.short}</span></span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
-      <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>${refs}</span>${meta}</span>
+      <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>`
+    // a badge-es kétsoros sorban (`.tight`) a diff a tárgy mellé kerül
+    + `${refs && sum ? sum.replace('class="sum"', 'class="sum top"') : ''}${refs ? '<span class="br"></span>' : ''}`
+    + `${refs}</span>${meta}</span>
     </button>`;
 }
 
@@ -553,9 +556,9 @@ new ResizeObserver(() => {
 }).observe(rowsEl);
 
 /* Több soros sor: ha a tárgysor nagyon összepréselődne, a jobb oldali blokk
-   (diff · szerző · idő · hash) alulra kerül (`.two`); ha a badge-ek így is
-   kiszorítják, a badge-ek kerülnek alulra, mellettük az idő, a hash és a
-   szerző, amennyi elfér (`.tight`).
+   (diff · szerző · idő · hash) alulra kerül (`.two`). Badge-es sornál
+   (`.tight`) fent a tárgy és jobbra a diff, lent balra a badge-ek, jobbra az
+   idő, a hash és a szerző, amennyi elfér.
    Minden lépés előbb mér, aztán egy körben ír. */
 const SQUEEZE = 200;   // ennél keskenyebb, csonkolt tárgysornál vált
 const squeezed = r => {
@@ -567,7 +570,7 @@ function fitRows() {
   for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sha');
   const two = rows.filter(squeezed);
   for (const r of two) r.classList.add('two');
-  const tight = two.filter(r => r.querySelector('.refs') && squeezed(r));
+  const tight = two.filter(r => r.querySelector('.refs'));
   for (const r of tight) r.classList.replace('two', 'tight');
   // A badge-ek mellől előbb a szerző, aztán a hash marad el; az idő mindig látszik.
   const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };

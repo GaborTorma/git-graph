@@ -366,21 +366,26 @@ button { font: inherit; color: inherit; }
 .subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.merge .desc { color: var(--fg-2); }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
-/* Kétsoros sor (`fitRows`): fent a tárgy a badge-ekkel (jobbra zárva), alatta
-   balra a diff, jobbra a szerző, az idő és a hash. Ha a badge-ek így is
-   kiszorítanák a tárgyat (`.tight`): fent csak a tárgy, lent balra a badge-ek,
-   jobbra az idő, és ami még elfér (előbb a hash, aztán a szerző). */
+/* Kétsoros sor (`fitRows`): fent a tárgy, alatta balra a diff, jobbra a
+   szerző, az idő és a hash. Badge-es sornál (`.tight`): fent a tárgy és
+   jobbra a diff, lent balra a badge-ek, jobbra az idő, és ami még elfér
+   (előbb a hash, aztán a szerző). */
 .row.two, .row.tight { height: 48px; }
 .row.two .row-in { flex-direction: column; align-items: stretch; justify-content: center; gap: 3px; }
 .row.two .desc { flex: none; }
-.row.two .refs { margin-left: auto; }
 .row.two .meta .sum { display: flex; flex: none; margin-right: auto; }
-.row.tight .row-in { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center;
-                     row-gap: 3px; column-gap: 12px; }
+/* Két önálló sor (flex-wrap, `.br` töri): egy közös rács oszlopa a tárgyat a
+   lenti szerző-blokk szélességére szűkítené. */
+.row.tight .row-in { flex-wrap: wrap; align-content: center; row-gap: 3px; column-gap: 12px; }
 .row.tight .desc { display: contents; }
-.row.tight .subject { grid-column: 1 / -1; }
-.row.tight .refs { grid-column: 1; overflow: hidden; }
-.row.tight .meta { grid-column: 2; grid-row: 2; }
+.row.tight .subject { flex: 1 1 0; }
+.row.tight .br { display: block; flex-basis: 100%; height: 0; }
+.row.tight .refs { flex: 1 1 0; overflow: hidden; }
+.br { display: none; }
+.sum.top { display: none; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.sum.top .a { color: var(--add); }
+.sum.top .d { color: var(--del); }
+.row.tight .sum.top { display: flex; }
 .row.tight .meta .sum,
 .row.no-author .meta :is(.author, .s-author),
 .row.no-sha .meta :is(.sha, .s-sha) { display: none; }
