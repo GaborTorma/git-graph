@@ -238,9 +238,8 @@ function headHtml(c) {
   const parentChip = c.parents.length ? `<span class="chip" title="Szülő${c.parents.length > 1 ? 'k' : ''}">`
     + `${icon('parent')}${parents}</span>` : '';
   const commitChip = c.uncommitted ? '' : `<span class="chip">${icon('commit')}`
-    + (c.pushed ? ghLink(commitUrl(c), c.short, 'hash', 'Commit a GitHubon')
-        + ghLink(commitUrl(c), icon('open'), 'mini', 'Commit megnyitása a GitHubon')
-      : `<span class="hash plain">${c.short}</span>`)
+    + `<span class="hash plain">${c.short}</span>`
+    + (c.pushed ? ghLink(commitUrl(c), icon('open'), 'mini', 'Commit megnyitása a GitHubon') : '')
     + miniBtn('copy', 'Hash másolása', `data-copy="${c.sha}"`) + '</span>';
   return `<div class="d-head"><span class="who">${who}</span><span class="chips">${parentChip}${commitChip}</span></div>`;
 }
