@@ -501,6 +501,7 @@ def collect_payload(limit: int | None) -> dict:
         "branches": collect_branches(),
         "meta": meta,
         "avatars": avatars_for(commits, meta["repoUrl"]),
+        "fileIcons": attach_icons(stats),
     }
 
 
@@ -819,8 +820,9 @@ LOADER_API = 1   # a betöltő és a `page_code` szerződése — csak a betölt
 # A lap fájljai a script mellett: a pluginban, a working tree-ben és a stabil
 # másolatnál (`install_copy`) is `<gyökér>/page/`.
 PAGE_DIR = Path(__file__).resolve().parent.parent / "page"
-PAGE_FILES = ("loader.html", "head.html", "page.css", "body.html", "page.js")
+PAGE_FILES = ("loader.html", "head.html", "page.css", "body.html", "page.js", "file-icons.json")
 _PAGE: dict[str, str] = {}
+_FILE_ICONS: dict | None = None
 
 
 def page_file(name: str) -> str:
@@ -833,6 +835,47 @@ def page_file(name: str) -> str:
     if name not in _PAGE:
         _PAGE[name] = (PAGE_DIR / name).read_text(encoding="utf-8")
     return _PAGE[name]
+
+
+def file_icons() -> dict:
+    """A fájltípus-ikonok készlete (`page/file-icons.json`, scripts/file-icons.py).
+
+    Ha hiányzik vagy hibás, üres: a lap az általános fájlikont mutatja.
+    """
+    global _FILE_ICONS
+    if _FILE_ICONS is None:
+        try:
+            _FILE_ICONS = json.loads(page_file("file-icons.json"))
+        except (OSError, ValueError):
+            _FILE_ICONS = {}
+    return _FILE_ICONS
+
+
+def file_icon(path: str) -> str | None:
+    """Az út ikonjának neve: előbb a teljes fájlnév, aztán a leghosszabb kiterjesztés."""
+    icons = file_icons()
+    if not icons:
+        return None
+    name = numstat_new_path(path).rsplit("/", 1)[-1].lower()
+    icon = icons["names"].get(name)
+    parts = name.split(".")
+    for i in range(1, len(parts)):
+        if icon:
+            break
+        icon = icons["exts"].get(".".join(parts[i:]))
+    return icon if icon in icons["icons"] else "_file"
+
+
+def attach_icons(stats: dict[str, dict]) -> dict[str, str]:
+    """A fájlokhoz az ikon neve (`icon`); vissza a használt ikonok SVG-je."""
+    used: dict[str, str] = {}
+    for st in stats.values():
+        for f in st["files"]:
+            icon = file_icon(f["path"])
+            if icon:
+                f["icon"] = icon
+                used[icon] = file_icons()["icons"][icon]
+    return used
 
 
 def page_api_mismatch(api: object) -> str | None:

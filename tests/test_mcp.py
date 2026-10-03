@@ -108,6 +108,8 @@ class McpServerTest(unittest.TestCase):
             self.assertIn("avatars", data)
             self.assertTrue(all("email" in c for c in data["commits"] if not c.get("uncommitted")))
             self.assertIn("refs", client.call("fingerprint", repo=SLUG))
+            icons = {f.get("icon") for st in data["stats"].values() for f in st["files"]}
+            self.assertTrue(icons - {None} and icons - {None} <= set(data["fileIcons"]))
 
             merge = git("log", "-1", "--merges", "--format=%H").strip()
             if merge and merge in data["stats"]:                # a merge az első szülőjéhez képest
@@ -189,6 +191,17 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(module._AVATAR_JOBS, set())
         self.assertEqual(module.avatar_signal(), 1)
         self.assertEqual(module.avatars_for(commits, ""), {})          # nem GitHub-os repó
+
+    def test_file_icon(self) -> None:
+        """Fájlnév, a leghosszabb kiterjesztés, átnevezés; ismeretlenre az általános ikon."""
+        module = load_module(self.home)
+        cases = {"page/page.js": "javascript", "README.md": "readme", "app/x.spec.ts": "typescript-test",
+                 "src/{a => b}/main.py": "python", "bin/git-graph": "_file", "LICENSE": "license"}
+        for path, icon in cases.items():
+            self.assertEqual(module.file_icon(path), icon, path)
+        svg = module.file_icons()["icons"]["python"]
+        self.assertIn("var(--ic-", svg)
+        self.assertNotIn("--vscode-ctp", svg)
 
     def test_loader(self) -> None:
         """A betöltőbe a kontextus és a cím kerül, `</script>`-biztosan."""

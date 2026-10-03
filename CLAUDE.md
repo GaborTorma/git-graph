@@ -10,7 +10,8 @@ Használat és felépítés: [README.md](README.md).
 | Útvonal | Mi ez |
 | --- | --- |
 | `bin/git-graph` | a Python-oldal egyetlen fájlban: git-adatgyűjtés + MCP szerver a Claude appnak (`--mcp`, benne a leszerelés figyelése; a `page_code` tool a `page/` fájljait adja) + a publikálás lépései a sessionnek (`--publish`, `--published`) + SessionStart hook (`--session-hook`), benne a plugin gépi telepítése |
-| `page/` | a lap: `loader.html` (az Artifact betöltője, `build()`), `head.html`, `page.css`, `body.html`, `page.js` (a `page_code` adja) |
+| `page/` | a lap: `loader.html` (az Artifact betöltője, `build()`), `head.html`, `page.css`, `body.html`, `page.js` (a `page_code` adja), `file-icons.json` (fájltípus-ikonok, generált) |
+| `scripts/file-icons.py` | a `page/file-icons.json` előállítása a Catppuccin VS Code ikonjaiból (MIT, verzióra rögzítve) — kézzel, frissítéskor |
 | `tests/test_mcp.py` | füstteszt: `git-graph --mcp` stdio-n kamu `HOME`-mal, a working tree-ből és a stabil másolatból |
 | `ruff.toml`, `biome.json` | lint: Python (3.9-célverzióval) és a `page/` JS / CSS / HTML-je |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
@@ -77,7 +78,10 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   Anthropic Sans / Mono, ahol nincs, a rendszeré; webfont nincs. A
   kontrollok az app mintájára épülnek: kapcsoló (szűkös helyen ikonnal),
   lenyíló menü (`makeMenu`: ágválasztó és téma, natív `<select>` nincs),
-  ikonok inline stroke-SVG-ként (`ICONS`). A lista egysoros, napokra bontott
+  ikonok inline stroke-SVG-ként (`ICONS`). A fájltípus-ikonok a Catppuccin
+  készletéből jönnek, a lap `--ic-*` színeire kötve: a szerver rendeli a
+  fájlhoz (`file_icon`), és csak a használtak SVG-jét adja a
+  `graph_data`-ban (`fileIcons`). A lista egysoros, napokra bontott
   (`.day-group`, ragadós fejléccel), táblázatfej nélküli. Görgetni
   commitonként lehet (`stepRows`: egy kattanás egy commit, animáció nélkül,
   a sor a napfejléc alá igazodik). A CSS scroll-snap ezt nem tartotta, egy

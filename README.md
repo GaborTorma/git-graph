@@ -208,6 +208,10 @@ A diff nincs a teljes adatban: a lap lenyitáskor kéri, fájlonként (a
 `file_diff` toollal). A commitok diffje gyorstárazva, az
 Uncommitted soré élőben frissül. Egy fájlból legfeljebb 3000 sor látszik.
 
+A fájlok előtt a típusuk ikonja áll: a
+[Catppuccin VS Code-ikonjai](https://github.com/catppuccin/vscode-icons) (MIT),
+a lap színeire hangolva. Frissítés: `python3 scripts/file-icons.py`.
+
 ## GitHub-linkek
 
 Ha az `origin` GitHub-repó, a lap a GitHubra linkel:

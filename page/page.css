@@ -25,6 +25,10 @@
   --branch-fg:   #2c5fb3; --branch-bg: rgba(91, 141, 239, .12);  --branch-bd: rgba(91, 141, 239, .30);
   --remote-fg:   #6b4aa8; --remote-bg: rgba(160, 122, 214, .12); --remote-bd: rgba(160, 122, 214, .30);
   --tag-fg:      #8a5a00; --tag-bg:    rgba(207, 154, 44, .14);  --tag-bd:    rgba(207, 154, 44, .34);
+  /* fájlikonok (Catppuccin, page/file-icons.json): a sávszínek tónusai */
+  --ic-red: #c4573a; --ic-orange: #d97757; --ic-yellow: #c08a1e; --ic-green: #3f9455;
+  --ic-teal: #2a8e8c; --ic-blue: #4f7fe0; --ic-purple: #8f68cc; --ic-pink: #c4588a;
+  --ic-fg: #6b6a64; --ic-muted: #9c9a92;
   /* kód */
   --code-bg:     #ffffff;
   --code-fg:     #141413;
@@ -69,6 +73,9 @@
     --branch-fg:   #9dbcf7; --branch-bg: rgba(91, 141, 239, .16);  --branch-bd: rgba(91, 141, 239, .34);
     --remote-fg:   #c5aaf0; --remote-bg: rgba(160, 122, 214, .16); --remote-bd: rgba(160, 122, 214, .34);
     --tag-fg:      #e6c06e; --tag-bg:    rgba(207, 154, 44, .16);  --tag-bd:    rgba(207, 154, 44, .36);
+    --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
+    --ic-teal: #6cc4c0; --ic-blue: #8fb2f5; --ic-purple: #c5aaf0; --ic-pink: #e38fb2;
+    --ic-fg: #a8a69d; --ic-muted: #7f7d76;
     --code-bg:     #141413;
     --code-fg:     #ecebe4;
     --code-no:     #7f7d76;
@@ -110,6 +117,9 @@
   --branch-fg:   #9dbcf7; --branch-bg: rgba(91, 141, 239, .16);  --branch-bd: rgba(91, 141, 239, .34);
   --remote-fg:   #c5aaf0; --remote-bg: rgba(160, 122, 214, .16); --remote-bd: rgba(160, 122, 214, .34);
   --tag-fg:      #e6c06e; --tag-bg:    rgba(207, 154, 44, .16);  --tag-bd:    rgba(207, 154, 44, .36);
+  --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
+  --ic-teal: #6cc4c0; --ic-blue: #8fb2f5; --ic-purple: #c5aaf0; --ic-pink: #e38fb2;
+  --ic-fg: #a8a69d; --ic-muted: #7f7d76;
   --code-bg:     #141413;
   --code-fg:     #ecebe4;
   --code-no:     #7f7d76;
@@ -421,7 +431,7 @@ button { font: inherit; color: inherit; }
   background: var(--bg-3); color: var(--fg-1);
 }
 .file {
-  display: grid; grid-template-columns: 14px 14px minmax(0, 1fr) auto 20px; gap: 6px; align-items: center;
+  display: grid; grid-template-columns: 14px 16px minmax(0, 1fr) auto 20px; gap: 6px; align-items: center;
   height: 26px; padding: 0 4px 0 6px; border-radius: 6px;
   font-size: 12.5px; cursor: pointer;
 }
@@ -434,7 +444,8 @@ button { font: inherit; color: inherit; }
 .hunk:focus-visible { outline: 1.5px solid var(--accent); outline-offset: -1.5px; border-radius: 3px; }
 .file .chev { display: flex; color: var(--fg-2); transition: transform .12s; }
 .file .chev .ic, .file .fic { width: 12px; height: 12px; color: var(--fg-2); }
-.file .fic { width: 13px; height: 13px; }
+.file .fic { width: 16px; height: 16px; display: block; }
+.file .ic.fic { width: 13px; height: 13px; margin: auto; }
 .file[aria-expanded="true"] .chev { transform: rotate(90deg); }
 .file .path { font-family: var(--font-mono); font-size: 12px; color: var(--fg-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .churn { display: flex; align-items: center; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }

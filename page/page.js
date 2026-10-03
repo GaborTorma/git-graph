@@ -42,6 +42,12 @@ const ICONS = {
   chev: '<path d="M6.5 4.5 10 8l-3.5 3.5"/>',
 };
 const icon = (name, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
+// Fájltípus-ikon: a git-graph a fájlhoz rendelt Catppuccin-ikon SVG-jét adja
+// (`fileIcons`, a színei a lap `--ic-*` tokenjei); régi szervernél az általános ikon.
+const fileIcon = f => {
+  const svg = DATA.fileIcons?.[f.icon];
+  return svg ? svg.replace('<svg', '<svg class="fic" aria-hidden="true"') : icon('file', 'ic fic');
+};
 
 /* A friss sorozat sha-i; lejáratkor a lap magától újrarajzol (a pollozás csak
    git-változásra rajzol). Az ál-sornak nincs `committed`-je: sosem friss. */
@@ -314,7 +320,7 @@ function open(sha) {
         <span class="a" style="color:var(--add)">+${st.add}</span>
         <span class="d" style="color:var(--del)">−${st.del}</span></div>
       ${st.files.map(f => `<div class="file" tabindex="-1" data-path="${esc(f.path)}" aria-expanded="false">
-        <span class="chev">${icon('chev')}</span>${icon('file', 'ic fic')}
+        <span class="chev">${icon('chev')}</span>${fileIcon(f)}
         <span class="path">${esc(f.path)}</span>
         <span class="churn">${f.new ? '<span class="tag">új</span>' : f.bin ? '<span class="tag">bin</span>'
           : `<span class="a">+${f.add}</span><span class="d">−${f.del}</span>${bars(f)}`}</span>
