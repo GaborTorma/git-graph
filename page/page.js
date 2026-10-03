@@ -602,46 +602,35 @@ new ResizeObserver(() => {
   drawGraph();
 }).observe(rowsEl);
 
-/* Több soros sor: ha a tárgysor nagyon összepréselődne, a jobb oldali blokk
-   (idő · avatar · diff · hash) alulra kerül (`.two`). Badge-es sornál
-   (`.tight`) fent a tárgy, lent balra a badge-ek, jobbra az idő, az avatar,
-   a diff és a hash, amennyi elfér.
-   Minden lépés előbb mér, aztán egy körben ír. */
-const SQUEEZE = 260;   // ennél keskenyebb, csonkolt tárgysornál vált
-const SUM_GAP = 8;     // a diff előtti rés (page.css: .meta gap + .sum margin)
-const squeezed = r => {
-  const s = r.querySelector('.subject');
-  return s && s.scrollWidth > s.clientWidth && s.clientWidth < SQUEEZE;
-};
+/* A commit-sor elrendezése a szövegoszlop szélességétől (`.row-in`) függ, fix
+   határokkal — így egy adott szélességen minden sima sor ugyanúgy néz ki:
+     ≥ 600 px  egysoros: tárgy … idő · avatar · diff · hash
+     ≥ 480 px  egysoros, hash nélkül (`.rows.no-sha`)
+     < 480 px  kétsoros (`.two`): fent a tárgy, lent jobbra idő · avatar · diff · hash
+   A lista nem szűkül 320 px alá (page.css: `.graph-wrap`). A badge-es sorokat
+   mérni kell, mert a badge-ek hossza soronként más: ha a tárgy 260 px alá
+   szorulna, vagy a lista kétsoros, kétsorosak (`.tight`: lent balra a badge-ek,
+   jobbra a blokk), és ami a badge-ek mellett nem fér el, hátulról marad el
+   (fontosság: idő, avatar, diff, hash). Minden lépés előbb mér, aztán ír. */
+const ROW_WIDE = 600, ROW_ONE = 480, SQUEEZE = 260;
 function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
   for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sum', 'no-sha');
-  rowsEl.classList.remove('no-sum');
-  const two = rows.filter(squeezed);
-  // A diff az egysoros sorokon egységesen látszik vagy nem: elmarad róluk, ha
-  // több mint negyedükben miatta csonkolódna a tárgy (diff nélkül kiférne).
-  // A több soros sorban mindig elfér, ott marad.
-  const singles = rows.filter(r => !two.includes(r) && r.querySelector('.meta .sum'));
-  const cutBySum = singles.filter(r => {
-    const s = r.querySelector('.subject'), sum = r.querySelector('.meta .sum');
-    const over = s.scrollWidth - s.clientWidth;
-    return over > 0 && over <= sum.offsetWidth + SUM_GAP;
-  });
-  if (cutBySum.length > singles.length / 4) rowsEl.classList.add('no-sum');
-  for (const r of two) r.classList.add('two');
-  const tight = two.filter(r => r.querySelector('.refs'));
-  for (const r of tight) r.classList.replace('two', 'tight');
-  // Fontossági sorrend: idő, avatar, diff, hash — ami nem fér ki, hátulról
-  // marad el (előbb a hash, aztán a diff, végül az avatar); az idő mindig látszik.
-  const HIDE = ['no-sha', 'no-sum', 'no-author'];
+  const width = rowsEl.querySelector('.row-in')?.clientWidth ?? 0;
+  rowsEl.classList.toggle('no-sha', width < ROW_WIDE && width >= ROW_ONE);
+  const one = width >= ROW_ONE;
+  const tight = rows.filter(r => r.querySelector('.refs') && (!one || squeezed(r)));
+  if (!one) for (const r of rows) if (!r.querySelector('.refs')) r.classList.add('two');
+  for (const r of tight) r.classList.add('tight');
   const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };
-  const overlaps = r => { const m = r.querySelector('.meta'); return m.scrollWidth > m.clientWidth; };
-  const plain = two.filter(r => r.classList.contains('two'));
-  for (const cls of HIDE) {
-    for (const r of tight.filter(crowded)) r.classList.add(cls);   // a badge-ek mellől
-    for (const r of plain.filter(overlaps)) r.classList.add(cls);  // a sima kétsoros sorból
+  for (const cls of ['no-sha', 'no-sum', 'no-author']) {
+    for (const r of tight.filter(crowded)) r.classList.add(cls);
   }
 }
+const squeezed = r => {
+  const s = r.querySelector('.subject');
+  return s.scrollWidth > s.clientWidth && s.clientWidth < SQUEEZE;
+};
 
 /* Fejléc: három csoport (repó, szűrők, eszközök), szélesség szerint 1–3
    sorban. A kapcsolók felirata helyett ikon (`compact`, a felirat tooltipben
