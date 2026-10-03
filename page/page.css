@@ -509,7 +509,7 @@ button { font: inherit; color: inherit; }
 .churn .a { color: var(--add); }
 .churn .d { color: var(--del); }
 .churn .tag { color: var(--fg-2); }
-.bars { display: flex; gap: 1px; }
+.bars { display: flex; gap: 1px; opacity: .7; }   /* a címke mellett ne ez legyen a sor legerősebb eleme */
 .bars i { width: 5px; height: 8px; border-radius: 1px; background: var(--bg-3); }
 .bars i.a { background: var(--add); }
 .bars i.d { background: var(--del); }

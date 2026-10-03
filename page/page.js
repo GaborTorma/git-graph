@@ -224,6 +224,10 @@ function badges(c) {
 /* A diff-címke száma legfeljebb 3 karakter: 999 fölött kerekített ezres (`1k`). */
 const kilo = n => n < 1000 ? String(n) : `${Math.round(n / 1000)}k`;
 
+/* A commit-sor diff-címkéje: fix széles, zöld | piros fél, a pontos szám a tooltipben. */
+const diffTag = (add, del) => `<span class="sum" title="+${add} −${del} sor">`
+  + `<span class="a">${kilo(add)}</span><span class="d">${kilo(del)}</span></span>`;
+
 /* `Gábor Torma` → `GT`: a név első két szavának kezdőbetűje. */
 const initials = name => String(name || '?').trim().split(/\s+/).slice(0, 2)
   .map(w => [...w][0] || '').join('').toUpperCase();
@@ -232,9 +236,7 @@ function rowHtml(c) {
   const color = fresh.has(c.sha) ? ` style="color:${LANE_COLORS[c.lane % LANE_COLORS.length]}"` : '';
   const refs = c.refs.length ? `<span class="refs">${badges(c)}</span>` : '';
   const st = DATA.stats[c.sha];
-  const sum = st && (st.add || st.del)
-    ? `<span class="sum" title="+${st.add} −${st.del} sor"><span class="a">${kilo(st.add)}</span>`
-      + `<span class="d">${kilo(st.del)}</span></span>` : '';
+  const sum = st && (st.add || st.del) ? diffTag(st.add, st.del) : '';
   // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név hoverre (`data-name`).
   const avatar = DATA.avatars?.[c.email];
   const face = avatar ? `<img src="${esc(avatar)}" alt="">` : esc(initials(c.author));
