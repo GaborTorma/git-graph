@@ -177,7 +177,7 @@ Kézi URL-megadás: `git-graph --set-artifact <url>`.
 | `⌘F` / `Ctrl+F` | kereső | |
 
 Fájlon a `→` kinyitja a diffet, és rögtön az első módosított blokkra lép (egy blokk a
-`···` elválasztóig tart); az utolsó után a következő fájlra, `↑`-ra visszafelé,
+`···` elválasztóig tart); `↓` vagy `→` a következő blokkra, az utolsó után a következő fájlra, `↑`-ra visszafelé,
 `←`-re bezárja a fájlt. A görgő egy kattanása egy commitot lép.
 
 ## Uncommitted Changes
