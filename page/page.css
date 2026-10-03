@@ -399,32 +399,17 @@ button { font: inherit; color: inherit; }
                 width: 16px; height: 16px; border-radius: 8px;
                 box-shadow: 0 0 0 1px var(--border); }
 .meta .author img { width: 100%; height: 100%; display: block; border-radius: 8px; }
-/* Saját tooltip (a natív késve és nem mindig jön): visszafogott, világos
-   buborék, rövid késleltetéssel úszik be — a név az avataron, a pontos
-   számok a diff-címkén. */
-.meta .author::after, .meta .sum::after {
-  content: attr(data-name); position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 10;
-  transform: translateY(2px); padding: 2px 6px; border-radius: 5px; pointer-events: none;
-  background: var(--ctrl); color: var(--fg-1); font: 400 11px/1.4 var(--font-ui); letter-spacing: 0; white-space: nowrap;
+/* Saját tooltip (`#tip`, a natív késve és nem mindig jön): egyetlen fix
+   buborék a lap fölött — a lista széle, a sorok rétegei és a ragadós
+   napfejléc nem vághatja le, és görgetést sem nyit. A `data-tip` elem fölé,
+   jobbra zárva úszik be, rövid késleltetéssel (`page.js`: `showTip`). */
+#tip {
+  position: fixed; z-index: 60; padding: 2px 6px; border-radius: 5px; pointer-events: none;
+  background: var(--ctrl); color: var(--fg-1); font: 400 11px/1.4 var(--font-ui); white-space: nowrap;
   box-shadow: 0 0 0 1px var(--ctrl-border), 0 2px 8px rgba(0, 0, 0, .08);
-  opacity: 0; visibility: hidden; transition: opacity .12s, transform .12s, visibility 0s .12s;
+  opacity: 0; transform: translateY(2px); transition: opacity .12s, transform .12s;
 }
-.meta .author:hover::after, .meta .sum:hover::after {
-  opacity: 1; visibility: visible; transform: none;
-  transition: opacity .12s .35s, transform .12s .35s, visibility 0s .35s;
-}
-/* A buborék a sor fölött, jobbra zárva (középre igazítva a sor szélén rejtve
-   is kilógna, és vízszintes görgetést nyitna). A `.row-in` container-ként saját
-   rétegkontextus, ezért a ráállt sor emelkedik a szomszédok és a ragadós
-   napfejléc (z-index: 3) fölé; a lista legfelső sora alá nyit, mert fölötte a
-   görgetőmező széle vágná le. */
-.row:hover { position: relative; z-index: 4; }
-.day-group:first-child > .row:first-of-type .meta :is(.author, .sum)::after {
-  bottom: auto; top: calc(100% + 4px); transform: translateY(-2px);
-}
-.day-group:first-child > .row:first-of-type .meta :is(.author, .sum):hover::after { transform: none; }
-.meta .sum { position: relative; }
-.meta .sum::after { content: attr(data-tip); }
+#tip.on { opacity: 1; transform: none; }
 .meta .author.ini { background: var(--bg-3); color: var(--fg-1); font-size: 8px; font-weight: 600; letter-spacing: .02em; }
 .meta { align-items: center; }
 /* A commit összes változása a hash után, két összetapadó színes címkében (a

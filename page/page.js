@@ -240,12 +240,12 @@ function rowHtml(c) {
   const refs = c.refs.length ? `<span class="refs">${badges(c)}</span>` : '';
   const st = DATA.stats[c.sha];
   const sum = st?.files.length ? diffTag(st.files.length, st.add, st.del) : '';
-  // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név hoverre (`data-name`).
+  // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név hoverre (`data-tip`).
   const avatar = DATA.avatars?.[c.email];
   const face = avatar ? `<img src="${esc(avatar)}" alt="">` : esc(initials(c.author));
   // idő · avatar · diff · hash: a hash zár, szűk helyen az marad el először
   const meta = c.uncommitted ? '' : `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
-    + `<span class="author${avatar ? '' : ' ini'}" data-name="${esc(c.author)}" aria-label="${esc(c.author)}">${face}</span>`
+    + `<span class="author${avatar ? '' : ' ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">${face}</span>`
     + `${sum}<span class="sha">${c.short}</span></span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
@@ -564,6 +564,38 @@ function showWholeCommit(fileEl) {
 
 /* Az ablak (Artifact-panel) átméretezése sortörést és nézetváltást hozhat: a
    sorok Y-pozíciója elmozdul, a gráfnak követnie kell. */
+/* Tooltip a `data-tip` elemekre (avatar, diff-címke): egyetlen fix buborék a
+   lap fölött, az elem fölé, jobbra zárva; ha fent nincs hely, alá. Késleltetve
+   jön, hogy az átsuhanó egérre ne villanjon; görgetésre eltűnik. */
+const TIP_DELAY = 350;
+const tipEl = document.createElement('div');
+tipEl.id = 'tip';
+tipEl.setAttribute('role', 'tooltip');
+document.body.append(tipEl);
+let tipTimer = 0, tipFor = null;
+function hideTip() {
+  clearTimeout(tipTimer);
+  tipFor = null;
+  tipEl.classList.remove('on');
+}
+function showTip(el) {
+  tipEl.textContent = el.dataset.tip;
+  const r = el.getBoundingClientRect(), t = tipEl.getBoundingClientRect();
+  const top = r.top - t.height - 6 >= 0 ? r.top - t.height - 6 : r.bottom + 6;
+  tipEl.style.top = `${Math.round(top)}px`;
+  tipEl.style.left = `${Math.round(Math.max(4, r.right - t.width))}px`;
+  tipEl.classList.add('on');
+}
+document.addEventListener('mouseover', e => {
+  const el = e.target.closest?.('[data-tip]');
+  if (el === tipFor) return;
+  hideTip();
+  if (!el) return;
+  tipFor = el;
+  tipTimer = setTimeout(() => showTip(el), TIP_DELAY);
+});
+document.addEventListener('scroll', hideTip, true);
+
 let rowsWidth = 0;
 new ResizeObserver(() => {
   if (rowsEl.clientWidth !== rowsWidth) { rowsWidth = rowsEl.clientWidth; fitRows(); }
