@@ -208,6 +208,8 @@ function rowHtml(c) {
 /* A legfelső nap fejléce, ha az a mai: alaphelyzetben nem foglal helyet és
    nem látszik (a lista teteje magától értetődően ma), csak görgetéskor jelenik
    meg fent. Ha a legfelső commit régebbi, a fejléce mindig látszik. */
+/* Napi csoportok (`.day-group`): a ragadós fejléc csak a saját napja alatt
+   marad fent, a következő nap fejléce kitolja — nem csúsznak egymásra. */
 function render() {
   let day = '', html = '';
   const today = dayKey(new Date().toISOString());
@@ -215,11 +217,13 @@ function render() {
     const key = c.uncommitted ? '' : dayKey(c.date);
     if (key && key !== day) {
       const lead = !day && key === today ? ' lead' : '';
-      html += `<div class="day${lead}"><span class="lbl">${dayLabel(key)}</span></div>`;
+      html += `${day ? '</section>' : ''}<section class="day-group">`
+        + `<div class="day${lead}"><span class="lbl">${dayLabel(key)}</span></div>`;
       day = key;
     }
     html += rowHtml(c);
   }
+  if (day) html += '</section>';
   rowsEl.innerHTML = html || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
   drawGraph();
   const shown = visible.filter(c => !c.uncommitted).length;   // az ál-sor nem commit
