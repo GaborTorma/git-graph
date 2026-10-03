@@ -235,10 +235,10 @@ function rowHtml(c) {
   // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név hoverre (`data-name`).
   const avatar = DATA.avatars?.[c.email];
   const face = avatar ? `<img src="${esc(avatar)}" alt="">` : esc(initials(c.author));
-  const meta = c.uncommitted ? '' : `<span class="meta"><span class="author${avatar ? '' : ' ini'}"`
-    + ` data-name="${esc(c.author)}" aria-label="${esc(c.author)}">${face}</span>`
-    + `<span class="time">${fmtTime(c.date)}</span>`
-    + `<span class="sep s-sha">·</span><span class="sha">${c.short}</span>${sum}</span>`;
+  // idő · avatar · hash: az avatar választja el őket, pont nélkül
+  const meta = c.uncommitted ? '' : `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
+    + `<span class="author${avatar ? '' : ' ini'}" data-name="${esc(c.author)}" aria-label="${esc(c.author)}">${face}</span>`
+    + `<span class="sha">${c.short}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>`
@@ -563,7 +563,7 @@ new ResizeObserver(() => {
 }).observe(rowsEl);
 
 /* Több soros sor: ha a tárgysor nagyon összepréselődne, a jobb oldali blokk
-   (szerző · idő · hash · diff) alulra kerül (`.two`). Badge-es sornál
+   (idő · avatar · hash · diff) alulra kerül (`.two`). Badge-es sornál
    (`.tight`) fent a tárgy, lent balra a badge-ek, jobbra az idő, a hash, a
    diff és a szerző, amennyi elfér.
    Minden lépés előbb mér, aztán egy körben ír. */

@@ -366,7 +366,7 @@ button { font: inherit; color: inherit; }
 .subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.merge .desc { color: var(--fg-2); }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
-/* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra a szerző, az idő, a
+/* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra az idő, az avatar, a
    hash és a diff. Badge-es sornál (`.tight`): fent a tárgy, lent balra a
    badge-ek, jobbra az idő, és ami még elfér (előbb a hash, a diff, aztán a
    szerző). */
@@ -385,7 +385,7 @@ button { font: inherit; color: inherit; }
 .rows.no-sum .row:not(.two, .tight) .meta .sum,
 .row.no-sum .meta .sum,
 .row.no-author .meta .author,
-.row.no-sha .meta :is(.sha, .s-sha) { display: none; }
+.row.no-sha .meta .sha { display: none; }
 .row.uncommitted .subject { font-style: italic; color: var(--fg-2); }
 .meta {
   flex: none; display: flex; gap: 6px;
@@ -413,7 +413,7 @@ button { font: inherit; color: inherit; }
 .sum { display: inline-flex; align-items: center; margin-left: 2px;   /* fitRows: SUM_GAP */
        font: 10px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
 /* fix szélesség (5 karakter: `+1200`), hogy a sorok vége egy oszlopban álljon */
-.sum > span { box-sizing: border-box; padding: 2px 3px; min-width: 32px; text-align: center; }
+.sum > span { box-sizing: border-box; padding: 2px 3px; min-width: 32px; text-align: right; }
 .sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, transparent); border-radius: 4px 0 0 4px; }
 .sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, transparent); border-radius: 0 4px 4px 0; }
 /* 1000 fölött kisebb betű, ugyanabban a szélességben */
