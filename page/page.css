@@ -178,23 +178,48 @@ button { font: inherit; color: inherit; }
 }
 .head-chip .ic { width: 12px; height: 12px; }
 
+/* Ágválasztó: saját legördülő menü — a natív <select> listája a macOS kék
+   menüjét hozná, ami kilóg az app nyelvéből. */
+.menu { position: relative; }
 .select {
-  position: relative;
   display: inline-flex; align-items: center; gap: 7px;
   height: 28px; padding: 0 8px;
-  border-radius: 7px;
+  border: 0; border-radius: 7px;
   background: var(--ctrl);
   box-shadow: inset 0 0 0 1px var(--ctrl-border), var(--ctrl-shadow);
-  color: var(--fg-2);
+  color: var(--fg-2); font-size: 13px; cursor: pointer;
 }
-.select select {
-  appearance: none;
-  border: 0; outline: 0; padding: 0 22px 0 0; margin-right: -20px;
-  background: transparent; color: var(--fg-0);
-  font: inherit; font-size: 13px; cursor: pointer;
+.select:hover { background: var(--bg-1); }
+.select-label { color: var(--fg-0); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.select .chev { width: 12px; height: 12px; margin-left: 10px; transition: transform .12s; }
+.select[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.select:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--accent), var(--ctrl-shadow); }
+.menu-pop {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
+  min-width: 100%; width: max-content; max-width: 360px; max-height: 340px; overflow: auto;
+  padding: 4px;
+  display: flex; flex-direction: column; gap: 1px;
+  background: var(--ctrl);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--ctrl-border), 0 8px 24px rgba(0, 0, 0, .14);
 }
-.select .chev { width: 12px; height: 12px; pointer-events: none; }
-.select:focus-within { box-shadow: inset 0 0 0 1px var(--accent), var(--ctrl-shadow); }
+.menu-pop[hidden] { display: none; }
+.option {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  height: 28px; padding: 0 10px 0 8px;
+  border: 0; border-radius: 6px; background: transparent;
+  font-size: 13px; color: var(--fg-0); text-align: left; cursor: pointer;
+}
+.option:hover, .option:focus-visible { outline: 0; background: var(--bg-2); }
+.option .ic { width: 12px; height: 12px; color: var(--accent); stroke-width: 2; visibility: hidden; }
+.option[aria-selected="true"] .ic { visibility: visible; }
+.option .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.option .track { font-size: 11.5px; color: var(--fg-2); }
+.option .cur {
+  margin-left: 6px; padding: 0 5px; border-radius: 4px;
+  background: var(--accent-bg); color: var(--accent); font-size: 10.5px; font-weight: 500;
+}
+.menu-sep { height: 1px; margin: 3px 6px; background: var(--border-soft); }
 
 .switch {
   display: inline-flex; align-items: center; gap: 8px;
@@ -222,7 +247,7 @@ button { font: inherit; color: inherit; }
 
 .search {
   display: flex; align-items: center; gap: 7px;
-  width: 230px; height: 28px; padding: 0 8px;
+  flex: 0 1 230px; min-width: 120px; height: 28px; padding: 0 8px;
   border-radius: 7px;
   background: var(--ctrl);
   box-shadow: inset 0 0 0 1px var(--ctrl-border), var(--ctrl-shadow);

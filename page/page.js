@@ -131,7 +131,10 @@ const dayKey = iso => { const p = fmtParts(iso, { year: 'numeric', month: '2-dig
   return `${p.year}-${p.month}-${p.day}`; };
 const fmtTime = iso => { const p = fmtParts(iso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   return `${p.hour}:${p.minute}`; };
-const fmtDate = iso => `${dayKey(iso).replaceAll('-', '.')}. ${fmtTime(iso)}`;
+const clock = () => { const p = fmtParts(new Date().toISOString(),
+  { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+  return `${p.hour}:${p.minute}:${p.second}`; };
+const fmtDate = iso =>`${dayKey(iso).replaceAll('-', '.')}. ${fmtTime(iso)}`;
 function dayLabel(key) {
   const [y, m, d] = key.split('-').map(Number);
   const long = new Intl.DateTimeFormat('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
@@ -491,16 +494,63 @@ document.addEventListener('keydown', e => {
 });
 
 /* ── Szűrők ──────────────────────────────────────────────────────────────── */
-const branchSel = document.getElementById('branchSel');
+/* Ágválasztó: saját listbox-menü. Az érték `''` = minden ág. */
+const branchBtn = document.getElementById('branchBtn');
+const branchPop = document.getElementById('branchPop');
+const branchLabel = document.getElementById('branchLabel');
+let branchValue = '';
+
+/* `ahead 8, behind 3` → `↑8 ↓3` — a git felirata helyett rövid jel. */
+const trackText = t => String(t || '').replace(/ahead (\d+)/, '↑$1').replace(/behind (\d+)/, '↓$1')
+  .replace(/gone/, 'törölve').replace(/,\s*/, ' ');
 
 /* A kiválasztott ágat megtartjuk, ha az adatcsere után is létezik. */
 function fillBranches() {
-  const keep = branchSel.value;
-  branchSel.innerHTML = '<option value="">Minden ág</option>' +
-    DATA.branches.map(b => `<option value="${esc(b.name)}"${b.current ? ' selected' : ''}>`
-      + esc(b.name) + (b.track ? ` (${esc(b.track)})` : '') + '</option>').join('');
-  branchSel.value = DATA.branches.some(b => b.name === keep) ? keep : '';
+  if (!DATA.branches.some(b => b.name === branchValue)) branchValue = '';
+  const opt = (value, name, extra = '') => `<button type="button" class="option" role="option" data-value="${esc(value)}"`
+    + ` aria-selected="${value === branchValue}">${icon('check')}<span class="name">${name}</span>${extra}</button>`;
+  branchPop.innerHTML = opt('', 'Minden ág') + (DATA.branches.length ? '<div class="menu-sep"></div>' : '')
+    + DATA.branches.map(b => opt(b.name, esc(b.name) + (b.current ? '<span class="cur">HEAD</span>' : ''),
+      b.track ? `<span class="track">${esc(trackText(b.track))}</span>` : '<span></span>')).join('');
+  branchLabel.textContent = branchValue || 'Minden ág';
 }
+
+function toggleMenu(open) {
+  branchPop.hidden = !open;
+  branchBtn.setAttribute('aria-expanded', String(open));
+  if (open) (branchPop.querySelector('[aria-selected="true"]') || branchPop.querySelector('.option'))?.focus();
+}
+branchBtn.addEventListener('click', () => toggleMenu(branchPop.hidden));
+branchBtn.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); toggleMenu(true); }
+});
+branchPop.addEventListener('click', e => {
+  const o = e.target.closest('.option');
+  if (!o) return;
+  branchValue = o.dataset.value;
+  toggleMenu(false);
+  branchBtn.focus();
+  fillBranches();
+  applyFilters();
+});
+branchPop.addEventListener('keydown', e => {
+  const items = [...branchPop.querySelectorAll('.option')];
+  const i = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
+  } else if (e.key === 'Home' || e.key === 'End') {
+    e.preventDefault();
+    items[e.key === 'Home' ? 0 : items.length - 1].focus();
+  } else if (e.key === 'Escape' || e.key === 'Tab') {
+    e.stopPropagation();
+    toggleMenu(false);
+    if (e.key === 'Escape') branchBtn.focus();
+  }
+});
+document.addEventListener('pointerdown', e => {
+  if (!branchPop.hidden && !e.target.closest('.menu')) toggleMenu(false);
+});
 
 function ancestryOf(name) {
   const tip = DATA.commits.find(c => c.refs.some(r => r.name === name &&
@@ -529,7 +579,7 @@ function matches(c, words) {
 }
 
 function applyFilters() {
-  const branch = branchSel.value;
+  const branch = branchValue;
   const remotes = document.getElementById('showRemotes').checked;
   const refsOnly = document.getElementById('onlyRefs').checked;
   const words = fold(searchEl.value).split(/\s+/).filter(Boolean);
@@ -544,7 +594,7 @@ function applyFilters() {
   });
   render();
 }
-['branchSel', 'showRemotes', 'onlyRefs'].forEach(id =>
+['showRemotes', 'onlyRefs'].forEach(id =>
   document.getElementById(id).addEventListener('change', applyFilters));
 searchEl.addEventListener('input', applyFilters);
 
@@ -658,12 +708,12 @@ function startLive(src) {
         fillBranches();
         applyFilters();
         scroller.scrollTop = top;
-        change = `\nutolsó változás ${new Date().toLocaleTimeString('hu-HU')}: adat ${Math.round(td)} ms,`
+        change = `\nutolsó változás ${clock()}: adat ${Math.round(td)} ms,`
           + ` kirajzolva ${Math.round(performance.now() - t1)} ms alatt`;
       }
       last = key;
       foot.className = 'foot on';
-      liveText.textContent = `Élő · frissítve ${new Date().toLocaleTimeString('hu-HU')}`;
+      liveText.textContent = `Élő · frissítve ${clock()}`;
       liveText.title = `ujjlenyomat ${Math.round(tf)} ms` + change;
       showVersion(f);
     } catch (e) {
