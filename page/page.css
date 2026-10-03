@@ -368,10 +368,10 @@ button { font: inherit; color: inherit; }
 .subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.merge .desc { color: var(--fg-2); }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
-/* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra az idő, az avatar, a
-   diff és a hash. Badge-es sornál (`.tight`): fent a tárgy, lent balra a
-   badge-ek, jobbra az idő, és ami még elfér (fontosság: idő, avatar, diff,
-   hash — hátulról marad el). */
+/* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra az idő, az avatar és
+   a diff (hash nincs). Badge-es sornál (`.tight`): fent a tárgy, lent balra a
+   badge-ek, jobbra az idő, és ami még elfér (fontosság: idő, avatar, diff —
+   hátulról marad el). */
 .row.two, .row.tight { height: 48px; }
 .row.two .row-in { flex-direction: column; align-items: stretch; justify-content: center; gap: 3px; }
 .row.two .desc { flex: none; }
@@ -387,7 +387,7 @@ button { font: inherit; color: inherit; }
 .rows.no-sha .row:not(.two, .tight) .meta .sha,
 .row.no-sum .meta .sum,
 .row.no-author .meta .author,
-.row.no-sha .meta .sha { display: none; }
+.row:is(.two, .tight) .meta .sha { display: none; }   /* kétsoros sorban nincs hash */
 .row.uncommitted .subject { font-style: italic; color: var(--fg-2); }
 .meta {
   flex: none; display: flex; gap: 6px;

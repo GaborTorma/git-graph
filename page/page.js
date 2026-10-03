@@ -606,16 +606,17 @@ new ResizeObserver(() => {
    határokkal — így egy adott szélességen minden sima sor ugyanúgy néz ki:
      ≥ 600 px  egysoros: tárgy … idő · avatar · diff · hash
      ≥ 480 px  egysoros, hash nélkül (`.rows.no-sha`)
-     < 480 px  kétsoros (`.two`): fent a tárgy, lent jobbra idő · avatar · diff · hash
+     < 480 px  kétsoros (`.two`): fent a tárgy, lent jobbra idő · avatar · diff
    A lista nem szűkül 320 px alá (page.css: `.graph-wrap`). A badge-es sorokat
    mérni kell, mert a badge-ek hossza soronként más: ha a tárgy 260 px alá
    szorulna, vagy a lista kétsoros, kétsorosak (`.tight`: lent balra a badge-ek,
    jobbra a blokk), és ami a badge-ek mellett nem fér el, hátulról marad el
-   (fontosság: idő, avatar, diff, hash). Minden lépés előbb mér, aztán ír. */
+   (fontosság: idő, avatar, diff). Kétsoros sorban hash nincs (a lenyitott
+   commit fejében ott van). Minden lépés előbb mér, aztán ír. */
 const ROW_WIDE = 600, ROW_ONE = 480, SQUEEZE = 260;
 function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
-  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sum', 'no-sha');
+  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sum');
   const width = rowsEl.querySelector('.row-in')?.clientWidth ?? 0;
   rowsEl.classList.toggle('no-sha', width < ROW_WIDE && width >= ROW_ONE);
   const one = width >= ROW_ONE;
@@ -623,7 +624,7 @@ function fitRows() {
   if (!one) for (const r of rows) if (!r.querySelector('.refs')) r.classList.add('two');
   for (const r of tight) r.classList.add('tight');
   const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };
-  for (const cls of ['no-sha', 'no-sum', 'no-author']) {
+  for (const cls of ['no-sum', 'no-author']) {
     for (const r of tight.filter(crowded)) r.classList.add(cls);
   }
 }
