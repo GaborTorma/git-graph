@@ -367,7 +367,7 @@ button { font: inherit; color: inherit; }
 .row.merge .desc { color: var(--fg-2); }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
 /* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra az idő, az avatar, a
-   hash és a diff. Badge-es sornál (`.tight`): fent a tárgy, lent balra a
+   diff és a hash. Badge-es sornál (`.tight`): fent a tárgy, lent balra a
    badge-ek, jobbra az idő, és ami még elfér (fontosság: idő, avatar, diff,
    hash — hátulról marad el). */
 .row.two, .row.tight { height: 48px; }
