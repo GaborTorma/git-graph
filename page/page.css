@@ -399,15 +399,22 @@ button { font: inherit; color: inherit; }
                 width: 16px; height: 16px; border-radius: 8px;
                 box-shadow: 0 0 0 1px var(--border); }
 .meta .author img { width: 100%; height: 100%; display: block; border-radius: 8px; }
-/* a név hoverre, azonnal (a natív tooltip késve és nem mindig jön) */
-.meta .author:hover::after, .meta .sum:hover::after {
-  content: attr(data-name); position: absolute; bottom: calc(100% + 6px); left: 50%; z-index: 10;
-  transform: translateX(-50%); padding: 3px 7px; border-radius: 5px; pointer-events: none;
-  background: var(--fg-0); color: var(--bg); font: 500 11.5px/1.3 var(--font-ui); letter-spacing: 0; white-space: nowrap;
+/* Saját tooltip (a natív késve és nem mindig jön): visszafogott, világos
+   buborék, rövid késleltetéssel úszik be — a név az avataron, a pontos
+   számok a diff-címkén. */
+.meta .author::after, .meta .sum::after {
+  content: attr(data-name); position: absolute; bottom: calc(100% + 4px); left: 50%; z-index: 10;
+  transform: translate(-50%, 2px); padding: 2px 6px; border-radius: 5px; pointer-events: none;
+  background: var(--ctrl); color: var(--fg-1); font: 400 11px/1.4 var(--font-ui); letter-spacing: 0; white-space: nowrap;
+  box-shadow: 0 0 0 1px var(--ctrl-border), 0 2px 8px rgba(0, 0, 0, .08);
+  opacity: 0; visibility: hidden; transition: opacity .12s, transform .12s, visibility 0s .12s;
 }
-/* a diff-címke tooltipje ugyanaz a buborék, a pontos számokkal */
+.meta .author:hover::after, .meta .sum:hover::after {
+  opacity: 1; visibility: visible; transform: translate(-50%, 0);
+  transition: opacity .12s .35s, transform .12s .35s, visibility 0s .35s;
+}
 .meta .sum { position: relative; }
-.meta .sum:hover::after { content: attr(data-tip); }
+.meta .sum::after { content: attr(data-tip); }
 .meta .author.ini { background: var(--bg-3); color: var(--fg-1); font-size: 8px; font-weight: 600; letter-spacing: .02em; }
 .meta { align-items: center; }
 /* A commit összes változása a hash után, két összetapadó színes címkében (a
