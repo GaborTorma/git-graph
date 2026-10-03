@@ -742,9 +742,33 @@ function stepRows(dir) {
   const target = dir > 0 ? (tops.find(t => t > from + 1) ?? max)
                          : ([...tops].reverse().find(t => t < from - 1) ?? 0);
   stepGoal = Math.min(target, max);
-  scroller.scrollTo({ top: stepGoal, behavior: 'smooth' });
+  glide();
 }
-scroller.addEventListener('scrollend', () => { stepGoal = null; });
+
+/* Saját animáció a böngésző `smooth` görgetése helyett (az darabos volt):
+   ease-out, fix időtartammal. Új kattanásnál az aktuális pozícióból indul az új
+   cél felé — az ease-out gyorsan kezd, így gyors egymásutánban sem akad meg.
+   Ha közben a néző máshogy görget (görgetősáv, billentyű), átadja neki. */
+const GLIDE_MS = 200;
+let glideFrame = 0, glideFrom = 0, glideStart = 0, glideSet = 0;
+const easeOut = t => 1 - (1 - t) ** 3;
+function glide() {
+  glideFrom = scroller.scrollTop;
+  glideSet = glideFrom;
+  glideStart = performance.now();
+  if (glideFrame) return;               // a futó képkocka-ciklus átveszi az új célt
+  const frame = now => {
+    if (stepGoal == null || Math.abs(scroller.scrollTop - glideSet) > 1) {
+      glideFrame = 0; stepGoal = null; return;        // valaki más görgetett
+    }
+    const t = Math.min(1, (now - glideStart) / GLIDE_MS);
+    glideSet = Math.round(glideFrom + (stepGoal - glideFrom) * easeOut(t));
+    scroller.scrollTop = glideSet;
+    if (t === 1) { glideFrame = 0; stepGoal = null; return; }
+    glideFrame = requestAnimationFrame(frame);
+  };
+  glideFrame = requestAnimationFrame(frame);
+}
 scroller.addEventListener('wheel', e => {
   if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
   const panel = rowsEl.querySelector('.details');
