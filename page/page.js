@@ -243,10 +243,10 @@ function rowHtml(c) {
   // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név hoverre (`data-tip`).
   const avatar = DATA.avatars?.[c.email];
   const face = avatar ? `<img src="${esc(avatar)}" alt="">` : esc(initials(c.author));
-  // idő · avatar · diff · hash: a hash zár, szűk helyen az marad el először
+  // idő · avatar · diff; a hash a lenyitott commit fejében (a keresés is megtalálja)
   const meta = c.uncommitted ? '' : `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
     + `<span class="author${avatar ? '' : ' ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">${face}</span>`
-    + `${sum}<span class="sha">${c.short}</span></span>`;
+    + `${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>`
@@ -604,30 +604,20 @@ new ResizeObserver(() => {
 
 /* A commit-sor elrendezése a szövegoszlop szélességétől (`.row-in`) függ, fix
    határokkal — így egy adott szélességen minden sima sor ugyanúgy néz ki:
-     ≥ 600 px  egysoros: tárgy … idő · avatar · diff · hash
-     ≥ 480 px  egysoros, hash nélkül (`.rows.no-sha`)
+     ≥ 480 px  egysoros: tárgy … idő · avatar · diff
      < 480 px  kétsoros (`.two`): fent a tárgy, lent jobbra idő · avatar · diff
    A lista nem szűkül 320 px alá (page.css: `.graph-wrap`). A badge-es sorokat
    mérni kell, mert a badge-ek hossza soronként más: ha a tárgy 260 px alá
    szorulna, vagy a lista kétsoros, kétsorosak (`.tight`: lent balra a badge-ek,
    jobbra a blokk), és ami a badge-ek mellett nem fér el, hátulról marad el
-   (fontosság: idő, avatar, diff). Kétsoros sorban hash nincs (a lenyitott
-   commit fejében ott van). Minden lépés előbb mér, aztán ír. */
-const ROW_WIDE = 600, ROW_ONE = 480, SQUEEZE = 260;
+   (fontosság: idő, avatar, diff). Minden lépés előbb mér, aztán ír. */
+const ROW_ONE = 480, SQUEEZE = 260;
 function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
-  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sum', 'no-sha');
+  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sum');
   const width = rowsEl.querySelector('.row-in')?.clientWidth ?? 0;
-  rowsEl.classList.toggle('no-sha', width < ROW_WIDE && width >= ROW_ONE);
   const one = width >= ROW_ONE;
-  // Egysoros nézetben a badge-es sor előbb a hasht adja fel, és csak akkor lesz
-  // kétsoros, ha így sem fér el — különben szélesebb panelen kétsoros lenne, egy
-  // kicsit keskenyebben (ahol a hash amúgy is elmarad) megint egysoros.
-  let tight = rows.filter(r => r.querySelector('.refs') && (!one || squeezed(r)));
-  if (one) {
-    for (const r of tight) r.classList.add('no-sha');
-    tight = tight.filter(squeezed);
-  }
+  const tight = rows.filter(r => r.querySelector('.refs') && (!one || squeezed(r)));
   if (!one) for (const r of rows) if (!r.querySelector('.refs')) r.classList.add('two');
   for (const r of tight) r.classList.add('tight');
   const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };

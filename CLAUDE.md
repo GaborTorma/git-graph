@@ -131,8 +131,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   az alattuk lévő sorokat lejjebb tolja. A pötty a sor közepére kerül
   (`offsetTop + offsetHeight / 2`): a sor `ROW_H` magas, a kétsoros 48 px. A sor
   elrendezése fix határokkal a szövegoszlop szélességétől függ (`fitRows`:
-  600 px alatt hash nélkül, 480 alatt kétsoros `.two` — kétsorosban sosincs
-  hash —, a lista nem szűkül 320
+  480 alatt kétsoros `.two`, a sorban hash nincs, a lista nem szűkül 320
   alá); csak a badge-es sort méri (`.tight`), mert a badge-ek hossza soronként más. Ezért minden DOM-változás után újra kell hívni (nyitás,
   zárás, Escape, `render`). A panel `margin-left: var(--graph-w)` — a gráf-oszlop
   szabadon marad, a vonal mellette fut végig.

@@ -369,7 +369,7 @@ button { font: inherit; color: inherit; }
 .row.merge .desc { color: var(--fg-2); }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
 /* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra az idő, az avatar és
-   a diff (hash nincs). Badge-es sornál (`.tight`): fent a tárgy, lent balra a
+   a diff. Badge-es sornál (`.tight`): fent a tárgy, lent balra a
    badge-ek, jobbra az idő, és ami még elfér (fontosság: idő, avatar, diff —
    hátulról marad el). */
 .row.two, .row.tight { height: 48px; }
@@ -384,11 +384,8 @@ button { font: inherit; color: inherit; }
 .row.tight .br { display: block; flex-basis: 100%; height: 0; }
 .row.tight .refs { flex: 1 1 0; overflow: hidden; }
 .br { display: none; }
-.rows.no-sha .row:not(.two, .tight) .meta .sha,
-.row.no-sha .meta .sha,
 .row.no-sum .meta .sum,
-.row.no-author .meta .author,
-.row:is(.two, .tight) .meta .sha { display: none; }   /* kétsoros sorban nincs hash */
+.row.no-author .meta .author { display: none; }
 .row.uncommitted .subject { font-style: italic; color: var(--fg-2); }
 .meta {
   flex: none; display: flex; gap: 6px;
@@ -396,7 +393,6 @@ button { font: inherit; color: inherit; }
 }
 .meta .sep { color: var(--fg-3); }
 .meta .time { font-variant-numeric: tabular-nums; }
-.meta .sha { font-family: var(--font-mono); font-size: 11.5px; }
 /* A szerző arca: avatar vagy monogram, egyforma körben */
 .meta .author { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none;
                 width: 16px; height: 16px; border-radius: 8px;
