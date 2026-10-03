@@ -549,7 +549,9 @@ button { font: inherit; color: inherit; }
   background: var(--bg-1);
   font-size: 11.5px; color: var(--fg-2);
 }
-.foot .live { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* A bal padding a pulzáló pötty gyűrűjének helye (az overflow különben levágná). */
+.foot .live { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+              padding: 5px 0 5px 6px; margin: -5px 0 -5px -6px; }
 .foot .dot { width: 7px; height: 7px; border-radius: 4px; background: var(--fg-3); flex: none; }
 .foot.on .dot { background: var(--live); }
 .foot.stale .dot { background: var(--del); }
@@ -560,6 +562,8 @@ button { font: inherit; color: inherit; }
 .foot .ver:not(:empty)::before { content: "·"; margin-right: 7px; color: var(--fg-3); }
 .foot .ver { white-space: nowrap; }
 .foot .ver.cut { display: none; }
+.foot .ver .home { color: inherit; text-decoration: none; }
+.foot .ver .home:hover { text-decoration: underline; }
 .foot .ver.warn { color: var(--del); white-space: normal; }
 .foot .live:has(.ver.warn) { white-space: normal; }
 /* Élőben a pötty folyamatosan pulzál: zölden, ha jön az adat, pirosan, ha a
@@ -572,9 +576,9 @@ button { font: inherit; color: inherit; }
   .foot:is(.on, .stale) .dot { animation: live-pulse 1.6s ease-out infinite; }
 }
 @keyframes live-pulse {
-  0%   { transform: scale(1);    box-shadow: 0 0 0 0 color-mix(in srgb, var(--pulse) 55%, transparent); }
-  50%  { transform: scale(1.25); }
-  100% { transform: scale(1);    box-shadow: 0 0 0 6px transparent; }
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 color-mix(in srgb, var(--pulse) 38%, transparent); }
+  50%  { transform: scale(1.17); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 4px transparent; }
 }
 .foot .links { justify-self: end; display: flex; align-items: center; gap: 4px; }
 .foot .links .mini { width: 22px; height: 22px; }

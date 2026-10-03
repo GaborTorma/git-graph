@@ -1077,12 +1077,14 @@ function mcpProblem(e) {
 
 /* A futó git-graph verziója; ha a telepített más, a teendővel együtt — a futó
    `git-graph --mcp` a régi kódot futtatja, amíg az app újra nem indul. */
+const PLUGIN_URL = 'https://github.com/GaborTorma/git-graph';   // = plugin.json `repository`
 function showVersion(f) {
   const stale = f.version && f.installed && f.installed !== f.version && !f.version.includes('+');
   versionEl.className = stale ? 'ver warn' : 'ver';
-  versionEl.textContent = !f.version ? '' : stale
-    ? `git-graph ${f.version} fut, ${f.installed} telepítve — indítsd újra a Claude appot`
-    : `git-graph ${f.version}`;
+  const name = ghLink(PLUGIN_URL, 'Git Graph', 'home', 'A Git Graph a GitHubon');
+  versionEl.innerHTML = !f.version ? '' : stale
+    ? `${name} v${esc(f.version)} fut, v${esc(f.installed)} telepítve — indítsd újra a Claude appot`
+    : `${name} v${esc(f.version)}`;
   fitFoot();
 }
 
