@@ -935,9 +935,28 @@ const THEMES = [
 ];
 const themeBtn = document.getElementById('themeBtn');
 const themePop = document.getElementById('themePop');
+/* A platform a Claude app választott témáját `data-theme`-mel adja (a
+   „Rendszer” beállításnál semmit). Az „Automatikus” ezt követi, nem törli:
+   a betöltő induláskor feljegyzi (`hostTheme`), menet közbeni váltását a
+   figyelő veszi észre — ami nem a mi írásunk, az a platformé. */
+const root = document.documentElement;
+let themeMode = 'auto';
+let hostTheme = root.dataset.hostTheme ?? root.getAttribute('data-theme') ?? '';
+let ownTheme = root.getAttribute('data-theme');
+function applyTheme() {
+  ownTheme = themeMode === 'auto' ? hostTheme || null : themeMode;
+  if (root.getAttribute('data-theme') === ownTheme) return;
+  if (ownTheme) root.setAttribute('data-theme', ownTheme); else root.removeAttribute('data-theme');
+}
+new MutationObserver(() => {
+  const value = root.getAttribute('data-theme');
+  if (value === ownTheme) return;
+  hostTheme = value || '';
+  applyTheme();
+}).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
 function setTheme(mode) {
-  const root = document.documentElement;
-  if (mode === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', mode);
+  themeMode = mode;
+  applyTheme();
   const [, label, svgPath] = THEMES.find(t => t[0] === mode) || THEMES[0];
   document.getElementById('themeIcon').innerHTML = svgPath;
   themeBtn.setAttribute('aria-label', `Téma: ${label.toLowerCase()}`);

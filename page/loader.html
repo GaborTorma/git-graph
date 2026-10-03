@@ -14,7 +14,10 @@ body { margin: 0; background: var(--bg); color: var(--fg);
 <script>
 /* A git-graph lapja: a rajzoló kódot a gépen futó `git-graph --mcp` adja
    (`page_code`), ez a betöltő csak lekéri és elindítja. A néző választott
-   témája már a betöltéskor él — a lap nem villan át a másikba. */
+   témája már a betöltéskor él — a lap nem villan át a másikba. A platform
+   (a Claude app témája) is `data-theme`-et ír: előbb azt jegyezzük fel, az
+   „Automatikus” mód ehhez tér vissza. */
+document.documentElement.dataset.hostTheme = document.documentElement.getAttribute('data-theme') || '';
 try {
   const theme = localStorage.getItem('git-graph:theme');
   if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
