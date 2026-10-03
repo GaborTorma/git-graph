@@ -79,10 +79,15 @@ function laneX(l) { return X0 + l * LANE_W; }
 /* A sorok Y-pozíciója a DOM-ból jön, nem sorszám × magasság: a napok fejléce
    és a kinyitott commit-panel az alattuk lévő sorokat lejjebb tolja, és a
    pöttyöknek velük kell menniük — közben a vonal egyszerűen hosszabb lesz. */
+/* Az Uncommitted ál-sor a lista FÖLÖTT, a fix `#pending` sávban ül: a pontja
+   ott van, a szaggatott vonala innen, a lista teteje fölül (negatív Y, az
+   SVG túllóghat) fut le a HEAD-ig. */
+const PENDING_Y = -(4 + ROW_H / 2);   // 4: a .graph-wrap felső margója
 function drawGraph() {
   const rowIndexBySha = new Map(visible.map((c, i) => [c.sha, i]));
-  const tops = [...rowsEl.querySelectorAll('.row')].map(el => el.offsetTop);
-  const rowY = i => (tops[i] ?? i * ROW_H) + ROW_H / 2;
+  const topBySha = new Map([...rowsEl.querySelectorAll('.row')].map(el => [el.dataset.sha, el.offsetTop]));
+  const rowY = i => visible[i].uncommitted ? PENDING_Y
+    : (topBySha.get(visible[i].sha) ?? i * ROW_H) + ROW_H / 2;
   const h = Math.max(rowsEl.offsetHeight, visible.length * ROW_H);
   svg.setAttribute('width', graphW);
   svg.setAttribute('height', h);
@@ -96,11 +101,12 @@ function drawGraph() {
     const x1 = laneX(e.fromLane), y1 = rowY(a);
     const x2 = laneX(e.toLane),   y2 = rowY(b);
     const color = LANE_COLORS[(e.merge ? e.fromLane : e.toLane) % LANE_COLORS.length];
-    // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re.
-    const dash = DATA.commits[e.fromRow].uncommitted ? ' stroke-dasharray="3 3"' : '';
+    // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re (görgetve rejtve).
+    const dash = DATA.commits[e.fromRow].uncommitted ? ' class="pend-edge" stroke-dasharray="3 3"' : '';
     out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
   }
   visible.forEach((c, i) => {
+    if (c.uncommitted) return;            // a pontja a #pending sávban van
     const color = LANE_COLORS[c.lane % LANE_COLORS.length];
     const merge = c.parents.length > 1;
     // Az ál-sor pontja üres karika: a szaggatott vonal már jelzi, hogy nem
@@ -214,9 +220,11 @@ function rowHtml(c) {
 function render() {
   let day = '', html = '';
   const today = dayKey(new Date().toISOString());
+  renderPending(visible.find(c => c.uncommitted));
   for (const c of visible) {
-    const key = c.uncommitted ? '' : dayKey(c.date);
-    if (key && key !== day) {
+    if (c.uncommitted) continue;          // a fix #pending sávban van
+    const key = dayKey(c.date);
+    if (key !== day) {
       const lead = !day && key === today ? ' lead' : '';
       html += `${day ? '</section>' : ''}<section class="day-group">`
         + `<div class="day${lead}"><span class="lbl">${dayLabel(key)}</span></div>`;
@@ -233,8 +241,21 @@ function render() {
   stackDays();
 }
 
+/* Az Uncommitted ál-sor mindig látszik: a lista fölötti fix sávban, saját
+   üres karikával és a lista felé futó szaggatott csonkkal (görgetve rejtve). */
+const pendingEl = document.getElementById('pending');
+function renderPending(c) {
+  pendingEl.hidden = !c;
+  if (!c) { pendingEl.innerHTML = ''; return; }
+  const x = laneX(c.lane), color = LANE_COLORS[c.lane % LANE_COLORS.length];
+  pendingEl.innerHTML = `<svg class="pend-lane" width="${graphW}" height="${ROW_H}" aria-hidden="true">`
+    + `<path class="pend-edge" d="M ${x} ${ROW_H / 2 + DOT_R + 1} L ${x} ${ROW_H}" stroke="${color}" stroke-width="2" stroke-dasharray="3 3"/>`
+    + `<circle cx="${x}" cy="${ROW_H / 2}" r="${DOT_R + 1}" fill="var(--bg)" stroke="${color}" stroke-width="2"/></svg>`
+    + rowHtml(c);
+}
+
 /* ── Commit-részletek ────────────────────────────────────────────────────── */
-const miniBtn = (name, label, attrs = '') =>
+const miniBtn =(name, label, attrs = '') =>
   `<button class="mini" type="button" aria-label="${esc(label)}" title="${esc(label)}" ${attrs}>${icon(name)}</button>`;
 
 /* Változásjelölő: 6 szegmens, a hozzáadás / törlés arányában. */
@@ -264,9 +285,9 @@ function headHtml(c) {
 
 function open(sha) {
   document.querySelectorAll('.details').forEach(d => d.remove());
-  const row = rowsEl.querySelector(`.row[data-sha="${sha}"]`);
+  const row = document.querySelector(`.row[data-sha="${CSS.escape(sha)}"]`);
   if (!row) return;
-  rowsEl.querySelectorAll('.row').forEach(r => r.setAttribute('aria-expanded', 'false'));
+  document.querySelectorAll('.row').forEach(r => r.setAttribute('aria-expanded', 'false'));
   row.setAttribute('aria-expanded', 'true');
 
   const c = DATA.commits.find(x => x.sha === sha);
@@ -289,7 +310,8 @@ function open(sha) {
         ${c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : '<span></span>'}</div>
         <div class="diff" hidden></div>`).join('')}
     </div>`;
-  row.after(el);
+  // Az ál-sor a fix sávban ül: a panelje a lista tetejére kerül, nem a sávba.
+  if (pendingEl.contains(row)) { rowsEl.prepend(el); scroller.scrollTop = 0; } else row.after(el);
   expanded = sha;
   // Újrarajzolás (élő adatcsere) után a korábban lenyitott fájlok nyitva maradnak.
   el.querySelectorAll('.file').forEach(f => {
@@ -486,7 +508,7 @@ function fitChrome() {
 }
 new ResizeObserver(fitChrome).observe(chromeEl);
 
-rowsEl.addEventListener('click', e => {
+function onListClick(e) {
   if (e.target.closest('a[href]')) return;   // GitHub-link: nyíljon, a sor ne csukódjon
   const copy = e.target.closest('[data-copy]');
   if (copy) { copyText(copy.dataset.copy, copy); return; }
@@ -507,12 +529,14 @@ rowsEl.addEventListener('click', e => {
     expanded = null;
     drawGraph();
   } else open(row.dataset.sha);
-});
+}
+rowsEl.addEventListener('click', onListClick);
+pendingEl.addEventListener('click', onListClick);
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && expanded) {
     document.querySelectorAll('.details').forEach(d => d.remove());
-    rowsEl.querySelectorAll('.row').forEach(r => r.setAttribute('aria-expanded', 'false'));
+    document.querySelectorAll('.row').forEach(r => r.setAttribute('aria-expanded', 'false'));
     expanded = null;
     drawGraph();
   }
@@ -688,6 +712,7 @@ const versionEl = document.getElementById('version');
    következő nap fejlécét — nem csúszik ki fokozatosan, nem lóg rá a másikra. */
 function stackDays() {
   scroller.classList.toggle('scrolled', scroller.scrollTop > 0);
+  pendingEl.classList.toggle('scrolled', scroller.scrollTop > 0);
   const days = rowsEl.querySelectorAll('.day');
   for (let i = 0; i < days.length; i++) {
     const next = days[i + 1];
