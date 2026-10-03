@@ -130,7 +130,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   sorszám × magasságból: a napok fejléce (`.day`) és a kinyitott commit-panel
   az alattuk lévő sorokat lejjebb tolja. A pötty a sor közepére kerül
   (`offsetTop + offsetHeight / 2`): a sor `ROW_H` magas, a kétsoros (`.two`,
-  `fitRows`: ha a tárgysor 200 px alá préselődne; `.tight`: lent a
+  `fitRows`: ha a tárgysor 260 px alá préselődne; `.tight`: lent a
   badge-ek és az idő) 48 px. Ezért minden DOM-változás után újra kell hívni (nyitás,
   zárás, Escape, `render`). A panel `margin-left: var(--graph-w)` — a gráf-oszlop
   szabadon marad, a vonal mellette fut végig.

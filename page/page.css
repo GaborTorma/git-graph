@@ -382,7 +382,7 @@ button { font: inherit; color: inherit; }
 .row.tight .br { display: block; flex-basis: 100%; height: 0; }
 .row.tight .refs { flex: 1 1 0; overflow: hidden; }
 .br { display: none; }
-.rows.no-sum .meta .sum,
+.rows.no-sum .row:not(.two, .tight) .meta .sum,
 .row.no-sum .meta .sum,
 .row.no-author .meta .author,
 .row.no-sha .meta :is(.sha, .s-sha) { display: none; }
@@ -408,15 +408,16 @@ button { font: inherit; color: inherit; }
 .meta .author.ini { background: var(--bg-3); color: var(--fg-1); font-size: 8px; font-weight: 600; letter-spacing: .02em; }
 .meta { align-items: center; }
 /* A commit összes változása a hash után, két összetapadó színes címkében (a
-   Claude app diff-jelzője mintájára) — csak ha a sor elég széles. */
+   Claude app diff-jelzője mintájára); egysoros sorban csak, ha elfér (`fitRows`). */
 .row-in { container-type: inline-size; }
-.sum { display: inline-flex; align-items: center; margin-left: -2px;   /* a hashhez közel (fitRows: SUM_GAP) */
+.sum { display: inline-flex; align-items: center; margin-left: 2px;   /* fitRows: SUM_GAP */
        font: 10px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
 /* fix szélesség (5 karakter: `+1200`), hogy a sorok vége egy oszlopban álljon */
-.sum > span { padding: 2px 3px; min-width: 5ch; text-align: center; }
+.sum > span { box-sizing: border-box; padding: 2px 3px; min-width: 32px; text-align: center; }
 .sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, transparent); border-radius: 4px 0 0 4px; }
 .sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, transparent); border-radius: 0 4px 4px 0; }
-@container (max-width: 460px) { .meta .sum { display: none; } }
+/* 1000 fölött kisebb betű, ugyanabban a szélességben */
+.sum .big { font-size: 8.5px; }
 
 .empty { padding: 40px; text-align: center; color: var(--fg-2); }
 

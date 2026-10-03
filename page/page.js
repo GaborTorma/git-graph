@@ -230,7 +230,8 @@ function rowHtml(c) {
   const refs = c.refs.length ? `<span class="refs">${badges(c)}</span>` : '';
   const st = DATA.stats[c.sha];
   const sum = st?.files.length
-    ? `<span class="sum"><span class="a">+${st.add}</span><span class="d">−${st.del}</span></span>` : '';
+    ? `<span class="sum"><span class="a${st.add > 999 ? ' big' : ''}">+${st.add}</span>`
+      + `<span class="d${st.del > 999 ? ' big' : ''}">−${st.del}</span></span>` : '';
   // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név hoverre (`data-name`).
   const avatar = DATA.avatars?.[c.email];
   const face = avatar ? `<img src="${esc(avatar)}" alt="">` : esc(initials(c.author));
@@ -566,8 +567,8 @@ new ResizeObserver(() => {
    (`.tight`) fent a tárgy, lent balra a badge-ek, jobbra az idő, a hash, a
    diff és a szerző, amennyi elfér.
    Minden lépés előbb mér, aztán egy körben ír. */
-const SQUEEZE = 200;   // ennél keskenyebb, csonkolt tárgysornál vált
-const SUM_GAP = 4;     // a diff és a hash közti rés (page.css: .meta gap + .sum margin)
+const SQUEEZE = 260;   // ennél keskenyebb, csonkolt tárgysornál vált
+const SUM_GAP = 8;     // a diff és a hash közti rés (page.css: .meta gap + .sum margin)
 const squeezed = r => {
   const s = r.querySelector('.subject');
   return s && s.scrollWidth > s.clientWidth && s.clientWidth < SQUEEZE;
@@ -576,16 +577,17 @@ function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
   for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sum', 'no-sha');
   rowsEl.classList.remove('no-sum');
-  // A diff egységesen látszik vagy nem: elmarad az egész listáról, ha a sorok
-  // több mint negyedében miatta csonkolódna a tárgy (diff nélkül kiférne).
-  const singles = rows.filter(r => r.querySelector('.meta .sum'));
+  const two = rows.filter(squeezed);
+  // A diff az egysoros sorokon egységesen látszik vagy nem: elmarad róluk, ha
+  // több mint negyedükben miatta csonkolódna a tárgy (diff nélkül kiférne).
+  // A több soros sorban mindig elfér, ott marad.
+  const singles = rows.filter(r => !two.includes(r) && r.querySelector('.meta .sum'));
   const cutBySum = singles.filter(r => {
     const s = r.querySelector('.subject'), sum = r.querySelector('.meta .sum');
     const over = s.scrollWidth - s.clientWidth;
     return over > 0 && over <= sum.offsetWidth + SUM_GAP;
   });
   if (cutBySum.length > singles.length / 4) rowsEl.classList.add('no-sum');
-  const two = rows.filter(squeezed);
   for (const r of two) r.classList.add('two');
   const tight = two.filter(r => r.querySelector('.refs'));
   for (const r of tight) r.classList.replace('two', 'tight');
