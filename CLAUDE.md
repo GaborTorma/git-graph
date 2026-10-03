@@ -128,8 +128,9 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   Bármi, ami a lapra kerül, ezen menjen át.
 - **A `drawGraph()` a DOM-ból olvassa a sorok Y-pozícióját** (`offsetTop`), nem
   sorszám × magasságból: a napok fejléce (`.day`) és a kinyitott commit-panel
-  az alattuk lévő sorokat lejjebb tolja. A sor magassága pontosan `ROW_H`
-  legyen (a pötty a sor közepére kerül). Ezért minden DOM-változás után újra kell hívni (nyitás,
+  az alattuk lévő sorokat lejjebb tolja. A pötty a sor közepére kerül
+  (`offsetTop + offsetHeight / 2`): a sor `ROW_H` magas, a kétsoros (`.two`,
+  `fitRows`: ha a tárgysor 200 px alá préselődne) 48 px. Ezért minden DOM-változás után újra kell hívni (nyitás,
   zárás, Escape, `render`). A panel `margin-left: var(--graph-w)` — a gráf-oszlop
   szabadon marad, a vonal mellette fut végig.
 - **A sor-kiemelés nem mehet a gráf-oszlopra**: a pöttyöket az `#lanes` SVG

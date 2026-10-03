@@ -355,6 +355,16 @@ button { font: inherit; color: inherit; }
 .desc { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--fg-0); }
 .subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.merge .desc { color: var(--fg-2); }
+.refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
+/* Kétsoros sor (`fitRows`): fent a tárgy teljes szélességben, lent a badge-ek
+   és a szerző-blokk. */
+.row.two { height: 48px; }
+.row.two .row-in { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center;
+                   row-gap: 3px; column-gap: 12px; }
+.row.two .desc { display: contents; }
+.row.two .subject { grid-column: 1 / -1; }
+.row.two .refs { grid-column: 1; overflow: hidden; }
+.row.two .meta { grid-column: 2; grid-row: 2; justify-content: flex-end; }
 .row.uncommitted .subject { font-style: italic; color: var(--fg-2); }
 .meta {
   flex: none; display: flex; gap: 6px;

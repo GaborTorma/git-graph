@@ -91,9 +91,11 @@ function laneX(l) { return X0 + l * LANE_W; }
 const PENDING_Y = -(4 + ROW_H / 2);   // 4: a .graph-wrap felső margója
 function drawGraph() {
   const rowIndexBySha = new Map(visible.map((c, i) => [c.sha, i]));
-  const topBySha = new Map([...rowsEl.querySelectorAll('.row')].map(el => [el.dataset.sha, el.offsetTop]));
+  // A sor közepe: a kétsoros sor (`.two`) magasabb.
+  const midBySha = new Map([...rowsEl.querySelectorAll('.row')]
+    .map(el => [el.dataset.sha, el.offsetTop + el.offsetHeight / 2]));
   const rowY = i => visible[i].uncommitted ? PENDING_Y
-    : (topBySha.get(visible[i].sha) ?? i * ROW_H) + ROW_H / 2;
+    : midBySha.get(visible[i].sha) ?? i * ROW_H + ROW_H / 2;
   const h = Math.max(rowsEl.offsetHeight, visible.length * ROW_H);
   svg.setAttribute('width', graphW);
   svg.setAttribute('height', h);
@@ -212,6 +214,7 @@ function badges(c) {
 
 function rowHtml(c) {
   const color = fresh.has(c.sha) ? ` style="color:${LANE_COLORS[c.lane % LANE_COLORS.length]}"` : '';
+  const refs = c.refs.length ? `<span class="refs">${badges(c)}</span>` : '';
   const st = DATA.stats[c.sha];
   const sum = st?.files.length
     ? `<span class="sum"><span class="a">+${st.add}</span><span class="d">−${st.del}</span></span>` : '';
@@ -219,7 +222,7 @@ function rowHtml(c) {
     + `<span class="time">${fmtTime(c.date)}</span><span class="sep">·</span><span class="sha">${c.short}</span></span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
-      <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>${badges(c)}</span>${meta}</span>
+      <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>${refs}</span>${meta}</span>
     </button>`;
 }
 
@@ -250,6 +253,7 @@ function render() {
   }
   if (day) html += '</section>';
   rowsEl.innerHTML = html || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
+  fitRows();
   drawGraph();
   const shown = visible.filter(c => !c.uncommitted).length;   // az ál-sor nem commit
   counter.innerHTML = DATA.meta.totalCommits ? `<b>${shown}</b> / ${DATA.meta.totalCommits} commit` : '';
@@ -531,7 +535,25 @@ function showWholeCommit(fileEl) {
 
 /* Az ablak (Artifact-panel) átméretezése sortörést és nézetváltást hozhat: a
    sorok Y-pozíciója elmozdul, a gráfnak követnie kell. */
-new ResizeObserver(() => drawGraph()).observe(rowsEl);
+let rowsWidth = 0;
+new ResizeObserver(() => {
+  if (rowsEl.clientWidth !== rowsWidth) { rowsWidth = rowsEl.clientWidth; fitRows(); }
+  drawGraph();
+}).observe(rowsEl);
+
+/* Kétsoros sor: ha a tárgysor nagyon összepréselődne (a badge-ek vagy a
+   keskeny panel miatt), az első sorba a tárgy kerül, a másodikba a badge-ek és
+   a szerző. Előbb mind egysoros, úgy mér; az írás egy körben, a mérés után. */
+const SQUEEZE = 200;   // ennél keskenyebb, csonkolt tárgysornál vált
+function fitRows() {
+  const rows = [...rowsEl.querySelectorAll('.row')];
+  for (const r of rows) r.classList.remove('two');
+  const tight = rows.filter(r => {
+    const s = r.querySelector('.subject');
+    return s && s.scrollWidth > s.clientWidth && s.clientWidth < SQUEEZE;
+  });
+  for (const r of tight) r.classList.add('two');
+}
 
 /* Kompakt fejléc: ha a kontroll-sor feliratokkal két sorba törne, a
    kapcsolók felirata helyett ikon jelenik meg (a felirat tooltipben marad). */
