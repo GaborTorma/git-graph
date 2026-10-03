@@ -414,15 +414,15 @@ button { font: inherit; color: inherit; }
        font: 10px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
 /* Fix szélesség (oldalanként 3 karakter: `888`, `12k` — a +/− jelet a szín
    adja), hogy a sorok vége egy oszlopban álljon. A két fél a számjegyek
-   hossza szerint osztozik (`flex-grow` a sorban), a számok a középső
-   határhoz tapadnak; a nulla oldal elmarad, a másik kitölti. */
+   hossza szerint osztozik (`flex-grow` a sorban), a számok jobbra
+   igazítva; a nulla oldal elmarad, a másik kitölti. */
 .sum { width: 48px; }
-.sum > span { box-sizing: border-box; flex: 0 1 0; min-width: 0; padding: 2px 3px; }
+.sum > span { box-sizing: border-box; flex: 0 1 0; min-width: 0; padding: 2px 3px; text-align: right; }
 .sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, transparent);
-          border-radius: 4px 0 0 4px; text-align: right; }
+          border-radius: 4px 0 0 4px; }
 .sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, transparent);
-          border-radius: 0 4px 4px 0; text-align: left; }
-.sum > :only-child { border-radius: 4px; text-align: center; }
+          border-radius: 0 4px 4px 0; }
+.sum > :only-child { border-radius: 4px; }
 
 .empty { padding: 40px; text-align: center; color: var(--fg-2); }
 
