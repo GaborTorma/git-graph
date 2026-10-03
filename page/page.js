@@ -370,7 +370,7 @@ function toggleFile(fileEl, sha, on) {
   const cached = diffCache.get(key);
   if (!SRC) return show('<p class="diff-note">A diff csak élő nézetben látszik '
     + '(az Artifact a Claude appban).</p>');
-  show(cached ? diffHtml(cached.data, lang) : '<p class="diff-note">Betöltés…</p>');
+  show(cached ? diffHtml(cached.data, lang) : '<p class="diff-note loading">Betöltés…</p>');
   if (cached && !cached.stale) return;
   SRC.diff(sha, fileEl.dataset.path).then(
     d => { diffCache.set(key, { data: d }); show(diffHtml(d, lang)); },
@@ -709,6 +709,22 @@ const rowOf = c => c && document.querySelector(`.row[data-sha="${CSS.escape(c.sh
    side-by-side, a szélesség dönt). Bezárt fájlnál üres. */
 const hunksOf = fileEl => fileEl?.getAttribute('aria-expanded') === 'true'
   ? [...fileEl.nextElementSibling.querySelectorAll('.hunk')].filter(h => h.offsetParent !== null) : [];
+/* Fájl kinyitása után a kijelölés az első blokkra lép — ha a diff még
+   töltődik, megvárja (legfeljebb 3 mp), amíg megjelenik. Ha közben máshová
+   lépett a kijelölés, nem rántja vissza. */
+function enterFirstHunk(fileEl) {
+  const go = () => {
+    const first = hunksOf(fileEl)[0];
+    if (first && document.activeElement === fileEl) select(first);
+    // kész: van blokk, vagy végleges üzenet jött (bináris, üres, hiba) — a betöltésre vár
+    return Boolean(first) || fileEl.nextElementSibling.querySelector('.diff-note:not(.loading)') !== null;
+  };
+  if (go()) return;
+  const box = fileEl.nextElementSibling;
+  const obs = new MutationObserver(() => { if (go()) obs.disconnect(); });
+  obs.observe(box, { childList: true, subtree: true });
+  setTimeout(() => obs.disconnect(), 3000);
+}
 const nextFile = fileEl => {
   const files = [...fileEl.parentElement.querySelectorAll('.file')];
   return files[files.indexOf(fileEl) + 1];
@@ -779,7 +795,7 @@ document.addEventListener('keydown', e => {
     const prev = files[files.indexOf(file) - 1];
     if (k === 'ArrowDown') select((isOpen && hunksOf(file)[0]) || files[files.indexOf(file) + 1]);
     else if (k === 'ArrowUp') select((prev && hunksOf(prev).at(-1)) || prev);
-    else if (k === 'ArrowRight' && !isOpen) toggleFile(file, expanded, true);
+    else if (k === 'ArrowRight' && !isOpen) { toggleFile(file, expanded, true); enterFirstHunk(file); }
     else if (k === 'ArrowLeft' && isOpen) toggleFile(file, expanded, false);
     else if (k === 'ArrowLeft') select(rowOf(visible.find(c => c.sha === expanded)));
     else handled = false;
