@@ -163,6 +163,19 @@ A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 
 Kézi URL-megadás: `git-graph --set-artifact <url>`.
 
+## Billentyűk
+
+| Billentyű | Mit csinál |
+| --- | --- |
+| `↑` / `↓` | az előző / következő commit nyílik; ha nincs nyitva, a nézet legfelsője |
+| `⌘` / `Ctrl` + `↓` / `↑` | szülő / gyerek ugyanazon az ágon |
+| `⇧⌘` / `⇧Ctrl` + `↓` / `↑` | merge-nél a beolvasztott ág (második szülő), visszafelé a merge |
+| `H` | ugrás a HEAD-re |
+| `⌘F` / `Ctrl+F` | kereső |
+| `Esc` | előbb a keresést üríti, aztán a nyitott commitot csukja |
+
+A nyitott commit a lista tetejére kerül. A görgő egy kattanása egy commitot lép.
+
 ## Uncommitted Changes
 
 Ha a munkakönyvtárban van változás, a gráf tetején — a Git Graph mintájára —

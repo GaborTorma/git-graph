@@ -690,6 +690,48 @@ document.addEventListener('keydown', e => {
   }
 }, true);
 
+/* ── Billentyűzetes navigáció (a Git Graph mintájára) ──────────────────────
+   ↑/↓            kinyitott commitnál az előző / következő; ha nincs nyitva, a
+                  nézet legfelső commitja nyílik
+   ⌘/Ctrl+↓ / ↑   szülő / gyerek ugyanazon az ágon; Shift-tel merge-nél a másik ág
+   H              ugrás a HEAD-re (a ⌘H macOS-en az appot rejti el)
+   A nyitott commit a lista tetejére kerül. Beviteli mezőben és nyitott
+   menünél a billentyűk a saját dolgukat végzik. */
+function openAt(c) {
+  if (!c || !visible.includes(c)) return false;   // szűrve: nem látszik
+  open(c.sha);
+  revealExpanded();
+  document.querySelector(`.row[data-sha="${CSS.escape(c.sha)}"]`)?.focus({ preventScroll: true });
+  return true;
+}
+function topVisible() {
+  // Görgetés nélkül a legfelső sor 4 px-re van (nincs fölötte ragadós fejléc).
+  const top = scroller.getBoundingClientRect().top + (scroller.scrollTop > 0 ? STEP_TOP : 0) - 1;
+  const row = [...rowsEl.querySelectorAll('.row')].find(r => r.getBoundingClientRect().top >= top);
+  return row && visible.find(c => c.sha === row.dataset.sha);
+}
+function relative(c, dir, other) {
+  if (dir > 0) {                                    // lefelé: szülő
+    const p = other ? c.parents[1] : c.parents[0];
+    return p && DATA.commits.find(x => x.sha === p);
+  }
+  return DATA.commits.find(x => other ? x.parents.slice(1).includes(c.sha) : x.parents[0] === c.sha);
+}
+document.addEventListener('keydown', e => {
+  if (e.altKey || e.target.closest('input, textarea, .menu-pop')
+      || document.querySelector('.menu-pop:not([hidden])')) return;
+  const cur = expanded && visible.find(c => c.sha === expanded);
+  let handled = false;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const dir = e.key === 'ArrowDown' ? 1 : -1;
+    if (e.metaKey || e.ctrlKey) handled = cur ? openAt(relative(cur, dir, e.shiftKey)) || true : false;
+    else if (!e.shiftKey) handled = openAt(cur ? visible[visible.indexOf(cur) + dir] : topVisible()) || Boolean(cur);
+  } else if ((e.key === 'h' || e.key === 'H') && !e.metaKey && !e.ctrlKey) {
+    handled = openAt(visible.find(c => c.refs.some(r => r.kind === 'head' || r.kind === 'detached')));
+  }
+  if (handled) e.preventDefault();
+});
+
 /* ── Téma ── automatikus / világos / sötét, lenyíló menüből; a választás
    nézőnként megmarad (a betöltő is ebből indul, hogy ne villanjon). */
 const THEME_KEY = 'git-graph:theme';
