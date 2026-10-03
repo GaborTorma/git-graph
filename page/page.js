@@ -226,7 +226,7 @@ const kilo = n => n < 1000 ? String(n) : `${Math.round(n / 1000)}k`;
 
 /* A commit-sor diff-címkéje: fájlszám | zöld | piros, fix széles cellák, a
    pontos számok a tooltipben. A fájlszám 2 karakter: 99 fölött `99⁺`. */
-const diffTag = (files, add, del) => `<span class="sum" data-tip="${files} fájl · +${add} −${del} sor"`
+const diffTag = (files, add, del) => `<span class="sum" data-tip="${files} fájl, +${add} −${del} sor"`
   + ` aria-label="${files} fájl, ${add} hozzáadott, ${del} törölt sor">`
   + `<span class="f">${files > 99 ? '99<sup>+</sup>' : files}</span>`
   + `<span class="a">${kilo(add)}</span><span class="d">${kilo(del)}</span></span>`;
