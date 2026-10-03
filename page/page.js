@@ -86,7 +86,21 @@ function hydrate() {
       + ghLink(`${base}/pulls`, icon('pr'), 'mini', 'Pull requestek a GitHubon')
       + ghLink(base, icon('github'), 'mini', 'A repó a GitHubon') : '';
   fitChrome();                // a repó- és ágnév hossza dönt a kompakt fejlécről
+  hydrateAvatars();
 }
+
+/* Az avatarok (data URI, néhány KB) szerzőnként egyszer kerülnek a lapra, egy
+   stíluslapba (`.av<n>` háttérkép); a sor csak az osztályt kapja — különben
+   minden sor újra beágyazná a képet, és a render ezt sokszor újraépítené. */
+const avatarStyle = document.head.appendChild(document.createElement('style'));
+let avatarClass = new Map();          // e-mail → osztálynév
+function hydrateAvatars() {
+  const entries = Object.entries(DATA.avatars || {});
+  avatarClass = new Map(entries.map(([email], i) => [email, `av${i}`]));
+  avatarStyle.textContent = entries
+    .map(([, url], i) => `.av${i}{background-image:url("${url.replace(/["\\\n]/g, '')}")}`).join('\n');
+}
+const avatarOf = c => DATA.avatars?.[c.email];
 
 /* ── Gráf rajzolása ──────────────────────────────────────────────────────── */
 function laneX(l) { return X0 + l * LANE_W; }
@@ -158,7 +172,7 @@ const dayKey = iso => { const p = fmtParts(iso, { year: 'numeric', month: '2-dig
   return `${p.year}-${p.month}-${p.day}`; };
 const fmtTime = iso => { const p = fmtParts(iso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   return `${p.hour}:${p.minute}`; };
-const clock = () => { const p = fmtParts(new Date().toISOString(),
+const clock = () => { const p = fmtParts(new Date(),
   { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
   return `${p.hour}:${p.minute}:${p.second}`; };
 const fmtDate = iso =>`${dayKey(iso).replaceAll('-', '.')}. ${fmtTime(iso)}`;
@@ -166,12 +180,12 @@ function dayLabel(key) {
   const [y, m, d] = key.split('-').map(Number);
   const long = new Intl.DateTimeFormat('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
     .format(new Date(Date.UTC(y, m - 1, d)));
-  const today = dayKey(new Date().toISOString());
-  const yesterday = dayKey(new Date(Date.now() - 864e5).toISOString());
-  return key === today ? `Ma · ${long}` : key === yesterday ? `Tegnap · ${long}` : long;
+  const yesterday = dayKey(new Date(Date.now() - 864e5));
+  return key === dayKey(new Date()) ? `Ma · ${long}` : key === yesterday ? `Tegnap · ${long}` : long;
 }
 
 /* ── Sorok ───────────────────────────────────────────────────────────────── */
+const menuOpen = () => Boolean(document.querySelector('.menu-pop:not([hidden])'));
 const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 
 /* GitHub-linkek: valódi `<a target="_blank">` — az Artifact keretéből a Claude
@@ -240,13 +254,13 @@ function rowHtml(c) {
   const refs = c.refs.length ? `<span class="refs">${badges(c)}</span>` : '';
   const st = DATA.stats[c.sha];
   const sum = st?.files.length ? diffTag(st.files.length, st.add, st.del) : '';
-  // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név hoverre (`data-tip`).
-  const avatar = DATA.avatars?.[c.email];
-  const face = avatar ? `<img src="${esc(avatar)}" alt="">` : esc(initials(c.author));
+  // A szerző a soron csak arcként: avatar (`hydrateAvatars`), ha nincs, monogram;
+  // a név hoverre (`data-tip`).
+  const av = avatarClass.get(c.email);
   // idő · avatar · diff; a hash a lenyitott commit fejében (a keresés is megtalálja)
   const meta = c.uncommitted ? '' : `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
-    + `<span class="author${avatar ? '' : ' ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">${face}</span>`
-    + `${sum}</span>`;
+    + `<span class="author ${av || 'ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
+    + `${av ? '' : esc(initials(c.author))}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>`
@@ -254,9 +268,6 @@ function rowHtml(c) {
     </button>`;
 }
 
-/* A legfelső nap fejléce, ha az a mai: alaphelyzetben nem foglal helyet és
-   nem látszik (a lista teteje magától értetődően ma), csak görgetéskor jelenik
-   meg fent. Ha a legfelső commit régebbi, a fejléce mindig látszik. */
 /* Napi csoportok (`.day-group`): a ragadós fejléc csak a saját napja alatt
    marad fent, a következő nap fejléce kitolja — nem csúsznak egymásra. */
 function render() {
@@ -266,7 +277,7 @@ function render() {
   const keepPath = (focused?.closest?.('.file') || focused?.closest?.('.diff')?.previousElementSibling)
     ?.dataset.path;               // blokkon állva a fájljára áll vissza
   let day = '', html = '';
-  const today = dayKey(new Date().toISOString());
+  const today = dayKey(new Date());
   renderPending(visible.find(c => c.uncommitted));
   for (const c of visible) {
     if (c.uncommitted) continue;          // a fix #pending sávban van
@@ -321,7 +332,7 @@ function bars(f) {
 }
 
 function headHtml(c) {
-  const avatar = DATA.avatars && DATA.avatars[c.email];
+  const avatar = avatarOf(c);
   const who = c.uncommitted ? '<span class="name">Munkakönyvtár</span>'
     : `${avatar ? `<img src="${esc(avatar)}" alt="">` : ''}<span class="name">${esc(c.author)}</span>`
       + `<span class="sep">·</span><span>${fmtDate(c.date)}</span>`;
@@ -596,11 +607,16 @@ document.addEventListener('mouseover', e => {
 });
 document.addEventListener('scroll', hideTip, true);
 
-let rowsWidth = 0;
-new ResizeObserver(() => {
-  if (rowsEl.clientWidth !== rowsWidth) { rowsWidth = rowsEl.clientWidth; fitRows(); }
-  drawGraph();
-}).observe(rowsEl);
+/* Méretfigyelő: `fn` csak szélességváltozásra fut (a magasság a tördeléstől is
+   változik, arra nem kell újramérni), `always` minden változásra. */
+function onWidth(el, fn, always) {
+  let width = 0;
+  new ResizeObserver(() => {
+    if (el.clientWidth !== width) { width = el.clientWidth; fn(); }
+    always?.();
+  }).observe(el);
+}
+onWidth(rowsEl, fitRows, drawGraph);
 
 /* A commit-sor elrendezése a szövegoszlop szélességétől (`.row-in`) függ, fix
    határokkal — így egy adott szélességen minden sima sor ugyanúgy néz ki:
@@ -612,6 +628,10 @@ new ResizeObserver(() => {
    jobbra a blokk); ha a blokk a badge-ek mellett nem fér el, egészben a
    harmadik sorba kerül (`.three`). Minden lépés előbb mér, aztán ír. */
 const ROW_ONE = 480, SQUEEZE = 260;
+const squeezed = r => {
+  const s = r.querySelector('.subject');
+  return s.scrollWidth > s.clientWidth && s.clientWidth < SQUEEZE;
+};
 function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
   for (const r of rows) r.classList.remove('two', 'tight', 'three');
@@ -625,10 +645,6 @@ function fitRows() {
   const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };
   for (const r of tight.filter(crowded)) r.classList.replace('tight', 'three');
 }
-const squeezed = r => {
-  const s = r.querySelector('.subject');
-  return s.scrollWidth > s.clientWidth && s.clientWidth < SQUEEZE;
-};
 
 /* Fejléc: három csoport (repó, szűrők, eszközök), szélesség szerint 1–3
    sorban. A kapcsolók felirata helyett ikon (`compact`, a felirat tooltipben
@@ -661,10 +677,7 @@ function fitChrome() {
   chromeEl.classList.toggle('multi', rows > 1);
   chromeEl.classList.toggle('rows-3', rows > 2);
 }
-let chromeWidth = 0;
-new ResizeObserver(() => {
-  if (chromeEl.clientWidth !== chromeWidth) { chromeWidth = chromeEl.clientWidth; fitChrome(); }
-}).observe(chromeEl);
+onWidth(chromeEl, fitChrome);
 
 function onListClick(e) {
   if (e.target.closest('a[href]')) return;   // GitHub-link: nyíljon, a sor ne csukódjon
@@ -692,7 +705,7 @@ rowsEl.addEventListener('click', onListClick);
 pendingEl.addEventListener('click', onListClick);
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && expanded && !document.querySelector('.menu-pop:not([hidden])')) closeCommit();
+  if (e.key === 'Escape' && expanded && !menuOpen()) closeCommit();
 });
 
 /* ── Szűrők ──────────────────────────────────────────────────────────────── */
@@ -835,7 +848,7 @@ document.addEventListener('keydown', e => {
     searchEl.focus();
     searchEl.select();
   } else if (e.key === 'Escape' && searchEl.value
-             && !document.querySelector('.menu-pop:not([hidden])')) {   // nyitott menüt a menü csuk
+             && !menuOpen()) {   // nyitott menüt a menü csuk
     e.stopImmediatePropagation();
     e.preventDefault();
     searchEl.value = '';
@@ -928,7 +941,7 @@ function relative(c, dir, other) {
 }
 document.addEventListener('keydown', e => {
   if (e.altKey || e.target.closest('input, textarea, .menu-pop')
-      || document.querySelector('.menu-pop:not([hidden])')) return;
+      || menuOpen()) return;
   const active = document.activeElement;
   const hunk = active?.closest?.('.hunk');
   const file = !hunk && active?.closest?.('.file');
@@ -950,7 +963,7 @@ document.addEventListener('keydown', e => {
     const files = [...file.parentElement.querySelectorAll('.file')];
     const isOpen = file.getAttribute('aria-expanded') === 'true';
     const prev = files[files.indexOf(file) - 1];
-    if (k === 'ArrowDown') select((isOpen && hunksOf(file)[0]) || files[files.indexOf(file) + 1] || belowCommit());
+    if (k === 'ArrowDown') select((isOpen && hunksOf(file)[0]) || nextFile(file) || belowCommit());
     else if (k === 'ArrowUp') select((prev && hunksOf(prev).at(-1)) || prev || rowOf(visible.find(c => c.sha === expanded)));
     else if (k === 'ArrowRight' && !isOpen) { toggleFile(file, expanded, true); enterFirstHunk(file); }
     else if (k === 'ArrowRight') enterFirstHunk(file);          // már nyitva: az első blokkra
@@ -1040,16 +1053,16 @@ const versionEl = document.getElementById('version');
 function stackDays() {
   scroller.classList.toggle('scrolled', scroller.scrollTop > 0);
   pendingEl.classList.toggle('scrolled', scroller.scrollTop > 0);
-  const days = rowsEl.querySelectorAll('.day');
-  const top = scroller.getBoundingClientRect().top;
-  for (let i = 0; i < days.length; i++) {
-    const next = days[i + 1];
-    const y = days[i].getBoundingClientRect().top;
-    const touching = next && next.getBoundingClientRect().top - y <= days[i].offsetHeight + 0.5;
-    days[i].classList.toggle('gone', Boolean(touching));
+  const days = [...rowsEl.querySelectorAll('.day')];
+  const top = scroller.getBoundingClientRect().top, scrolled = scroller.scrollTop > 0;
+  // Előbb minden mérés, aztán az írás: a görgetés minden képkockáján fut, a
+  // váltakozó olvasás-írás napfejlécenként újratördelést kényszerítene.
+  const ys = days.map(d => d.getBoundingClientRect().top), hs = days.map(d => d.offsetHeight);
+  days.forEach((d, i) => {
+    d.classList.toggle('gone', i + 1 < days.length && ys[i + 1] - ys[i] <= hs[i] + 0.5);
     // Felül ragadva (`.stuck`) a vonal nem kell, csak a felirat.
-    days[i].classList.toggle('stuck', scroller.scrollTop > 0 && y - top <= 0.5);
-  }
+    d.classList.toggle('stuck', scrolled && ys[i] - top <= 0.5);
+  });
 }
 scroller.addEventListener('scroll', stackDays, { passive: true });
 
@@ -1148,7 +1161,12 @@ function mcpProblem(e) {
 /* A futó git-graph verziója; ha a telepített más, a teendővel együtt — a futó
    `git-graph --mcp` a régi kódot futtatja, amíg az app újra nem indul. */
 const PLUGIN_URL = 'https://github.com/GaborTorma/git-graph';   // = plugin.json `repository`
+let versionKey = null;
 function showVersion(f) {
+  // 2 mp-enként hívódik: csak változáskor építi újra (és méri) a láblécet.
+  const key = `${f.version}|${f.installed}`;
+  if (key === versionKey) return;
+  versionKey = key;
   const stale = f.version && f.installed && f.installed !== f.version && !f.version.includes('+');
   versionEl.className = stale ? 'ver warn' : 'ver';
   const name = `<span class="name">${ghLink(PLUGIN_URL, 'Git Graph', 'home', 'A Git Graph a GitHubon')} </span>`;
@@ -1203,7 +1221,10 @@ function startLive(src) {
       }
       last = key;
       foot.className = 'foot on';
-      liveText.textContent = '';              // az „élő” jelzés a pulzáló zöld pötty
+      if (liveText.textContent) {             // az „élő” jelzés a pulzáló zöld pötty
+        liveText.textContent = '';
+        fitFoot();                            // a hibaüzenet helyén a verzió is elfér
+      }
       liveDot.title = `Élő · frissítve ${clock()}\nujjlenyomat ${Math.round(tf)} ms` + change;
       liveDot.setAttribute('aria-label', 'Élő');
       showVersion(f);

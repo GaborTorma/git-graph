@@ -31,6 +31,7 @@ import argparse
 import base64
 import datetime
 import difflib
+import functools
 import hashlib
 import html
 import json
@@ -540,9 +541,21 @@ def avatars_path() -> Path:
     return STATE_DIR / AVATARS_FILE_NAME
 
 
+_AVATAR_MEMO: tuple[int, dict] | None = None   # (mtime_ns, tartalom) — a fájlt csak változáskor olvassuk
+
+
 def avatar_cache() -> dict:
-    data = read_json(avatars_path())
-    return data if isinstance(data, dict) else {}
+    """A gyorstár (másolat). A `fingerprint` 2 mp-enként kérdezi, a fájl
+    pedig a képekkel nagy: csak akkor olvassuk újra, ha módosult."""
+    global _AVATAR_MEMO
+    try:
+        mtime = avatars_path().stat().st_mtime_ns
+    except OSError:
+        return {}
+    if _AVATAR_MEMO is None or _AVATAR_MEMO[0] != mtime:
+        data = read_json(avatars_path())
+        _AVATAR_MEMO = (mtime, data if isinstance(data, dict) else {})
+    return dict(_AVATAR_MEMO[1])
 
 
 def avatar_signal() -> int:
@@ -617,12 +630,8 @@ def fetch_avatars(repo_url_: str, todo: dict[str, str]) -> None:
         with _AVATAR_LOCK:
             cache = avatar_cache()
             cache[email] = {"img": img, "at": time.time()}
-            path = avatars_path()
-            tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
             try:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                tmp.write_text(json.dumps(cache), encoding="utf-8")
-                tmp.replace(path)
+                place(json.dumps(cache).encode("utf-8"), avatars_path(), 0o644)
             except OSError as exc:
                 log(f"git-graph: az avatar-gyorstár nem írható: {exc}")
             _AVATAR_JOBS.discard(email)
@@ -851,6 +860,7 @@ def file_icons() -> dict:
     return _FILE_ICONS
 
 
+@functools.cache   # a készlet statikus; minden graph_data az egész történetet bejárja
 def file_icon(path: str) -> str | None:
     """Az út ikonjának neve: előbb a teljes fájlnév, aztán a leghosszabb kiterjesztés."""
     icons = file_icons()
@@ -869,12 +879,13 @@ def file_icon(path: str) -> str | None:
 def attach_icons(stats: dict[str, dict]) -> dict[str, str]:
     """A fájlokhoz az ikon neve (`icon`); vissza a használt ikonok SVG-je."""
     used: dict[str, str] = {}
+    svgs = file_icons().get("icons", {})
     for st in stats.values():
         for f in st["files"]:
             icon = file_icon(f["path"])
             if icon:
                 f["icon"] = icon
-                used[icon] = file_icons()["icons"][icon]
+                used[icon] = svgs[icon]
     return used
 
 
