@@ -212,7 +212,10 @@ function badges(c) {
 
 function rowHtml(c) {
   const color = fresh.has(c.sha) ? ` style="color:${LANE_COLORS[c.lane % LANE_COLORS.length]}"` : '';
-  const meta = c.uncommitted ? '' : `<span class="meta"><span>${esc(c.author)}</span><span class="sep">·</span>`
+  const st = DATA.stats[c.sha];
+  const sum = st?.files.length
+    ? `<span class="sum"><span class="a">+${st.add}</span><span class="d">−${st.del}</span></span>` : '';
+  const meta = c.uncommitted ? '' : `<span class="meta">${sum}<span>${esc(c.author)}</span><span class="sep">·</span>`
     + `<span class="time">${fmtTime(c.date)}</span><span class="sep">·</span><span class="sha">${c.short}</span></span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
