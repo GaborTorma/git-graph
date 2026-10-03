@@ -232,14 +232,9 @@ function rowHtml(c) {
   const color = fresh.has(c.sha) ? ` style="color:${LANE_COLORS[c.lane % LANE_COLORS.length]}"` : '';
   const refs = c.refs.length ? `<span class="refs">${badges(c)}</span>` : '';
   const st = DATA.stats[c.sha];
-  // A címke fix széles; a két fele a számjegyek hossza szerint osztozik rajta,
-  // a nulla oldal elmarad.
-  const half = (cls, n) => {
-    const text = kilo(n);
-    return n ? `<span class="${cls}" style="flex-grow:${text.length}">${text}</span>` : '';
-  };
   const sum = st && (st.add || st.del)
-    ? `<span class="sum" title="+${st.add} −${st.del} sor">${half('a', st.add)}${half('d', st.del)}</span>` : '';
+    ? `<span class="sum" title="+${st.add} −${st.del} sor"><span class="a">${kilo(st.add)}</span>`
+      + `<span class="d">${kilo(st.del)}</span></span>` : '';
   // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név hoverre (`data-name`).
   const avatar = DATA.avatars?.[c.email];
   const face = avatar ? `<img src="${esc(avatar)}" alt="">` : esc(initials(c.author));
