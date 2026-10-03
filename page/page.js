@@ -689,11 +689,13 @@ const versionEl = document.getElementById('version');
 function stackDays() {
   scroller.classList.toggle('scrolled', scroller.scrollTop > 0);
   const days = rowsEl.querySelectorAll('.day');
+  const top = scroller.getBoundingClientRect().top;
   for (let i = 0; i < days.length; i++) {
     const next = days[i + 1];
-    const touching = next && next.getBoundingClientRect().top - days[i].getBoundingClientRect().top
-      <= days[i].offsetHeight + 0.5;
+    const y = days[i].getBoundingClientRect().top;
+    const touching = next && next.getBoundingClientRect().top - y <= days[i].offsetHeight + 0.5;
     days[i].classList.toggle('gone', Boolean(touching));
+    days[i].classList.toggle('stuck', scroller.scrollTop > 0 && y - top <= 0.5);
   }
 }
 scroller.addEventListener('scroll', stackDays, { passive: true });
