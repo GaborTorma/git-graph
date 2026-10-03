@@ -538,41 +538,49 @@ function fillBranches() {
   branchLabel.textContent = branchValue || 'Minden ág';
 }
 
-function toggleMenu(open) {
-  branchPop.hidden = !open;
-  branchBtn.setAttribute('aria-expanded', String(open));
-  if (open) (branchPop.querySelector('[aria-selected="true"]') || branchPop.querySelector('.option'))?.focus();
+/* Közös legördülő menü (ágválasztó, téma): nyíl-, Home/End-, Escape- és
+   Tab-billentyű, kattintás kívülre csuk. `onPick` a választott opciót kapja. */
+function makeMenu(btn, pop, onPick) {
+  const toggle = open => {
+    pop.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+    if (open) (pop.querySelector('[aria-selected="true"]') || pop.querySelector('.option'))?.focus();
+  };
+  btn.addEventListener('click', () => toggle(pop.hidden));
+  btn.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); toggle(true); }
+  });
+  pop.addEventListener('click', e => {
+    const o = e.target.closest('.option');
+    if (!o) return;
+    toggle(false);
+    btn.focus();
+    onPick(o);
+  });
+  pop.addEventListener('keydown', e => {
+    const items = [...pop.querySelectorAll('.option')];
+    const i = items.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      items[e.key === 'Home' ? 0 : items.length - 1].focus();
+    } else if (e.key === 'Escape' || e.key === 'Tab') {
+      e.stopPropagation();
+      toggle(false);
+      if (e.key === 'Escape') btn.focus();
+    }
+  });
+  document.addEventListener('pointerdown', e => {
+    if (!pop.hidden && !btn.parentElement.contains(e.target)) toggle(false);
+  });
 }
-branchBtn.addEventListener('click', () => toggleMenu(branchPop.hidden));
-branchBtn.addEventListener('keydown', e => {
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); toggleMenu(true); }
-});
-branchPop.addEventListener('click', e => {
-  const o = e.target.closest('.option');
-  if (!o) return;
+
+makeMenu(branchBtn, branchPop, o => {
   branchValue = o.dataset.value;
-  toggleMenu(false);
-  branchBtn.focus();
   fillBranches();
   applyFilters();
-});
-branchPop.addEventListener('keydown', e => {
-  const items = [...branchPop.querySelectorAll('.option')];
-  const i = items.indexOf(document.activeElement);
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    e.preventDefault();
-    items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
-  } else if (e.key === 'Home' || e.key === 'End') {
-    e.preventDefault();
-    items[e.key === 'Home' ? 0 : items.length - 1].focus();
-  } else if (e.key === 'Escape' || e.key === 'Tab') {
-    e.stopPropagation();
-    toggleMenu(false);
-    if (e.key === 'Escape') branchBtn.focus();
-  }
-});
-document.addEventListener('pointerdown', e => {
-  if (!branchPop.hidden && !e.target.closest('.menu')) toggleMenu(false);
 });
 
 function ancestryOf(name) {
@@ -635,17 +643,30 @@ document.addEventListener('keydown', e => {
   }
 }, true);
 
-/* ── Téma ── automatikus / világos / sötét; a választás nézőnként megmarad. */
+/* ── Téma ── automatikus / világos / sötét, lenyíló menüből; a választás
+   nézőnként megmarad (a betöltő is ebből indul, hogy ne villanjon). */
 const THEME_KEY = 'git-graph:theme';
+const THEMES = [
+  ['auto', 'Automatikus', '<circle cx="8" cy="8" r="5.5"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/>'],
+  ['light', 'Világos', '<circle cx="8" cy="8" r="2.75"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/>'],
+  ['dark', 'Sötét', '<path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z"/>'],
+];
+const themeBtn = document.getElementById('themeBtn');
+const themePop = document.getElementById('themePop');
 function setTheme(mode) {
   const root = document.documentElement;
   if (mode === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', mode);
-  document.querySelectorAll('[data-theme-set]').forEach(b =>
-    b.setAttribute('aria-pressed', String(b.dataset.themeSet === mode)));
+  const [, label, svgPath] = THEMES.find(t => t[0] === mode) || THEMES[0];
+  document.getElementById('themeIcon').innerHTML = svgPath;
+  themeBtn.setAttribute('aria-label', `Téma: ${label.toLowerCase()}`);
+  themeBtn.title = `Téma: ${label.toLowerCase()}`;
+  themePop.innerHTML = THEMES.map(([value, name, path]) =>
+    `<button type="button" class="option with-icon" role="option" data-value="${value}" aria-selected="${value === mode}">`
+    + `<svg class="ic ti" viewBox="0 0 16 16" aria-hidden="true">${path}</svg>`
+    + `<span class="name">${name}</span>${icon('check')}</button>`).join('');
   try { localStorage.setItem(THEME_KEY, mode); } catch { /* privát ablak: nem baj */ }
 }
-document.querySelectorAll('[data-theme-set]').forEach(b =>
-  b.addEventListener('click', () => setTheme(b.dataset.themeSet)));
+makeMenu(themeBtn, themePop, o => setTheme(o.dataset.value));
 setTheme((() => { try { return localStorage.getItem(THEME_KEY) || 'auto'; } catch { return 'auto'; } })());
 
 hydrate();

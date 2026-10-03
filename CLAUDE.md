@@ -75,9 +75,10 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 - **Megjelenés**: a Claude app nyelvét követi (a Git Graph-ból a gráf marad).
   Meleg palettát használ, és a Claude Light / Dark kódszíneket. Betűk:
   Anthropic Sans / Mono, ahol nincs, a rendszeré; webfont nincs. A
-  kontrollok az app mintájára épülnek: kapcsoló, menügomb, háromállású
-  témaváltó, ikonok inline stroke-SVG-ként (`ICONS`). A lista egysoros,
-  napokra bontott, táblázatfej nélküli. A dátum `Europe/Budapest` szerint,
+  kontrollok az app mintájára épülnek: kapcsoló (szűkös helyen ikonnal),
+  lenyíló menü (`makeMenu`: ágválasztó és téma, natív `<select>` nincs),
+  ikonok inline stroke-SVG-ként (`ICONS`). A lista egysoros, napokra bontott
+  (`.day-group`, ragadós fejléccel), táblázatfej nélküli. A dátum `Europe/Budapest` szerint,
   magyar formában jelenik meg.
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
   futnia kell, `pip install` nélkül. Ne hozz be libet. A lintek (ruff, Biome)
