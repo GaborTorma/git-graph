@@ -653,7 +653,11 @@ function fillBranches() {
   branchPop.innerHTML = opt('', 'Minden ág') + (DATA.branches.length ? '<div class="menu-sep"></div>' : '')
     + DATA.branches.map(b => opt(b.name, esc(b.name) + (b.current ? '<span class="cur">HEAD</span>' : ''),
       b.track ? `<span class="track">${esc(trackText(b.track))}</span>` : '<span></span>')).join('');
-  branchLabel.textContent = branchValue || 'Minden ág';
+  const label = branchValue || 'Minden ág';
+  if (branchLabel.textContent !== label) {
+    branchLabel.textContent = label;
+    fitChrome();                // a hosszabb ágnév más sorbontást hozhat
+  }
 }
 
 /* Közös legördülő menü (ágválasztó, téma): nyíl-, Home/End-, Escape- és
