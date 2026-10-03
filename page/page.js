@@ -700,6 +700,41 @@ function stackDays() {
 }
 scroller.addEventListener('scroll', stackDays, { passive: true });
 
+/* Commitonként görgetés: egy görgő-kattanás egy commit, trackpaden ~40 px
+   egy commit. A sor a ragadós napchip alá (`STEP_TOP`) igazodik, így a chip
+   sosem takarja. A CSS scroll-snap ezt nem tartja (a böngésző egy
+   kattanással több sort is átugrik). Ha egy kinyitott commit-panel látszik,
+   azon belül szabad a görgetés — a következő lépés újra sorhoz igazít. */
+const STEP_TOP = 16, TRACKPAD_STEP = 40, NOTCH = 50;
+let wheelAcc = 0, stepGoal = null;
+function stepRows(dir) {
+  const base = scroller.getBoundingClientRect().top - scroller.scrollTop;
+  const tops = [...rowsEl.querySelectorAll('.row')]
+    .map(r => Math.max(0, Math.round(r.getBoundingClientRect().top - base - STEP_TOP)));
+  const from = stepGoal ?? scroller.scrollTop;
+  const max = scroller.scrollHeight - scroller.clientHeight;
+  const target = dir > 0 ? (tops.find(t => t > from + 1) ?? max)
+                         : ([...tops].reverse().find(t => t < from - 1) ?? 0);
+  stepGoal = Math.min(target, max);
+  scroller.scrollTo({ top: stepGoal, behavior: 'smooth' });
+}
+scroller.addEventListener('scrollend', () => { stepGoal = null; });
+scroller.addEventListener('wheel', e => {
+  if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  const panel = rowsEl.querySelector('.details');
+  if (panel) {
+    const r = panel.getBoundingClientRect(), s = scroller.getBoundingClientRect();
+    if (r.top < s.bottom && r.bottom > s.top + STEP_TOP + 1) { stepGoal = null; return; }
+  }
+  e.preventDefault();
+  const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * scroller.clientHeight : e.deltaY;
+  wheelAcc += px;
+  if (Math.abs(px) < NOTCH && Math.abs(wheelAcc) < TRACKPAD_STEP) return;
+  const dir = Math.sign(wheelAcc);
+  wheelAcc = 0;
+  stepRows(dir);
+}, { passive: false });
+
 function mcpSource() {
   const mcp = CTX.mcp;
   const call = (tool, args) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },

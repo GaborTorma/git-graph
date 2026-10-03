@@ -315,6 +315,7 @@ button { font: inherit; color: inherit; }
   line-height: 1;
 }
 /* Felül ragadva (JS: `.stuck`) csak a chip marad: vonal és sáv nélkül. */
+.day.stuck { background: var(--bg); }   /* az előző sor alja ne kandikáljon ki */
 .day.stuck::before { display: none; }
 .day.stuck .lbl {
   background: var(--bg-1);

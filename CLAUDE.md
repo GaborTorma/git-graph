@@ -78,7 +78,10 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   kontrollok az app mintájára épülnek: kapcsoló (szűkös helyen ikonnal),
   lenyíló menü (`makeMenu`: ágválasztó és téma, natív `<select>` nincs),
   ikonok inline stroke-SVG-ként (`ICONS`). A lista egysoros, napokra bontott
-  (`.day-group`, ragadós fejléccel), táblázatfej nélküli. A dátum `Europe/Budapest` szerint,
+  (`.day-group`, ragadós fejléccel), táblázatfej nélküli. Görgetni
+  commitonként lehet (`stepRows`: egy kattanás egy commit, a sor a napchip
+  alá igazodik); a CSS scroll-snap ezt nem tartotta, egy kattanással több
+  sort ugrott. A dátum `Europe/Budapest` szerint,
   magyar formában jelenik meg.
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
   futnia kell, `pip install` nélkül. Ne hozz be libet. A lintek (ruff, Biome)
