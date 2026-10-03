@@ -69,6 +69,7 @@ function hydrate() {
   document.getElementById('repoName').textContent = DATA.meta.repo;
   document.getElementById('headName').textContent = DATA.meta.head;
   document.getElementById('headChip').hidden = !DATA.meta.head;
+  fitChrome();                // a repó- és ágnév hossza dönt a kompakt fejlécről
 }
 
 /* ── Gráf rajzolása ──────────────────────────────────────────────────────── */
@@ -468,6 +469,16 @@ function highlight(s, hl, lang) {
 /* Az ablak (Artifact-panel) átméretezése sortörést és nézetváltást hozhat: a
    sorok Y-pozíciója elmozdul, a gráfnak követnie kell. */
 new ResizeObserver(() => drawGraph()).observe(rowsEl);
+
+/* Kompakt fejléc: ha a kontroll-sor feliratokkal két sorba törne, a
+   kapcsolók felirata helyett ikon jelenik meg (a felirat tooltipben marad). */
+const chromeEl = document.querySelector('.chrome');
+function fitChrome() {
+  chromeEl.classList.remove('compact');
+  const first = chromeEl.firstElementChild, last = chromeEl.lastElementChild;
+  if (last.offsetTop > first.offsetTop + first.offsetHeight / 2) chromeEl.classList.add('compact');
+}
+new ResizeObserver(fitChrome).observe(chromeEl);
 
 rowsEl.addEventListener('click', e => {
   if (e.target.closest('a[href]')) return;   // GitHub-link: nyíljon, a sor ne csukódjon

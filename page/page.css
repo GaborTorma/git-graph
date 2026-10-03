@@ -242,6 +242,11 @@ button { font: inherit; color: inherit; }
 .switch input:checked + .track { background: var(--accent); }
 .switch input:checked + .track::after { transform: translateX(10px); }
 .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Szűkös helyen (a sor tördelne) a kapcsolók felirata helyett ikon. */
+.switch .sw-ic { display: none; color: var(--fg-2); }
+.chrome.compact .switch { gap: 6px; }
+.chrome.compact .switch .sw-txt { display: none; }
+.chrome.compact .switch .sw-ic { display: inline; }
 
 /* Kereső + témaváltó: jobbra zárva, keskeny ablakban együtt törnek új sorba. */
 .tools { margin-left: auto; display: flex; align-items: center; gap: 10px; }
