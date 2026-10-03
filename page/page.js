@@ -790,7 +790,7 @@ document.addEventListener('keydown', e => {
   if (hunk) {                                            // ── blokk-szint (nyitott diff)
     const fileEl = hunk.closest('.diff').previousElementSibling;
     const blocks = hunksOf(fileEl), i = blocks.indexOf(hunk);
-    if (k === 'ArrowDown' || k === 'ArrowRight') select(blocks[i + 1] || nextFile(fileEl) || belowCommit());
+    if (k === 'ArrowDown' || k === 'ArrowRight') select(blocks[i + 1] || nextFile(fileEl));   // az utolsó fájl utolsó blokkján marad
     else if (k === 'ArrowUp') select(blocks[i - 1] || fileEl);
     else if (k === 'ArrowLeft') { toggleFile(fileEl, expanded, false); select(fileEl); }   // bezárja a fájlt
     else handled = false;
