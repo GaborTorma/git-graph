@@ -231,19 +231,17 @@ function rowHtml(c) {
   const st = DATA.stats[c.sha];
   const sum = st?.files.length
     ? `<span class="sum"><span class="a">+${st.add}</span><span class="d">−${st.del}</span></span>` : '';
-  // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név a tooltipben.
+  // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név hoverre (`data-name`).
   const avatar = DATA.avatars?.[c.email];
   const face = avatar ? `<img src="${esc(avatar)}" alt="">` : esc(initials(c.author));
   const meta = c.uncommitted ? '' : `<span class="meta"><span class="author${avatar ? '' : ' ini'}"`
-    + ` title="${esc(c.author)}" aria-label="${esc(c.author)}">${face}</span>`
-    + `<span class="sep s-author">·</span><span class="time">${fmtTime(c.date)}</span>`
+    + ` data-name="${esc(c.author)}" aria-label="${esc(c.author)}">${face}</span>`
+    + `<span class="time">${fmtTime(c.date)}</span>`
     + `<span class="sep s-sha">·</span><span class="sha">${c.short}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>`
-    // a badge-es kétsoros sorban (`.tight`) a diff a tárgy mellé kerül
-    + `${refs && sum ? sum.replace('class="sum"', 'class="sum top"') : ''}${refs ? '<span class="br"></span>' : ''}`
-    + `${refs}</span>${meta}</span>
+    + `${refs ? '<span class="br"></span>' : ''}${refs}</span>${meta}</span>
     </button>`;
 }
 
@@ -565,30 +563,35 @@ new ResizeObserver(() => {
 
 /* Több soros sor: ha a tárgysor nagyon összepréselődne, a jobb oldali blokk
    (szerző · idő · hash · diff) alulra kerül (`.two`). Badge-es sornál
-   (`.tight`) fent a tárgy és jobbra a diff, lent balra a badge-ek, jobbra az
-   idő, a hash és a szerző, amennyi elfér.
+   (`.tight`) fent a tárgy, lent balra a badge-ek, jobbra az idő, a hash, a
+   diff és a szerző, amennyi elfér.
    Minden lépés előbb mér, aztán egy körben ír. */
 const SQUEEZE = 200;   // ennél keskenyebb, csonkolt tárgysornál vált
+const SUM_GAP = 4;     // a diff és a hash közti rés (page.css: .meta gap + .sum margin)
 const squeezed = r => {
   const s = r.querySelector('.subject');
   return s && s.scrollWidth > s.clientWidth && s.clientWidth < SQUEEZE;
 };
 function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
-  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sha', 'no-sum');
-  const two = rows.filter(squeezed);
-  // Egysoros sorban a diff marad el, ha miatta csonkolódik a tárgy.
-  const clipped = rows.filter(r => {
-    const s = r.querySelector('.subject');
-    return s && s.scrollWidth > s.clientWidth && !two.includes(r);
+  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sum', 'no-sha');
+  rowsEl.classList.remove('no-sum');
+  // A diff egységesen látszik vagy nem: elmarad az egész listáról, ha a sorok
+  // több mint negyedében miatta csonkolódna a tárgy (diff nélkül kiférne).
+  const singles = rows.filter(r => r.querySelector('.meta .sum'));
+  const cutBySum = singles.filter(r => {
+    const s = r.querySelector('.subject'), sum = r.querySelector('.meta .sum');
+    const over = s.scrollWidth - s.clientWidth;
+    return over > 0 && over <= sum.offsetWidth + SUM_GAP;
   });
-  for (const r of clipped) r.classList.add('no-sum');
+  if (cutBySum.length > singles.length / 4) rowsEl.classList.add('no-sum');
+  const two = rows.filter(squeezed);
   for (const r of two) r.classList.add('two');
   const tight = two.filter(r => r.querySelector('.refs'));
   for (const r of tight) r.classList.replace('two', 'tight');
-  // A badge-ek mellől előbb a szerző, aztán a hash marad el; az idő mindig látszik.
+  // A badge-ek mellől előbb a szerző, aztán a diff, végül a hash marad el; az idő mindig látszik.
   const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };
-  for (const cls of ['no-author', 'no-sha']) {
+  for (const cls of ['no-author', 'no-sum', 'no-sha']) {
     for (const r of tight.filter(crowded)) r.classList.add(cls);
   }
   // A sima kétsorosban a szerző marad el, ha a blokk nem fér ki.

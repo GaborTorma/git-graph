@@ -367,14 +367,13 @@ button { font: inherit; color: inherit; }
 .row.merge .desc { color: var(--fg-2); }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
 /* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra a szerző, az idő, a
-   hash és a diff. Badge-es sornál (`.tight`): fent a tárgy és jobbra a diff,
-   lent balra a badge-ek, jobbra az idő, és ami még elfér (előbb a hash,
-   aztán a szerző). */
+   hash és a diff. Badge-es sornál (`.tight`): fent a tárgy, lent balra a
+   badge-ek, jobbra az idő, és ami még elfér (előbb a hash, a diff, aztán a
+   szerző). */
 .row.two, .row.tight { height: 48px; }
 .row.two .row-in { flex-direction: column; align-items: stretch; justify-content: center; gap: 3px; }
 .row.two .desc { flex: none; }
 .row.two .meta { justify-content: flex-end; }
-.row.two .meta .sum { display: inline-flex; }
 /* Két önálló sor (flex-wrap, `.br` töri): egy közös rács oszlopa a tárgyat a
    lenti szerző-blokk szélességére szűkítené. */
 .row.tight .row-in { flex-wrap: wrap; align-content: center; row-gap: 3px; column-gap: 12px; }
@@ -383,11 +382,9 @@ button { font: inherit; color: inherit; }
 .row.tight .br { display: block; flex-basis: 100%; height: 0; }
 .row.tight .refs { flex: 1 1 0; overflow: hidden; }
 .br { display: none; }
-.sum.top { display: none; }
-.row.tight .sum.top { display: inline-flex; }
-.row.tight .meta .sum,
+.rows.no-sum .meta .sum,
 .row.no-sum .meta .sum,
-.row.no-author .meta :is(.author, .s-author),
+.row.no-author .meta .author,
 .row.no-sha .meta :is(.sha, .s-sha) { display: none; }
 .row.uncommitted .subject { font-style: italic; color: var(--fg-2); }
 .meta {
@@ -398,16 +395,22 @@ button { font: inherit; color: inherit; }
 .meta .time { font-variant-numeric: tabular-nums; }
 .meta .sha { font-family: var(--font-mono); font-size: 11.5px; }
 /* A szerző arca: avatar vagy monogram, egyforma körben */
-.meta .author { display: inline-flex; align-items: center; justify-content: center; flex: none;
-                width: 16px; height: 16px; border-radius: 8px; overflow: hidden;
+.meta .author { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none;
+                width: 16px; height: 16px; border-radius: 8px;
                 box-shadow: 0 0 0 1px var(--border); }
-.meta .author img { width: 100%; height: 100%; display: block; }
+.meta .author img { width: 100%; height: 100%; display: block; border-radius: 8px; }
+/* a név hoverre, azonnal (a natív tooltip késve és nem mindig jön) */
+.meta .author:hover::after {
+  content: attr(data-name); position: absolute; bottom: calc(100% + 6px); left: 50%; z-index: 10;
+  transform: translateX(-50%); padding: 3px 7px; border-radius: 5px; pointer-events: none;
+  background: var(--fg-0); color: var(--bg); font-size: 11.5px; font-weight: 500; letter-spacing: 0; white-space: nowrap;
+}
 .meta .author.ini { background: var(--bg-3); color: var(--fg-1); font-size: 8px; font-weight: 600; letter-spacing: .02em; }
 .meta { align-items: center; }
 /* A commit összes változása a hash után, két összetapadó színes címkében (a
    Claude app diff-jelzője mintájára) — csak ha a sor elég széles. */
 .row-in { container-type: inline-size; }
-.sum { display: inline-flex; align-items: center; margin-left: 4px;
+.sum { display: inline-flex; align-items: center; margin-left: -2px;   /* a hashhez közel (fitRows: SUM_GAP) */
        font: 10px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
 /* fix szélesség (5 karakter: `+1200`), hogy a sorok vége egy oszlopban álljon */
 .sum > span { padding: 2px 3px; min-width: 5ch; text-align: center; }
