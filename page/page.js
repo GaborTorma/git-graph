@@ -38,7 +38,6 @@ const ICONS = {
   open: '<path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"/>',
   issue: '<circle cx="8" cy="8" r="5.75"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/>',
   pr: '<circle cx="4" cy="3.5" r="1.5"/><circle cx="4" cy="12.5" r="1.5"/><circle cx="12" cy="12.5" r="1.5"/><path d="M4 5v6M12 11V6.5a2 2 0 0 0-2-2H7.5M9 3 7.5 4.5 9 6"/>',
-  refresh: '<path d="M13 8a5 5 0 1 1-1.46-3.54M13 2.5v3h-3"/>',
   // a GitHub-jel (Octicons mark-github, MIT): telt, nem vonalas
   github: '<path fill="currentColor" stroke="none" d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
@@ -1094,15 +1093,15 @@ function fitFoot() {
 }
 new ResizeObserver(fitFoot).observe(document.getElementById('foot'));
 
-/* Frissítés közben forog az ikon — legalább egy teljes fordulatot, különben
+/* Frissítés közben pulzál az élő-pötty — legalább egy teljes ütemet, különben
    egy gyors adatcserénél csak megrándulna. */
-const SPIN_MS = 800;
-let spinSince = 0, spinTimer = 0;
-function spin(on) {
-  clearTimeout(spinTimer);
-  if (on) { spinSince = performance.now(); foot.classList.add('busy'); return; }
-  const rest = SPIN_MS - (performance.now() - spinSince);
-  spinTimer = setTimeout(() => foot.classList.remove('busy'), Math.max(0, rest));
+const PULSE_MS = 800;
+let pulseSince = 0, pulseTimer = 0;
+function pulse(on) {
+  clearTimeout(pulseTimer);
+  if (on) { pulseSince = performance.now(); foot.classList.add('busy'); return; }
+  const rest = PULSE_MS - (performance.now() - pulseSince);
+  pulseTimer = setTimeout(() => foot.classList.remove('busy'), Math.max(0, rest));
 }
 
 function startLive(src) {
@@ -1123,7 +1122,7 @@ function startLive(src) {
       const key = JSON.stringify(f);
       if (key !== last) {
         const t1 = performance.now();
-        spin(true);
+        pulse(true);
         DATA = await src.data();
         const td = performance.now() - t1;
         for (const [k, v] of diffCache) if (k.startsWith('*uncommitted\n')) v.stale = true;
@@ -1137,17 +1136,13 @@ function startLive(src) {
       }
       last = key;
       foot.classList.remove('stale');
-      foot.classList.add('on');               // a `busy` (forgás) marad
-      // A váz egyszer készül: az ikon nem cserélődik, így a forgása sem szakad meg.
-      if (!liveText.querySelector('.upd')) {
-        liveText.innerHTML = `Élő <span class="sep">·</span> ${icon('refresh', 'ic upd')}<span class="clock"></span>`;
-      }
-      liveText.querySelector('.clock').textContent = clock();
-      liveText.title = `ujjlenyomat ${Math.round(tf)} ms` + change;
+      foot.classList.add('on');               // a `busy` (pulzálás) marad
+      liveText.textContent = clock();         // az „élő” jelzés a zöld pötty
+      liveText.title = `Élő · frissítve ${clock()}\nujjlenyomat ${Math.round(tf)} ms` + change;
       showVersion(f);
-      spin(false);
+      pulse(false);
     } catch (e) {
-      spin(false);
+      pulse(false);
       notice(mcpProblem(e), true);
       if (!e?.retryable) return;                // magától nem javul: nincs több kör
       wait = Math.max(POLL_MS, e.retryAfterMs || 0) * 2;
