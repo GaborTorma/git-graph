@@ -416,8 +416,8 @@ button { font: inherit; color: inherit; }
 .sum > span { box-sizing: border-box; flex: 0 0 24px; padding: 2px 3px; text-align: right; }
 .sum > .f { flex-basis: 18px; position: relative; color: var(--fg-2);
             background: color-mix(in srgb, var(--fg-2) 14%, transparent); border-radius: 4px 0 0 4px; }
-/* 99 fölött: `99⁺`, a plusz a címke szélére lóg, hogy látsszon */
-.sum .f sup { position: absolute; top: -4px; right: -3px; font: 600 9px/1 var(--font-ui); color: var(--fg-1); }
+/* 99 fölött: `99⁺`, a plusz jobbra a címke szélére lóg (felfelé nem) */
+.sum .f sup { position: absolute; top: 0; right: -3px; font: 400 9px/1 var(--font-ui); color: inherit; }
 .sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, transparent); }
 .sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, transparent);
           border-radius: 0 4px 4px 0; }
