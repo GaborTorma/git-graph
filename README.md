@@ -215,7 +215,9 @@ A git saját lane-kiosztását követi: a commit abba a sávba ül, amelyik már
 vár (a gyereke foglalta le); az első szülő viszi tovább a sávot, a további
 (merge) szülők új vagy meglévő sávot kapnak. A vonal merge-nél rögtön a merge
 commit alatt hajlik, leágazásnál közvetlenül a szülő fölött. Sávonként ciklikus
-színek: a 0. sáv a Claude narancs, a többi vele egyező telítettségű.
+színek: a 0. sáv a Claude narancs, a többi vele egyező telítettségű. A vonal
+annak a sávnak a színét viseli, amelyben a hossza nagy részén fut: a merge-vonal
+a beolvasztott ágét, a leágazó a saját ágáét.
 
 A **friss commitok** pöttye körül halvány gyűrű van, az üzenetük a gyűrű (a
 sáv) színét kapja. Friss a legújabb commit és a vele egy sorozatban készültek:

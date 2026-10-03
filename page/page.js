@@ -100,7 +100,9 @@ function drawGraph() {
     if (a === undefined || b === undefined) continue;   // szűrve
     const x1 = laneX(e.fromLane), y1 = rowY(a);
     const x2 = laneX(e.toLane),   y2 = rowY(b);
-    const color = LANE_COLORS[(e.merge ? e.fromLane : e.toLane) % LANE_COLORS.length];
+    // A vonal annak a sávnak a színét kapja, amelyikben a hossza nagy részén fut:
+    // a merge-vonal rögtön a cél sávjába fordul, a leágazó csak a szülő fölött.
+    const color = LANE_COLORS[(e.merge ? e.toLane : e.fromLane) % LANE_COLORS.length];
     // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re (görgetve rejtve).
     const dash = DATA.commits[e.fromRow].uncommitted ? ' class="pend-edge" stroke-dasharray="3 3"' : '';
     out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
