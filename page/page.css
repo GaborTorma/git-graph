@@ -371,8 +371,12 @@ button { font: inherit; color: inherit; }
    a diff. Badge-es sornál (`.tight`): fent a tárgy, lent balra a
    badge-ek, jobbra az idő · avatar · diff blokk — ha nem fér el mellettük,
    egészben a harmadik sorba kerül (`.three`). */
-.row.two, .row.tight { height: 51px; }
-.row.three { height: 69px; }
+/* A plusz magasság alul kell (a kiemelés alja ne érjen a badge-hez / blokkhoz):
+   a sor nő, a belső sáv ugyanennyi alsó paddinget kap, a tartalom helye marad. */
+.row.two, .row.tight { height: 52px; }
+.row:is(.two, .tight) .row-in { padding-bottom: 1px; }
+.row.three { height: 71px; }
+.row.three .row-in { padding-bottom: 2px; }
 .row.two .row-in { flex-direction: column; align-items: stretch; justify-content: center; gap: 3px; }
 .row.two .desc { flex: none; }
 .row.two .meta { justify-content: flex-end; }
