@@ -173,6 +173,7 @@ Kézi URL-megadás: `git-graph --set-artifact <url>`.
 | `⌘` / `Ctrl` + `↓` / `↑` | szülő / gyerek ugyanazon az ágon | |
 | `⇧⌘` / `⇧Ctrl` + `↓` / `↑` | merge-nél a beolvasztott ág (második szülő), visszafelé a merge | |
 | `H` | kijelölés a HEAD-en | |
+| `⇧↑` / `⇧↓` | csak görget (három diff-sornyit), a kijelölés marad | ugyanígy — egy hosszú blokk olvasásához |
 | `Esc` | előbb a keresést üríti, aztán a nyitott commitot csukja | ugyanígy |
 | `⌘F` / `Ctrl+F` | kereső | |
 

@@ -787,7 +787,9 @@ document.addEventListener('keydown', e => {
   const k = e.key, mod = e.metaKey || e.ctrlKey;
   let handled = true;
 
-  if (hunk) {                                            // ── blokk-szint (nyitott diff)
+  if (e.shiftKey && !mod && (k === 'ArrowDown' || k === 'ArrowUp')) {   // ── csak görget, a kijelölés marad
+    scroller.scrollTop += (k === 'ArrowDown' ? 1 : -1) * SHIFT_SCROLL;
+  } else if (hunk) {                                     // ── blokk-szint (nyitott diff)
     const fileEl = hunk.closest('.diff').previousElementSibling;
     const blocks = hunksOf(fileEl), i = blocks.indexOf(hunk);
     if (k === 'ArrowDown' || k === 'ArrowRight') select(blocks[i + 1] || nextFile(fileEl));   // az utolsó fájl utolsó blokkján marad
@@ -887,6 +889,7 @@ scroller.addEventListener('scroll', stackDays, { passive: true });
    kattanással több sort is átugrik). Ha egy kinyitott commit-panel látszik,
    azon belül szabad a görgetés — a következő lépés újra sorhoz igazít. */
 const STEP_TOP = 16, TRACKPAD_STEP = 40, NOTCH = 50;
+const SHIFT_SCROLL = 54;   // Shift+↑/↓: három diff-sornyit görget (a kijelölés marad)
 // Ennyi időn belül egy irány nem növekvő eseményei lecsengésnek számítanak.
 const COAST_MS = 120;
 let wheelAcc = 0, stepDir = 0;
