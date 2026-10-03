@@ -227,9 +227,9 @@ function rowHtml(c) {
   const st = DATA.stats[c.sha];
   const sum = st?.files.length
     ? `<span class="sum"><span class="a">+${st.add}</span><span class="d">−${st.del}</span></span>` : '';
-  const meta = c.uncommitted ? '' : `<span class="meta">${sum}<span class="author">${esc(c.author)}</span>`
+  const meta = c.uncommitted ? '' : `<span class="meta"><span class="author">${esc(c.author)}</span>`
     + `<span class="sep s-author">·</span><span class="time">${fmtTime(c.date)}</span>`
-    + `<span class="sep s-sha">·</span><span class="sha">${c.short}</span></span>`;
+    + `<span class="sep s-sha">·</span><span class="sha">${c.short}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>`
@@ -556,7 +556,7 @@ new ResizeObserver(() => {
 }).observe(rowsEl);
 
 /* Több soros sor: ha a tárgysor nagyon összepréselődne, a jobb oldali blokk
-   (diff · szerző · idő · hash) alulra kerül (`.two`). Badge-es sornál
+   (szerző · idő · hash · diff) alulra kerül (`.two`). Badge-es sornál
    (`.tight`) fent a tárgy és jobbra a diff, lent balra a badge-ek, jobbra az
    idő, a hash és a szerző, amennyi elfér.
    Minden lépés előbb mér, aztán egy körben ír. */
@@ -583,7 +583,7 @@ function fitRows() {
   for (const cls of ['no-author', 'no-sha']) {
     for (const r of tight.filter(crowded)) r.classList.add(cls);
   }
-  // A sima kétsorosban a szerző marad el, ha a diffre csúszna.
+  // A sima kétsorosban a szerző marad el, ha a blokk nem fér ki.
   const overlaps = r => { const m = r.querySelector('.meta'); return m.scrollWidth > m.clientWidth; };
   for (const r of two.filter(r => r.classList.contains('two') && overlaps(r))) r.classList.add('no-author');
 }
