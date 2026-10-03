@@ -616,11 +616,18 @@ new ResizeObserver(() => {
 const ROW_WIDE = 600, ROW_ONE = 480, SQUEEZE = 260;
 function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
-  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sum');
+  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sum', 'no-sha');
   const width = rowsEl.querySelector('.row-in')?.clientWidth ?? 0;
   rowsEl.classList.toggle('no-sha', width < ROW_WIDE && width >= ROW_ONE);
   const one = width >= ROW_ONE;
-  const tight = rows.filter(r => r.querySelector('.refs') && (!one || squeezed(r)));
+  // Egysoros nézetben a badge-es sor előbb a hasht adja fel, és csak akkor lesz
+  // kétsoros, ha így sem fér el — különben szélesebb panelen kétsoros lenne, egy
+  // kicsit keskenyebben (ahol a hash amúgy is elmarad) megint egysoros.
+  let tight = rows.filter(r => r.querySelector('.refs') && (!one || squeezed(r)));
+  if (one) {
+    for (const r of tight) r.classList.add('no-sha');
+    tight = tight.filter(squeezed);
+  }
   if (!one) for (const r of rows) if (!r.querySelector('.refs')) r.classList.add('two');
   for (const r of tight) r.classList.add('tight');
   const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };

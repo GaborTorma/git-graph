@@ -385,6 +385,7 @@ button { font: inherit; color: inherit; }
 .row.tight .refs { flex: 1 1 0; overflow: hidden; }
 .br { display: none; }
 .rows.no-sha .row:not(.two, .tight) .meta .sha,
+.row.no-sha .meta .sha,
 .row.no-sum .meta .sum,
 .row.no-author .meta .author,
 .row:is(.two, .tight) .meta .sha { display: none; }   /* kétsoros sorban nincs hash */
