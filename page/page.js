@@ -334,7 +334,7 @@ function bars(f) {
 function headHtml(c) {
   const avatar = avatarOf(c);
   const who = c.uncommitted ? '<span class="name">Munkakönyvtár</span>'
-    : `${avatar ? `<img src="${esc(avatar)}" alt="">` : ''}<span class="name">${esc(c.author)}</span>`
+    : `${avatar ? `<img src="${esc(avatar)}" alt="${esc(c.author)}">` : ''}<span class="name">${esc(c.author)}</span>`
       + `<span class="sep">·</span><span>${fmtDate(c.date)}</span>`;
   const parents = c.parents.map(p => `<button type="button" class="hash" data-jump="${p}" title="Ugrás a szülőre">${p.slice(0, 7)}</button>`
     + miniBtn('open', `Szülő megnyitása: ${p.slice(0, 7)}`, `data-jump="${p}"`)).join('');
@@ -376,6 +376,7 @@ function open(sha) {
     </div>`;
   // Az ál-sor a fix sávban ül: a panelje a lista tetejére kerül, nem a sávba.
   if (pendingEl.contains(row)) { rowsEl.prepend(el); scroller.scrollTop = 0; } else row.after(el);
+  fitWho();
   expanded = sha;
   // Újrarajzolás (élő adatcsere) után a korábban lenyitott fájlok nyitva maradnak.
   el.querySelectorAll('.file').forEach(f => {
@@ -616,7 +617,22 @@ function onWidth(el, fn, always) {
     always?.();
   }).observe(el);
 }
-onWidth(rowsEl, fitRows, drawGraph);
+onWidth(rowsEl, () => { fitRows(); fitWho(); }, drawGraph);
+
+/* A kinyitott commit fejében a szerző neve elmarad, ha nem fér ki (nagyon
+   hosszú név, keskeny panel): csak az avatar marad, a név tooltipben, és a
+   dátum előtti pont sem kell. Avatar nélkül a név marad. */
+function fitWho() {
+  const who = rowsEl.querySelector('.details .who');
+  const img = who?.querySelector('img');
+  if (!img) return;
+  who.classList.remove('face-only');
+  img.removeAttribute('data-tip');
+  if (who.scrollWidth > who.parentElement.clientWidth) {
+    who.classList.add('face-only');
+    img.dataset.tip = img.alt;
+  }
+}
 
 /* A commit-sor elrendezése a szövegoszlop szélességétől (`.row-in`) függ, fix
    határokkal — így egy adott szélességen minden sima sor ugyanúgy néz ki:
