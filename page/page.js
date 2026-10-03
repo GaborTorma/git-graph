@@ -591,14 +591,16 @@ function fitRows() {
   for (const r of two) r.classList.add('two');
   const tight = two.filter(r => r.querySelector('.refs'));
   for (const r of tight) r.classList.replace('two', 'tight');
-  // A badge-ek mellől előbb a szerző, aztán a diff, végül a hash marad el; az idő mindig látszik.
+  // Fontossági sorrend: idő, avatar, diff, hash — ami nem fér ki, hátulról
+  // marad el (előbb a hash, aztán a diff, végül az avatar); az idő mindig látszik.
+  const HIDE = ['no-sha', 'no-sum', 'no-author'];
   const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };
-  for (const cls of ['no-author', 'no-sum', 'no-sha']) {
-    for (const r of tight.filter(crowded)) r.classList.add(cls);
-  }
-  // A sima kétsorosban a szerző marad el, ha a blokk nem fér ki.
   const overlaps = r => { const m = r.querySelector('.meta'); return m.scrollWidth > m.clientWidth; };
-  for (const r of two.filter(r => r.classList.contains('two') && overlaps(r))) r.classList.add('no-author');
+  const plain = two.filter(r => r.classList.contains('two'));
+  for (const cls of HIDE) {
+    for (const r of tight.filter(crowded)) r.classList.add(cls);   // a badge-ek mellől
+    for (const r of plain.filter(overlaps)) r.classList.add(cls);  // a sima kétsoros sorból
+  }
 }
 
 /* Fejléc: három csoport (repó, szűrők, eszközök), szélesség szerint 1–3
