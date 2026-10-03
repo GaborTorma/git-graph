@@ -1081,19 +1081,22 @@ const PLUGIN_URL = 'https://github.com/GaborTorma/git-graph';   // = plugin.json
 function showVersion(f) {
   const stale = f.version && f.installed && f.installed !== f.version && !f.version.includes('+');
   versionEl.className = stale ? 'ver warn' : 'ver';
-  const name = ghLink(PLUGIN_URL, 'Git Graph', 'home', 'A Git Graph a GitHubon');
+  const name = `<span class="name">${ghLink(PLUGIN_URL, 'Git Graph', 'home', 'A Git Graph a GitHubon')} </span>`;
   versionEl.innerHTML = !f.version ? '' : stale
     ? `${name} v${esc(f.version)} fut, v${esc(f.installed)} telepítve — indítsd újra a Claude appot`
     : `${name} v${esc(f.version)}`;
   fitFoot();
 }
 
-/* A verzió csak egészben látszik: ha az élő-állapot mellett nem fér ki, elmarad. */
+/* A verzió csak egészben látszik: ha a „Git Graph” név nem fér ki, csak a
+   verziószám marad, ha az sem, semmi. */
 const liveEl = document.getElementById('live');
 function fitFoot() {
-  versionEl.classList.remove('cut');
-  if (!versionEl.classList.contains('warn') && liveEl.scrollWidth > liveEl.clientWidth) {
-    versionEl.classList.add('cut');
+  versionEl.classList.remove('short', 'cut');
+  if (versionEl.classList.contains('warn')) return;
+  for (const cls of ['short', 'cut']) {
+    if (liveEl.scrollWidth <= liveEl.clientWidth) break;
+    versionEl.classList.add(cls);
   }
 }
 new ResizeObserver(fitFoot).observe(document.getElementById('foot'));
