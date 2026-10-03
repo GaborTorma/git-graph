@@ -218,8 +218,9 @@ function rowHtml(c) {
   const st = DATA.stats[c.sha];
   const sum = st?.files.length
     ? `<span class="sum"><span class="a">+${st.add}</span><span class="d">−${st.del}</span></span>` : '';
-  const meta = c.uncommitted ? '' : `<span class="meta">${sum}<span>${esc(c.author)}</span><span class="sep">·</span>`
-    + `<span class="time">${fmtTime(c.date)}</span><span class="sep">·</span><span class="sha">${c.short}</span></span>`;
+  const meta = c.uncommitted ? '' : `<span class="meta">${sum}<span class="author">${esc(c.author)}</span>`
+    + `<span class="sep s-author">·</span><span class="time">${fmtTime(c.date)}</span>`
+    + `<span class="sep s-sha">·</span><span class="sha">${c.short}</span></span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>${refs}</span>${meta}</span>
@@ -543,7 +544,8 @@ new ResizeObserver(() => {
 
 /* Több soros sor: ha a tárgysor nagyon összepréselődne, a jobb oldali blokk
    (diff · szerző · idő · hash) alulra kerül (`.two`); ha a badge-ek így is
-   kiszorítják, a badge-ek kerülnek alulra, mellettük csak az idő (`.tight`).
+   kiszorítják, a badge-ek kerülnek alulra, mellettük az idő, a hash és a
+   szerző, amennyi elfér (`.tight`).
    Minden lépés előbb mér, aztán egy körben ír. */
 const SQUEEZE = 200;   // ennél keskenyebb, csonkolt tárgysornál vált
 const squeezed = r => {
@@ -552,11 +554,16 @@ const squeezed = r => {
 };
 function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
-  for (const r of rows) r.classList.remove('two', 'tight');
+  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sha');
   const two = rows.filter(squeezed);
   for (const r of two) r.classList.add('two');
   const tight = two.filter(r => r.querySelector('.refs') && squeezed(r));
   for (const r of tight) r.classList.replace('two', 'tight');
+  // A badge-ek mellől előbb a szerző, aztán a hash marad el; az idő mindig látszik.
+  const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };
+  for (const cls of ['no-author', 'no-sha']) {
+    for (const r of tight.filter(crowded)) r.classList.add(cls);
+  }
 }
 
 /* Kompakt fejléc: ha a kontroll-sor feliratokkal két sorba törne, a
