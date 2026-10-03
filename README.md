@@ -165,16 +165,18 @@ Kézi URL-megadás: `git-graph --set-artifact <url>`.
 
 ## Billentyűk
 
-| Billentyű | Mit csinál |
-| --- | --- |
-| `↑` / `↓` | az előző / következő commit nyílik; ha nincs nyitva, a nézet legfelsője |
-| `⌘` / `Ctrl` + `↓` / `↑` | szülő / gyerek ugyanazon az ágon |
-| `⇧⌘` / `⇧Ctrl` + `↓` / `↑` | merge-nél a beolvasztott ág (második szülő), visszafelé a merge |
-| `H` | ugrás a HEAD-re |
-| `⌘F` / `Ctrl+F` | kereső |
-| `Esc` | előbb a keresést üríti, aztán a nyitott commitot csukja |
+| Billentyű | Commiton | Fájlon |
+| --- | --- | --- |
+| `↑` / `↓` | kijelölés az előző / következő commitra (nem nyit) | előző / következő fájl |
+| `→` | kinyitja a commitot, és belép a fájljaiba | kinyitja a fájl diffjét |
+| `←` | becsukja a commitot | nyitott diffet becsuk; bezárt fájlon vissza a commitra |
+| `⌘` / `Ctrl` + `↓` / `↑` | szülő / gyerek ugyanazon az ágon | |
+| `⇧⌘` / `⇧Ctrl` + `↓` / `↑` | merge-nél a beolvasztott ág (második szülő), visszafelé a merge | |
+| `H` | kijelölés a HEAD-en | |
+| `Esc` | előbb a keresést üríti, aztán a nyitott commitot csukja | ugyanígy |
+| `⌘F` / `Ctrl+F` | kereső | |
 
-A nyitott commit a lista tetejére kerül. A görgő egy kattanása egy commitot lép.
+A görgő egy kattanása egy commitot lép.
 
 ## Uncommitted Changes
 

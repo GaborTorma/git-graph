@@ -220,6 +220,10 @@ function rowHtml(c) {
 /* Napi csoportok (`.day-group`): a ragadós fejléc csak a saját napja alatt
    marad fent, a következő nap fejléce kitolja — nem csúsznak egymásra. */
 function render() {
+  // A kijelölés (fókusz) az újrarajzolás után visszaáll: sor vagy fájl.
+  const focused = document.activeElement;
+  const keepSha = focused?.closest?.('.row')?.dataset.sha;
+  const keepPath = focused?.closest?.('.file')?.dataset.path;
   let day = '', html = '';
   const today = dayKey(new Date().toISOString());
   renderPending(visible.find(c => c.uncommitted));
@@ -241,6 +245,10 @@ function render() {
   counter.innerHTML = DATA.meta.totalCommits ? `<b>${shown}</b> / ${DATA.meta.totalCommits} commit` : '';
   if (expanded && visible.some(c => c.sha === expanded)) open(expanded); else expanded = null;
   stackDays();
+  const back = keepPath && expanded
+    ? [...rowsEl.querySelectorAll('.details .file')].find(f => f.dataset.path === keepPath)
+    : keepSha && document.querySelector(`.row[data-sha="${CSS.escape(keepSha)}"]`);
+  back?.focus({ preventScroll: true });
 }
 
 /* Az Uncommitted ál-sor mindig látszik: a lista fölötti fix sávban, saját
@@ -304,7 +312,7 @@ function open(sha) {
       <div class="files-head">Fájlok<span class="n">${st.files.length}</span>
         <span class="a" style="color:var(--add)">+${st.add}</span>
         <span class="d" style="color:var(--del)">−${st.del}</span></div>
-      ${st.files.map(f => `<div class="file" data-path="${esc(f.path)}" aria-expanded="false">
+      ${st.files.map(f => `<div class="file" tabindex="-1" data-path="${esc(f.path)}" aria-expanded="false">
         <span class="chev">${icon('chev')}</span>${icon('file', 'ic fic')}
         <span class="path">${esc(f.path)}</span>
         <span class="churn">${f.new ? '<span class="tag">új</span>' : f.bin ? '<span class="tag">bin</span>'
@@ -536,12 +544,7 @@ rowsEl.addEventListener('click', onListClick);
 pendingEl.addEventListener('click', onListClick);
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && expanded) {
-    document.querySelectorAll('.details').forEach(d => d.remove());
-    document.querySelectorAll('.row').forEach(r => r.setAttribute('aria-expanded', 'false'));
-    expanded = null;
-    drawGraph();
-  }
+  if (e.key === 'Escape' && expanded && !document.querySelector('.menu-pop:not([hidden])')) closeCommit();
 });
 
 /* ── Szűrők ──────────────────────────────────────────────────────────────── */
@@ -690,19 +693,41 @@ document.addEventListener('keydown', e => {
   }
 }, true);
 
-/* ── Billentyűzetes navigáció (a Git Graph mintájára) ──────────────────────
-   ↑/↓            kinyitott commitnál az előző / következő; ha nincs nyitva, a
-                  nézet legfelső commitja nyílik
-   ⌘/Ctrl+↓ / ↑   szülő / gyerek ugyanazon az ágon; Shift-tel merge-nél a másik ág
-   H              ugrás a HEAD-re (a ⌘H macOS-en az appot rejti el)
-   A nyitott commit a lista tetejére kerül. Beviteli mezőben és nyitott
-   menünél a billentyűk a saját dolgukat végzik. */
-function openAt(c) {
-  if (!c || !visible.includes(c)) return false;   // szűrve: nem látszik
-  open(c.sha);
-  revealExpanded();
-  document.querySelector(`.row[data-sha="${CSS.escape(c.sha)}"]`)?.focus({ preventScroll: true });
+/* ── Billentyűzetes navigáció ─────────────────────────────────────────────
+   A kijelölés a billentyűzet-fókusz (sor- és fájl-elem), így az élő
+   adatcsere után is visszaáll (`render`).
+   Commit-szint:  ↑/↓ kijelölés (nem nyit), → kinyit és belép a fájlokba,
+                  ← / Esc becsuk; ⌘/Ctrl+↓/↑ szülő / gyerek ugyanazon az ágon,
+                  Shift-tel merge-nél a másik ág; H a HEAD (a ⌘H az appot rejti)
+   Fájl-szint:    ↑/↓ a fájlokon, → kinyitja a diffet, ← becsukja; bezárt
+                  fájlon ← vissza a commitra.
+   Beviteli mezőben és nyitott menünél a billentyűk a saját dolgukat végzik. */
+const rowOf = c => c && document.querySelector(`.row[data-sha="${CSS.escape(c.sha)}"]`);
+const commitOf = el => el && visible.find(c => c.sha === el.dataset.sha);
+
+/* A kijelölt elem látszódjon: a ragadós napfejléc alá, vagy az alsó szélhez. */
+function ensureVisible(el) {
+  if (!scroller.contains(el)) return;                    // a fix #pending sor
+  const s = scroller.getBoundingClientRect(), r = el.getBoundingClientRect();
+  if (r.top < s.top + STEP_TOP) scroller.scrollTop -= Math.round(s.top + STEP_TOP - r.top);
+  else if (r.bottom > s.bottom) scroller.scrollTop += Math.round(r.bottom - s.bottom);
+}
+function select(el) {
+  if (!el) return false;
+  el.focus({ preventScroll: true });
+  ensureVisible(el);
   return true;
+}
+function selectCommit(c) {
+  return Boolean(c && visible.includes(c)) && select(rowOf(c));   // szűrve: nem látszik
+}
+function closeCommit() {
+  const row = expanded && rowOf(visible.find(c => c.sha === expanded));
+  document.querySelectorAll('.details').forEach(d => d.remove());
+  document.querySelectorAll('.row').forEach(r => r.setAttribute('aria-expanded', 'false'));
+  expanded = null;
+  drawGraph();
+  if (row) select(row);
 }
 function topVisible() {
   // Görgetés nélkül a legfelső sor 4 px-re van (nincs fölötte ragadós fejléc).
@@ -720,14 +745,36 @@ function relative(c, dir, other) {
 document.addEventListener('keydown', e => {
   if (e.altKey || e.target.closest('input, textarea, .menu-pop')
       || document.querySelector('.menu-pop:not([hidden])')) return;
-  const cur = expanded && visible.find(c => c.sha === expanded);
-  let handled = false;
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    const dir = e.key === 'ArrowDown' ? 1 : -1;
-    if (e.metaKey || e.ctrlKey) handled = cur ? openAt(relative(cur, dir, e.shiftKey)) || true : false;
-    else if (!e.shiftKey) handled = openAt(cur ? visible[visible.indexOf(cur) + dir] : topVisible()) || Boolean(cur);
-  } else if ((e.key === 'h' || e.key === 'H') && !e.metaKey && !e.ctrlKey) {
-    handled = openAt(visible.find(c => c.refs.some(r => r.kind === 'head' || r.kind === 'detached')));
+  const active = document.activeElement;
+  const file = active?.closest?.('.file');
+  const row = !file && active?.closest?.('.row');
+  const cur = commitOf(row);
+  const k = e.key, mod = e.metaKey || e.ctrlKey;
+  let handled = true;
+
+  if (file) {                                            // ── fájl-szint
+    const files = [...file.parentElement.querySelectorAll('.file')];
+    const isOpen = file.getAttribute('aria-expanded') === 'true';
+    if (k === 'ArrowDown' || k === 'ArrowUp') select(files[files.indexOf(file) + (k === 'ArrowDown' ? 1 : -1)]);
+    else if (k === 'ArrowRight' && !isOpen) toggleFile(file, expanded, true);
+    else if (k === 'ArrowLeft' && isOpen) toggleFile(file, expanded, false);
+    else if (k === 'ArrowLeft') select(rowOf(visible.find(c => c.sha === expanded)));
+    else handled = false;
+  } else if ((k === 'ArrowDown' || k === 'ArrowUp') && mod) {   // ── ág mentén
+    handled = Boolean(cur) && (selectCommit(relative(cur, k === 'ArrowDown' ? 1 : -1, e.shiftKey)) || true);
+  } else if ((k === 'ArrowDown' || k === 'ArrowUp') && !e.shiftKey) {
+    handled = cur ? (selectCommit(visible[visible.indexOf(cur) + (k === 'ArrowDown' ? 1 : -1)]) || true)
+                  : selectCommit(topVisible());
+  } else if (k === 'ArrowRight' && cur) {                 // belép: kinyit, első fájl
+    if (expanded !== cur.sha) open(cur.sha);
+    const first = rowsEl.querySelector('.details .file');
+    if (first) select(first); else select(rowOf(cur));
+  } else if (k === 'ArrowLeft' && cur && expanded === cur.sha) {
+    closeCommit();
+  } else if ((k === 'h' || k === 'H') && !mod) {
+    handled = selectCommit(visible.find(c => c.refs.some(r => r.kind === 'head' || r.kind === 'detached')));
+  } else {
+    handled = false;
   }
   if (handled) e.preventDefault();
 });
