@@ -9,7 +9,8 @@ commit: szerző GitHub-avatarral, szülő(k), GitHub-link, fájlok és
 szintaxisszínezett diff. Ha a helyi ág és a remote-ja ugyanott áll, egy
 badge-ben látszanak (`main | origin`). A kereső (⌘F) az üzenetben, a
 szerzőben, a ref-nevekben és a hash elején keres, ékezettől függetlenül;
-minden szónak egyeznie kell, Escape törli.
+minden szónak egyeznie kell. Escape vagy a mező × gombja törli; ha közben nyitva
+volt egy commit, a teljes listában az kerül legfelülre.
 
 A `git-graph` parancs a Claude Bash eszközének szól (a plugin `bin/`-jéből), nem a
 terminálnak — a skillek és a hook ezt hívják:

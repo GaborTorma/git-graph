@@ -655,7 +655,22 @@ function applyFilters() {
 }
 ['showRemotes', 'onlyRefs'].forEach(id =>
   document.getElementById(id).addEventListener('change', applyFilters));
-searchEl.addEventListener('input', applyFilters);
+/* A keresés törlésekor (Escape, a mező ×-e vagy kitörölt szöveg) a szűrés
+   megszűnik; ha van kinyitott commit, az a lista tetejére kerül (a napfejléc
+   alá), hogy a visszajött sorok közt se vesszen el. */
+let lastQuery = '';
+function revealExpanded() {
+  const row = expanded && rowsEl.querySelector(`.row[data-sha="${CSS.escape(expanded)}"]`);
+  if (!row) return;
+  const top = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+  scroller.scrollTop = Math.max(0, Math.round(top - STEP_TOP));
+}
+searchEl.addEventListener('input', () => {
+  const cleared = lastQuery && !searchEl.value;
+  lastQuery = searchEl.value;
+  applyFilters();
+  if (cleared) revealExpanded();
+});
 
 /* ⌘F / Ctrl+F a keresőbe (a lap saját keresője helyett); Escape előbb a
    keresést üríti, aztán a kinyitott commitot csukja be. */
@@ -666,8 +681,11 @@ document.addEventListener('keydown', e => {
     searchEl.select();
   } else if (e.key === 'Escape' && document.activeElement === searchEl && searchEl.value) {
     e.stopImmediatePropagation();
+    e.preventDefault();
     searchEl.value = '';
+    lastQuery = '';
     applyFilters();
+    revealExpanded();
   }
 }, true);
 
