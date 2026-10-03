@@ -732,11 +732,18 @@ scroller.addEventListener('scroll', stackDays, { passive: true });
    kattanással több sort is átugrik). Ha egy kinyitott commit-panel látszik,
    azon belül szabad a görgetés — a következő lépés újra sorhoz igazít. */
 const STEP_TOP = 16, TRACKPAD_STEP = 40, NOTCH = 50;
-let wheelAcc = 0, stepGoal = null;
+// Irányváltás után ennyi ideig a régi irány kis (lecsengő) eseményei nem
+// számítanak: a simító egérszoftverek (BetterMouse) lendülete ezeket még küldi.
+const REVERSE_GUARD_MS = 150;
+let wheelAcc = 0, stepGoal = null, stepDir = 0, reversedAt = 0;
 function stepRows(dir) {
   const base = scroller.getBoundingClientRect().top - scroller.scrollTop;
   const tops = [...rowsEl.querySelectorAll('.row')]
     .map(r => Math.max(0, Math.round(r.getBoundingClientRect().top - base - STEP_TOP)));
+  // Irányváltáskor az aktuális helyzetből: a futó animáció célja a régi
+  // irányban előrébb van, onnan számolva egy lépést még rossz felé menne.
+  if (stepDir && dir !== stepDir) { stepGoal = null; reversedAt = performance.now(); }
+  stepDir = dir;
   const from = stepGoal ?? scroller.scrollTop;
   const max = scroller.scrollHeight - scroller.clientHeight;
   const target = dir > 0 ? (tops.find(t => t > from + 1) ?? max)
@@ -778,6 +785,18 @@ scroller.addEventListener('wheel', e => {
   }
   e.preventDefault();
   const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * scroller.clientHeight : e.deltaY;
+  if (!px) return;
+  // A régi irány lecsengő lendülete az irányváltás után: nem lép vissza.
+  if (stepDir && Math.sign(px) !== stepDir && Math.abs(px) < NOTCH
+      && performance.now() - reversedAt < REVERSE_GUARD_MS) return;
+  // Irányváltás: azonnal lép (a simítás után az új irány első eseményei kicsik,
+  // nem kell kivárni a küszöböt), és a régi irány maradéka sem tartja fel.
+  if (stepDir && Math.sign(px) !== stepDir && Math.abs(px) > 2) {
+    wheelAcc = 0;
+    stepRows(Math.sign(px));
+    return;
+  }
+  if (wheelAcc && Math.sign(px) !== Math.sign(wheelAcc)) wheelAcc = 0;
   wheelAcc += px;
   if (Math.abs(px) < NOTCH && Math.abs(wheelAcc) < TRACKPAD_STEP) return;
   const dir = Math.sign(wheelAcc);
