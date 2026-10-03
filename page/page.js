@@ -1094,6 +1094,17 @@ function fitFoot() {
 }
 new ResizeObserver(fitFoot).observe(document.getElementById('foot'));
 
+/* Frissítés közben forog az ikon — legalább egy teljes fordulatot, különben
+   egy gyors adatcserénél csak megrándulna. */
+const SPIN_MS = 800;
+let spinSince = 0, spinTimer = 0;
+function spin(on) {
+  clearTimeout(spinTimer);
+  if (on) { spinSince = performance.now(); foot.classList.add('busy'); return; }
+  const rest = SPIN_MS - (performance.now() - spinSince);
+  spinTimer = setTimeout(() => foot.classList.remove('busy'), Math.max(0, rest));
+}
+
 function startLive(src) {
   let last = '';                            // a váz üres: az első kör adatot kér
   let change = '';                          // az utolsó változás: mikor, mennyi idő alatt
@@ -1112,6 +1123,7 @@ function startLive(src) {
       const key = JSON.stringify(f);
       if (key !== last) {
         const t1 = performance.now();
+        spin(true);
         DATA = await src.data();
         const td = performance.now() - t1;
         for (const [k, v] of diffCache) if (k.startsWith('*uncommitted\n')) v.stale = true;
@@ -1124,11 +1136,18 @@ function startLive(src) {
           + ` kirajzolva ${Math.round(performance.now() - t1)} ms alatt`;
       }
       last = key;
-      foot.className = 'foot on';
-      liveText.innerHTML = `Élő <span class="sep">·</span> ${icon('refresh', 'ic upd')}${clock()}`;
+      foot.classList.remove('stale');
+      foot.classList.add('on');               // a `busy` (forgás) marad
+      // A váz egyszer készül: az ikon nem cserélődik, így a forgása sem szakad meg.
+      if (!liveText.querySelector('.upd')) {
+        liveText.innerHTML = `Élő <span class="sep">·</span> ${icon('refresh', 'ic upd')}<span class="clock"></span>`;
+      }
+      liveText.querySelector('.clock').textContent = clock();
       liveText.title = `ujjlenyomat ${Math.round(tf)} ms` + change;
       showVersion(f);
+      spin(false);
     } catch (e) {
+      spin(false);
       notice(mcpProblem(e), true);
       if (!e?.retryable) return;                // magától nem javul: nincs több kör
       wait = Math.max(POLL_MS, e.retryAfterMs || 0) * 2;
