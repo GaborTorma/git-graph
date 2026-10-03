@@ -243,7 +243,8 @@ button { font: inherit; color: inherit; }
 .switch input:checked + .track::after { transform: translateX(10px); }
 .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.spacer { margin-left: auto; }
+/* Kereső + témaváltó: jobbra zárva, keskeny ablakban együtt törnek új sorba. */
+.tools { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 
 .search {
   display: flex; align-items: center; gap: 7px;
@@ -285,9 +286,13 @@ button { font: inherit; color: inherit; }
 #lanes { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
 .rows { position: relative; z-index: 2; }
 
+/* A nap fejléce görgetéskor fent marad (az aktuális napé). Háttere csak a
+   gráf-oszloptól jobbra van: a sávok vonala alatta sem szakad meg. */
 .day {
-  height: 30px; display: flex; align-items: flex-end;
-  padding: 0 16px 6px calc(var(--graph-w, 72px) + 10px);
+  position: sticky; top: 0; z-index: 3;
+  height: 22px; display: flex; align-items: center;
+  margin-left: var(--graph-w, 72px); padding: 0 16px 0 10px;
+  background: var(--bg);
   font-size: 11.5px; font-weight: 600; color: var(--fg-2);
 }
 
