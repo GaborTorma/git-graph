@@ -407,22 +407,27 @@ button { font: inherit; color: inherit; }
 }
 .meta .author.ini { background: var(--bg-3); color: var(--fg-1); font-size: 8px; font-weight: 600; letter-spacing: .02em; }
 .meta { align-items: center; }
-/* A commit összes változása a hash után, két összetapadó színes címkében (a
-   Claude app diff-jelzője mintájára); egysoros sorban csak, ha elfér (`fitRows`). */
+/* A commit összes változása az avatar után, badge-szerű címkében (18 px magas,
+   lekerekített, a szegmensek a saját színük halvány keretével — mint a
+   ref-badge-ek); egysoros sorban csak, ha elfér (`fitRows`). */
 .row-in { container-type: inline-size; }
-.sum { display: inline-flex; align-items: center; margin-left: 2px;   /* fitRows: SUM_GAP */
+.sum { display: inline-flex; align-items: stretch; height: 18px; margin-left: 2px;   /* fitRows: SUM_GAP */
        font: 10px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
 /* Fix cellák: fájlszám (2 karakter) | zöld | piros (3-3 karakter: `888`,
-   `12k` — a +/− jelet a szín adja), a számok jobbra igazítva: mindhárom
-   egy-egy oszlopban áll. */
-.sum > span { box-sizing: border-box; flex: 0 0 24px; padding: 2px 3px; text-align: right; }
-.sum > .f { flex-basis: 18px; position: relative; color: var(--fg-2);
-            background: color-mix(in srgb, var(--fg-2) 14%, transparent); border-radius: 4px 0 0 4px; }
+   `12k` — a +/− jelet a szín adja), a számok jobbra igazítva és függőlegesen
+   középen: mindhárom egy-egy oszlopban áll. */
+.sum > span { box-sizing: border-box; flex: 0 0 24px; display: flex; align-items: center;
+              justify-content: flex-end; padding: 0 3px;
+              --c: currentColor; background: color-mix(in srgb, var(--c) 15%, transparent);
+              box-shadow: inset 0 1px 0 var(--bd), inset 0 -1px 0 var(--bd);
+              --bd: color-mix(in srgb, var(--c) 30%, transparent); }
+.sum > .f { flex-basis: 18px; position: relative; color: var(--fg-2); --c: var(--fg-2);
+            border-radius: 6px 0 0 6px; box-shadow: inset 0 1px 0 var(--bd), inset 0 -1px 0 var(--bd), inset 1px 0 0 var(--bd); }
 /* 99 fölött: `99⁺`, a plusz jobbra a címke szélére lóg (felfelé nem) */
-.sum .f sup { position: absolute; top: 0; right: -3px; font: 400 9px/1 var(--font-ui); color: inherit; }
-.sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, transparent); }
-.sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, transparent);
-          border-radius: 0 4px 4px 0; }
+.sum .f sup { position: absolute; top: 2px; right: -3px; font: 400 9px/1 var(--font-ui); color: inherit; }
+.sum .a { color: var(--add); --c: var(--add); }
+.sum .d { color: var(--del); --c: var(--del); border-radius: 0 6px 6px 0;
+          box-shadow: inset 0 1px 0 var(--bd), inset 0 -1px 0 var(--bd), inset -1px 0 0 var(--bd); }
 
 .empty { padding: 40px; text-align: center; color: var(--fg-2); }
 
