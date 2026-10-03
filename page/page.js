@@ -221,13 +221,21 @@ function badges(c) {
   }).join('');
 }
 
+/* `Gábor Torma` → `GT`: a név első két szavának kezdőbetűje. */
+const initials = name => String(name || '?').trim().split(/\s+/).slice(0, 2)
+  .map(w => [...w][0] || '').join('').toUpperCase();
+
 function rowHtml(c) {
   const color = fresh.has(c.sha) ? ` style="color:${LANE_COLORS[c.lane % LANE_COLORS.length]}"` : '';
   const refs = c.refs.length ? `<span class="refs">${badges(c)}</span>` : '';
   const st = DATA.stats[c.sha];
   const sum = st?.files.length
     ? `<span class="sum"><span class="a">+${st.add}</span><span class="d">−${st.del}</span></span>` : '';
-  const meta = c.uncommitted ? '' : `<span class="meta"><span class="author">${esc(c.author)}</span>`
+  // A szerző a soron csak arcként: avatar, ha nincs, monogram; a név a tooltipben.
+  const avatar = DATA.avatars?.[c.email];
+  const face = avatar ? `<img src="${esc(avatar)}" alt="">` : esc(initials(c.author));
+  const meta = c.uncommitted ? '' : `<span class="meta"><span class="author${avatar ? '' : ' ini'}"`
+    + ` title="${esc(c.author)}" aria-label="${esc(c.author)}">${face}</span>`
     + `<span class="sep s-author">·</span><span class="time">${fmtTime(c.date)}</span>`
     + `<span class="sep s-sha">·</span><span class="sha">${c.short}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');

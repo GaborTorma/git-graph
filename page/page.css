@@ -397,6 +397,13 @@ button { font: inherit; color: inherit; }
 .meta .sep { color: var(--fg-3); }
 .meta .time { font-variant-numeric: tabular-nums; }
 .meta .sha { font-family: var(--font-mono); font-size: 11.5px; }
+/* A szerző arca: avatar vagy monogram, egyforma körben */
+.meta .author { display: inline-flex; align-items: center; justify-content: center; flex: none;
+                width: 16px; height: 16px; border-radius: 8px; overflow: hidden;
+                box-shadow: 0 0 0 1px var(--border); }
+.meta .author img { width: 100%; height: 100%; display: block; }
+.meta .author.ini { background: var(--bg-3); color: var(--fg-1); font-size: 8px; font-weight: 600; letter-spacing: .02em; }
+.meta { align-items: center; }
 /* A commit összes változása a hash után, két összetapadó színes címkében (a
    Claude app diff-jelzője mintájára) — csak ha a sor elég széles. */
 .row-in { container-type: inline-size; }
