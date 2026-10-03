@@ -564,6 +564,9 @@ function fitRows() {
   for (const cls of ['no-author', 'no-sha']) {
     for (const r of tight.filter(crowded)) r.classList.add(cls);
   }
+  // A sima kétsorosban a szerző marad el, ha a diffre csúszna.
+  const overlaps = r => { const m = r.querySelector('.meta'); return m.scrollWidth > m.clientWidth; };
+  for (const r of two.filter(r => r.classList.contains('two') && overlaps(r))) r.classList.add('no-author');
 }
 
 /* Kompakt fejléc: ha a kontroll-sor feliratokkal két sorba törne, a

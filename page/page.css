@@ -364,7 +364,7 @@ button { font: inherit; color: inherit; }
 .row.two .row-in { flex-direction: column; align-items: stretch; justify-content: center; gap: 3px; }
 .row.two .desc { flex: none; }
 .row.two .refs { margin-left: auto; }
-.row.two .meta .sum { display: flex; min-width: 0; margin-right: auto; }
+.row.two .meta .sum { display: flex; flex: none; margin-right: auto; }
 .row.tight .row-in { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center;
                      row-gap: 3px; column-gap: 12px; }
 .row.tight .desc { display: contents; }
