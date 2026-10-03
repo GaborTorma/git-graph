@@ -415,6 +415,10 @@ button { font: inherit; color: inherit; }
 }
 .meta .sum { position: relative; }
 .meta .sum::after { content: attr(data-tip); }
+/* A blokk a sor jobb szélén ül: a buborék jobbra zár, különben (rejtve is)
+   kilógna, és vízszintes görgetést nyitna (szűk sorban az avatar is a szélre kerül). */
+.meta .author::after, .meta .sum::after { left: auto; right: 0; transform: translateY(2px); }
+.meta .author:hover::after, .meta .sum:hover::after { transform: none; }
 .meta .author.ini { background: var(--bg-3); color: var(--fg-1); font-size: 8px; font-weight: 600; letter-spacing: .02em; }
 .meta { align-items: center; }
 /* A commit összes változása a hash után, két összetapadó színes címkében (a
