@@ -796,6 +796,7 @@ document.addEventListener('keydown', e => {
     if (k === 'ArrowDown') select((isOpen && hunksOf(file)[0]) || files[files.indexOf(file) + 1]);
     else if (k === 'ArrowUp') select((prev && hunksOf(prev).at(-1)) || prev);
     else if (k === 'ArrowRight' && !isOpen) { toggleFile(file, expanded, true); enterFirstHunk(file); }
+    else if (k === 'ArrowRight') enterFirstHunk(file);          // már nyitva: az első blokkra
     else if (k === 'ArrowLeft' && isOpen) toggleFile(file, expanded, false);
     else if (k === 'ArrowLeft') select(rowOf(visible.find(c => c.sha === expanded)));
     else handled = false;
