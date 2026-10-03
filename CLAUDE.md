@@ -129,7 +129,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 - **A `drawGraph()` a DOM-ból olvassa a sorok Y-pozícióját** (`offsetTop`), nem
   sorszám × magasságból: a napok fejléce (`.day`) és a kinyitott commit-panel
   az alattuk lévő sorokat lejjebb tolja. A pötty a sor közepére kerül
-  (`offsetTop + offsetHeight / 2`): a sor `ROW_H` magas, a kétsoros 48 px. A sor
+  (`offsetTop + offsetHeight / 2`): a sor `ROW_H` magas, a kétsoros 48, a háromsoros (`.three`, badge-es) 66 px. A sor
   elrendezése fix határokkal a szövegoszlop szélességétől függ (`fitRows`:
   480 alatt kétsoros `.two`, a sorban hash nincs, a lista nem szűkül 320
   alá); csak a badge-es sort méri (`.tight`), mert a badge-ek hossza soronként más. Ezért minden DOM-változás után újra kell hívni (nyitás,

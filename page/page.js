@@ -609,21 +609,21 @@ new ResizeObserver(() => {
    A lista nem szűkül 320 px alá (page.css: `.graph-wrap`). A badge-es sorokat
    mérni kell, mert a badge-ek hossza soronként más: ha a tárgy 260 px alá
    szorulna, vagy a lista kétsoros, kétsorosak (`.tight`: lent balra a badge-ek,
-   jobbra a blokk), és ami a badge-ek mellett nem fér el, hátulról marad el
-   (fontosság: idő, avatar, diff). Minden lépés előbb mér, aztán ír. */
+   jobbra a blokk); ha a blokk a badge-ek mellett nem fér el, egészben a
+   harmadik sorba kerül (`.three`). Minden lépés előbb mér, aztán ír. */
 const ROW_ONE = 480, SQUEEZE = 260;
 function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
-  for (const r of rows) r.classList.remove('two', 'tight', 'no-author', 'no-sum');
+  for (const r of rows) r.classList.remove('two', 'tight', 'three');
   const width = rowsEl.querySelector('.row-in')?.clientWidth ?? 0;
   const one = width >= ROW_ONE;
   const tight = rows.filter(r => r.querySelector('.refs') && (!one || squeezed(r)));
   if (!one) for (const r of rows) if (!r.querySelector('.refs')) r.classList.add('two');
   for (const r of tight) r.classList.add('tight');
+  // Ha a badge-ek mellett nem fér el az idő · avatar · diff blokk, az egészben
+  // a harmadik sorba kerül (`.three`) — eleme nem marad el.
   const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };
-  for (const cls of ['no-sum', 'no-author']) {
-    for (const r of tight.filter(crowded)) r.classList.add(cls);
-  }
+  for (const r of tight.filter(crowded)) r.classList.replace('tight', 'three');
 }
 const squeezed = r => {
   const s = r.querySelector('.subject');
