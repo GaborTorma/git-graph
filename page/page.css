@@ -425,11 +425,11 @@ button { font: inherit; color: inherit; }
    egy-egy oszlopban áll. */
 .sum > span { box-sizing: border-box; flex: 0 0 24px; padding: 2px 3px; text-align: right; }
 .sum > .f { flex-basis: 18px; position: relative; color: var(--fg-2);
-            background: color-mix(in srgb, var(--fg-2) 14%, transparent); border-radius: 4px 0 0 4px; }
+            background: color-mix(in srgb, var(--fg-2) 14%, var(--bg)); border-radius: 4px 0 0 4px; }
 /* 99 fölött: `99⁺`, a plusz jobbra a címke szélére lóg (felfelé nem) */
 .sum .f sup { position: absolute; top: 0; right: -3px; font: 400 9px/1 var(--font-ui); color: inherit; }
-.sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, transparent); }
-.sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, transparent);
+.sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, var(--bg)); }
+.sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, var(--bg));
           border-radius: 0 4px 4px 0; }
 
 .empty { padding: 40px; text-align: center; color: var(--fg-2); }
