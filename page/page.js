@@ -543,8 +543,8 @@ new ResizeObserver(() => {
 
 /* Több soros sor: ha a tárgysor nagyon összepréselődne, a jobb oldali blokk
    (diff · szerző · idő · hash) alulra kerül (`.two`); ha a badge-ek így is
-   kiszorítják, azok is külön sorba (`.three`). Minden lépés előbb mér, aztán
-   egy körben ír. */
+   kiszorítják, a badge-ek kerülnek alulra, mellettük csak az idő (`.tight`).
+   Minden lépés előbb mér, aztán egy körben ír. */
 const SQUEEZE = 200;   // ennél keskenyebb, csonkolt tárgysornál vált
 const squeezed = r => {
   const s = r.querySelector('.subject');
@@ -552,11 +552,11 @@ const squeezed = r => {
 };
 function fitRows() {
   const rows = [...rowsEl.querySelectorAll('.row')];
-  for (const r of rows) r.classList.remove('two', 'three');
+  for (const r of rows) r.classList.remove('two', 'tight');
   const two = rows.filter(squeezed);
   for (const r of two) r.classList.add('two');
-  const three = two.filter(r => r.querySelector('.refs') && squeezed(r));
-  for (const r of three) r.classList.replace('two', 'three');
+  const tight = two.filter(r => r.querySelector('.refs') && squeezed(r));
+  for (const r of tight) r.classList.replace('two', 'tight');
 }
 
 /* Kompakt fejléc: ha a kontroll-sor feliratokkal két sorba törne, a

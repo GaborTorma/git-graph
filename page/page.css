@@ -356,19 +356,21 @@ button { font: inherit; color: inherit; }
 .subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.merge .desc { color: var(--fg-2); }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
-/* Kétsoros sor (`fitRows`): fent a tárgy a badge-ekkel, alatta a diff, a
-   szerző, az idő és a hash. Háromsoros, ha a badge-ek így is kiszorítanák a
-   tárgyat: akkor azok is külön sorba kerülnek. */
-.row.two { height: 48px; }
-.row.three { height: 68px; }
-.row.two .row-in, .row.three .row-in { flex-direction: column; align-items: stretch;
-                                       justify-content: center; gap: 3px; }
-.row.two .desc, .row.three .desc { flex: none; }
-.row.three .desc { flex-direction: column; align-items: flex-start; gap: 3px; }
-.row.three .subject { max-width: 100%; }
-.row.two .refs { margin-left: auto; }          /* a badge-ek jobbra zárva */
-.row.three .refs { max-width: 100%; overflow: hidden; align-self: flex-end; }
-.row.two .meta .sum, .row.three .meta .sum { display: flex; min-width: 0; }
+/* Kétsoros sor (`fitRows`): fent a tárgy a badge-ekkel (jobbra zárva), alatta
+   a diff, a szerző, az idő és a hash. Ha a badge-ek így is kiszorítanák a
+   tárgyat (`.tight`): fent csak a tárgy, lent balra a badge-ek, jobbra az idő. */
+.row.two, .row.tight { height: 48px; }
+.row.two .row-in { flex-direction: column; align-items: stretch; justify-content: center; gap: 3px; }
+.row.two .desc { flex: none; }
+.row.two .refs { margin-left: auto; }
+.row.two .meta .sum { display: flex; min-width: 0; }
+.row.tight .row-in { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center;
+                     row-gap: 3px; column-gap: 12px; }
+.row.tight .desc { display: contents; }
+.row.tight .subject { grid-column: 1 / -1; }
+.row.tight .refs { grid-column: 1; overflow: hidden; }
+.row.tight .meta { grid-column: 2; grid-row: 2; }
+.row.tight .meta > :not(.time) { display: none; }
 .row.uncommitted .subject { font-style: italic; color: var(--fg-2); }
 .meta {
   flex: none; display: flex; gap: 6px;
