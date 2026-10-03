@@ -727,61 +727,34 @@ function stackDays() {
 scroller.addEventListener('scroll', stackDays, { passive: true });
 
 /* Commitonként görgetés: egy görgő-kattanás egy commit, trackpaden ~40 px
-   egy commit. A sor a ragadós napchip alá (`STEP_TOP`) igazodik, így a chip
+   egy commit. A sor a ragadós napfejléc alá (`STEP_TOP`) igazodik, így a fejléc
    sosem takarja. A CSS scroll-snap ezt nem tartja (a böngésző egy
    kattanással több sort is átugrik). Ha egy kinyitott commit-panel látszik,
    azon belül szabad a görgetés — a következő lépés újra sorhoz igazít. */
 const STEP_TOP = 16, TRACKPAD_STEP = 40, NOTCH = 50;
 // Ennyi időn belül egy irány nem növekvő eseményei lecsengésnek számítanak.
 const COAST_MS = 120;
-let wheelAcc = 0, stepGoal = null, stepDir = 0;
+let wheelAcc = 0, stepDir = 0;
 const lastMag = { 1: 0, '-1': 0 }, lastAt = { 1: -1e9, '-1': -1e9 };
+/* Egy lépés: azonnal, animáció nélkül (az animáció — a böngészőé és a saját
+   ease-out is — darabosnak, irányváltáskor késlekedőnek tűnt). */
 function stepRows(dir) {
   const base = scroller.getBoundingClientRect().top - scroller.scrollTop;
   const tops = [...rowsEl.querySelectorAll('.row')]
     .map(r => Math.max(0, Math.round(r.getBoundingClientRect().top - base - STEP_TOP)));
-  // Irányváltáskor az aktuális helyzetből: a futó animáció célja a régi
-  // irányban előrébb van, onnan számolva egy lépést még rossz felé menne.
-  if (stepDir && dir !== stepDir) stepGoal = null;
   stepDir = dir;
-  const from = stepGoal ?? scroller.scrollTop;
+  const from = scroller.scrollTop;
   const max = scroller.scrollHeight - scroller.clientHeight;
   const target = dir > 0 ? (tops.find(t => t > from + 1) ?? max)
                          : ([...tops].reverse().find(t => t < from - 1) ?? 0);
-  stepGoal = Math.min(target, max);
-  glide();
-}
-
-/* Saját animáció a böngésző `smooth` görgetése helyett (az darabos volt):
-   ease-out, fix időtartammal. Új kattanásnál az aktuális pozícióból indul az új
-   cél felé — az ease-out gyorsan kezd, így gyors egymásutánban sem akad meg.
-   Ha közben a néző máshogy görget (görgetősáv, billentyű), átadja neki. */
-const GLIDE_MS = 200;
-let glideFrame = 0, glideFrom = 0, glideStart = 0, glideSet = 0;
-const easeOut = t => 1 - (1 - t) ** 3;
-function glide() {
-  glideFrom = scroller.scrollTop;
-  glideSet = glideFrom;
-  glideStart = performance.now();
-  if (glideFrame) return;               // a futó képkocka-ciklus átveszi az új célt
-  const frame = now => {
-    if (stepGoal == null || Math.abs(scroller.scrollTop - glideSet) > 1) {
-      glideFrame = 0; stepGoal = null; return;        // valaki más görgetett
-    }
-    const t = Math.min(1, (now - glideStart) / GLIDE_MS);
-    glideSet = Math.round(glideFrom + (stepGoal - glideFrom) * easeOut(t));
-    scroller.scrollTop = glideSet;
-    if (t === 1) { glideFrame = 0; stepGoal = null; return; }
-    glideFrame = requestAnimationFrame(frame);
-  };
-  glideFrame = requestAnimationFrame(frame);
+  scroller.scrollTop = Math.min(target, max);
 }
 scroller.addEventListener('wheel', e => {
   if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
   const panel = rowsEl.querySelector('.details');
   if (panel) {
     const r = panel.getBoundingClientRect(), s = scroller.getBoundingClientRect();
-    if (r.top < s.bottom && r.bottom > s.top + STEP_TOP + 1) { stepGoal = null; return; }
+    if (r.top < s.bottom && r.bottom > s.top + STEP_TOP + 1) return;
   }
   e.preventDefault();
   const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * scroller.clientHeight : e.deltaY;
