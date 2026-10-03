@@ -254,18 +254,29 @@ button { font: inherit; color: inherit; }
 .switch input:checked + .track { background: var(--accent); }
 .switch input:checked + .track::after { transform: translateX(10px); }
 .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Szűrők: ágválasztó + kapcsolók, egy egységként törnek (`fitChrome`). Több
+   soros fejlécben az ágválasztó kitölti a sort, a kapcsolók jobbra kerülnek. */
+.filters { display: flex; align-items: center; gap: 18px; flex: 0 1 auto; min-width: 0; }
+.chrome.multi .filters { flex-grow: 1; }
+.chrome.multi .filters .menu { flex: 1 1 auto; min-width: 0; }
+.chrome.multi #branchBtn { width: 100%; }
+.chrome.multi #branchBtn .chev { margin-left: auto; }
+.chrome.multi .select-label { max-width: none; }
+.chrome.rows-3 .repo { flex: 1 1 100%; }
+.chrome.rows-3 .head-chip { margin-left: auto; }
 /* Szűkös helyen (a sor tördelne) a kapcsolók felirata helyett ikon. */
 .switch .sw-ic { display: none; color: var(--fg-2); }
 .chrome.compact .switch { gap: 6px; }
 .chrome.compact .switch .sw-txt { display: none; }
 .chrome.compact .switch .sw-ic { display: inline; }
 
-/* Kereső + témaváltó: jobbra zárva, keskeny ablakban együtt törnek új sorba. */
-.tools { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+/* Kereső + témaváltó: jobbra zárva, keskeny ablakban együtt törnek új sorba;
+   a kereső kitölti a sorában maradt helyet. */
+.tools { margin-left: auto; flex: 1 1 auto; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 
 .search {
   display: flex; align-items: center; gap: 7px;
-  flex: 0 1 230px; min-width: 120px; height: 28px; padding: 0 8px;
+  flex: 1 1 230px; min-width: 120px; height: 28px; padding: 0 8px;
   border-radius: 7px;
   background: var(--ctrl);
   box-shadow: inset 0 0 0 1px var(--ctrl-border), var(--ctrl-shadow);
