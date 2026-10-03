@@ -223,7 +223,8 @@ function render() {
   // A kijelölés (fókusz) az újrarajzolás után visszaáll: sor vagy fájl.
   const focused = document.activeElement;
   const keepSha = focused?.closest?.('.row')?.dataset.sha;
-  const keepPath = focused?.closest?.('.file')?.dataset.path;
+  const keepPath = (focused?.closest?.('.file') || focused?.closest?.('.diff')?.previousElementSibling)
+    ?.dataset.path;               // blokkon állva a fájljára áll vissza
   let day = '', html = '';
   const today = dayKey(new Date().toISOString());
   renderPending(visible.find(c => c.uncommitted));
@@ -391,9 +392,10 @@ function diffHtml(d, lang) {
   for (const h of d.hunks) {
     const gap = h.old - oldEnd;
     const gapHtml = gap > 0 ? `<p class="diff-gap" title="${gap} változatlan sor">···</p>` : '';
-    uni += gapHtml + h.lines.map(l => `<div class="diff-line mono${KIND[l.t]}">`
-      + diffCell(l, l.n, lang) + '</div>').join('');
-    split += gapHtml + splitRows(h, lang);
+    // Egy blokk (hunk) a `···`-ig: fókuszálható, a nyilak blokkról blokkra lépnek.
+    uni += gapHtml + '<div class="hunk" tabindex="-1">' + h.lines.map(l => `<div class="diff-line mono${KIND[l.t]}">`
+      + diffCell(l, l.n, lang) + '</div>').join('') + '</div>';
+    split += gapHtml + '<div class="hunk" tabindex="-1">' + splitRows(h, lang) + '</div>';
     oldEnd = h.old + h.lines.filter(l => l.t !== '+').length;
   }
   const kinds = new Set(d.hunks.flatMap(h => h.lines.map(l => l.t)));
@@ -703,13 +705,24 @@ document.addEventListener('keydown', e => {
                   fájlon ← vissza a commitra.
    Beviteli mezőben és nyitott menünél a billentyűk a saját dolgukat végzik. */
 const rowOf = c => c && document.querySelector(`.row[data-sha="${CSS.escape(c.sha)}"]`);
+/* Egy nyitott fájl blokkjai — csak a látható nézetéé (egymás alatti vagy
+   side-by-side, a szélesség dönt). Bezárt fájlnál üres. */
+const hunksOf = fileEl => fileEl?.getAttribute('aria-expanded') === 'true'
+  ? [...fileEl.nextElementSibling.querySelectorAll('.hunk')].filter(h => h.offsetParent !== null) : [];
+const nextFile = fileEl => {
+  const files = [...fileEl.parentElement.querySelectorAll('.file')];
+  return files[files.indexOf(fileEl) + 1];
+};
 const commitOf = el => el && visible.find(c => c.sha === el.dataset.sha);
 
 /* A kijelölt elem látszódjon: a ragadós napfejléc alá, vagy az alsó szélhez. */
 function ensureVisible(el) {
   if (!scroller.contains(el)) return;                    // a fix #pending sor
   const s = scroller.getBoundingClientRect(), r = el.getBoundingClientRect();
-  if (r.top < s.top + STEP_TOP) scroller.scrollTop -= Math.round(s.top + STEP_TOP - r.top);
+  // Ami nem fér ki (magas blokk), annak a teteje igazodik a fejléc alá.
+  if (r.top < s.top + STEP_TOP || r.height > s.height - STEP_TOP) {
+    scroller.scrollTop -= Math.round(s.top + STEP_TOP - r.top);
+  }
   else if (r.bottom > s.bottom) scroller.scrollTop += Math.round(r.bottom - s.bottom);
 }
 function select(el) {
@@ -746,16 +759,26 @@ document.addEventListener('keydown', e => {
   if (e.altKey || e.target.closest('input, textarea, .menu-pop')
       || document.querySelector('.menu-pop:not([hidden])')) return;
   const active = document.activeElement;
-  const file = active?.closest?.('.file');
-  const row = !file && active?.closest?.('.row');
+  const hunk = active?.closest?.('.hunk');
+  const file = !hunk && active?.closest?.('.file');
+  const row = !hunk && !file && active?.closest?.('.row');
   const cur = commitOf(row);
   const k = e.key, mod = e.metaKey || e.ctrlKey;
   let handled = true;
 
-  if (file) {                                            // ── fájl-szint
+  if (hunk) {                                            // ── blokk-szint (nyitott diff)
+    const fileEl = hunk.closest('.diff').previousElementSibling;
+    const blocks = hunksOf(fileEl), i = blocks.indexOf(hunk);
+    if (k === 'ArrowDown') select(blocks[i + 1] || nextFile(fileEl));
+    else if (k === 'ArrowUp') select(blocks[i - 1] || fileEl);
+    else if (k === 'ArrowLeft') select(fileEl);
+    else handled = false;
+  } else if (file) {                                     // ── fájl-szint
     const files = [...file.parentElement.querySelectorAll('.file')];
     const isOpen = file.getAttribute('aria-expanded') === 'true';
-    if (k === 'ArrowDown' || k === 'ArrowUp') select(files[files.indexOf(file) + (k === 'ArrowDown' ? 1 : -1)]);
+    const prev = files[files.indexOf(file) - 1];
+    if (k === 'ArrowDown') select((isOpen && hunksOf(file)[0]) || files[files.indexOf(file) + 1]);
+    else if (k === 'ArrowUp') select((prev && hunksOf(prev).at(-1)) || prev);
     else if (k === 'ArrowRight' && !isOpen) toggleFile(file, expanded, true);
     else if (k === 'ArrowLeft' && isOpen) toggleFile(file, expanded, false);
     else if (k === 'ArrowLeft') select(rowOf(visible.find(c => c.sha === expanded)));

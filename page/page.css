@@ -429,6 +429,9 @@ button { font: inherit; color: inherit; }
 .file[aria-expanded="true"] { background: var(--bg-3); }
 .file:focus { outline: 0; }
 .file:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent); }
+/* Kijelölt diff-blokk: outline, mert a sorok háttere eltakarná az inset árnyékot. */
+.hunk:focus { outline: 0; }
+.hunk:focus-visible { outline: 1.5px solid var(--accent); outline-offset: -1.5px; border-radius: 3px; }
 .file .chev { display: flex; color: var(--fg-2); transition: transform .12s; }
 .file .chev .ic, .file .fic { width: 12px; height: 12px; color: var(--fg-2); }
 .file .fic { width: 13px; height: 13px; }
