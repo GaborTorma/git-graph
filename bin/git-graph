@@ -1205,6 +1205,7 @@ ACTIVITY_NAME = "activity.json"   # {sessions: {id: {cwd, at}}, prompt: {session
 PANELS_NAME = "panels"            # <panel>.json: {visible, since, seen, session, checked} — a szerver írja
 PANEL_RE = re.compile(r"^[a-z0-9]{8,32}$")
 BIND_WINDOW = 60                  # ennyi mp-en belüli promptot még összevet a látható panelekkel
+OPEN_WINDOW = 90                  # a megnyitási kérés után ennyi ideig várja az új panelt
 SEEN_SLACK = 6                    # a lap 2 mp-enként jelentkezik: ennyi késés még élőnek számít
 
 
@@ -1233,6 +1234,20 @@ def record_activity(slug: str, session_id: str, cwd: Path, prompt: bool) -> None
         log(f"git-graph: az aktivitásnapló nem írható: {exc}")
 
 
+def record_open(slug: str, session_id: str) -> None:
+    """A hook megnyitást (vagy publikálást) kért ettől a sessiontől: az első új
+    panel, ami ezután jelentkezik, az övé — prompt nélkül köthető."""
+    path = STATE_DIR / slug / ACTIVITY_NAME
+    now = time.time()
+    data = read_json(path) or {}
+    opens = [o for o in data.get("opens") or [] if isinstance(o, dict) and now - o.get("at", 0) < OPEN_WINDOW]
+    data["opens"] = opens + [{"session": session_id, "at": now}]
+    try:
+        write_atomic(path, data)
+    except OSError as exc:
+        log(f"git-graph: az aktivitásnapló nem írható: {exc}")
+
+
 def worktree_of(cwd: str, worktrees: list[dict]) -> str | None:
     """A munkakönyvtárat tartalmazó worktree slugja (a legmélyebb, ha egymásba ágyazottak)."""
     path = Path(cwd).resolve()                    # a git a valódi utat adja (/var → /private/var)
@@ -1251,10 +1266,20 @@ def panel_focus(slug: str, panel: str, visible: bool) -> dict:
     folder = STATE_DIR / slug / PANELS_NAME
     own_path = folder / f"{panel}.json"
     own = read_json(own_path) or {}
+    first = "since" not in own                         # most jelentkezik először
     if own.get("visible") is not visible or "since" not in own:
         own["since"] = now
     own.update(visible=visible, seen=now)
     activity = read_json(STATE_DIR / slug / ACTIVITY_NAME) or {}
+    if first and not own.get("session"):
+        # Új panel a hook megnyitási kérése után: ha a közelmúltban egyetlen
+        # session kapott ilyet, és a kérést más új panel még nem vitte el, az övé.
+        opens = [o for o in activity.get("opens") or []
+                 if isinstance(o, dict) and 0 <= now - o.get("at", 0) < OPEN_WINDOW]
+        taken = {(read_json(path) or {}).get("opened") for path in folder.glob("*.json")
+                 if path != own_path} if folder.is_dir() else set()
+        if len({o.get("session") for o in opens}) == 1 and opens[-1]["at"] not in taken:
+            own.update(session=opens[-1]["session"], opened=opens[-1]["at"])
     prompt = activity.get("prompt") or {}
     at = prompt.get("at")
     if isinstance(at, (int, float)) and own.get("checked") != at and now - at < BIND_WINDOW:
@@ -1941,6 +1966,8 @@ def session_hook() -> int:
     job = None if headless or NO_AUTO_PUBLISH.exists() else prepare_publish()
     seen = (shown_in_session(payload["session_id"], slug)
             if payload.get("session_id") and not headless else False)
+    if session_id and (job or url and not seen):
+        record_open(slug, session_id)              # az új panelje prompt nélkül köthető
     if job:
         state = "elavult (a git-graph frissült)" if job["url"] else "még nincs"
         context = (f"A(z) {REPO} repó élő git-graph Artifactja {state}. Most, a "

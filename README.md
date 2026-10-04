@@ -93,7 +93,8 @@ ott van, ahol a session dolgozik; a pillre kattintva a lista csak odaugrik. A ho
 minden promptnál feljegyzi, melyik session hol dolgozik
 (`UserPromptSubmit`, `CwdChanged`), és ha a prompt pillanatában a repó lapjai
 közül pontosan egy látszott, az a promptoló session panelje — onnantól azt
-követi. Amíg ez nem dőlt el (friss panel, split-view), a legutóbb promptolt
+követi, a session-váltás után is prompt nélkül. Új sessionnél az első prompt
+sem kell: a hook megnyitási kérése után először jelentkező új panel az övé. Amíg ez nem dőlt el (friss panel, split-view), a legutóbb promptolt
 session worktree-je a saját. A
 0.12 előtti, worktree-nkénti Artifactokat a hook felismeri, és megkéri Claude-ot,
 hogy törölje őket, majd `git-graph --forget-artifact <URL>`-lel takarítsa a

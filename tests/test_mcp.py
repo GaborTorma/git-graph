@@ -291,6 +291,22 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(module.panel_focus(slug, b, True), {"worktree": wt_main, "bound": False})
         self.assertEqual(module.panel_focus(slug, a, True), {"worktree": wt_extra, "bound": True})
 
+    def test_open_binding(self) -> None:
+        """A hook megnyitási kérése után az első új panel prompt nélkül a sessionhöz kötődik."""
+        main, extra = self.make_repo()
+        module = load_module(self.home)
+        module.REPO = main
+        slug = module.slug_for(main)
+        module.record_activity(slug, "s-extra", extra, prompt=False)
+        module.record_open(slug, "s-extra")
+        self.assertEqual(module.panel_focus(slug, "panelnew1", True),
+                         {"worktree": module.slug_for(extra), "bound": True})
+        self.assertFalse(module.panel_focus(slug, "panelnew2", True)["bound"])   # a kérést már elvitték
+        module.record_activity(slug, "s-main", main, prompt=False)
+        module.record_open(slug, "s-main")
+        module.record_open(slug, "s-extra")                                    # egyszerre kettő: kétértelmű
+        self.assertFalse(module.panel_focus(slug, "panelnew3", True)["bound"])
+
     def test_quiet_hook(self) -> None:
         """UserPromptSubmit: csak aktivitásnapló, kimenet nélkül (a modell kontextusába menne)."""
         main, extra = self.make_repo()

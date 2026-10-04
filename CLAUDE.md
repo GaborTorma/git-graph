@@ -187,6 +187,9 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   szerver (`panel_focus`) panelenként fájlba ír (`panels/<id>.json` — két
   app-szintű példány fut, memória nem közös), és ha a prompt pillanatában a
   repó lapjai közül pontosan egy látszott, azt a promptoló sessionhöz köti.
+  Új sessionnél prompt sem kell: a hook feljegyzi, kitől kért megnyitást
+  (`record_open`), és az első utána jelentkező új panel az övé — ha a
+  közelmúltban csak egy session kapott ilyet.
   Kötetlen panelnél a legutóbb promptolt session worktree-je a saját; kézzel
   nem választható (a HEAD ott van, ahol a session dolgozik). Ami nem a saját
   HEAD-jéből elérhető (más ág, más worktree, a WIP-jük), halványabb (`.foreign`). A
