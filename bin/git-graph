@@ -587,30 +587,44 @@ def mark_worktree_heads(commits: list[dict], worktrees: list[dict]) -> None:
 
 
 def worktree_lanes_last(commits: list[dict], edges: list[dict], worktrees: list[dict]) -> None:
-    """A hozzáadott worktree-k oszlopai a fő checkout ágai mögé kerülnek.
+    """A hozzáadott worktree-k oszlopai a fő checkout ágai mögé kerülnek — de csak
+    a worktree-k elágazási pontja fölött.
 
-    Az oszlopok cseréje (permutáció) nem rontja el a rajzot — csak a sorrend
-    változik: balra a fő checkout és az ágai, jobbra a worktree-k, a lap
-    pedig a kettő közé halvány elválasztót húz.
+    Az oszlopok cseréje (permutáció) a rajzot nem rontja el. Az elágazás alatt
+    viszont az oszlopot már más ág (pl. egy régi, beolvasztott ág) használja:
+    ott az eredeti sorrend marad, különben az a vonal is hátrébb csúszna, és egy
+    oszlop (szín) kimaradna. A határon átnyúló vonal a következő commitja
+    fölött fordul be az eredeti oszlopába.
     """
     by_sha = {c["sha"]: c for c in commits}
+    row_of = {c["sha"]: i for i, c in enumerate(commits)}
     cols: list[int] = []
+    boundary = 0                              # az első sor, ahol már az eredeti oszlopok élnek
     for wt in worktrees:
         if wt["main"]:
             continue
         for key in (f"{UNCOMMITTED}:{wt['slug']}", wt["head"] or ""):
             c = by_sha.get(key)
-            if c and c["lane"] != 0 and c["lane"] not in cols:
+            if not c or c["lane"] == 0:
+                continue
+            if c["lane"] not in cols:
                 cols.append(c["lane"])
+            # Az elágazási pont: az első szülő-lánc első commitja, ami már nem ebben az oszlopban ül.
+            lane = c["lane"]
+            while c is not None and c["lane"] == lane and c["parents"]:
+                c = by_sha.get(c["parents"][0])
+            boundary = max(boundary, row_of[c["sha"]] if c is not None else len(commits))
     if not cols:
         return
     count = max(c["lane"] for c in commits) + 1
     order = [lane for lane in range(count) if lane not in cols] + cols
     new = {old: i for i, old in enumerate(order)}
-    for c in commits:
-        c["lane"] = new[c["lane"]]
+    lane_at = lambda row, lane: new[lane] if row < boundary else lane  # noqa: E731
+    for row, c in enumerate(commits):
+        c["lane"] = lane_at(row, c["lane"])
     for e in edges:
-        e["fromLane"], e["toLane"] = new[e["fromLane"]], new[e["toLane"]]
+        e["fromLane"] = lane_at(e["fromRow"], e["fromLane"])
+        e["toLane"] = lane_at(e["toRow"], e["toLane"])
 
 
 def fold_remote_heads(commits: list[dict]) -> None:
