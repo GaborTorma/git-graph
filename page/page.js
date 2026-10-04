@@ -364,7 +364,10 @@ function badges(c) {
     // A csak remote-os chipen a felhő jelzi a remote-ot: egy remote-nál az
     // `origin/` előtag nem kell, többnél a név mondja meg, melyiké.
     const name = r.kind === 'remote' && !multi ? r.name.replace(/^origin\//, '') : r.name;
-    const lead = r.kind === 'remote' ? cloud : icon(REF_ICON[r.kind] || 'branch') + synced;
+    // Hozzáadott worktree leválasztott HEAD-je: ág nincs, csak a worktree-ikon.
+    const lead = r.kind === 'remote' ? cloud
+      : r.kind === 'detached' && linked ? icon('worktree')
+      : icon(REF_ICON[r.kind] || 'branch') + synced;
     // A tooltip a saját buborék (`data-tip`), mint az avataré — a natív `title` késik.
     const lc = r.kind === 'remote' ? '' : ` style="--lc:${lane}"`;
     return `<span class="badge ref-${r.kind}${other}"${lc} data-tip="${esc(title)}" aria-label="${esc(title)}">`
