@@ -288,6 +288,92 @@ A CSP HTTP-headerben jön (`<meta>` nincs). A lényeges része:
 `connect-src 'self' <Google Fonts>`. A külső `fetch` tehát továbbra is tiltott,
 de az MCP-ből kapott szöveg futtatható.
 
+## Közös Artifact a worktree-knek (mérve, 2026-10-04, Claude Code 2.1.286, contract 0.2.67)
+
+Kérdés: kiváltható-e a worktree-nkénti Artifact egy repónként közös lappal,
+amely a „saját” worktree-t a link `#horgony`-ából tudja, és mennyibe kerül a
+worktree-nkénti WIP-adat a 2 s-os pollozásban.
+
+### `#horgony` az `Artifact open`-nel — NEM jut át
+
+Eldobható próbalap `db` capabilityvel: minden betöltésnél, `hashchange`-nél és
+a `location.hash` 500 ms-os pollozásakor sort írt a `db`-be (betöltés-azonosító,
+`hash`), a session `ArtifactData`-val olvasta vissza.
+
+| Lépés | Eredmény |
+| --- | --- |
+| publish (a panel magától megnyitja) | 1 betöltés, `hash: ""` |
+| `open …#wt-alpha` a nyitott lapra | se betöltés, se `hashchange`, se hash-eltérés |
+| másik Artifact `open`, majd `open …#wt-beta` | ugyanaz: a próbalap kerete megmaradt, nem töltött újra |
+| Artifact panel bezárva (`close_pane`), `open …#wt-delta`, `show_pane`, `open …#wt-epsilon` | ugyanaz: a keret a panel bezárását is túléli |
+| újrapublikálás (kontroll) | új betöltés, `hash: ""` — a naplózás működik, a reload horgony nélküli |
+| `open …#wt-zeta` a reload után | semmi |
+
+Az `open` válasza és a panel nézetének URL-je (`preview_list`:
+`artifact_view`) is horgony nélkül adja vissza a címet — az eszköz a horgonyt
+eldobja. Böngészőben a link bejelentkezést kért, ott nem mértem (a `host:` híd
+amúgy is csak az appban él).
+
+### A szerver sem tudja, melyik session lapja hív
+
+A `git-graph --mcp` példányok **app-szintűek**: 2 db, `cwd: /`, az app
+indulásakor (00:38) indultak, a 06:30-as session nem kapott újat. A host-híd
+hívásából tehát a session (és a munkakönyvtára) nem derül ki. A
+`comments.sendToClaude` viszont továbbra is a lapot mutató sessionhöz megy
+(lásd fent) — a platform tudja, a lap nem.
+
+### Session-váltás: hook nincs, a panel láthatósága mérhető
+
+Ideiglenes, naplózó hook a git-graph repó `.claude/settings.local.json`-jában
+(`SessionStart`, `UserPromptSubmit`, `CwdChanged`, `Notification`,
+`ConfigChange`, `InstructionsLoaded`, `FileChanged`, `Stop`, `SessionEnd`). A
+hookok a már futó sessionökben is azonnal életbe léptek.
+
+- **Session-váltás a UI-ban: semmi nem sül el** (oda, vissza, oda — írás
+  nélkül). A dokumentáció 33 eseménye között sincs fókusz- vagy
+  láthatóság-esemény.
+- **`UserPromptSubmit`** a promptoló sessionből jön, `session_id`-val és
+  `cwd`-vel — a prompt pillanatában az a session van előtérben.
+- **`CwdChanged`** egy Bash `cd`-re elsült (`old_cwd`, `new_cwd`); a Bash
+  eszköz cwd-visszaállítására nem.
+
+A lap a saját panelje elrejtését érzékeli — a próbalapon, session-váltáskor:
+
+| Jel | Elrejtve |
+| --- | --- |
+| `document.visibilityState` / `hidden` | változatlan (`visible`) |
+| `innerWidth` / `innerHeight` | változatlan |
+| `IntersectionObserver` a `body`-n | **`false`**, visszaváltáskor `true` |
+
+Következmény: ha egy prompt pillanatában a repó lapjai közül pontosan egy
+látszik, az a promptoló session panelje — így a panel a sessionhöz (és annak
+worktree-jéhez) köthető.
+
+### WIP-költség worktree-nként
+
+Eldobható klónokon, `--no-optional-locks`-szal, egy kör = `for-each-ref` +
+`worktree list` + worktree-nként `status --porcelain`, `diff --numstat HEAD`,
+`rev-parse HEAD --abbrev-ref HEAD` (25 kör mediánja):
+
+| Worktree-k | git-graph (~60 fájl) | 10 582 fájlos repó |
+| --- | --- | --- |
+| 1 | 56 ms | 148 ms |
+| 3 | 127 ms | 412 ms |
+| 5 | 202 ms | 678 ms |
+| 5, szálanként párhuzamosan | 53 ms | 326 ms |
+
+A nagy repón a `status --porcelain` 87 ms, ebből ~60 ms a követetlen fájlok
+keresése (`--untracked-files=no`: 26 ms); a `diff --numstat HEAD` 26 ms.
+
+**Buktató**: friss worktree-ben (vagy klónban) az index stat-adatai még nem
+frissültek, és a `--no-optional-locks` miatt a pollozás sosem írja vissza —
+így minden kör újrahasheli a fájlokat: ugyanaz a mérés **~450 ms**
+worktree-nként, amíg egy zároló git-parancs (bármelyik `git status` a
+Fejlesztőtől) nem frissíti az indexet.
+
+Következmény: a horgonyos „saját worktree” nem járható; a WIP-adat
+párhuzamosan gyűjtve 5 worktree-vel is belefér a 2 s-os pollozásba.
+
 ## Implementációs tanulságok (a generátorból)
 
 - **CSS osztálynév-ütközés**: a táblázat-fejléc `.head` szabálya ráült a
