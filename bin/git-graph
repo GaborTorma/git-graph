@@ -113,6 +113,9 @@ def collect_commits(limit: int | None) -> list[dict]:
     return commits
 
 
+REF_ORDER = {"head": 0, "detached": 0, "branch": 1, "remote": 2, "tag": 3}
+
+
 def parse_refs(decoration: str) -> list[dict]:
     """A `%D` dekoráció badge-ekké: HEAD, lokális ág, remote ág, tag."""
     refs: list[dict] = []
@@ -131,9 +134,8 @@ def parse_refs(decoration: str) -> list[dict]:
             refs.append({"kind": "remote", "name": item})
         else:
             refs.append({"kind": "branch", "name": item})
-    # A HEAD-badge menjen előre, utána tag, ág, végül remote — mint a Git Graphban.
-    order = {"head": 0, "detached": 0, "tag": 1, "branch": 2, "remote": 3}
-    refs.sort(key=lambda r: order.get(r["kind"], 9))
+    # A HEAD-badge megy előre, utána az ágak, a remote-ok, a tag mindig a végén.
+    refs.sort(key=lambda r: REF_ORDER.get(r["kind"], 9))
     return refs
 
 
@@ -580,9 +582,8 @@ def mark_worktree_heads(commits: list[dict], worktrees: list[dict]) -> None:
             ref.update(kind="head", worktree=wt["slug"])
         else:
             c["refs"].insert(0, {"kind": "detached", "name": "HEAD", "worktree": wt["slug"]})
-    order = {"head": 0, "detached": 0, "tag": 1, "branch": 2, "remote": 3}
     for c in commits:
-        c["refs"].sort(key=lambda r: order.get(r["kind"], 9))
+        c["refs"].sort(key=lambda r: REF_ORDER.get(r["kind"], 9))
 
 
 def worktree_lanes_last(commits: list[dict], edges: list[dict], worktrees: list[dict]) -> None:
