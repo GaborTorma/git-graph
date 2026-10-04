@@ -171,7 +171,9 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   út a fő checkoutra képződik le (`main_checkout`) — slug, `git-graph.*`
   kulcsok, cím. A `graph_data` minden worktree-t ad (`meta.worktrees`, HEAD-badge
   `worktree` mezővel, worktree-nkénti ál-sor), az állapotukat párhuzamosan gyűjti
-  (`collect_worktrees`). A 0.12 előtti `git-graph.<slug>.*` szakaszokat a hook
+  (`collect_worktrees`). A saját commit és WIP nélküli worktree HEAD-je (pl. egy trunk-
+  commiton, vagy a session törlésekor leválasztva) csonkot kap (`worktree_stubs`:
+  a commit `stubs` listája, a következő oszlop), így az is elágazik. A 0.12 előtti `git-graph.<slug>.*` szakaszokat a hook
   ismeri fel (`legacy_artifacts`), és törölteti az Artifactot, majd
   `--forget-artifact`. A régi lap a mappája megszűnése után rövid hibát kap,
   nem nyers git-kivételt. Az `EnterWorktree` után a hook PostToolUse-ként is
