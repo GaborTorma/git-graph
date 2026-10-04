@@ -341,7 +341,10 @@ function badges(c) {
   const lane = LANE_COLORS[c.lane % LANE_COLORS.length];
   return mergedRefs(c.refs).map(r => {
     const wt = r.worktree && worktrees().find(w => w.slug === r.worktree);
-    const title = (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name
+    // Hozzáadott worktree leválasztott HEAD-je: ág nincs, a worktree neve áll rajta.
+    const orphan = r.kind === 'detached' && wt && !wt.main;
+    const title = (orphan ? `${wt.name}: leválasztott HEAD (ág nélkül)`
+      : (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name)
       + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o.name}/${r.name}`).join(', ') : '')
       + (r.default ? '\na remote alapértelmezett ága' : '')
       + (wt && !wt.main ? `\nworktree: ${wt.path}` : '');
@@ -363,10 +366,9 @@ function badges(c) {
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
     // A csak remote-os chipen a felhő jelzi a remote-ot: egy remote-nál az
     // `origin/` előtag nem kell, többnél a név mondja meg, melyiké.
-    const name = r.kind === 'remote' && !multi ? r.name.replace(/^origin\//, '') : r.name;
-    // Hozzáadott worktree leválasztott HEAD-je: ág nincs, csak a worktree-ikon.
+    const name = orphan ? wt.name : r.kind === 'remote' && !multi ? r.name.replace(/^origin\//, '') : r.name;
     const lead = r.kind === 'remote' ? cloud
-      : r.kind === 'detached' && linked ? icon('worktree')
+      : orphan ? icon('worktree')
       : icon(REF_ICON[r.kind] || 'branch') + synced;
     // A tooltip a saját buborék (`data-tip`), mint az avataré — a natív `title` késik.
     const lc = r.kind === 'remote' ? '' : ` style="--lc:${lane}"`;
