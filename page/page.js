@@ -58,25 +58,39 @@ function focusWt() {
   const wts = worktrees();
   return wts.find(w => w.slug === focusAuto?.worktree) || wts.find(w => w.main) || wts[0];
 }
-/* Ami a saját worktree-ben van: a HEAD-jéből elérhető commitok és a saját
-   ál-sora. A többi (más ág, más worktree, a WIP-jük) halványabb (`.foreign`). */
-let ownSet = null;
+/* Ami nem a saját worktree-é, halványabb (`.foreign`). A git nem jegyzi fel,
+   hol hozták létre az ágat — a gazdátlan (sehol ki nem vett) ágak a fő
+   checkouté, mint a sávokban is:
+   - worktree-ből nézve: ami a saját HEAD-jéből nem érhető el (és nem a saját
+     ál-sora) — más ág, a fő checkout és más worktree-k WIP-je;
+   - a fő checkoutból nézve: csak a hozzáadott worktree-k saját commitjai (a
+     HEAD-jükből elérhető, a fő checkoutéból nem) és az ál-soraik. */
+let foreignSet = null;
 function computeOwn() {
-  const own = focusWt();
-  ownSet = null;
-  if (!own || !linkedWts().length) return;          // worktree nélkül nincs mit elválasztani
+  const own = focusWt(), linked = linkedWts();
+  foreignSet = null;
+  if (!own || !linked.length) return;               // worktree nélkül nincs mit elválasztani
   const bySha = new Map(DATA.commits.map(c => [c.sha, c]));
-  const keep = new Set(), stack = own.head ? [own.head] : [];
-  while (stack.length) {
-    const sha = stack.pop();
-    if (keep.has(sha)) continue;
-    keep.add(sha);
-    for (const p of bySha.get(sha)?.parents || []) if (bySha.has(p)) stack.push(p);
+  const reach = head => {
+    const keep = new Set(), stack = head ? [head] : [];
+    while (stack.length) {
+      const sha = stack.pop();
+      if (keep.has(sha)) continue;
+      keep.add(sha);
+      for (const p of bySha.get(sha)?.parents || []) if (bySha.has(p)) stack.push(p);
+    }
+    return keep;
+  };
+  const mine = reach(own.head);
+  if (own.main) {
+    foreignSet = new Set();
+    for (const w of linked) for (const sha of reach(w.head)) if (!mine.has(sha)) foreignSet.add(sha);
+    for (const c of DATA.commits) if (c.uncommitted && c.worktree !== own.slug) foreignSet.add(c.sha);
+  } else {
+    foreignSet = new Set(DATA.commits.filter(c => !mine.has(c.sha) && c.worktree !== own.slug).map(c => c.sha));
   }
-  for (const c of DATA.commits) if (c.worktree === own.slug) keep.add(c.sha);
-  ownSet = keep;
 }
-const foreign = c => Boolean(ownSet) && !ownSet.has(c.sha);
+const foreign = c => Boolean(foreignSet) && foreignSet.has(c.sha);
 /* A halvány pötty és vonal tömör, a háttérrel kevert szín — átlátszósággal
    a pöttyön átütne az alatta futó vonal. */
 const FADE = 45;

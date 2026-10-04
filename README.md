@@ -88,7 +88,7 @@ checkout slugján). A gráf fölött worktree-pillek (ág, változások pöttye,
 `↑` pusholatlan), minden worktree HEAD-je badge-et kap, és worktree-nként egy
 Uncommitted sor. A „saját” worktree (teli HEAD-badge, HEAD-chip, `H`) annak a
 sessionnek a munkakönyvtára, amelyiknek a paneljén a lap nyitva van — ami nem
-benne van (más ág, más worktree), halványabb. Kézzel nem választható: a HEAD
+az övé, halványabb (a sehol ki nem vett ágak a fő checkouté). Kézzel nem választható: a HEAD
 ott van, ahol a session dolgozik; a pillre kattintva a lista csak odaugrik. A hook
 minden promptnál feljegyzi, melyik session hol dolgozik
 (`UserPromptSubmit`, `CwdChanged`), és ha a prompt pillanatában a repó lapjai

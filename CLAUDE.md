@@ -191,8 +191,10 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   (`record_open`), és az első utána jelentkező új panel az övé — ha a
   közelmúltban csak egy session kapott ilyet.
   Kötetlen panelnél a legutóbb promptolt session worktree-je a saját; kézzel
-  nem választható (a HEAD ott van, ahol a session dolgozik). Ami nem a saját
-  HEAD-jéből elérhető (más ág, más worktree, a WIP-jük), halványabb (`.foreign`). A
+  nem választható (a HEAD ott van, ahol a session dolgozik). Halványabb
+  (`.foreign`), ami nem a sajáté: worktree-ből nézve ami a HEAD-jéből nem
+  érhető el; a fő checkoutból nézve csak a worktree-k saját commitjai és
+  WIP-je — a gazdátlan ágak a fő checkouté (a git nem jegyzi fel, hol jöttek létre). A
   `UserPromptSubmit` hook kimenete a modell kontextusába kerülne: semmit nem
   írhat ki (`QUIET_EVENTS`).
 - **A kimenet a repón KÍVÜL, `~/.git-graph/<slug>/`**: `artifact.html` az
