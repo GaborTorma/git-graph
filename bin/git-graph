@@ -628,6 +628,32 @@ def worktree_lanes_last(commits: list[dict], edges: list[dict], worktrees: list[
         e["toLane"] = lane_at(e["toRow"], e["toLane"])
 
 
+def worktree_stubs(commits: list[dict], edges: list[dict], worktrees: list[dict]) -> None:
+    """Saját commit és WIP nélküli worktree HEAD-je: leágazó csonk a commitjáról.
+
+    Ha a worktree HEAD-je egy más által is használt commiton áll (a trunkon,
+    egy továbbmenő ág közepén, vagy ahol másik HEAD is van — pl. a session
+    törlésekor leválasztott worktree), a worktree nem ágazna el. A commit
+    `stubs` listát kap: a következő szabad oszlop, a lap vízszintes vonallal és
+    pöttyel rajzolja, a HEAD-badge ennek a színét kapja.
+    """
+    row_of = {c["sha"]: i for i, c in enumerate(commits)}
+    has_child = {(e["toRow"], e["fromLane"]) for e in edges if not e["merge"]}
+    heads: dict[str, int] = {}
+    for wt in worktrees:
+        heads[wt["head"] or ""] = heads.get(wt["head"] or "", 0) + 1
+    lanes = max((c["lane"] for c in commits), default=-1) + 1
+    for wt in worktrees:
+        row = row_of.get(wt["head"] or "")
+        if wt["main"] or row is None or f"{UNCOMMITTED}:{wt['slug']}" in row_of:
+            continue
+        c = commits[row]
+        own = c["lane"] != 0 and (row, c["lane"]) not in has_child and heads[wt["head"]] == 1
+        if not own:
+            c.setdefault("stubs", []).append({"lane": lanes, "worktree": wt["slug"]})
+            lanes += 1
+
+
 def fold_remote_heads(commits: list[dict]) -> None:
     """A `<remote>/HEAD` nem külön badge: csak mutató a remote alapértelmezett ágára.
 
@@ -675,6 +701,7 @@ def collect_payload(limit: int | None) -> dict:
 
     edges = assign_lanes(commits, trunk)
     worktree_lanes_last(commits, edges, worktrees)
+    worktree_stubs(commits, edges, worktrees)
     return {
         "commits": commits,
         "edges": edges,

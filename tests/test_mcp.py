@@ -318,6 +318,19 @@ class McpServerTest(unittest.TestCase):
         focus("local_a")
         self.assertTrue(module.wait_focus(cursor, 5)["switched"])
 
+    def test_worktree_stubs(self) -> None:
+        """Saját commit és WIP nélküli worktree HEAD-je csonkot kap; a saját ág csúcsa nem."""
+        module = load_module(self.home)
+        commits = [{"sha": "c", "parents": ["a"], "refs": []},   # feat: saját ág
+                   {"sha": "b", "parents": ["a"], "refs": []},   # trunk
+                   {"sha": "a", "parents": [], "refs": []}]
+        edges = module.assign_lanes(commits, "b")
+        wt = lambda slug, head, main=False: {"slug": slug, "head": head, "main": main}  # noqa: E731
+        module.worktree_stubs(commits, edges, [wt("m", "b", True), wt("feat", "c"), wt("old", "a")])
+        self.assertNotIn("stubs", commits[0])
+        self.assertNotIn("stubs", commits[1])
+        self.assertEqual(commits[2]["stubs"], [{"lane": 2, "worktree": "old"}])
+
     def test_vanished_worktree(self) -> None:
         """A régi, worktree-nkénti lap a mappája megszűnése után rövid üzenetet kap."""
         state = self.home / ".git-graph"
