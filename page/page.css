@@ -495,6 +495,8 @@ button { font: inherit; color: inherit; }
   border: 1px solid var(--border);
   border-radius: 10px;
 }
+/* A rögzített WIP-sávban a lista is látszódjon alatta: a panel magában görget. */
+.pending .details { position: relative; z-index: 2; max-height: 45vh; overflow: auto; }
 .d-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 /* A szerző kitölti a sort, így egy sorban a chipek jobbra kerülnek; ha
    nem férnek mellé, a saját sorukban balra zárva kezdődnek (nem lógnak jobbra). */

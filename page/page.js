@@ -482,7 +482,7 @@ function render() {
   if (expanded && visible.some(c => c.sha === expanded)) open(expanded); else expanded = null;
   stackDays();
   const back = keepPath && expanded
-    ? [...rowsEl.querySelectorAll('.details .file')].find(f => f.dataset.path === keepPath)
+    ? [...document.querySelectorAll('.details .file')].find(f => f.dataset.path === keepPath)
     : keepSha && document.querySelector(`.row[data-sha="${CSS.escape(keepSha)}"]`);
   back?.focus({ preventScroll: true });
 }
@@ -570,8 +570,9 @@ function open(sha) {
         ${c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : '<span></span>'}</div>
         <div class="diff" hidden></div>`).join('')}
     </div>`;
-  // Az ál-sor a fix sávban ül: a panelje a lista tetejére kerül, nem a sávba.
-  if (pendingEl.contains(row)) { rowsEl.prepend(el); scroller.scrollTop = 0; } else row.after(el);
+  // Az ál-sor a fix sávban ül: a panelje is ott, a saját sora alatt (több
+  // worktree WIP-je közül a megfelelő alatt), korlátozott magasságban.
+  row.after(el);
   fitWho();
   expanded = sha;
   // Újrarajzolás (élő adatcsere) után a korábban lenyitott fájlok nyitva maradnak.
@@ -840,7 +841,7 @@ onWidth(rowsEl, () => { fitRows(); fitWho(); }, drawGraph);
    hosszú név, keskeny panel): csak az avatar marad, a név tooltipben, és a
    dátum előtti pont sem kell. Avatar nélkül a név marad. */
 function fitWho() {
-  const who = rowsEl.querySelector('.details .who');
+  const who = document.querySelector('.details .who');
   const img = who?.querySelector('img');
   if (!img) return;
   who.classList.remove('face-only');
@@ -1220,7 +1221,7 @@ document.addEventListener('keydown', e => {
                   : selectCommit(topVisible());
   } else if (k === 'ArrowRight' && cur) {                 // belép: kinyit, első fájl
     if (expanded !== cur.sha) open(cur.sha);
-    const first = rowsEl.querySelector('.details .file');
+    const first = document.querySelector('.details .file');
     if (first) select(first); else select(rowOf(cur));
   } else if (k === 'ArrowLeft' && cur && expanded === cur.sha) {
     closeCommit();
