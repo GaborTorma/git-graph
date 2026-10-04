@@ -375,11 +375,13 @@ button { font: inherit; color: inherit; }
   padding: 0 10px; border-radius: 7px;
 }
 .row:hover .row-in { background: var(--bg-2); }
-.row[aria-expanded="true"] .row-in { background: var(--accent-bg); }
+/* Lenyitva egy fokkal sötétebb a hovernél — semleges: a sávszínű badge-ek a
+   narancsos háttéren beleolvadtak. */
+.row[aria-expanded="true"] .row-in { background: var(--bg-3); }
 .row:focus-visible { outline: 0; }
 /* Billentyűzetes kijelölés: halvány háttér + vékony narancs keret. */
 .row:focus-visible .row-in { background: var(--bg-2); box-shadow: inset 0 0 0 1.5px var(--accent); }
-.row[aria-expanded="true"]:focus-visible .row-in { background: var(--accent-bg); }
+.row[aria-expanded="true"]:focus-visible .row-in { background: var(--bg-3); }
 
 .desc { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--fg-0); }
 .subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
