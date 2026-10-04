@@ -584,6 +584,33 @@ def mark_worktree_heads(commits: list[dict], worktrees: list[dict]) -> None:
         c["refs"].sort(key=lambda r: order.get(r["kind"], 9))
 
 
+def worktree_lanes_last(commits: list[dict], edges: list[dict], worktrees: list[dict]) -> None:
+    """A hozzáadott worktree-k oszlopai a fő checkout ágai mögé kerülnek.
+
+    Az oszlopok cseréje (permutáció) nem rontja el a rajzot — csak a sorrend
+    változik: balra a fő checkout és az ágai, jobbra a worktree-k, a lap
+    pedig a kettő közé halvány elválasztót húz.
+    """
+    by_sha = {c["sha"]: c for c in commits}
+    cols: list[int] = []
+    for wt in worktrees:
+        if wt["main"]:
+            continue
+        for key in (f"{UNCOMMITTED}:{wt['slug']}", wt["head"] or ""):
+            c = by_sha.get(key)
+            if c and c["lane"] != 0 and c["lane"] not in cols:
+                cols.append(c["lane"])
+    if not cols:
+        return
+    count = max(c["lane"] for c in commits) + 1
+    order = [lane for lane in range(count) if lane not in cols] + cols
+    new = {old: i for i, old in enumerate(order)}
+    for c in commits:
+        c["lane"] = new[c["lane"]]
+    for e in edges:
+        e["fromLane"], e["toLane"] = new[e["fromLane"]], new[e["toLane"]]
+
+
 def collect_payload(limit: int | None) -> dict:
     """A lap teljes adatcsomagja — a `git-graph --mcp` graph_data toolja adja."""
     commits = collect_commits(limit)
@@ -608,9 +635,11 @@ def collect_payload(limit: int | None) -> dict:
         if wt["main"]:                    # a fő checkout csúcsa: az ál-sora, vagy a HEAD-je
             trunk = commit["sha"] if pending else wt["head"]
 
+    edges = assign_lanes(commits, trunk)
+    worktree_lanes_last(commits, edges, worktrees)
     return {
         "commits": commits,
-        "edges": assign_lanes(commits, trunk),
+        "edges": edges,
         "stats": stats,
         "branches": collect_branches(worktrees),
         "meta": meta,

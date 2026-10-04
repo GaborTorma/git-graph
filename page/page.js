@@ -209,6 +209,8 @@ function drawGraph() {
   svg.setAttribute('viewBox', `0 0 ${graphW} ${h}`);
 
   let out = '';
+  const sep = worktreeSeparator(rowY, rowIndexBySha);
+  if (sep) out += `<path class="wt-sep" d="M ${sep.x} 0 L ${sep.x} ${sep.y}"/>`;
   for (const e of DATA.edges) {
     const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
     const b = rowIndexBySha.get(DATA.commits[e.toRow].sha);
@@ -234,6 +236,25 @@ function drawGraph() {
         +  ` fill="${hollow ? 'var(--bg)' : color}" stroke="${color}" stroke-width="2"/>`;
   });
   svg.innerHTML = out;
+}
+
+/* A fő checkout ágai és a worktree-k oszlopai közti halvány elválasztó: az
+   első worktree-oszlop előtt, a lista tetejétől a legmélyebb elágazási pontig
+   (ahol egy worktree vonala a szülőjébe fordul). A szerver a worktree-k
+   oszlopait a fő checkout ágai mögé teszi (`worktree_lanes_last`). */
+function worktreeSeparator(rowY, rowIndexBySha) {
+  const bySha = new Map(DATA.commits.map(c => [c.sha, c]));
+  let lane = Infinity, y = -Infinity;
+  for (const w of linkedWts()) {
+    let c = DATA.commits.find(x => x.worktree === w.slug) || bySha.get(w.head);
+    if (!c || !c.lane) continue;                      // a fő vonalon áll: nincs saját oszlopa
+    lane = Math.min(lane, c.lane);
+    const own = c.lane;
+    while (c && c.lane === own) c = bySha.get(c.parents[0]);
+    const i = c && rowIndexBySha.get(c.sha);
+    y = Math.max(y, i === undefined ? rowsEl.offsetHeight : rowY(i));
+  }
+  return lane === Infinity ? null : { x: laneX(lane) - LANE_W / 2, y, lane };
 }
 
 /* Sávváltásnál ott hajlik a vonal, ahol a git is: merge-nél rögtön a merge
@@ -317,9 +338,7 @@ function badges(c) {
       + (wt && !wt.main ? `\nworktree: ${wt.path}` : '');
     const remotes = r.remotes.map(o => `<span class="div"></span><span class="origin">${esc(o)}</span>`).join('');
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
-    // Több worktree-nél a kivett ág badge-e mappa-ikont kap: worktree, nem csak ág.
-    const ic = wt && !wt.main ? 'folder' : REF_ICON[r.kind] || 'branch';
-    return `<span class="badge ref-${r.kind}${other}" title="${esc(title)}">${icon(ic)}`
+    return `<span class="badge ref-${r.kind}${other}" title="${esc(title)}">${icon(REF_ICON[r.kind] || 'branch')}`
       + `${esc(r.name)}${remotes}</span>`;
   }).join('');
 }
@@ -410,7 +429,9 @@ function drawPending() {
   const h = pendingEl.offsetHeight;
   lane.setAttribute('width', graphW);
   lane.setAttribute('height', h);
-  lane.innerHTML = [...pendingEl.querySelectorAll('.row')].map(row => {
+  const sep = worktreeSeparator(() => 0, new Map());
+  lane.innerHTML = (sep ? `<path class="wt-sep" d="M ${sep.x} 0 L ${sep.x} ${h}"/>` : '')
+    + [...pendingEl.querySelectorAll('.row')].map(row => {
     const c = DATA.commits.find(x => x.sha === row.dataset.sha);
     if (!c) return '';
     const x = laneX(c.lane), y = row.offsetTop + row.offsetHeight / 2;

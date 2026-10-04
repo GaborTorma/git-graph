@@ -26,6 +26,11 @@ def git(*args: str) -> str:
                           capture_output=True, text=True).stdout
 
 
+def git_in(repo: Path, *args: str) -> str:
+    return subprocess.run(["git", "-C", str(repo), *args], check=True,
+                          capture_output=True, text=True).stdout
+
+
 class McpClient:
     """Soronként egy JSON-RPC üzenet, mint a Claude app host-hídja."""
 
@@ -218,6 +223,11 @@ class McpServerTest(unittest.TestCase):
         (extra / "b.txt").write_text("feat\n", encoding="utf-8")         # a feat előrébb jár
         run("add", ".", cwd=extra)
         run("-c", "user.name=T", "-c", "user.email=t@x.hu", "commit", "-qm", "feat", cwd=extra)
+        run("switch", "-q", "-c", "side")                           # a fő checkout egy újabb ága
+        (main / "c.txt").write_text("side\n", encoding="utf-8")
+        run("add", ".")
+        run("-c", "user.name=T", "-c", "user.email=t@x.hu", "commit", "-qm", "side")
+        run("switch", "-q", "main")
         (main / "a.txt").write_text("kettő\n", encoding="utf-8")
         (extra / "uj.txt").write_text("új\n", encoding="utf-8")
         return main, extra
@@ -240,6 +250,8 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(lane[wts[0]["slug"]], 0)                  # a fő checkout ál-sora: 0. sáv
         self.assertEqual(lane[wts[0]["head"]], 0)
         self.assertNotEqual(lane[wts[1]["head"]], 0)               # a worktree ága elágazik
+        side = git_in(main, "rev-parse", "side").strip()
+        self.assertLess(lane[side], lane[wts[1]["head"]])          # a worktree oszlopa a végén
         self.assertEqual(wts[1]["ahead"], 0)                       # nincs upstream, se origin/HEAD
         for c in pending:
             path = data["stats"][c["sha"]]["files"][0]["path"]
