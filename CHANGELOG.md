@@ -1,3 +1,119 @@
+## [0.11.0] - 2026-10-04
+
+### 🚀 Features
+
+- *(page)* Redesign the page in the Claude app's look
+- *(page)* Add commit search and the new palette to the loader
+- *(page)* Replace the native branch select with a menu in the app's style
+- *(page)* Keep the day header pinned while scrolling, and make it thinner
+- *(page)* Draw the day header as a thin full-width divider
+- *(page)* Show today's header only after scrolling, flush with the top
+- *(page)* Swap the filter switch labels for icons when space is tight
+- *(page)* Turn the theme switcher into a dropdown menu
+- *(page)* Put the day label in a chip, and keep only the chip when pinned
+- *(page)* Scroll one commit per wheel step
+- *(page)* Drop the day chip, keep the plain label on the divider
+- *(page)* Keep Uncommitted Changes pinned above the list
+- *(page)* Hide the divider line while the day label is pinned
+- *(page)* Animate the per-commit scrolling smoothly
+- *(page)* Step one commit per wheel event without animation
+- *(page)* Bring the expanded commit to the top when the search is cleared
+- *(page)* Navigate commits from the keyboard
+- *(page)* Move a selection with the arrows, open and enter with right
+- *(page)* Step through the changed blocks of an open file with the arrows
+- *(page)* Jump into the first changed block when a file is opened
+- *(page)* Enter the first block of an already open file with right
+- *(page)* Close the whole file with left from a changed block
+- *(page)* Step to the next block with right as well
+- *(page)* Leave the file list upwards to the commit and downwards to the next commit
+- *(page)* Scroll the view with Shift+arrows while keeping the selection
+- *(page)* Show the whole commit after closing a file when it fits
+- *(page)* Show file type icons from catppuccin in the file list
+- *(page)* Show the commit's total changes before the author
+- *(page)* Switch a squeezed commit row to two lines
+- *(page)* Lay out the header by its row count
+- *(page)* Add GitHub and issue links to the footer
+- *(page)* Add a pull request link and trim the footer labels
+- *(page)* Spin the refresh icon while new data loads
+- *(page)* Pulse the live dot instead of a spinning icon
+- *(page)* Pulse the live dot continuously, red when updates fail
+- *(page)* Move the theme picker into the footer
+- *(page)* Show the author as an avatar or initials on the commit row
+- *(page)* Add the file count to the row diff tag and drop the row hash
+- *(page)* Bring the hash back to the commit row
+- *(page)* Show the row diff details in a hover tooltip
+- *(page)* Lay out commit rows by fixed text column widths
+- *(page)* Drop the hash from the commit row
+- *(page)* Move the row meta to a third line instead of dropping parts
+- *(page)* Hide a long author name in the commit header when it does not fit
+- *(page)* Bring the whole expanded commit into view when scrolling down to it
+
+### 🐛 Bug Fixes
+
+- *(data)* Show the files of merge commits against the first parent
+- *(page)* Keep the commit hash as plain text and the GitHub icon neutral
+- *(page)* Let the next day header push the previous one out
+- *(page)* Hide the pinned day header as soon as the next one reaches it
+- *(page)* Reverse the per-commit scrolling cleanly with smoothing mouse tools
+- *(page)* Stop the ping-pong on direction change with smoothing mouse tools
+- *(hook)* Leave a fresh --dev-install in place for twelve hours
+- *(page)* Colour each graph line by the lane it runs in
+- *(page)* Keep the search field width steady on focus
+- *(page)* Let Escape clear the search before closing the commit
+- *(page)* Stay on the last block instead of leaving to the next commit
+- *(page)* Move the meta block below the subject in a squeezed row
+- *(page)* Keep a squeezed row with badges at two lines
+- *(page)* Tighten the row meta and fit it beside the badges
+- *(page)* Drop the author when it would overlap the diff in a two-line row
+- *(page)* Refit the header when the selected branch changes
+- *(page)* Unclip and soften the live pulse, link the version to the plugin
+- *(page)* Align the live dot with the first lane and shorten the version
+- *(page)* Follow the Claude app theme in automatic mode
+- *(page)* Put the badges on the second line of a two-line row
+- *(page)* Drop the diff from a one-line row when it clips the subject
+- *(page)* Keep the row diff after the hash and show it on all rows or none
+- *(page)* Keep the diff on multi-line rows and switch to two lines sooner
+- *(page)* Hide the row meta by priority time, avatar, diff, hash
+- *(page)* Keep the row tooltips from opening a horizontal scroll
+- *(page)* Show the row tooltips inside the row, left of the element
+- *(page)* Lift the hovered row so its tooltip stays above the neighbours
+- *(page)* Render the row tooltips as one fixed bubble above everything
+- *(page)* Let a badge row drop its hash before going two-line
+
+### 📚 Documentation
+
+- *(worklog)* Split page files
+- *(worklog)* Claude app look, search, keyboard navigation, scrolling, file icons, commit row, live footer, merge files
+
+### 🚜 Refactor
+
+- Move the page code from the script into page/ files
+- *(page)* Trim repeated work and leftovers from the redesign
+
+### 🎨 Styling
+
+- *(page)* Keep the expanded commit's subject at normal weight
+- *(page)* Right-align the badges in a multi-line row
+- *(page)* Show the row diff as colored tags after the hash
+- *(page)* Shrink the row diff tags to a fixed width
+- *(page)* Put the avatar between time and hash, right-align the diff
+- *(page)* Narrow the row diff to three digits per side
+- *(page)* Split the row diff tag by digit count, drop zero sides
+- *(page)* Right-align both halves of the row diff tag
+- *(page)* Split the row diff tag in fixed halves, show zeros again
+- *(page)* Soften the file change bars
+- *(page)* Keep the 99+ plus inside the tag and at regular weight
+- *(page)* Move the hash to the end of the commit row
+- *(page)* Give the row diff tag the badge height and outline
+- *(page)* Tone down the row tooltips
+- *(page)* Separate the file count with a comma in the diff tooltip
+- *(page)* Never show the hash on a two-line row
+- *(page)* Give two- and three-line rows two more pixels
+- *(page)* Give two- and three-line rows one more pixel
+- *(page)* Pad the bottom of two- and three-line rows
+- *(page)* Make the row diff tag cells opaque
+- *(page)* Make the branch, remote and tag badges opaque
+- *(page)* Start wrapped commit header chips at the left
 ## [0.10.0] - 2026-10-02
 
 ### 🚀 Features
