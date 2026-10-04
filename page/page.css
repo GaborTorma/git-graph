@@ -312,18 +312,22 @@ button { font: inherit; color: inherit; }
 .wt-bar[hidden] { display: none; }
 .wt-lbl { align-self: center; margin-right: 2px; font-size: 11.5px; color: var(--fg-3); }
 .wt-pill {
-  display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 260px;
+  display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%;
   height: 22px; padding: 0 8px; border: 0; border-radius: 11px; cursor: pointer;
   background: var(--ctrl); box-shadow: inset 0 0 0 1px var(--ctrl-border);
   color: var(--fg-2); font-size: 12px;
 }
 .wt-pill:hover { background: var(--bg-3); }
-.wt-pill[aria-pressed="true"] { background: var(--accent-bg); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 600; }
-.wt-pill .ic { width: 12px; height: 12px; }
+/* A pill a worktree gráfbeli színét viseli (`--wt`, a sávjáé). */
+.wt-pill .ic { width: 12px; height: 12px; color: var(--wt, currentColor); }
+.wt-pill[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--wt, var(--accent)) 14%, var(--bg));
+  color: var(--wt, var(--accent)); box-shadow: inset 0 0 0 1px var(--wt, var(--accent)); font-weight: 600;
+}
 .wt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-branch { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .65; font-weight: 400; }
 .wt-dirty { flex: none; width: 6px; height: 6px; border-radius: 3px; background: var(--tag-fg); }
 .wt-ahead { flex: none; font-variant-numeric: tabular-nums; opacity: .8; }
-.wt-tag { flex: none; padding: 0 4px; border-radius: 4px; background: var(--bg-3); color: var(--fg-2); font-size: 10.5px; font-weight: 500; }
 .pending { flex: none; position: relative; background: var(--bg); z-index: 4; }
 .pending[hidden] { display: none; }
 .pend-lane { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }

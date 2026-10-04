@@ -48,14 +48,32 @@ const PANEL = (() => {
 let panelVisible = true;
 // A rejtett panel (másik session van előtérben) a `visibilityState`-ben nem
 // látszik, az IntersectionObserverben igen (mérve, docs/artifact-findings.md).
-new IntersectionObserver(es => { panelVisible = es[es.length - 1].isIntersecting; })
-  .observe(document.body);
+// Újra látszik (a Fejlesztő visszalépett ebbe a sessionbe): a kézi választás
+// elmúlik, a session saját worktree-je tér vissza.
+new IntersectionObserver(es => {
+  const now = es[es.length - 1].isIntersecting;
+  if (now && !panelVisible && focusPick) {
+    focusPick = null;
+    hydrateFocus(); fillBranches(); render();
+  }
+  panelVisible = now;
+}).observe(document.body);
 let focusAuto = null;        // { worktree, bound } — a szervertől
-let focusPick = null;        // a pill-kattintással választott worktree slugja
+let focusPick = null;        // kézi választás: egy worktree slugja, vagy MAIN_PICK (a fő checkout)
+const MAIN_PICK = '*main';
 const worktrees = () => DATA.meta.worktrees || [];
+const linkedWts = () => worktrees().filter(w => !w.main);
+/* A saját worktree; a fő checkout, ha egyik worktree sincs kijelölve. */
 function focusWt() {
-  const wts = worktrees();
-  return wts.find(w => w.slug === focusPick) || wts.find(w => w.slug === focusAuto?.worktree) || wts[0];
+  const wts = worktrees(), main = wts.find(w => w.main) || wts[0];
+  if (focusPick) return wts.find(w => w.slug === focusPick) || main;
+  return wts.find(w => w.slug === focusAuto?.worktree) || main;
+}
+/* A worktree színe a gráfban: az ál-sora, vagy a HEAD-je sávjáé. */
+function wtColor(w) {
+  const c = DATA.commits.find(x => x.worktree === w.slug)
+    || DATA.commits.find(x => x.sha === w.head);
+  return c ? LANE_COLORS[c.lane % LANE_COLORS.length] : '';
 }
 const wtLabel = w => w.branch || `HEAD ${String(w.head || '').slice(0, 7)}`;
 
@@ -127,23 +145,26 @@ function hydrateFocus() {
   const chip = document.getElementById('headChip');
   document.getElementById('headName').textContent = own ? wtLabel(own) : DATA.meta.head;
   chip.hidden = !(own || DATA.meta.head);
-  chip.title = !own ? '' : own.path + (wts.length < 2 ? ''
-    : focusPick ? '\nkézzel választva — a pillre újra kattintva vissza'
-    : focusAuto?.bound ? '\nennek a panelnek a sessionje itt dolgozik'
-    : '\na legutóbb promptolt session itt dolgozik');
+  chip.title = !own ? '' : (own.main ? 'fő checkout: ' : 'worktree: ') + own.path
+    + (wts.length < 2 ? ''
+      : focusPick ? '\nkézzel választva — a sessionbe visszalépve a sajátja jön vissza'
+      : focusAuto?.bound ? '\nennek a panelnek a sessionje itt dolgozik'
+      : '\na legutóbb promptolt session itt dolgozik');
+  // Csak a valódi worktree-k, a gráfbeli színükkel; kijelölés nélkül a fő
+  // checkout a saját. Az előny az upstreamhez, ennek híján az alapághoz mérve.
+  const linked = linkedWts();
   const bar = document.getElementById('wtBar');
-  bar.hidden = wts.length < 2;
-  // A pill worktree, nem ág: mappa-ikon, a fő checkout jelölve; az előny az
-  // upstreamhez, ennek híján az alapághoz (`base`) mérve.
+  bar.hidden = !linked.length;
   const short = b => String(b).replace(/^origin\//, '');
-  bar.innerHTML = wts.length < 2 ? '' : '<span class="wt-lbl">Worktree-k</span>' + wts.map(w => {
-    const tip = `Worktree: ${w.path}${w.main ? ' (fő checkout)' : ''}\nág: ${wtLabel(w)}`
+  bar.innerHTML = !linked.length ? '' : '<span class="wt-lbl">Worktree-k</span>' + linked.map(w => {
+    const tip = `Worktree: ${w.path}\nág: ${wtLabel(w)}`
       + (w.dirty ? `\n${w.dirty} commitolatlan változás` : '')
       + (w.ahead ? `\n${w.ahead} commit a(z) ${w.base} előtt` : '');
+    const color = wtColor(w);
     return `<button type="button" class="wt-pill" data-wt="${esc(w.slug)}"`
-      + ` aria-pressed="${w === own}" title="${esc(tip)}">${icon('folder')}`
-      + `<span class="wt-name">${esc(wtLabel(w))}</span>`
-      + (w.main ? '<span class="wt-tag">fő</span>' : '')
+      + `${color ? ` style="--wt:${color}"` : ''} aria-pressed="${w === own}" title="${esc(tip)}">${icon('folder')}`
+      + `<span class="wt-name">${esc(w.name)}</span>`
+      + `<span class="wt-branch">${esc(wtLabel(w))}</span>`
       + (w.dirty ? '<span class="wt-dirty" aria-label="commitolatlan változás"></span>' : '')
       + (w.ahead ? `<span class="wt-ahead">↑${w.ahead} ${esc(short(w.base))}</span>` : '') + '</button>';
   }).join('');
@@ -293,11 +314,11 @@ function badges(c) {
     const wt = r.worktree && worktrees().find(w => w.slug === r.worktree);
     const title = (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name
       + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o}/${r.name}`).join(', ') : '')
-      + (wt && worktrees().length > 1 ? `\nworktree: ${wt.path}` : '');
+      + (wt && !wt.main ? `\nworktree: ${wt.path}` : '');
     const remotes = r.remotes.map(o => `<span class="div"></span><span class="origin">${esc(o)}</span>`).join('');
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
     // Több worktree-nél a kivett ág badge-e mappa-ikont kap: worktree, nem csak ág.
-    const ic = wt && worktrees().length > 1 ? 'folder' : REF_ICON[r.kind] || 'branch';
+    const ic = wt && !wt.main ? 'folder' : REF_ICON[r.kind] || 'branch';
     return `<span class="badge ref-${r.kind}${other}" title="${esc(title)}">${icon(ic)}`
       + `${esc(r.name)}${remotes}</span>`;
   }).join('');
@@ -821,11 +842,12 @@ function onListClick(e) {
 }
 rowsEl.addEventListener('click', onListClick);
 /* Pill: az a worktree lesz a saját (HEAD-chip, H, kiemelt badge), és a HEAD-jére
-   áll; a már kézzel választott pillre kattintva a session szerinti tér vissza. */
+   áll; a kijelölt pillre kattintva egyik sem lesz kijelölve — a fő checkout. A
+   kézi választás a sessionbe visszalépésig tart (IntersectionObserver). */
 document.getElementById('wtBar').addEventListener('click', e => {
   const pill = e.target.closest('.wt-pill');
   if (!pill) return;
-  focusPick = focusPick === pill.dataset.wt ? null : pill.dataset.wt;
+  focusPick = focusWt()?.slug === pill.dataset.wt ? MAIN_PICK : pill.dataset.wt;
   hydrateFocus();
   fillBranches();
   render();

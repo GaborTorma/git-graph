@@ -215,6 +215,9 @@ class McpServerTest(unittest.TestCase):
         run("add", ".")
         run("-c", "user.name=T", "-c", "user.email=t@x.hu", "commit", "-qm", "init")
         run("worktree", "add", "-q", "-b", "feat", str(extra))
+        (extra / "b.txt").write_text("feat\n", encoding="utf-8")         # a feat előrébb jár
+        run("add", ".", cwd=extra)
+        run("-c", "user.name=T", "-c", "user.email=t@x.hu", "commit", "-qm", "feat", cwd=extra)
         (main / "a.txt").write_text("kettő\n", encoding="utf-8")
         (extra / "uj.txt").write_text("új\n", encoding="utf-8")
         return main, extra
@@ -233,6 +236,11 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual({c["worktree"] for c in pending}, {w["slug"] for w in wts})
         heads = {r["worktree"] for c in data["commits"] for r in c["refs"] if r["kind"] == "head"}
         self.assertEqual(heads, {w["slug"] for w in wts})
+        lane = {c.get("worktree") or c["sha"]: c["lane"] for c in data["commits"]}
+        self.assertEqual(lane[wts[0]["slug"]], 0)                  # a fő checkout ál-sora: 0. sáv
+        self.assertEqual(lane[wts[0]["head"]], 0)
+        self.assertNotEqual(lane[wts[1]["head"]], 0)               # a worktree ága elágazik
+        self.assertEqual(wts[1]["ahead"], 0)                       # nincs upstream, se origin/HEAD
         for c in pending:
             path = data["stats"][c["sha"]]["files"][0]["path"]
             self.assertTrue(module.file_diff(c["sha"], path)["hunks"], c["sha"])

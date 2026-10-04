@@ -238,16 +238,19 @@ def collect_uncommitted(wt: dict, named: bool = False) -> tuple[dict, dict] | No
     return commit, {"files": files, "add": added, "del": deleted}
 
 
-def assign_lanes(commits: list[dict]) -> list[dict]:
+def assign_lanes(commits: list[dict], trunk: str | None = None) -> list[dict]:
     """Sávkiosztás: minden commit kap egy oszlopot, a szülők sávot foglalnak.
 
     A Git Graph logikája: egy commit abba a sávba ül, amelyik már rá vár
     (a gyereke foglalta le); ha nincs ilyen, az első szabad sávba. Az első
     szülő ugyanabban a sávban folytatódik, a további szülők (merge) új vagy
     már létező sávot kapnak.
+
+    A `trunk` (a fő checkout csúcsa) a 0. sávot kapja előre lefoglalva: a
+    worktree-k újabb commitjai így mindig elágaznak tőle, nem a fő vonalon ülnek.
     """
-    active: list[str | None] = []  # sávonként: melyik commitra vár
     index = {c["sha"]: i for i, c in enumerate(commits)}
+    active: list[str | None] = [trunk] if trunk in index else []  # sávonként: melyik commitra vár
 
     for commit in commits:
         sha = commit["sha"]
@@ -595,16 +598,19 @@ def collect_payload(limit: int | None) -> dict:
 
     # Worktree-nként egy ál-sor, a gráf tetejére, a HEAD-jük fölé — a lane-kiosztás
     # előtt, mert az élek sorindexeket használnak.
+    trunk = None
     for wt in reversed(worktrees):
         pending = collect_uncommitted(wt, named=len(worktrees) > 1)
         if pending:
             commit, churn = pending
             commits.insert(0, commit)
             stats[commit["sha"]] = churn
+        if wt["main"]:                    # a fő checkout csúcsa: az ál-sora, vagy a HEAD-je
+            trunk = commit["sha"] if pending else wt["head"]
 
     return {
         "commits": commits,
-        "edges": assign_lanes(commits),
+        "edges": assign_lanes(commits, trunk),
         "stats": stats,
         "branches": collect_branches(worktrees),
         "meta": meta,
