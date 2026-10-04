@@ -327,7 +327,6 @@ button { font: inherit; color: inherit; }
 .pend-lane { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
 .pending .row { position: relative; z-index: 2; }
 .pending.scrolled { box-shadow: 0 1px 0 var(--border-soft); }
-.pending.scrolled .pend-edge, .scroll.scrolled .pend-edge { display: none; }
 
 /* ── Lista ───────────────────────────────────────────────────────────────── */
 .scroll { flex: 1 1 auto; overflow: auto; padding: 0 0 12px; }

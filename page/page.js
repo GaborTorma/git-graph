@@ -246,7 +246,7 @@ function drawGraph() {
     // a merge-vonal rögtön a cél sávjába fordul, a leágazó csak a szülő fölött.
     const color = tint(DATA.commits[e.fromRow],
       LANE_COLORS[(e.merge ? e.toLane : e.fromLane) % LANE_COLORS.length]);
-    // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re (görgetve rejtve).
+    // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re (görgetve is látszik, hová tart).
     const from = DATA.commits[e.fromRow];
     const dash = from.uncommitted ? ' class="pend-edge" stroke-dasharray="3 3"' : '';
     out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
@@ -487,7 +487,7 @@ function render() {
 
 /* Az Uncommitted ál-sorok (worktree-nként egy) mindig látszanak: a lista
    fölötti fix sávban, saját üres karikával és a lista felé futó szaggatott
-   csonkkal (görgetve rejtve). A karikák a sorok mért közepére kerülnek
+   csonkkal, amely görgetve is folytatódik a HEAD-ig. A karikák a sorok mért közepére kerülnek
    (`drawPending`, a `drawGraph` hívja): a sor kétsoros is lehet. */
 const pendingEl = document.getElementById('pending');
 function renderPending(list) {
