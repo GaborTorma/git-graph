@@ -1403,6 +1403,11 @@ function startLive(src) {
   let version = null;                       // a szerver verziója, amikor a lap betöltött
   let timer = 0, busy = false, again = false, misses = 0, burstUntil = 0;
   SRC = src;
+  /* Rajzol-e most a lap: rejtett keretben a requestAnimationFrame nem fut. */
+  const rendering = () => new Promise(done => {
+    requestAnimationFrame(() => done(true));
+    setTimeout(() => done(false), 250);
+  });
   async function poll() {
     clearTimeout(timer);
     if (busy) { again = true; return; }       // fut egy kör: utána azonnal még egy
@@ -1447,8 +1452,15 @@ function startLive(src) {
       showVersion(f);
       misses = 0;
     } catch (e) {
-      // Az átmeneti hiba (a host-híd épp nem válaszol, pl. a keret áthelyezése
-      // közben, session-váltáskor) elsőre nem hiba: csendben, gyorsan újra.
+      // Session-váltás közben a keret nem látszik, és a host-híd nem válaszol
+      // (mérve): ez nem hiba — a megjelenés (`arrive`) után kérdezünk újra.
+      if (e?.retryable && !(await rendering())) {
+        busy = false;
+        misses = 0;
+        timer = setTimeout(poll, POLL_MS);
+        return;
+      }
+      // Az átmeneti hiba elsőre nem hiba: csendben, gyorsan újra.
       if (e?.retryable && ++misses <= QUIET_RETRIES) {
         busy = false;
         timer = setTimeout(poll, Math.max(RETRY_MS, e.retryAfterMs || 0));
@@ -1469,11 +1481,17 @@ function startLive(src) {
      tudja (mérve); a rövid várakozás a keret áthelyezését várja ki, közben a
      host-híd nem válaszol. */
   let settle = 0;
-  addEventListener('resize', () => {           // az áthelyezés végét kivárva
+  function arrive() {                          // az áthelyezés végét kivárva
     burstUntil = performance.now() + BURST_FOR_MS;
     clearTimeout(settle);
     settle = setTimeout(poll, SETTLE_MS);
-  });
+  }
+  addEventListener('resize', arrive);
+  /* Egyforma méretű paneleknél nincs `resize`, de a keret a váltás alatt nem
+     látszik (a rajzolás szünetel), megjelenéskor pedig az IntersectionObserver
+     jelez (mérve). */
+  new IntersectionObserver(es => { if (es[es.length - 1].isIntersecting) arrive(); })
+    .observe(document.body);
   poll();
 }
 
