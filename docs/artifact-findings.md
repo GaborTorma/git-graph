@@ -429,6 +429,22 @@ rAF-kimaradás), egyforma és eltérő méretű panelek között váltogatva:
   rejtett keretnek nem válaszol. A lap ezért hibánál megnézi, rajzol-e (egy
   rAF 250 ms-on belül); ha nem, csendben vár, és a megjelenéskor kérdez.
 
+Ez a rejtett szakasz akkor volt, amikor a két session között egy **másik
+Artifact** (a régi, worktree-nkénti lap) látszott. Ugyanazon Artifact sessionjei
+között a keret **rejtés nélkül költözik**: se IntersectionObserver, se
+rAF-kimaradás, csak `resize` — egyforma panelméretnél semmi.
+
+### Nyitva tartott hívás és a host korlátja
+
+- A host egy `callTool`-t legalább 50 s-ig nyitva tart (mérve: a `wait`
+  határidejére, 50 013 ms után is `ok`); a `wait` felső határa ezért 50 s.
+- A lap ezért egy `fingerprint`-hívást (`wait`, `cursor`) nyitva tart, a szerver
+  a naplóban megjelenő váltásra ~50 ms-on belül válaszol, az új fókusszal.
+- **`rate_limited`**: váltásonként 2 s-ig 250 ms-onként kérdezve gyors
+  váltogatásnál ~20 hívás után a host visszafogta a hívásokat (`durationMs: 0`).
+  Váltásonként egy hívással (a válasz hozza a fókuszt) másodpercenkénti
+  váltogatás mellett sem jött elő.
+
 ### WIP-költség worktree-nként
 
 Eldobható klónokon, `--no-optional-locks`-szal, egy kör = `for-each-ref` +
