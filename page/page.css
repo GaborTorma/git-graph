@@ -466,6 +466,7 @@ button { font: inherit; color: inherit; }
 .badge .ic { width: 11px; height: 11px; stroke-width: 1.6; }
 /* A remote-on is ugyanott áll: felhő az ág neve után. */
 .badge .synced { display: inline-flex; margin-left: 1px; opacity: .8; }
+.badge .ic.filled { fill: currentColor; }
 .badge.ref-head, .badge.ref-detached { background: var(--accent); color: #ffffff; font-weight: 600; }
 /* Más worktree HEAD-je: halvány, a saját (teli) mellett. */
 .badge.other { background: var(--accent-bg); color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }

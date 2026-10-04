@@ -333,12 +333,14 @@ function badges(c) {
       + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o}/${r.name}`).join(', ') : '')
       + (r.default ? '\na remote alapértelmezett ága' : '')
       + (wt && !wt.main ? `\nworktree: ${wt.path}` : '');
-    const remotes = r.remotes.length ? `<span class="synced">${icon('cloud')}</span>` : '';
+    // A remote alapértelmezett ága (`origin/HEAD` célja): teli felhő.
+    const cloud = icon('cloud', r.default ? 'ic filled' : 'ic');
+    const remotes = r.remotes.length ? `<span class="synced">${cloud}</span>` : '';
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
     // A csak remote-os chipen a felhő jelzi a remote-ot: az `origin/` előtag nem kell.
     const name = r.kind === 'remote' ? r.name.replace(/^origin\//, '') : r.name;
-    return `<span class="badge ref-${r.kind}${other}" title="${esc(title)}">${icon(REF_ICON[r.kind] || 'branch')}`
-      + `${esc(name)}${remotes}</span>`;
+    const lead = r.kind === 'remote' ? cloud : icon(REF_ICON[r.kind] || 'branch');
+    return `<span class="badge ref-${r.kind}${other}" title="${esc(title)}">${lead}${esc(name)}${remotes}</span>`;
   }).join('');
 }
 
