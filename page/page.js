@@ -338,14 +338,16 @@ function badges(c) {
     const cloudOf = on => icon('cloud', on ? 'ic filled' : 'ic');
     const cloud = cloudOf(r.default);
     const multi = (DATA.meta.remotes || []).length > 1;
-    const remotes = !r.remotes.length ? '' : multi
+    // Egy remote-nál a felhő a branch-ikon után, a név előtt áll (`⎇☁ main`).
+    const remotes = multi
       ? r.remotes.map(o => `<span class="div"></span><span class="synced">${cloudOf(o.default)}${esc(o.name)}</span>`).join('')
-      : `<span class="synced">${cloud}</span>`;
+      : '';
+    const synced = r.remotes.length && !multi ? `<span class="synced lead">${cloud}</span>` : '';
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
     // A csak remote-os chipen a felhő jelzi a remote-ot: egy remote-nál az
     // `origin/` előtag nem kell, többnél a név mondja meg, melyiké.
     const name = r.kind === 'remote' && !multi ? r.name.replace(/^origin\//, '') : r.name;
-    const lead = r.kind === 'remote' ? cloud : icon(REF_ICON[r.kind] || 'branch');
+    const lead = r.kind === 'remote' ? cloud : icon(REF_ICON[r.kind] || 'branch') + synced;
     // A tooltip a saját buborék (`data-tip`), mint az avataré — a natív `title` késik.
     return `<span class="badge ref-${r.kind}${other}" data-tip="${esc(title)}" aria-label="${esc(title)}">`
       + `${lead}${esc(name)}${remotes}</span>`;
