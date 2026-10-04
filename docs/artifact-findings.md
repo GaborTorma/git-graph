@@ -445,6 +445,17 @@ rAF-kimaradás, csak `resize` — egyforma panelméretnél semmi.
   Váltásonként egy hívással (a válasz hozza a fókuszt) másodpercenkénti
   váltogatás mellett sem jött elő.
 
+### A leválasztott worktree ága: a Claude app nyilvántartása
+
+A session törlésekor az app a worktree-t megtartja, a HEAD-jét leválasztja
+(a reflogban egyetlen, üzenet nélküli bejegyzés), az ágat is megtartja. A git
+ezután semmivel nem köti az ágat a worktree-hez: az ágnak nincs reflogja, a
+worktree configjában nincs nyoma. Az app viszont nyilvántartja:
+`~/Library/Application Support/Claude/git-worktrees.json` →
+`worktrees.<név>` = `{path, branch, sourceBranch, leasedBy, …}` (`leasedBy:
+null`: nincs hozzá session). A worktree admin-mappájában egy üres
+`claude-desktop-worktree` jelzőfájl is van.
+
 ### WIP-költség worktree-nként
 
 Eldobható klónokon, `--no-optional-locks`-szal, egy kör = `for-each-ref` +
