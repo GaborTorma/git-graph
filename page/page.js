@@ -334,12 +334,30 @@ function mergedRefs(refs) {
   return out;
 }
 
+/* Hozzáadott worktree leválasztott HEAD-je egy ág csúcsán (pl. a session
+   törlésekor az app leválasztja): egy chip — az ágé, worktree-ikonnal. Az
+   ág nincs kivéve, ezért nem kap erős körvonalat. Ha több ág áll ott, a
+   worktree nevét viselő. */
+function adoptOrphans(refs) {
+  const out = refs.slice();
+  for (const r of refs) {
+    const wt = r.kind === 'detached' && r.worktree && worktrees().find(w => w.slug === r.worktree);
+    if (!wt || wt.main) continue;
+    const ours = out.filter(o => o.kind === 'branch' && !o.parked);
+    const branch = ours.find(o => o.name.endsWith(wt.name)) || ours[0];
+    if (!branch) continue;
+    out[out.indexOf(branch)] = { ...branch, parked: wt };
+    out.splice(out.indexOf(r), 1);
+  }
+  return out;
+}
+
 const REF_ICON = { head: 'branch', detached: 'commit', branch: 'branch', remote: 'cloud', tag: 'tag' };
 function badges(c) {
   // A HEAD, az ág és a tag a commit sávjának színét kapja (`--lc`), mint a vonal;
   // a csak remote-os chip szürke marad.
   const lane = LANE_COLORS[c.lane % LANE_COLORS.length];
-  return mergedRefs(c.refs).map(r => {
+  return adoptOrphans(mergedRefs(c.refs)).map(r => {
     const wt = r.worktree && worktrees().find(w => w.slug === r.worktree);
     // Hozzáadott worktree leválasztott HEAD-je: ág nincs, a worktree neve áll rajta.
     const orphan = r.kind === 'detached' && wt && !wt.main;
@@ -347,7 +365,8 @@ function badges(c) {
       : (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name)
       + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o.name}/${r.name}`).join(', ') : '')
       + (r.default ? '\na remote alapértelmezett ága' : '')
-      + (wt && !wt.main ? `\nworktree: ${wt.path}` : '');
+      + (wt && !wt.main ? `\nworktree: ${wt.path}` : '')
+      + (r.parked ? `\n${r.parked.name} worktree HEAD-je áll rajta, ág nélkül (nincs kivéve)\nworktree: ${r.parked.path}` : '');
     // A remote alapértelmezett ága (`origin/HEAD` célja): teli felhő. Több
     // remote-nál remote-onként egy szakasz a nevével: `main | ☁ origin | ☁ upstream`.
     const cloudOf = on => icon('cloud', on ? 'ic filled' : 'ic');
@@ -361,7 +380,7 @@ function badges(c) {
     // körrel, ha szinkronban van az upstreamjével — ez a felhőt is kiváltja.
     const linked = wt && !wt.main;
     const wtSynced = linked && wt.upstream && !wt.ahead && !wt.behind;
-    const synced = linked ? `<span class="synced lead">${icon(wtSynced ? 'worktreeSynced' : 'worktree')}</span>`
+    const synced = linked || r.parked ? `<span class="synced lead">${icon(wtSynced ? 'worktreeSynced' : 'worktree')}</span>`
       : r.remotes.length && !multi ? `<span class="synced lead">${cloud}</span>` : '';
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
     // A csak remote-os chipen a felhő jelzi a remote-ot: egy remote-nál az
