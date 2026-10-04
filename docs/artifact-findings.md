@@ -395,6 +395,27 @@ Mellékesen: az app `Session Storage` leveldb-jében a `cmdk-navigation-history`
 is a legutóbb megnyitott sessiont tartja elöl — de nyers leveldb-naplóból,
 tömörítés után olvashatatlan; a JSON a stabilabb.
 
+### Gyorsabban: az app naplója
+
+A `lastFocusedAt` **1–3 s késéssel** kerül a fájlba (az app kötegelve írja:
+gyors egymás utáni váltásnál a köztes session fájlja +2,9 s-mal frissült). Erre
+épült egy méret alapú tipp (a panelek más szélesek), de rossz worktree-re is
+átváltott, mielőtt a fájl kijavította — kivezetve.
+
+Az app naplója (`~/Library/Logs/Claude/main.log`) minden váltáskor ír:
+
+```
+2026-10-04 14:52:06 [info] [CCD] LocalSessions.setFocusedSession: sessionId=null
+2026-10-04 14:52:06 [info] [CCD] LocalSessions.setFocusedSession: sessionId=local_834e9f2a-…
+```
+
+Mérve (10 váltás, 20 ms-onként figyelve): a sor a fájlba később kerülő
+`lastFocusedAt`-hoz képest **+1…+20 ms**-mal már a naplóban van. Az azonosító
+a session-fájl neve (`local_<id>.json`), abból jön a munkakönyvtár. A napló
+másodpercre kerekít, ~10 MB-onként forog (`main.log` → `main1.log`, új inode);
+a szerver csak az új sorokat olvassa (< 0,1 ms), induláskor a végéből 2 MB-ot
+(~13 ms). Belső napló: ha a sor eltűnik, a session-fájl marad a forrás.
+
 ### WIP-költség worktree-nként
 
 Eldobható klónokon, `--no-optional-locks`-szal, egy kör = `for-each-ref` +
