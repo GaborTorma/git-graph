@@ -466,6 +466,9 @@ button { font: inherit; color: inherit; }
 .badge .synced.lead { margin-left: -2px; }   /* a branch-ikonhoz tapad */
 .badge .div { align-self: stretch; width: 1px; margin: 3px 1px; background: currentColor; opacity: .3; }
 .badge .ic.filled { fill: currentColor; }
+/* A GitLens worktree-jel telt, 1 px-es vonalú rajz: körvonal vastagítja a vonalas ikonokéhoz. */
+.ic .wt-ic { stroke: currentColor; stroke-width: .6px; stroke-linejoin: round; }
+.badge .synced:has(.wt-ic) { opacity: 1; }   /* a worktree-jel teljes erővel, a felhő visszafogott */
 /* Az ág, a HEAD és a tag a commit sávjának színét viseli (`--lc`, page.js).
    A szöveg a sávszín és az előtér keveréke: világos témában sötétebb,
    sötétben világosabb — a vonalnak szánt színek szövegként gyengék lennének. */
