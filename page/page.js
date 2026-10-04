@@ -528,22 +528,22 @@ function bars(f) {
 }
 
 function headHtml(c) {
+  if (c.uncommitted) return '';   // a WIP-nek nincs szerzője, dátuma; a szülője a HEAD, a gráf mutatja
   const avatar = avatarOf(c);
-  const who = c.uncommitted ? '<span class="name">Munkakönyvtár</span>'
-    : `${avatar ? `<img src="${esc(avatar)}" alt="${esc(c.author)}">` : ''}<span class="name">${esc(c.author)}</span>`
+  const who = `${avatar ? `<img src="${esc(avatar)}" alt="${esc(c.author)}">` : ''}<span class="name">${esc(c.author)}</span>`
       + `<span class="sep">·</span><span>${fmtDate(c.date)}</span>`;
   const parents = c.parents.map(p => `<button type="button" class="hash" data-jump="${p}" title="Ugrás a szülőre">${p.slice(0, 7)}</button>`
     + miniBtn('open', `Szülő megnyitása: ${p.slice(0, 7)}`, `data-jump="${p}"`)).join('');
   const parentChip = c.parents.length ? `<span class="chip" title="Szülő${c.parents.length > 1 ? 'k' : ''}">`
     + `${icon('parent')}${parents}</span>` : '';
-  const commitChip = c.uncommitted ? '' : `<span class="chip">${icon('commit')}`
+  const commitChip = `<span class="chip">${icon('commit')}`
     + `<span class="hash plain">${c.short}</span>`
     + (c.pushed ? ghLink(commitUrl(c), icon('open'), 'mini', 'Commit megnyitása a GitHubon') : '')
     + miniBtn('copy', 'Hash másolása', `data-copy="${c.sha}"`) + '</span>';
   return `<div class="d-head"><span class="who">${who}</span><span class="chips">${parentChip}${commitChip}</span></div>`;
 }
 
-function open(sha) {
+function open(sha, animate = false) {
   document.querySelectorAll('.details').forEach(d => d.remove());
   const row = document.querySelector(`.row[data-sha="${CSS.escape(sha)}"]`);
   if (!row) return;
@@ -580,6 +580,23 @@ function open(sha) {
     if (openFiles.has(sha + '\n' + f.dataset.path)) toggleFile(f, sha, true);
   });
   drawGraph();               // a panel alatti sorok lejjebb kerültek
+  if (animate) unfold(el);
+}
+
+/* Lenyílás: a panel magassága 0-ról nő. A gráf a sorok mért helyéből rajzol,
+   ezért az animáció alatt képkockánként újrarajzol (a vonal együtt nyúlik). */
+const UNFOLD_MS = 180;
+function unfold(el) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cs = getComputedStyle(el);
+  const anim = el.animate([
+    { height: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0 },
+    { height: `${el.offsetHeight}px`, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, opacity: 1 },
+  ], { duration: UNFOLD_MS, easing: 'cubic-bezier(.2, .7, .3, 1)' });
+  el.style.overflow = 'hidden';
+  let frame = requestAnimationFrame(function tick() { drawGraph(); frame = requestAnimationFrame(tick); });
+  const done = () => { cancelAnimationFrame(frame); el.style.overflow = ''; drawGraph(); };
+  anim.finished.then(done, done);
 }
 
 /* A vágólap az Artifact keretében tiltott lehet: akkor a régi `execCommand`. */
@@ -933,7 +950,7 @@ function onListClick(e) {
     document.querySelectorAll('.details').forEach(d => d.remove());
     expanded = null;
     drawGraph();
-  } else open(row.dataset.sha);
+  } else open(row.dataset.sha, true);
 }
 rowsEl.addEventListener('click', onListClick);
 /* Pill: a lista a worktree HEAD-jére ugrik. A „saját” nem változik — az a
@@ -1220,7 +1237,7 @@ document.addEventListener('keydown', e => {
     handled = cur ? (selectCommit(visible[visible.indexOf(cur) + (k === 'ArrowDown' ? 1 : -1)]) || true)
                   : selectCommit(topVisible());
   } else if (k === 'ArrowRight' && cur) {                 // belép: kinyit, első fájl
-    if (expanded !== cur.sha) open(cur.sha);
+    if (expanded !== cur.sha) open(cur.sha, true);
     const first = document.querySelector('.details .file');
     if (first) select(first); else select(rowOf(cur));
   } else if (k === 'ArrowLeft' && cur && expanded === cur.sha) {
