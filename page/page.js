@@ -319,8 +319,8 @@ function mergedRefs(refs) {
           && names.has(o.name) && o.name.slice(0, -r.name.length - 1).indexOf('/') < 0)
       : [];
     remotes.forEach(o => used.add(o.name));
-    out.push({ ...r, remotes: remotes.map(o => o.name.slice(0, -r.name.length - 1)),
-      default: r.default || remotes.some(o => o.default) });
+    out.push({ ...r, default: r.default || remotes.some(o => o.default),
+      remotes: remotes.map(o => ({ name: o.name.slice(0, -r.name.length - 1), default: Boolean(o.default) })) });
   }
   return out;
 }
@@ -330,15 +330,21 @@ function badges(c) {
   return mergedRefs(c.refs).map(r => {
     const wt = r.worktree && worktrees().find(w => w.slug === r.worktree);
     const title = (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name
-      + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o}/${r.name}`).join(', ') : '')
+      + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o.name}/${r.name}`).join(', ') : '')
       + (r.default ? '\na remote alapértelmezett ága' : '')
       + (wt && !wt.main ? `\nworktree: ${wt.path}` : '');
-    // A remote alapértelmezett ága (`origin/HEAD` célja): teli felhő.
-    const cloud = icon('cloud', r.default ? 'ic filled' : 'ic');
-    const remotes = r.remotes.length ? `<span class="synced">${cloud}</span>` : '';
+    // A remote alapértelmezett ága (`origin/HEAD` célja): teli felhő. Több
+    // remote-nál remote-onként egy szakasz a nevével: `main | ☁ origin | ☁ upstream`.
+    const cloudOf = on => icon('cloud', on ? 'ic filled' : 'ic');
+    const cloud = cloudOf(r.default);
+    const multi = (DATA.meta.remotes || []).length > 1;
+    const remotes = !r.remotes.length ? '' : multi
+      ? r.remotes.map(o => `<span class="div"></span><span class="synced">${cloudOf(o.default)}${esc(o.name)}</span>`).join('')
+      : `<span class="synced">${cloud}</span>`;
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
-    // A csak remote-os chipen a felhő jelzi a remote-ot: az `origin/` előtag nem kell.
-    const name = r.kind === 'remote' ? r.name.replace(/^origin\//, '') : r.name;
+    // A csak remote-os chipen a felhő jelzi a remote-ot: egy remote-nál az
+    // `origin/` előtag nem kell, többnél a név mondja meg, melyiké.
+    const name = r.kind === 'remote' && !multi ? r.name.replace(/^origin\//, '') : r.name;
     const lead = r.kind === 'remote' ? cloud : icon(REF_ICON[r.kind] || 'branch');
     return `<span class="badge ref-${r.kind}${other}" title="${esc(title)}">${lead}${esc(name)}${remotes}</span>`;
   }).join('');

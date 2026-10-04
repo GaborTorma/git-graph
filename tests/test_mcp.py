@@ -266,7 +266,9 @@ class McpServerTest(unittest.TestCase):
         subprocess.run(["git", "clone", "-q", str(main), str(clone)], check=True, capture_output=True)
         module = load_module(self.home)
         module.REPO = clone
-        refs = [r for c in module.collect_payload(None)["commits"] for r in c["refs"]]
+        data = module.collect_payload(None)
+        self.assertEqual(data["meta"]["remotes"], ["origin"])
+        refs = [r for c in data["commits"] for r in c["refs"]]
         self.assertFalse([r for r in refs if r["name"].endswith("/HEAD")])
         self.assertTrue(next(r for r in refs if r["name"] == "origin/main").get("default"))
 
