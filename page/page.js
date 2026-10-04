@@ -246,9 +246,11 @@ function drawGraph() {
     // a merge-vonal rögtön a cél sávjába fordul, a leágazó csak a szülő fölött.
     const color = tint(DATA.commits[e.fromRow],
       LANE_COLORS[(e.merge ? e.toLane : e.fromLane) % LANE_COLORS.length]);
-    // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re (görgetve is látszik, hová tart).
+    // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re. Görgetve a sajátja
+    // eltűnik (a HEAD-je a saját), a többié látszik — különben nem tudni, hová tart.
     const from = DATA.commits[e.fromRow];
-    const dash = from.uncommitted ? ' class="pend-edge" stroke-dasharray="3 3"' : '';
+    const own = from.worktree === focusWt()?.slug ? ' own' : '';
+    const dash = from.uncommitted ? ` class="pend-edge${own}" stroke-dasharray="3 3"` : '';
     out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
   }
   // A worktree csonkja: vízszintes vonal a commitról a saját oszlopába, ott pötty.
@@ -487,7 +489,7 @@ function render() {
 
 /* Az Uncommitted ál-sorok (worktree-nként egy) mindig látszanak: a lista
    fölötti fix sávban, saját üres karikával és a lista felé futó szaggatott
-   csonkkal, amely görgetve is folytatódik a HEAD-ig. A karikák a sorok mért közepére kerülnek
+   csonkkal; görgetve a többi worktree-é folytatódik a HEAD-ig. A karikák a sorok mért közepére kerülnek
    (`drawPending`, a `drawGraph` hívja): a sor kétsoros is lehet. */
 const pendingEl = document.getElementById('pending');
 function renderPending(list) {
@@ -506,7 +508,8 @@ function drawPending() {
     if (!c) return '';
     const x = laneX(c.lane), y = row.offsetTop + row.offsetHeight / 2;
     const color = tint(c, LANE_COLORS[c.lane % LANE_COLORS.length]);
-    return `<path class="pend-edge" d="M ${x} ${y + DOT_R + 1} L ${x} ${h}" stroke="${color}" stroke-width="2" stroke-dasharray="3 3"/>`
+    const own = c.worktree === focusWt()?.slug ? ' own' : '';
+    return `<path class="pend-edge${own}" d="M ${x} ${y + DOT_R + 1} L ${x} ${h}" stroke="${color}" stroke-width="2" stroke-dasharray="3 3"/>`
       + `<circle cx="${x}" cy="${y}" r="${DOT_R + 1}" fill="var(--bg)" stroke="${color}" stroke-width="2"/>`;
   }).join('');
 }
