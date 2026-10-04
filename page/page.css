@@ -474,8 +474,7 @@ button { font: inherit; color: inherit; }
 /* Más worktree HEAD-je: halvány, a saját (teli) mellett. */
 .badge.other { background: var(--accent-bg); color: var(--accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 34%, var(--bg)); }
 /* Ami nem a saját worktree-ben van (más ág, más worktree): halványabb. */
-.row.foreign .row-in { opacity: .45; }
-#lanes .foreign, .pend-lane .foreign { opacity: .3; }
+.row.foreign .row-in { opacity: .55; }
 .badge.ref-branch { background: var(--branch-bg); color: var(--branch-fg); box-shadow: inset 0 0 0 1px var(--branch-bd); }
 .badge.ref-remote { background: var(--remote-bg); color: var(--remote-fg); box-shadow: inset 0 0 0 1px var(--remote-bd); }
 .badge.ref-tag    { background: var(--tag-bg); color: var(--tag-fg); box-shadow: inset 0 0 0 1px var(--tag-bd); border-radius: 4px; }

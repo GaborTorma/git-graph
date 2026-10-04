@@ -77,6 +77,10 @@ function computeOwn() {
   ownSet = keep;
 }
 const foreign = c => Boolean(ownSet) && !ownSet.has(c.sha);
+/* A halvány pötty és vonal tömör, a háttérrel kevert szín — átlátszósággal
+   a pöttyön átütne az alatta futó vonal. */
+const FADE = 45;
+const tint = (c, color) => foreign(c) ? `color-mix(in srgb, ${color} ${FADE}%, var(--bg))` : color;
 /* A worktree színe a gráfban: az ál-sora, vagy a HEAD-je sávjáé. */
 function wtColor(w) {
   const c = DATA.commits.find(x => x.worktree === w.slug)
@@ -225,22 +229,22 @@ function drawGraph() {
     const x2 = laneX(e.toLane),   y2 = rowY(b);
     // A vonal annak a sávnak a színét kapja, amelyikben a hossza nagy részén fut:
     // a merge-vonal rögtön a cél sávjába fordul, a leágazó csak a szülő fölött.
-    const color = LANE_COLORS[(e.merge ? e.toLane : e.fromLane) % LANE_COLORS.length];
+    const color = tint(DATA.commits[e.fromRow],
+      LANE_COLORS[(e.merge ? e.toLane : e.fromLane) % LANE_COLORS.length]);
     // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re (görgetve rejtve).
     const from = DATA.commits[e.fromRow];
-    const cls = [from.uncommitted && 'pend-edge', foreign(from) && 'foreign'].filter(Boolean).join(' ');
-    const dash = from.uncommitted ? ' stroke-dasharray="3 3"' : '';
-    out += `<path${cls ? ` class="${cls}"` : ''} d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
+    const dash = from.uncommitted ? ' class="pend-edge" stroke-dasharray="3 3"' : '';
+    out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
   }
   visible.forEach((c, i) => {
     if (c.uncommitted) return;            // a pontja a #pending sávban van
-    const color = LANE_COLORS[c.lane % LANE_COLORS.length];
+    const color = tint(c, LANE_COLORS[c.lane % LANE_COLORS.length]);
     const merge = c.parents.length > 1;
     // Az ál-sor pontja üres karika: a szaggatott vonal már jelzi, hogy nem
     // commit — a pöttyözött körvonal ezen a méreten csak elmosódna.
     const hollow = merge || c.uncommitted;
     if (fresh.has(c.sha)) out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="8" fill="${color}" opacity=".28"/>`;
-    out += `<circle${foreign(c) ? ' class="foreign"' : ''} cx="${laneX(c.lane)}" cy="${rowY(i)}" r="${hollow ? DOT_R + 1 : DOT_R}"`
+    out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="${hollow ? DOT_R + 1 : DOT_R}"`
         +  ` fill="${hollow ? 'var(--bg)' : color}" stroke="${color}" stroke-width="2"/>`;
   });
   svg.innerHTML = out;
@@ -423,9 +427,9 @@ function drawPending() {
     const c = DATA.commits.find(x => x.sha === row.dataset.sha);
     if (!c) return '';
     const x = laneX(c.lane), y = row.offsetTop + row.offsetHeight / 2;
-    const color = LANE_COLORS[c.lane % LANE_COLORS.length], dim = foreign(c) ? ' foreign' : '';
-    return `<path class="pend-edge${dim}" d="M ${x} ${y + DOT_R + 1} L ${x} ${h}" stroke="${color}" stroke-width="2" stroke-dasharray="3 3"/>`
-      + `<circle class="${dim}" cx="${x}" cy="${y}" r="${DOT_R + 1}" fill="var(--bg)" stroke="${color}" stroke-width="2"/>`;
+    const color = tint(c, LANE_COLORS[c.lane % LANE_COLORS.length]);
+    return `<path class="pend-edge" d="M ${x} ${y + DOT_R + 1} L ${x} ${h}" stroke="${color}" stroke-width="2" stroke-dasharray="3 3"/>`
+      + `<circle cx="${x}" cy="${y}" r="${DOT_R + 1}" fill="var(--bg)" stroke="${color}" stroke-width="2"/>`;
   }).join('');
 }
 
