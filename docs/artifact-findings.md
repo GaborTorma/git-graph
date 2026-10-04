@@ -416,6 +416,19 @@ másodpercre kerekít, ~10 MB-onként forog (`main.log` → `main1.log`, új ino
 a szerver csak az új sorokat olvassa (< 0,1 ms), induláskor a végéből 2 MB-ot
 (~13 ms). Belső napló: ha a sor eltűnik, a session-fájl marad a forrás.
 
+### A keret a váltás alatt: rejtve
+
+Eseménynaplóval a lapon (`resize`, láthatóság, fókusz, IntersectionObserver,
+rAF-kimaradás), egyforma és eltérő méretű panelek között váltogatva:
+
+- Egyforma méretnél **nincs `resize`**, de a keret a váltás alatt nem látszik:
+  a `requestAnimationFrame` 0,5–11 s-ig nem fut (amíg a session nem
+  rajzolódott be), megjelenéskor az IntersectionObserver `0 → 1`-et jelez.
+  `visibilitychange`, `focus` / `blur`, `pageshow` nem jön.
+- A `server_unavailable` hibák mind a rejtett szakaszba estek: a host-híd a
+  rejtett keretnek nem válaszol. A lap ezért hibánál megnézi, rajzol-e (egy
+  rAF 250 ms-on belül); ha nem, csendben vár, és a megjelenéskor kérdez.
+
 ### WIP-költség worktree-nként
 
 Eldobható klónokon, `--no-optional-locks`-szal, egy kör = `for-each-ref` +
