@@ -612,6 +612,9 @@ button { font: inherit; color: inherit; }
 .foot.on .dot { background: var(--live); }
 .foot.stale .dot { background: var(--del); }
 .foot.stale .live { color: var(--del); }
+/* Hibánál a commitszám helyét is az üzenet kapja. */
+.foot.stale { grid-template-columns: 1fr auto; }
+.foot.stale .count { display: none; }
 .foot .count { font-variant-numeric: tabular-nums; }
 .foot .count b { color: var(--fg-1); font-weight: 600; }
 /* A verzió az élő-állapot után, ha kifér (`fitFoot`); a figyelmeztetés mindig. */
