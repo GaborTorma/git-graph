@@ -345,9 +345,55 @@ A lap a saját panelje elrejtését érzékeli — a próbalapon, session-vált�
 | `innerWidth` / `innerHeight` | változatlan |
 | `IntersectionObserver` a `body`-n | **`false`**, visszaváltáskor `true` |
 
-Következmény: ha egy prompt pillanatában a repó lapjai közül pontosan egy
-látszik, az a promptoló session panelje — így a panel a sessionhöz (és annak
-worktree-jéhez) köthető.
+~~Következmény: ha egy prompt pillanatában a repó lapjai közül pontosan egy
+látszik, az a promptoló session panelje.~~ **Megdőlt (lent):** a próbalap a
+másik sessionben nem volt nyitva — ugyanazt az Artifactot mutató sessionök
+egy keretet látnak.
+
+### Egy Artifact = egy keret, minden sessionben
+
+Ideiglenes naplózás a `git-graph --mcp`-ben (a teljes `tools/call` üzenet) és
+a lapon (betöltésenként véletlen `load`, `innerWidth`/`innerHeight`,
+`document.hasFocus()`), három session között váltva, amelyek mind a repó
+lapját mutatták:
+
+| Idő | `load` | Méret | Session |
+| --- | --- | --- | --- |
+| 13:38:44 | `7182wi` | 606 × 1471 | ez a session |
+| 13:39:19 | `7182wi` | 912 × 1471 | Graph test-2 |
+| 13:39:29 | `7182wi` | 914 × 1471 | Új teszt 3 |
+| 13:39:40 | `7182wi` | 606 × 1471 | vissza |
+
+- **Egyetlen keret** (ugyanaz a `load`) vándorol a sessionök panelje között;
+  nem töltődik újra, láthatósága nem változik. Panelenkénti azonosító így
+  értelmetlen.
+- **A host semmit nem küld a hívással** (se `_meta`, se session) — csak a tool
+  nevét és argumentumait.
+- A keret **mérete** sessionönként más (a panelek szélessége), de ez törékeny
+  (azonos szélesség, ablak-átméretezés).
+- Az `Artifact open` a lekérdezést (`?…`) is levágja, mint a horgonyt.
+- A platform a `window.name`-ben tartja a bootstrapját (`{"hot":…,"usable":…}`);
+  a `location.reload()`-ot a `window.name`, a horgony (`replaceState`), a
+  `sessionStorage` és a `history.state` is túléli, egy újraépült keret viszont
+  friss `window.name`-mel indul; a `sessionStorage` a keretek között közös.
+
+### Az előtérben lévő session: a Claude app session-fájljai
+
+A Claude app sessionönként JSON-t tart:
+`~/Library/Application Support/Claude/claude-code-sessions/<fiók>/<szervezet>/local_<id>.json`
+— benne `cwd`, `worktreePath`, `cliSessionId` (a hookok `session_id`-ja),
+`isArchived` és **`lastFocusedAt`** (ms). A fenti váltások időpontjai
+másodpercre egyeztek a `lastFocusedAt` értékekkel (13:39:18 / 13:39:28 /
+13:39:39). A repóban dolgozó, nem archivált sessionök közül a legnagyobb
+`lastFocusedAt` az előtérben lévő.
+
+253 fájl, egyenként akár ~770 KB: mindet beolvasni ~520 ms, `stat`-tal
+< 1 ms — a szerver csak a megváltozott fájlt olvassa újra (váltáskor egyet,
+~5 ms). Belső fájl: a formátuma változhat, ismeretlennél nem dönt.
+
+Mellékesen: az app `Session Storage` leveldb-jében a `cmdk-navigation-history`
+is a legutóbb megnyitott sessiont tartja elöl — de nyers leveldb-naplóból,
+tömörítés után olvashatatlan; a JSON a stabilabb.
 
 ### WIP-költség worktree-nként
 
