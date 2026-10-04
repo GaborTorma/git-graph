@@ -346,7 +346,9 @@ function badges(c) {
     // `origin/` előtag nem kell, többnél a név mondja meg, melyiké.
     const name = r.kind === 'remote' && !multi ? r.name.replace(/^origin\//, '') : r.name;
     const lead = r.kind === 'remote' ? cloud : icon(REF_ICON[r.kind] || 'branch');
-    return `<span class="badge ref-${r.kind}${other}" title="${esc(title)}">${lead}${esc(name)}${remotes}</span>`;
+    // A tooltip a saját buborék (`data-tip`), mint az avataré — a natív `title` késik.
+    return `<span class="badge ref-${r.kind}${other}" data-tip="${esc(title)}" aria-label="${esc(title)}">`
+      + `${lead}${esc(name)}${remotes}</span>`;
   }).join('');
 }
 
