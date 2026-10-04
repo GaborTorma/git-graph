@@ -1200,10 +1200,21 @@ def shown_in_session(session_id: str, slug: str) -> bool:
 # munkakönyvtárral és a `lastFocusedAt` időbélyeggel: a repóban dolgozó
 # sessionök közül a legutóbb fókuszált van előtérben. Belső fájl — ismeretlen
 # formánál nem dönt (a fő checkout a saját).
+#
+# A `lastFocusedAt` 1–3 s késéssel kerül a fájlba, az app naplója
+# (`~/Library/Logs/Claude/main.log`) viszont a váltás után ~20 ms-mal már
+# tartalmazza (`setFocusedSession: sessionId=local_<id>`, mérve,
+# docs/artifact-findings.md). A fókusz idejét ezért a naplóból vesszük, ha
+# ott van; a fájlból csak a munkakönyvtár és az archiváltság jön.
 
 APP_SESSIONS = (Path.home() / "Library" / "Application Support" / "Claude"
                 / "claude-code-sessions")
-_APP_SESSIONS: dict[str, tuple[float, dict | None]] = {}   # fájl → (mtime, {cwd, focused, archived})
+_APP_SESSIONS: dict[str, tuple[float, dict | None]] = {}   # fájl → (mtime, {id, cwd, focused, archived})
+APP_LOG = Path.home() / "Library" / "Logs" / "Claude" / "main.log"
+APP_LOG_TAIL = 2 << 20          # induláskor ennyit olvasunk vissza a napló végéből
+FOCUS_LINE = re.compile(rb"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) \[info\] \[CCD\] "
+                        rb"LocalSessions\.setFocusedSession: sessionId=(local_[0-9a-f-]+)", re.M)
+_APP_LOG: dict = {"ino": None, "pos": 0, "seq": 0, "focus": {}}   # focus: id → (idő, sorszám)
 
 
 def app_sessions() -> list[dict]:
@@ -1229,7 +1240,7 @@ def app_sessions() -> list[dict]:
                 cwd = data.get("worktreePath") or data.get("cwd")
                 focused = data.get("lastFocusedAt")
                 if isinstance(cwd, str) and isinstance(focused, (int, float)):
-                    info = {"cwd": cwd, "focused": focused / 1000,
+                    info = {"id": path.stem, "cwd": cwd, "focused": focused / 1000,
                             "archived": bool(data.get("isArchived"))}
             except (OSError, ValueError, AttributeError):
                 pass
@@ -1239,6 +1250,43 @@ def app_sessions() -> list[dict]:
     for key in set(_APP_SESSIONS) - live:
         del _APP_SESSIONS[key]
     return out
+
+
+def app_log_focus() -> dict:
+    """Session-azonosító → a legutóbbi fókusz (idő, sorszám) az app naplójából.
+
+    Csak az új sorokat olvassa; a napló forgatását (új inode, rövidebb fájl)
+    az elejéről kezdi. A napló másodpercre kerekít: a fókusz a másodperc
+    végére kerül (a fájl ms-os értéke ugyanarra a váltásra így sosem előzi),
+    az egy másodpercen belüli váltások sorrendjét a sorszám dönti el.
+    """
+    state = _APP_LOG
+    try:
+        st = APP_LOG.stat()
+    except OSError:
+        return state["focus"]
+    if st.st_ino != state["ino"] or st.st_size < state["pos"]:
+        first = state["ino"] is None
+        state.update(ino=st.st_ino, pos=max(0, st.st_size - APP_LOG_TAIL) if first else 0)
+    state["pos"] = max(state["pos"], st.st_size - APP_LOG_TAIL)
+    if st.st_size == state["pos"]:
+        return state["focus"]
+    try:
+        with APP_LOG.open("rb") as f:
+            f.seek(state["pos"])
+            chunk = f.read(st.st_size - state["pos"])
+    except OSError:
+        return state["focus"]
+    end = chunk.rfind(b"\n") + 1                  # a félbe írt sor a következő körre marad
+    state["pos"] += end
+    for m in FOCUS_LINE.finditer(chunk, 0, end):
+        try:
+            at = time.mktime(time.strptime(m.group(1).decode(), "%Y-%m-%d %H:%M:%S")) + 0.999
+        except ValueError:
+            continue
+        state["seq"] += 1
+        state["focus"][m.group(2).decode()] = (at, state["seq"])
+    return state["focus"]
 
 
 def worktree_of(cwd: str, worktrees: list[dict]) -> str | None:
@@ -1255,13 +1303,14 @@ def focused_worktree(worktrees: list[dict]) -> dict:
     `known`: van-e a repóban dolgozó session; ha nincs, a lap a fő checkoutot
     tekinti sajátnak.
     """
-    best = None
+    best, logged = None, app_log_focus()
     for session in app_sessions():
         if session["archived"]:
             continue
         slug = worktree_of(session["cwd"], worktrees)
-        if slug and (best is None or session["focused"] > best[0]):
-            best = (session["focused"], slug)
+        at = max((session["focused"], 0), logged.get(session["id"], (0, 0)))
+        if slug and (best is None or at > best[0]):
+            best = (at, slug)
     return {"worktree": best[1] if best else None, "known": best is not None}
 
 

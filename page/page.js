@@ -31,7 +31,8 @@ let graphW = 72;
 /* ── A „saját” worktree ───────────────────────────────────────────────────
    A worktree-k közös lapot látnak, és az app ezt az egy keretet mutatja
    minden sessionben. Hogy épp melyik session van előtérben, azt a szerver
-   tudja (a Claude app session-fájljaiból, `focus` a fingerprintben): annak
+   tudja (a Claude app naplójából és session-fájljaiból, `focus` a
+   fingerprintben): annak
    a worktree-je a saját. Kézzel nem választható — a HEAD ott van, ahol a
    session dolgozik, minden git-parancsa ott fut. */
 let focusAuto = null;        // { worktree, known } — a szervertől
@@ -40,39 +41,7 @@ const linkedWts = () => worktrees().filter(w => !w.main);
 /* A saját worktree; a fő checkout, ha a session nem egy worktree-ben dolgozik. */
 function focusWt() {
   const wts = worktrees();
-  const slug = focusGuess ?? focusAuto?.worktree;
-  return wts.find(w => w.slug === slug) || wts.find(w => w.main) || wts[0];
-}
-/* Gyors tipp session-váltáskor. Az app a fókuszt 1–3 mp késéssel írja ki
-   (mérve), a keret viszont azonnal átméreteződik, mert a sessionök paneljei
-   más méretűek. A lap megtanulja, melyik mérethez melyik worktree tartozik,
-   de csak a hiteles forrásból: ha a szerver szerinti fókusz már nyugalomban
-   van. Méretváltáskor az ismert méret tippje azonnal érvényes, de a szerver
-   válasza dönt, amint a fókusz megváltozik (vagy lejár a türelmi idő) —
-   rossz tipp (egyforma panelek, átméretezett ablak) így kijavítja magát. */
-const SIZE_KEY = 'git-graph:sizes';
-let focusGuess = null, guessFrom = null, resizedAt = -1e9;
-const sizeKey = () => `${innerWidth}x${innerHeight}`;
-const sizes = (() => { try { return JSON.parse(sessionStorage.getItem(SIZE_KEY)) || {}; } catch { return {}; } })();
-function learnSize(focus) {
-  if (!focus?.known || performance.now() - resizedAt < GUESS_HOLD_MS) return;
-  if (sizes[sizeKey()] === focus.worktree) return;
-  sizes[sizeKey()] = focus.worktree;
-  try { sessionStorage.setItem(SIZE_KEY, JSON.stringify(sizes)); } catch { /* csak memóriában */ }
-}
-function guessFocus() {
-  resizedAt = performance.now();
-  guessFrom = focusAuto?.worktree ?? null;
-  const guess = sizes[sizeKey()];
-  if (!guess || guess === focusWt()?.slug) return false;
-  focusGuess = guess;
-  return true;
-}
-/* A szerver válasza: a tipp addig áll, amíg a szerver még a váltás előtti
-   fókuszt mondja (az app még nem írta ki az újat), legfeljebb GUESS_HOLD_MS-ig. */
-function settleGuess(focus) {
-  if (focusGuess === null) return;
-  if ((focus?.worktree ?? null) !== guessFrom || performance.now() - resizedAt > GUESS_HOLD_MS) focusGuess = null;
+  return wts.find(w => w.slug === focusAuto?.worktree) || wts.find(w => w.main) || wts[0];
 }
 /* Ami nem a saját worktree-é, halványabb (`.foreign`). A git nem jegyzi fel,
    hol hozták létre az ágat — a gazdátlan (sehol ki nem vett) ágak a fő
@@ -1279,8 +1248,7 @@ const POLL_MS = 2000;
 const SETTLE_MS = 250;      // méretváltás (session-váltás) után ennyit vár a kérdezéssel
 const RETRY_MS = 400;       // átmeneti hiba után ennyi idővel csendben újra
 const QUIET_RETRIES = 3;    // ennyi átmeneti hibát nem ír ki
-const BURST_MS = 250, BURST_FOR_MS = 4000;   // session-váltás után ilyen sűrűn, ennyi ideig
-const GUESS_HOLD_MS = 5000; // a méret-tipp legfeljebb eddig áll a szerver megerősítése nélkül
+const BURST_MS = 250, BURST_FOR_MS = 2000;   // session-váltás után ilyen sűrűn, ennyi ideig
 const foot = document.getElementById('foot');
 const liveText = document.getElementById('liveText');
 const liveDot = document.getElementById('liveDot');
@@ -1452,9 +1420,7 @@ function startLive(src) {
       const { focus, ...state } = f;
       const key = JSON.stringify(state);
       const before = focusWt()?.slug;
-      settleGuess(focus);
       focusAuto = focus ?? null;
-      learnSize(focus);
       const focusChanged = focusWt()?.slug !== before;
       if (focusChanged && key === last) { hydrateFocus(); fillBranches(); render(); }
       if (key !== last) {
@@ -1499,12 +1465,12 @@ function startLive(src) {
   }
   /* Session-váltáskor az app ezt az egy keretet átteszi a másik session
      paneljébe, ami más méretű (mérve): a méretváltás után rövid ideig sűrűn
-     kérdezünk. Az app a fókuszt ~1–1,5 mp késéssel írja ki a session-fájlba
-     (mérve), az első azonnali kérdezés így még a régit kapná. */
+     kérdezünk. A szerver a fókuszt az app naplójából ~20 ms-mal a váltás után
+     tudja (mérve); a rövid várakozás a keret áthelyezését várja ki, közben a
+     host-híd nem válaszol. */
   let settle = 0;
   addEventListener('resize', () => {           // az áthelyezés végét kivárva
     burstUntil = performance.now() + BURST_FOR_MS;
-    if (guessFocus()) { hydrateFocus(); fillBranches(); render(); }
     clearTimeout(settle);
     settle = setTimeout(poll, SETTLE_MS);
   });

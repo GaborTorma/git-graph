@@ -294,6 +294,24 @@ class McpServerTest(unittest.TestCase):
         os.utime(folder / "local_a.json", (1e9, 1e9))                # más mtime: újraolvassa
         self.assertEqual(module.focused_worktree(wts)["worktree"], module.slug_for(main))
 
+        # Az app naplója a fájlnál előbb tudja a fókuszt; egy másodpercen belül a sorrend dönt.
+        module.APP_LOG.parent.mkdir(parents=True)
+
+        def focus(*ids: str, tail: str = "") -> None:
+            with module.APP_LOG.open("a", encoding="utf-8") as f:
+                for sid in ids:
+                    f.write(f"2001-01-01 00:00:00 [info] [CCD] LocalSessions.setFocusedSession: sessionId={sid}\n")
+                f.write(tail)
+
+        focus("null", "local_b")
+        self.assertEqual(module.focused_worktree(wts)["worktree"], module.slug_for(extra))
+        focus("null", "local_a")
+        self.assertEqual(module.focused_worktree(wts)["worktree"], module.slug_for(main))
+        focus(tail="2001-01-01 00:00:00 [info] [CCD] LocalSessions.setFocusedSession: sessionId=local_b")
+        self.assertEqual(module.focused_worktree(wts)["worktree"], module.slug_for(main))  # félbe írt sor
+        focus(tail="\n")
+        self.assertEqual(module.focused_worktree(wts)["worktree"], module.slug_for(extra))
+
     def test_vanished_worktree(self) -> None:
         """A régi, worktree-nkénti lap a mappája megszűnése után rövid üzenetet kap."""
         state = self.home / ".git-graph"

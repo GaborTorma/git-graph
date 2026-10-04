@@ -184,9 +184,12 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   claude-code-sessions/*/*/local_*.json`: `cwd` / `worktreePath`,
   `lastFocusedAt`, `isArchived`): a repóban dolgozó, nem archivált sessionök
   közül a legutóbb fókuszált van előtérben (`focused_worktree`, a
-  `fingerprint` `focus` mezője). Belső fájl, ismeretlen formánál nem dönt; a
-  több száz, nagy fájlt `stat`-tal figyeli, csak a megváltozottat olvassa újra
-  (`app_sessions`). Kézzel nem választható. Halványabb (`.foreign`), ami nem a
+  `fingerprint` `focus` mezője). A `lastFocusedAt` 1–3 s késéssel íródik, ezért
+  a fókusz ideje az app naplójából jön (`~/Library/Logs/Claude/main.log`,
+  `setFocusedSession`, ~20 ms-mal a váltás után; `app_log_focus`, csak az új
+  sorokat olvassa, a forgatást kezeli). Belső fájlok, ismeretlen formánál nem
+  dönt; a több száz, nagy session-fájlt `stat`-tal figyeli, csak a
+  megváltozottat olvassa újra (`app_sessions`). Kézzel nem választható. Halványabb (`.foreign`), ami nem a
   sajáté: worktree-ből nézve ami a HEAD-jéből nem érhető el; a fő checkoutból
   nézve csak a worktree-k saját commitjai és WIP-je — a gazdátlan ágak a fő
   checkouté (a git nem jegyzi fel, hol jöttek létre).
