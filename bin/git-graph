@@ -611,6 +611,26 @@ def worktree_lanes_last(commits: list[dict], edges: list[dict], worktrees: list[
         e["fromLane"], e["toLane"] = new[e["fromLane"]], new[e["toLane"]]
 
 
+def fold_remote_heads(commits: list[dict]) -> None:
+    """A `<remote>/HEAD` nem külön badge: csak mutató a remote alapértelmezett ágára.
+
+    A célja (pl. `origin/main`) `default` jelet kap, a lap a tooltipben mondja
+    ki; maga a mutató kikerül — ahol a cél látszik, ott ismétlés lenne.
+    """
+    targets = set()
+    for remote in remotes():
+        try:
+            targets.add(git("symbolic-ref", "--short", f"refs/remotes/{remote}/HEAD").strip())
+        except subprocess.CalledProcessError:
+            pass
+    for c in commits:
+        c["refs"] = [r for r in c["refs"]
+                     if not (r["kind"] == "remote" and r["name"].endswith("/HEAD"))]
+        for r in c["refs"]:
+            if r["kind"] == "remote" and r["name"] in targets:
+                r["default"] = True
+
+
 def collect_payload(limit: int | None) -> dict:
     """A lap teljes adatcsomagja — a `git-graph --mcp` graph_data toolja adja."""
     commits = collect_commits(limit)
@@ -622,6 +642,7 @@ def collect_payload(limit: int | None) -> dict:
     if meta["repoUrl"]:
         mark_pushed(commits, stats)
     mark_worktree_heads(commits, worktrees)
+    fold_remote_heads(commits)
 
     # Worktree-nként egy ál-sor, a gráf tetejére, a HEAD-jük fölé — a lane-kiosztás
     # előtt, mert az élek sorindexeket használnak.

@@ -178,7 +178,9 @@ function hydrateFocus() {
       + `<span class="wt-name">${esc(w.name)}</span>`
       + `<span class="wt-branch">${esc(wtLabel(w))}</span>`
       + (w.dirty ? '<span class="wt-dirty" aria-label="commitolatlan változás"></span>' : '')
-      + (w.ahead ? `<span class="wt-ahead">↑${w.ahead} ${esc(short(w.base))}</span>` : '') + '</button>';
+      // A saját upstreamjéhez mérve elég a szám; az alapághoz mérve a neve is kell.
+      + (w.ahead ? `<span class="wt-ahead">↑${w.ahead}${short(w.base) === w.branch ? ''
+        : ' ' + esc(short(w.base))}</span>` : '') + '</button>';
   }).join('');
 }
 
@@ -317,7 +319,8 @@ function mergedRefs(refs) {
           && names.has(o.name) && o.name.slice(0, -r.name.length - 1).indexOf('/') < 0)
       : [];
     remotes.forEach(o => used.add(o.name));
-    out.push({ ...r, remotes: remotes.map(o => o.name.slice(0, -r.name.length - 1)) });
+    out.push({ ...r, remotes: remotes.map(o => o.name.slice(0, -r.name.length - 1)),
+      default: r.default || remotes.some(o => o.default) });
   }
   return out;
 }
@@ -328,11 +331,14 @@ function badges(c) {
     const wt = r.worktree && worktrees().find(w => w.slug === r.worktree);
     const title = (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name
       + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o}/${r.name}`).join(', ') : '')
+      + (r.default ? '\na remote alapértelmezett ága' : '')
       + (wt && !wt.main ? `\nworktree: ${wt.path}` : '');
     const remotes = r.remotes.length ? `<span class="synced">${icon('cloud')}</span>` : '';
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
+    // A csak remote-os chipen a felhő jelzi a remote-ot: az `origin/` előtag nem kell.
+    const name = r.kind === 'remote' ? r.name.replace(/^origin\//, '') : r.name;
     return `<span class="badge ref-${r.kind}${other}" title="${esc(title)}">${icon(REF_ICON[r.kind] || 'branch')}`
-      + `${esc(r.name)}${remotes}</span>`;
+      + `${esc(name)}${remotes}</span>`;
   }).join('');
 }
 

@@ -259,6 +259,17 @@ class McpServerTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.file_diff("*uncommitted:nincs-ilyen-000000", "a.txt")
 
+    def test_remote_head(self) -> None:
+        """Az `origin/HEAD` nem külön badge: a célja (`origin/main`) kapja a `default` jelet."""
+        main, _ = self.make_repo()
+        clone = main.parent / "clone"
+        subprocess.run(["git", "clone", "-q", str(main), str(clone)], check=True, capture_output=True)
+        module = load_module(self.home)
+        module.REPO = clone
+        refs = [r for c in module.collect_payload(None)["commits"] for r in c["refs"]]
+        self.assertFalse([r for r in refs if r["name"].endswith("/HEAD")])
+        self.assertTrue(next(r for r in refs if r["name"] == "origin/main").get("default"))
+
     def test_panel_focus(self) -> None:
         """Prompt egyetlen látszó panellel: az a session panelje; split-view-ban nincs kötés."""
         main, extra = self.make_repo()
