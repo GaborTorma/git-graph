@@ -1229,6 +1229,9 @@ render();
    lap helyben rajzol újra, a nyitott panel, a szűrők és a görgetés megmaradnak.
    A mért időket a lábléc élő-felirata tooltipben mutatja. */
 const POLL_MS = 2000;
+const SETTLE_MS = 250;      // méretváltás (session-váltás) után ennyit vár a kérdezéssel
+const RETRY_MS = 400;       // átmeneti hiba után ennyi idővel csendben újra
+const QUIET_RETRIES = 3;    // ennyi átmeneti hibát nem ír ki
 const foot = document.getElementById('foot');
 const liveText = document.getElementById('liveText');
 const liveDot = document.getElementById('liveDot');
@@ -1381,7 +1384,7 @@ function startLive(src) {
   let last = '';                            // a váz üres: az első kör adatot kér
   let change = '';                          // az utolsó változás: mikor, mennyi idő alatt
   let version = null;                       // a szerver verziója, amikor a lap betöltött
-  let timer = 0, busy = false, again = false;
+  let timer = 0, busy = false, again = false, misses = 0;
   SRC = src;
   async function poll() {
     clearTimeout(timer);
@@ -1424,7 +1427,15 @@ function startLive(src) {
       liveDot.title = `Élő · frissítve ${clock()}\nujjlenyomat ${Math.round(tf)} ms` + change;
       liveDot.setAttribute('aria-label', 'Élő');
       showVersion(f);
+      misses = 0;
     } catch (e) {
+      // Az átmeneti hiba (a host-híd épp nem válaszol, pl. a keret áthelyezése
+      // közben, session-váltáskor) elsőre nem hiba: csendben, gyorsan újra.
+      if (e?.retryable && ++misses <= QUIET_RETRIES) {
+        busy = false;
+        timer = setTimeout(poll, Math.max(RETRY_MS, e.retryAfterMs || 0));
+        return;
+      }
       notice(mcpProblem(e), true);
       if (!e?.retryable) { busy = false; return; }   // magától nem javul: nincs több kör
       wait = Math.max(POLL_MS, e.retryAfterMs || 0) * 2;
@@ -1437,7 +1448,11 @@ function startLive(src) {
      paneljébe, ami más méretű (mérve): a méretváltásra azonnal kérdezünk —
      nem várjuk ki a 2 mp-es kört, hogy a kiemelés a kirajzolás után rögtön
      a jó worktree-re álljon. */
-  addEventListener('resize', () => poll());
+  let settle = 0;
+  addEventListener('resize', () => {           // az áthelyezés végét kivárva
+    clearTimeout(settle);
+    settle = setTimeout(poll, SETTLE_MS);
+  });
   poll();
 }
 
