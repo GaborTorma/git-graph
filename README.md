@@ -2,8 +2,15 @@
 
 Git Graph-szerű, élő commit-gráf **bármelyik repóból** — Artifactként a Claude
 appban.
-A VS Code [`mhutchie.git-graph`](https://marketplace.visualstudio.com/items?itemName=mhutchie.git-graph)
-elrendezését és Dark+/Light+ palettáját követi.
+A gráf a VS Code [`mhutchie.git-graph`](https://marketplace.visualstudio.com/items?itemName=mhutchie.git-graph)
+mintáját követi, a megjelenés a Claude appét: meleg paletta, Claude Light / Dark
+kódszínek, napokra bontott egysoros lista. A soron kattintva lefelé nyílik a
+commit: szerző GitHub-avatarral, szülő(k), GitHub-link, fájlok és
+szintaxisszínezett diff. Ha a helyi ág és a remote-ja ugyanott áll, egy
+badge-ben látszanak (`main | origin`). A kereső (⌘F) az üzenetben, a
+szerzőben, a ref-nevekben és a hash elején keres, ékezettől függetlenül;
+minden szónak egyeznie kell. Escape vagy a mező × gombja törli; ha közben nyitva
+volt egy commit, a teljes listában az kerül legfelülre.
 
 A `git-graph` parancs a Claude Bash eszközének szól (a plugin `bin/`-jéből), nem a
 terminálnak — a skillek és a hook ezt hívják:
@@ -28,7 +35,8 @@ claude plugin install git-graph@git-graph
 
 A plugin hozza a `/git-graph:artifact` skillt, a SessionStart hookot, és a Claude
 Bash eszközének PATH-jára a `git-graph` parancsot. Függősége
-nincs a Python 3 stdliben túl; minden git-hívás **csak olvas**.
+nincs a Python 3 stdliben túl; minden git-hívás **csak olvas**. Hálózatra csak
+a szerzők GitHub-avatarjáért megy, GitHub-os repónál, gyorstárazva.
 
 A pluginnak nincs telepítési eseménye, ezért a gépi részt az **első session
 hookja** állítja be — és minden verzióváltáskor frissíti (idempotens, csak
@@ -155,6 +163,24 @@ A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 
 Kézi URL-megadás: `git-graph --set-artifact <url>`.
 
+## Billentyűk
+
+| Billentyű | Commiton | Fájlon |
+| --- | --- | --- |
+| `↑` / `↓` | kijelölés az előző / következő commitra (nem nyit) | előző / következő fájl; az elsőről fel a commitra, az utolsó (bezárt) fájlsorról le az alatta lévő commitra |
+| `→` | kinyitja a commitot, és belép a fájljaiba | kinyitja a diffet (vagy ha már nyitva van) és az első blokkra lép |
+| `←` | becsukja a commitot | nyitott diffet becsuk (blokkon is); bezárt fájlon vissza a commitra |
+| `⌘` / `Ctrl` + `↓` / `↑` | szülő / gyerek ugyanazon az ágon | |
+| `⇧⌘` / `⇧Ctrl` + `↓` / `↑` | merge-nél a beolvasztott ág (második szülő), visszafelé a merge | |
+| `H` | kijelölés a HEAD-en | |
+| `⇧↑` / `⇧↓` | csak görget (három diff-sornyit), a kijelölés marad | ugyanígy — egy hosszú blokk olvasásához |
+| `Esc` | előbb a keresést üríti, aztán a nyitott commitot csukja | ugyanígy |
+| `⌘F` / `Ctrl+F` | kereső | |
+
+Fájlon a `→` kinyitja a diffet, és rögtön az első módosított blokkra lép (egy blokk a
+`···` elválasztóig tart); `↓` vagy `→` a következő blokkra, az utolsó után a következő fájlra, `↑`-ra visszafelé,
+`←`-re bezárja a fájlt. A görgő egy kattanása egy commitot lép.
+
 ## Uncommitted Changes
 
 Ha a munkakönyvtárban van változás, a gráf tetején — a Git Graph mintájára —
@@ -182,6 +208,10 @@ A diff nincs a teljes adatban: a lap lenyitáskor kéri, fájlonként (a
 `file_diff` toollal). A commitok diffje gyorstárazva, az
 Uncommitted soré élőben frissül. Egy fájlból legfeljebb 3000 sor látszik.
 
+A fájlok előtt a típusuk ikonja áll: a
+[Catppuccin VS Code-ikonjai](https://github.com/catppuccin/vscode-icons) (MIT),
+a lap színeire hangolva. Frissítés: `python3 scripts/file-icons.py`.
+
 ## GitHub-linkek
 
 Ha az `origin` GitHub-repó, a lap a GitHubra linkel:
@@ -189,8 +219,10 @@ Ha az `origin` GitHub-repó, a lap a GitHubra linkel:
 - **Issue / PR**: a commit-üzenetekben (sor, panel-cím, body) a `#12` és az
   `owner/repo#12` — a `/issues/12` a PR-ra is átirányít. A `C#1`-szerű szöveg
   és az URL-fragment (`lap.html#3`) nem lesz link.
-- **Commit hash**: a sorban és a panelen a commit GitHub-oldala.
-- **Fájlváltozás**: a panel fájllistájában a fájl diffje a commit-oldalon.
+- **Commit hash**: a kinyitott commit fejében, mellette megnyitás- és másolás-ikon.
+- **Fájlváltozás**: a fájlsor végén a megnyitás-ikon a fájl diffje a commit-oldalon
+  (a soron kattintva helyben nyílik a diff).
+- **Szülő**: a szülő-ikon melletti hash és megnyitás-ikon a gráfban a szülőre ugrik.
 
 A hash és a fájl csak **pusholt** commitnál link (az `origin` valamelyik ága
 eléri) — a helyi commit a GitHubon 404 lenne. Más hoston (GitLab, …) nincs
@@ -206,7 +238,9 @@ A git saját lane-kiosztását követi: a commit abba a sávba ül, amelyik már
 vár (a gyereke foglalta le); az első szülő viszi tovább a sávot, a további
 (merge) szülők új vagy meglévő sávot kapnak. A vonal merge-nél rögtön a merge
 commit alatt hajlik, leágazásnál közvetlenül a szülő fölött. Sávonként ciklikus
-Git Graph-színek.
+színek: a 0. sáv a Claude narancs, a többi vele egyező telítettségű. A vonal
+annak a sávnak a színét viseli, amelyben a hossza nagy részén fut: a merge-vonal
+a beolvasztott ágét, a leágazó a saját ágáét.
 
 A **friss commitok** pöttye körül halvány gyűrű van, az üzenetük a gyűrű (a
 sáv) színét kapja. Friss a legújabb commit és a vele egy sorozatban készültek:

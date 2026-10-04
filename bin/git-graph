@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Git Graph-szerű, élő commit-gráf bármelyik repóból — Artifactként a Claude appban.
 
-A VS Code `mhutchie.git-graph` extension elrendezését követi: bal oldalon
-sávokra osztott, színes commit-gráf, jobbra Description / Date / Author /
-Commit oszlopok, ref-badge-ekkel; a soron kattintva commit-részletek panel.
+A VS Code `mhutchie.git-graph` extension gráfját követi, a Claude app
+megjelenésével: bal oldalon sávokra osztott, színes commit-gráf, mellette
+napokra bontva egysoros commitok ref-badge-ekkel; a soron kattintva lefelé
+nyíló commit-részletek, szintaxisszínezett diffel.
 
 Az Artifact lapjában nincs adat: a Claude appban megnyitva a gépen futó
 `git-graph --mcp`-ből kéri (a Claude app host-hídján át). Kétmásodpercenként olcsó
@@ -21,13 +22,16 @@ nincs mit ignorálni.
 Telepítés: Claude Code plugin (`claude plugin install git-graph@git-graph`).
 Az első session hookja beállítja a többit: a stabil másolatot
 (`~/.git-graph/bin`) és a Claude app MCP-configját. Függősége nincs a Python 3
-stdliben túl; minden git-hívás csak olvas.
+stdliben túl; minden git-hívás csak olvas. Hálózatra csak a szerzők
+GitHub-avatarjáért megy (háttérben, gyorstárazva: `~/.git-graph/avatars.json`).
 """
 from __future__ import annotations
 
 import argparse
+import base64
 import datetime
 import difflib
+import functools
 import hashlib
 import html
 import json
@@ -40,6 +44,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 from pathlib import Path
 
 # A vizsgált repó gyökere — a `main()` állítja be a --repo / CWD alapján.
@@ -75,7 +80,7 @@ def resolve_repo(start: Path) -> Path:
 
 def collect_commits(limit: int | None) -> list[dict]:
     """Commitok minden refről, szülőkkel, ref-dekorációval és törzzsel."""
-    fmt = FS.join(["%H", "%P", "%an", "%aI", "%cI", "%D", "%s", "%b"])
+    fmt = FS.join(["%H", "%P", "%an", "%ae", "%aI", "%cI", "%D", "%s", "%b"])
     args = ["log", "--all", "--date-order", f"--pretty=format:{RS}{fmt}"]
     if limit:
         args.append(f"-{limit}")
@@ -86,15 +91,16 @@ def collect_commits(limit: int | None) -> list[dict]:
         if not record.strip():
             continue
         parts = record.split(FS)
-        if len(parts) < 8:
+        if len(parts) < 9:
             continue
-        sha, parents, author, date, committed, refs, subject, body = parts[:8]
+        sha, parents, author, email, date, committed, refs, subject, body = parts[:9]
         commits.append(
             {
                 "sha": sha.strip(),
                 "short": sha.strip()[:7],
                 "parents": parents.split() if parents.strip() else [],
                 "author": author,
+                "email": email,       # az avatar kulcsa
                 "date": date,
                 # Mikor került a repóba (amend, rebase is frissít) — a friss-kiemelésé.
                 "committed": committed,
@@ -141,8 +147,13 @@ def remotes() -> set[str]:
 
 
 def collect_stats(limit: int | None) -> dict[str, dict]:
-    """Fájlonkénti +/− soronként, commitra bontva (`--numstat`)."""
-    args = ["log", "--all", "--date-order", "--numstat", f"--pretty=format:{RS}%H"]
+    """Fájlonkénti +/− soronként, commitra bontva (`--numstat`).
+
+    A merge commit az első szülőjéhez képest: amit a merge a fő ágra hozott
+    (alapból a git a merge-hez nem ad numstatot).
+    """
+    args = ["log", "--all", "--date-order", "--numstat", "--diff-merges=first-parent",
+            f"--pretty=format:{RS}%H"]
     if limit:
         args.append(f"-{limit}")
     raw = git(*args)
@@ -490,6 +501,8 @@ def collect_payload(limit: int | None) -> dict:
         "stats": stats,
         "branches": collect_branches(),
         "meta": meta,
+        "avatars": avatars_for(commits, meta["repoUrl"]),
+        "fileIcons": attach_icons(stats),
     }
 
 
@@ -505,6 +518,123 @@ def change_signals() -> tuple[str, str]:
     files = git("status", "--porcelain") + git("diff", "--numstat", "HEAD")
     return (hashlib.sha1(refs.encode()).hexdigest(),
             hashlib.sha1(files.encode()).hexdigest())
+
+
+# ── GitHub-avatarok ─────────────────────────────────────────────────────────
+#
+# A lap a kinyitott commit szerzőjének képét mutatja. Az Artifact CSP-je külső
+# képet nem enged, ezért a Python tölti le, és data URI-ként adja a
+# `graph_data`-ban. A letöltés háttérszálon fut (a pollozás nem vár rá); amikor
+# kész, az ujjlenyomat (`avatar_signal`) változik, és a lap újrakéri az adatot.
+
+AVATARS_FILE_NAME = "avatars.json"     # e-mail → {"img": data URI | None, "at": időbélyeg}
+AVATAR_TTL = 7 * 24 * 3600             # a megtalált kép hetente frissül
+AVATAR_RETRY = 6 * 3600                # ami nem jött (privát repó, nincs fiók, offline), ennyi után újra
+AVATAR_SIZE = 44                       # 22 px-es kép, retina
+AVATAR_MAX_BYTES = 64_000
+NOREPLY_RE = re.compile(r"^(?:\d+\+)?([A-Za-z0-9-]+)@users\.noreply\.github\.com$")
+_AVATAR_JOBS: set[str] = set()         # éppen letöltés alatt (e-mail)
+_AVATAR_LOCK = threading.Lock()
+
+
+def avatars_path() -> Path:
+    return STATE_DIR / AVATARS_FILE_NAME
+
+
+_AVATAR_MEMO: tuple[int, dict] | None = None   # (mtime_ns, tartalom) — a fájlt csak változáskor olvassuk
+
+
+def avatar_cache() -> dict:
+    """A gyorstár (másolat). A `fingerprint` 2 mp-enként kérdezi, a fájl
+    pedig a képekkel nagy: csak akkor olvassuk újra, ha módosult."""
+    global _AVATAR_MEMO
+    try:
+        mtime = avatars_path().stat().st_mtime_ns
+    except OSError:
+        return {}
+    if _AVATAR_MEMO is None or _AVATAR_MEMO[0] != mtime:
+        data = read_json(avatars_path())
+        _AVATAR_MEMO = (mtime, data if isinstance(data, dict) else {})
+    return dict(_AVATAR_MEMO[1])
+
+
+def avatar_signal() -> int:
+    """A megtalált képek száma — az ujjlenyomat része: új képre a lap újrakéri az adatot."""
+    return sum(1 for v in avatar_cache().values() if isinstance(v, dict) and v.get("img"))
+
+
+def avatars_for(commits: list[dict], repo_url_: str) -> dict[str, str]:
+    """A szerzők avatarja (e-mail → data URI) a gyorstárból; a hiányzót háttérben kéri.
+
+    Csak GitHub-os repónál, és csak olyan szerzőnél, akinek van pusholt commitja
+    (az API azon át adja a fiókot) vagy GitHub noreply címe van.
+    """
+    if not repo_url_:
+        return {}
+    cache, now = avatar_cache(), time.time()
+    found: dict[str, str] = {}
+    todo: dict[str, str] = {}               # e-mail → egy pusholt commitja
+    for c in commits:
+        email = c.get("email")
+        if not email or email in found or email in todo:
+            continue
+        entry = cache.get(email)
+        if isinstance(entry, dict):
+            if entry.get("img"):
+                found[email] = entry["img"]
+            if now - entry.get("at", 0) < (AVATAR_TTL if entry.get("img") else AVATAR_RETRY):
+                continue
+        if c.get("pushed") or NOREPLY_RE.match(email):
+            todo[email] = c["sha"]
+    with _AVATAR_LOCK:
+        todo = {e: s for e, s in todo.items() if e not in _AVATAR_JOBS}
+        _AVATAR_JOBS.update(todo)
+    if todo:
+        threading.Thread(target=fetch_avatars, args=(repo_url_, todo), daemon=True).start()
+    return found
+
+
+def http_get(url: str) -> tuple[bytes, str]:
+    """(törzs, tartalomtípus); hibánál OSError (a `URLError` is az)."""
+    req = urllib.request.Request(url, headers={"User-Agent": "git-graph",
+                                               "Accept": "application/vnd.github+json, image/*"})
+    with urllib.request.urlopen(req, timeout=5) as resp:   # csak https://…github…
+        return resp.read(AVATAR_MAX_BYTES + 1), resp.headers.get_content_type()
+
+
+def fetch_avatar(owner_repo: str, email: str, sha: str) -> str | None:
+    """Egy szerző képe data URI-ként; None, ha a GitHub nem ismeri."""
+    m = NOREPLY_RE.match(email)
+    if m:
+        src = f"https://github.com/{m[1]}.png?size={AVATAR_SIZE}"
+    else:
+        info = json.loads(http_get(f"https://api.github.com/repos/{owner_repo}/commits/{sha}")[0])
+        src = (info.get("author") or {}).get("avatar_url")
+        if not src:
+            return None
+        src += ("&" if "?" in src else "?") + f"s={AVATAR_SIZE}"
+    body, ctype = http_get(src)
+    if not ctype.startswith("image/") or len(body) > AVATAR_MAX_BYTES:
+        return None
+    return f"data:{ctype};base64,{base64.b64encode(body).decode('ascii')}"
+
+
+def fetch_avatars(repo_url_: str, todo: dict[str, str]) -> None:
+    """Háttérszál: a képek letöltése és gyorstárba írása, egyenként."""
+    owner_repo = repo_url_[len("https://github.com/"):]
+    for email, sha in todo.items():
+        try:
+            img = fetch_avatar(owner_repo, email, sha)
+        except (OSError, ValueError):
+            img = None
+        with _AVATAR_LOCK:
+            cache = avatar_cache()
+            cache[email] = {"img": img, "at": time.time()}
+            try:
+                place(json.dumps(cache).encode("utf-8"), avatars_path(), 0o644)
+            except OSError as exc:
+                log(f"git-graph: az avatar-gyorstár nem írható: {exc}")
+            _AVATAR_JOBS.discard(email)
 
 
 # ── Fájl-diff (a lenyitott fájlsor) ─────────────────────────────────────────
@@ -678,7 +808,8 @@ def file_diff(sha: str, path: str) -> dict:
                                            "--", path).splitlines():
             return untracked_diff(path)
     elif SHA_RE.match(sha):
-        raw = git("show", "--format=", "--no-color", "--no-ext-diff", "-M", sha, "--", old, new)
+        raw = git("show", "--format=", "--no-color", "--no-ext-diff", "-M",
+                  "--diff-merges=first-parent", sha, "--", old, new)
     else:
         raise ValueError(f"érvénytelen commit: {sha!r}")
     return parse_diff(raw)
@@ -698,8 +829,9 @@ LOADER_API = 1   # a betöltő és a `page_code` szerződése — csak a betölt
 # A lap fájljai a script mellett: a pluginban, a working tree-ben és a stabil
 # másolatnál (`install_copy`) is `<gyökér>/page/`.
 PAGE_DIR = Path(__file__).resolve().parent.parent / "page"
-PAGE_FILES = ("loader.html", "head.html", "page.css", "body.html", "page.js")
+PAGE_FILES = ("loader.html", "head.html", "page.css", "body.html", "page.js", "file-icons.json")
 _PAGE: dict[str, str] = {}
+_FILE_ICONS: dict | None = None
 
 
 def page_file(name: str) -> str:
@@ -712,6 +844,49 @@ def page_file(name: str) -> str:
     if name not in _PAGE:
         _PAGE[name] = (PAGE_DIR / name).read_text(encoding="utf-8")
     return _PAGE[name]
+
+
+def file_icons() -> dict:
+    """A fájltípus-ikonok készlete (`page/file-icons.json`, scripts/file-icons.py).
+
+    Ha hiányzik vagy hibás, üres: a lap az általános fájlikont mutatja.
+    """
+    global _FILE_ICONS
+    if _FILE_ICONS is None:
+        try:
+            _FILE_ICONS = json.loads(page_file("file-icons.json"))
+        except (OSError, ValueError):
+            _FILE_ICONS = {}
+    return _FILE_ICONS
+
+
+@functools.cache   # a készlet statikus; minden graph_data az egész történetet bejárja
+def file_icon(path: str) -> str | None:
+    """Az út ikonjának neve: előbb a teljes fájlnév, aztán a leghosszabb kiterjesztés."""
+    icons = file_icons()
+    if not icons:
+        return None
+    name = numstat_new_path(path).rsplit("/", 1)[-1].lower()
+    icon = icons["names"].get(name)
+    parts = name.split(".")
+    for i in range(1, len(parts)):
+        if icon:
+            break
+        icon = icons["exts"].get(".".join(parts[i:]))
+    return icon if icon in icons["icons"] else "_file"
+
+
+def attach_icons(stats: dict[str, dict]) -> dict[str, str]:
+    """A fájlokhoz az ikon neve (`icon`); vissza a használt ikonok SVG-je."""
+    used: dict[str, str] = {}
+    svgs = file_icons().get("icons", {})
+    for st in stats.values():
+        for f in st["files"]:
+            icon = file_icon(f["path"])
+            if icon:
+                f["icon"] = icon
+                used[icon] = svgs[icon]
+    return used
 
 
 def page_api_mismatch(api: object) -> str | None:
@@ -1011,7 +1186,7 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
             refs, files = change_signals()
             # A verziók is ide kerülnek: a lap 2 mp-enként kérdezi, így egy
             # frissítés utáni, még újra nem indított app a láblécben azonnal látszik.
-            return text({"refs": refs, "files": files,
+            return text({"refs": refs, "files": files, "avatars": avatar_signal(),
                          "version": RUNNING_VERSION, "installed": installed_version()})
         if name == "graph_data":
             return text(collect_payload(limit))
@@ -1211,15 +1386,64 @@ def install_copy(root: Path | None = None) -> None:
     for src, dst, mode in (*pages,
                            (root / MANIFEST, STATE_DIR / MANIFEST, 0o644),
                            (root / "bin" / "git-graph", STABLE, 0o755)):
-        if not src.exists():
-            continue
-        new = src.read_bytes()
-        if not dst.exists() or dst.read_bytes() != new:
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            tmp = dst.with_name(f".{dst.name}.{os.getpid()}.tmp")
-            tmp.write_bytes(new)
-            tmp.chmod(mode)
-            tmp.replace(dst)
+        if src.exists():
+            place(src.read_bytes(), dst, mode)
+
+
+def place(new: bytes, dst: Path, mode: int) -> None:
+    """Atomi csere, csak ha a tartalom változott — folyamatonként saját ideiglenes fájlból."""
+    if dst.exists() and dst.read_bytes() == new:
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dst.with_name(f".{dst.name}.{os.getpid()}.tmp")
+    tmp.write_bytes(new)
+    tmp.chmod(mode)
+    tmp.replace(dst)
+
+
+DEV_MARK = "+dev"   # SemVer build-metaadat: a working treeből telepített, fejlesztői példány
+DEV_TTL = 12 * 3600  # ennyi ideig védett a fejlesztői példány a hook visszamásolásától
+
+
+def dev_active() -> bool:
+    """Friss `--dev-install` van a stabil helyen (`<verzió>+dev.<időbélyeg>`, DEV_TTL-en belül).
+
+    Ilyenkor a hook nem másolja vissza a telepített plugint — különben egy
+    másik session indulása vagy egy worktree-váltás egy percen belül
+    visszaállítaná. A védelem lejár, így egy elfelejtett dev-példány nem
+    ragad be a frissítések elé.
+    """
+    version = stable_version() or ""
+    if DEV_MARK not in version:
+        return False
+    stamp = version.rsplit(".", 1)[-1]
+    return stamp.isdigit() and time.time() - int(stamp) < DEV_TTL
+
+
+def dev_install() -> int:
+    """A working tree a stabil helyre, `+dev` verzióval — a lap élő kipróbálásához.
+
+    A futó szerver a verzióváltáson egy percen belül újraindul erre a kódra,
+    a lap pedig újratölt. A fejlesztői példány nem frissít vissza a
+    telepített pluginra (`pull_update`), és DEV_TTL-ig a hook
+    (`ensure_installed`) sem másolja vissza a telepítettet (`dev_active`) —
+    ezt a védelmet csak a már ezzel a kóddal telepített plugin hookja tartja.
+    """
+    root = Path(__file__).resolve().parent.parent
+    if root.resolve() == STATE_DIR.resolve():
+        log("git-graph: a --dev-install a working treeből futtatandó (python3 bin/git-graph)")
+        return 1
+    manifest = read_json(root / MANIFEST) or {}
+    version = f"{manifest.get('version', '0')}{DEV_MARK}.{int(time.time())}"
+    manifest["version"] = version
+    for name in PAGE_FILES:
+        place((root / "page" / name).read_bytes(), STATE_DIR / "page" / name, 0o644)
+    place((root / "bin" / "git-graph").read_bytes(), STABLE, 0o755)
+    # A manifest utolsóként: a futó szerver ennek a verzióján indul újra.
+    place((json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode(),
+          STATE_DIR / MANIFEST, 0o644)
+    print(f"✓ fejlesztői példány: {version} — a futó git-graph egy percen belül átvált, a lap újratölt")
+    return 0
 
 
 def pull_update() -> bool:
@@ -1228,10 +1452,14 @@ def pull_update() -> bool:
     Ha a nyilvántartás más verziót mond, mint ami fut, a plugin mappájából maga
     másolja a stabil helyre — a `claude plugin update` után így sem
     app-újraindítás, sem új session nem kell. A hook ugyanígy cserélheti alatta.
+    A fejlesztői példány (`--dev-install`) nem másol vissza, csak a stabil hely
+    változására indul újra.
     """
     entry = installed_entry() or {}
     version, path = entry.get("version"), entry.get("installPath")
-    if isinstance(version, str) and version != RUNNING_VERSION and isinstance(path, str):
+    dev = DEV_MARK in (RUNNING_VERSION or "")
+    if (isinstance(version, str) and version != RUNNING_VERSION and isinstance(path, str)
+            and not dev):
         root = Path(path)
         manifest = read_json(root / MANIFEST) if (root / MANIFEST).exists() else None
         complete = all((root / "page" / name).exists() for name in PAGE_FILES)
@@ -1284,7 +1512,8 @@ def ensure_installed() -> str | None:
     root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if not root or Path(root).resolve() not in Path(__file__).resolve().parents:
         return None
-    install_copy()
+    if not dev_active():                 # a friss --dev-install-t nem írja felül
+        install_copy()
     if sys.platform != "darwin":
         return None
     if not install_app_mcp():
@@ -1452,6 +1681,9 @@ def main() -> int:
     ap.add_argument("--mcp", action="store_true",
                     help="MCP szerver stdio-n a Claude appnak (az app indítja a "
                          "configjából; az Artifact innen kapja az élő adatot)")
+    ap.add_argument("--dev-install", action="store_true", dest="dev_install",
+                    help="fejlesztés: a working tree a stabil helyre (+dev verzióval) — a "
+                         "Claude appban futó git-graph átvált rá, a lap élőben kipróbálható")
     ap.add_argument("--session-hook", action="store_true", dest="session_hook",
                     help="Claude Code hook (SessionStart, és PostToolUse a worktree-"
                          "váltásra): telepítés, a repó Artifactjának megnyitása vagy "
@@ -1465,6 +1697,9 @@ def main() -> int:
 
     if args.mcp:
         return mcp_serve(args.limit or None)
+
+    if args.dev_install:
+        return dev_install()
 
     if args.artifacts:
         for repo, url in list_artifacts():

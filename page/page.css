@@ -1,78 +1,141 @@
 /* ── Tokenek ───────────────────────────────────────────────────────────────
-   Sötét-elsődleges: a :root a VS Code Dark+ palettája (ez a Git Graph ismerős
-   arca), a világos változat mind a rendszer-preferenciára, mind az explicit
-   [data-theme="light"] kapcsolóra felülír. Minden szín tokenen keresztül megy —
-   így egyik témában sem marad definiálatlan érték.                            */
+   A Claude app meleg palettája; a kód színei a „Claude Light / Claude Dark"
+   témáé. Világos az alap; a sötét a rendszer-preferenciára és az explicit
+   [data-theme="dark"] kapcsolóra is él. Minden szín tokenen keresztül megy.   */
 :root {
-  --bg:            #1e1e1e;
-  --bg-chrome:     #252526;
-  --bg-elevated:   #2d2d30;
-  --bg-hover:      #2a2d2e;
-  --bg-selected:   #094771;
-  --fg:            #cccccc;
-  --fg-strong:     #ffffff;
-  --fg-dim:        #8b8b8b;
-  --fg-faint:      #6a6a6a;
-  --border:        #3c3c3c;
-  --border-soft:   #333336;
-  --accent:        #0098ff;
-  --add:           #6a9955;
-  --del:           #f14c4c;
-  --add-bg:        rgba(106, 153, 85, .16);
-  --add-hl:        rgba(106, 153, 85, .40);
-  --del-bg:        rgba(241, 76, 76, .13);
-  --del-hl:        rgba(241, 76, 76, .36);
-  --badge-fg:      #ffffff;
-  --tag-bg:        #b8860b;
-  --shadow:        0 2px 12px rgba(0, 0, 0, .5);
+  --bg:          #ffffff;
+  --bg-1:        #faf9f5;   /* fejléc, lábléc, kártya */
+  --bg-2:        #f5f4ed;   /* hover */
+  --bg-3:        #efede4;   /* kiemelt fájlsor, számláló */
+  --fg-0:        #141413;
+  --fg-1:        #3d3d3a;
+  --fg-2:        #6b6a64;
+  --fg-3:        #9c9a92;
+  --border:      rgba(31, 30, 29, .14);
+  --border-soft: rgba(31, 30, 29, .07);
+  --ctrl:        #ffffff;
+  --ctrl-border: rgba(31, 30, 29, .18);
+  --ctrl-shadow: 0 1px 2px rgba(31, 30, 29, .06);
+  --accent:      #c6613f;
+  --accent-bg:   rgba(217, 119, 87, .13);
+  --track-off:   #e3e1d8;
+  --add:         #3d7a37;
+  --del:         #c23a3a;
+  --live:        #3d9a50;
+  --branch-fg:   #2c5fb3; --branch-bg: color-mix(in srgb, #5b8def 12%, var(--bg));  --branch-bd: color-mix(in srgb, #5b8def 30%, var(--bg));
+  --remote-fg:   #6b4aa8; --remote-bg: color-mix(in srgb, #a07ad6 12%, var(--bg)); --remote-bd: color-mix(in srgb, #a07ad6 30%, var(--bg));
+  --tag-fg:      #8a5a00; --tag-bg: color-mix(in srgb, #cf9a2c 14%, var(--bg));  --tag-bd: color-mix(in srgb, #cf9a2c 34%, var(--bg));
+  /* fájlikonok (Catppuccin, page/file-icons.json): a sávszínek tónusai */
+  --ic-red: #c4573a; --ic-orange: #d97757; --ic-yellow: #c08a1e; --ic-green: #3f9455;
+  --ic-teal: #2a8e8c; --ic-blue: #4f7fe0; --ic-purple: #8f68cc; --ic-pink: #c4588a;
+  --ic-fg: #6b6a64; --ic-muted: #9c9a92;
+  /* kód */
+  --code-bg:     #ffffff;
+  --code-fg:     #141413;
+  --code-no:     #9c9a92;
+  --syn-kw:      #b6531c;
+  --syn-fn:      #2a62c9;
+  --syn-ty:      #8250c4;
+  --syn-st:      #3f7a32;
+  --syn-nu:      #b6531c;
+  --syn-cm:      #8c8a82;
+  --diff-add:    #e8f4e4;
+  --diff-del:    #fdebeb;
+  --diff-add-hl: #c6e5bc;
+  --diff-del-hl: #f6c9c9;
+  --diff-add-no: #3d7a37;
+  --diff-del-no: #c23a3a;
+  --font-ui:   "Anthropic Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "Anthropic Mono", "SF Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light;
 }
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg:          #ffffff;
-    --bg-chrome:   #f3f3f3;
-    --bg-elevated: #f8f8f8;
-    --bg-hover:    #e8e8e8;
-    --bg-selected: #cce5ff;
-    --fg:          #333333;
-    --fg-strong:   #000000;
-    --fg-dim:      #6a6a6a;
-    --fg-faint:    #8a8a8a;
-    --border:      #dcdcdc;
-    --border-soft: #ececec;
-    --accent:      #005fb8;
-    --add:         #388a34;
-    --del:         #c72e2e;
-    --add-bg:      rgba(56, 138, 52, .11);
-    --add-hl:      rgba(56, 138, 52, .27);
-    --del-bg:      rgba(199, 46, 46, .09);
-    --del-hl:      rgba(199, 46, 46, .22);
-    --badge-fg:    #ffffff;
-    --tag-bg:      #9a6b00;
-    --shadow:      0 2px 12px rgba(0, 0, 0, .14);
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:          #262624;
+    --bg-1:        #1f1e1d;
+    --bg-2:        #2d2c2a;
+    --bg-3:        #383734;
+    --fg-0:        #faf9f5;
+    --fg-1:        #e3e1d8;
+    --fg-2:        #a8a69d;
+    --fg-3:        #7f7d76;
+    --border:      rgba(222, 220, 209, .13);
+    --border-soft: rgba(222, 220, 209, .07);
+    --ctrl:        #30302e;
+    --ctrl-border: rgba(222, 220, 209, .16);
+    --ctrl-shadow: none;
+    --accent:      #d97757;
+    --accent-bg:   rgba(217, 119, 87, .17);
+    --track-off:   #4a4946;
+    --add:         #86c473;
+    --del:         #e5806b;
+    --live:        #6cc47e;
+    --branch-fg:   #9dbcf7; --branch-bg: color-mix(in srgb, #5b8def 16%, var(--bg));  --branch-bd: color-mix(in srgb, #5b8def 34%, var(--bg));
+    --remote-fg:   #c5aaf0; --remote-bg: color-mix(in srgb, #a07ad6 16%, var(--bg)); --remote-bd: color-mix(in srgb, #a07ad6 34%, var(--bg));
+    --tag-fg:      #e6c06e; --tag-bg: color-mix(in srgb, #cf9a2c 16%, var(--bg));  --tag-bd: color-mix(in srgb, #cf9a2c 36%, var(--bg));
+    --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
+    --ic-teal: #6cc4c0; --ic-blue: #8fb2f5; --ic-purple: #c5aaf0; --ic-pink: #e38fb2;
+    --ic-fg: #a8a69d; --ic-muted: #7f7d76;
+    --code-bg:     #141413;
+    --code-fg:     #ecebe4;
+    --code-no:     #7f7d76;
+    --syn-kw:      #9ea8f5;
+    --syn-fn:      #6eb4f6;
+    --syn-ty:      #e3b25e;
+    --syn-st:      #a3d08c;
+    --syn-nu:      #e3b25e;
+    --syn-cm:      #8b8880;
+    --diff-add:    #22402a;
+    --diff-del:    #4a2222;
+    --diff-add-hl: #2f6a3b;
+    --diff-del-hl: #7a3232;
+    --diff-add-no: #8fd29a;
+    --diff-del-no: #ef8a8a;
+    color-scheme: dark;
   }
 }
-:root[data-theme="light"] {
-  --bg:          #ffffff;
-  --bg-chrome:   #f3f3f3;
-  --bg-elevated: #f8f8f8;
-  --bg-hover:    #e8e8e8;
-  --bg-selected: #cce5ff;
-  --fg:          #333333;
-  --fg-strong:   #000000;
-  --fg-dim:      #6a6a6a;
-  --fg-faint:    #8a8a8a;
-  --border:      #dcdcdc;
-  --border-soft: #ececec;
-  --accent:      #005fb8;
-  --add:         #388a34;
-  --del:         #c72e2e;
-  --add-bg:      rgba(56, 138, 52, .11);
-  --add-hl:      rgba(56, 138, 52, .27);
-  --del-bg:      rgba(199, 46, 46, .09);
-  --del-hl:      rgba(199, 46, 46, .22);
-  --badge-fg:    #ffffff;
-  --tag-bg:      #9a6b00;
-  --shadow:      0 2px 12px rgba(0, 0, 0, .14);
+:root[data-theme="dark"] {
+  --bg:          #262624;
+  --bg-1:        #1f1e1d;
+  --bg-2:        #2d2c2a;
+  --bg-3:        #383734;
+  --fg-0:        #faf9f5;
+  --fg-1:        #e3e1d8;
+  --fg-2:        #a8a69d;
+  --fg-3:        #7f7d76;
+  --border:      rgba(222, 220, 209, .13);
+  --border-soft: rgba(222, 220, 209, .07);
+  --ctrl:        #30302e;
+  --ctrl-border: rgba(222, 220, 209, .16);
+  --ctrl-shadow: none;
+  --accent:      #d97757;
+  --accent-bg:   rgba(217, 119, 87, .17);
+  --track-off:   #4a4946;
+  --add:         #86c473;
+  --del:         #e5806b;
+  --live:        #6cc47e;
+  --branch-fg:   #9dbcf7; --branch-bg: color-mix(in srgb, #5b8def 16%, var(--bg));  --branch-bd: color-mix(in srgb, #5b8def 34%, var(--bg));
+  --remote-fg:   #c5aaf0; --remote-bg: color-mix(in srgb, #a07ad6 16%, var(--bg)); --remote-bd: color-mix(in srgb, #a07ad6 34%, var(--bg));
+  --tag-fg:      #e6c06e; --tag-bg: color-mix(in srgb, #cf9a2c 16%, var(--bg));  --tag-bd: color-mix(in srgb, #cf9a2c 36%, var(--bg));
+  --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
+  --ic-teal: #6cc4c0; --ic-blue: #8fb2f5; --ic-purple: #c5aaf0; --ic-pink: #e38fb2;
+  --ic-fg: #a8a69d; --ic-muted: #7f7d76;
+  --code-bg:     #141413;
+  --code-fg:     #ecebe4;
+  --code-no:     #7f7d76;
+  --syn-kw:      #9ea8f5;
+  --syn-fn:      #6eb4f6;
+  --syn-ty:      #e3b25e;
+  --syn-st:      #a3d08c;
+  --syn-nu:      #e3b25e;
+  --syn-cm:      #8b8880;
+  --diff-add:    #22402a;
+  --diff-del:    #4a2222;
+  --diff-add-hl: #2f6a3b;
+  --diff-del-hl: #7a3232;
+  --diff-add-no: #8fd29a;
+  --diff-del-no: #ef8a8a;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -80,14 +143,12 @@
 body {
   margin: 0;
   background: var(--bg);
-  color: var(--fg);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI",
-               system-ui, "Ubuntu", "Droid Sans", sans-serif;
+  color: var(--fg-1);
+  font-family: var(--font-ui);
   font-size: 13px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
-  /* VS Code-panel elrendezés: a kontroll-sor fix, alatta egyetlen görgethető
-     régió — a fejléc-sor ehhez tapad, a body pedig sosem görget sehova. */
+  /* Kontroll-sor és lábléc fix, köztük egyetlen görgethető régió. */
   height: 100dvh;
   min-height: 420px;
   display: flex;
@@ -95,214 +156,473 @@ body {
   overflow: hidden;
 }
 
-.mono {
-  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono",
-               Menlo, Consolas, "Liberation Mono", monospace;
-  font-variant-ligatures: none;
+.mono { font-family: var(--font-mono); font-variant-ligatures: none; }
+.ic {
+  width: 14px; height: 14px; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round;
 }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-/* ── Fejléc-sáv (a Git Graph kontroll-sora) ───────────────────────────────── */
+/* ── Fejléc-sáv ──────────────────────────────────────────────────────────── */
 .chrome {
   flex: none;
   z-index: 30;
   display: flex;
   align-items: center;
-  gap: 18px;
   flex-wrap: wrap;
-  padding: 9px 14px;
-  background: var(--bg-chrome);
+  gap: 10px 18px;
+  min-height: 50px;
+  padding: 10px 14px 10px 16px;
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
-.repo { display: flex; align-items: baseline; gap: 8px; }
-.repo-name { font-size: 14px; font-weight: 600; color: var(--fg-strong); }
-.repo-sub { font-size: 11px; color: var(--fg-dim); }
-
-.control { display: flex; align-items: center; gap: 6px; font-size: 12px; }
-.control label { color: var(--fg-dim); }
-select, .btn {
-  background: var(--bg-elevated);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  padding: 3px 7px;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
+.repo { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.repo-name { font-size: 14px; font-weight: 600; color: var(--fg-0); white-space: nowrap; }
+.head-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 20px; padding: 0 7px; border-radius: 6px;
+  background: var(--accent-bg); color: var(--accent);
+  font-size: 12px; font-weight: 500; white-space: nowrap;
 }
-select:focus-visible, .btn:focus-visible, .row:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
+.head-chip .ic { width: 12px; height: 12px; }
+
+/* Ágválasztó: saját legördülő menü — a natív <select> listája a macOS kék
+   menüjét hozná, ami kilóg az app nyelvéből. */
+.menu { position: relative; }
+.select {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 28px; padding: 0 8px;
+  border: 0; border-radius: 7px;
+  background: var(--ctrl);
+  box-shadow: inset 0 0 0 1px var(--ctrl-border), var(--ctrl-shadow);
+  color: var(--fg-2); font-size: 13px; cursor: pointer;
 }
-.btn:hover, select:hover { background: var(--bg-hover); }
-.switch { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
-.switch input { accent-color: var(--accent); margin: 0; cursor: pointer; }
-
-.spacer { margin-left: auto; }
-.stat { font-size: 11px; color: var(--fg-dim); white-space: nowrap; }
-.stat b { color: var(--fg); font-weight: 600; }
-
-/* ── Táblázat ─────────────────────────────────────────────────────────────── */
-.scroll { flex: 1 1 auto; overflow: auto; }
-.thead, .row {
-  display: grid;
-  grid-template-columns: var(--graph-w, 96px) minmax(320px, 1fr) 136px 148px 92px;
-  align-items: center;
-  min-width: 860px;
+.select:hover { background: var(--bg-1); }
+.select-label { color: var(--fg-0); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.select .chev { width: 12px; height: 12px; margin-left: 10px; transition: transform .12s; }
+.select[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.select:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--accent), var(--ctrl-shadow); }
+.menu-pop {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
+  min-width: 100%; width: max-content; max-width: 360px; max-height: 340px; overflow: auto;
+  padding: 4px;
+  display: flex; flex-direction: column; gap: 1px;
+  background: var(--ctrl);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--ctrl-border), 0 8px 24px rgba(0, 0, 0, .14);
 }
-.thead {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: var(--bg-chrome);
-  border-bottom: 1px solid var(--border);
-  font-size: 11px;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  color: var(--fg-dim);
-  height: 26px;
+.menu-pop[hidden] { display: none; }
+.option {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  height: 28px; padding: 0 10px 0 8px;
+  border: 0; border-radius: 6px; background: transparent;
+  font-size: 13px; color: var(--fg-0); text-align: left; cursor: pointer;
 }
-.thead > div { padding: 0 10px; border-left: 1px solid var(--border-soft); }
-/* Balra zárva, a sávok fölé; színe a fejléc-feliratoké. */
-.thead > .thead-graph {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 0 0 0 6px;
-  color: var(--fg-dim);
+.option:hover, .option:focus-visible { outline: 0; background: var(--bg-2); }
+.option .ic { width: 12px; height: 12px; color: var(--accent); stroke-width: 2; visibility: hidden; }
+.option[aria-selected="true"] .ic { visibility: visible; }
+.option.with-icon { grid-template-columns: 16px minmax(0, 1fr) 14px; }
+.option .ic.ti { width: 14px; height: 14px; color: var(--fg-2); stroke-width: 1.5; visibility: visible; }
+.option .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.option .track { font-size: 11.5px; color: var(--fg-2); }
+.option .cur {
+  margin-left: 6px; padding: 0 5px; border-radius: 4px;
+  background: var(--accent-bg); color: var(--accent); font-size: 10.5px; font-weight: 500;
 }
-.thead > div:first-child { border-left: 0; }
+.menu-sep { height: 1px; margin: 3px 6px; background: var(--border-soft); }
 
-.graph-wrap { position: relative; }
-#lanes { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
-
-.rows { position: relative; z-index: 2; }
-.row {
-  height: 24px;
-  cursor: pointer;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  width: 100%;
-  padding: 0;
-}
-.row:hover .cell ~ .cell { background: var(--bg-hover); }
-.row[aria-expanded="true"] .cell ~ .cell { background: var(--bg-selected); }
-.row[aria-expanded="true"] .desc, .row[aria-expanded="true"] .sha { color: var(--fg-strong); }
-.row.dim { opacity: .28; }
-.row.uncommitted .subject { font-style: italic; color: var(--fg-faint); }
-
-.cell { padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.desc { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.date, .author { color: var(--fg-dim); font-size: 12px; }
-.date { font-variant-numeric: tabular-nums; }
-.sha { color: var(--fg-dim); font-size: 12px; }
-
-/* ── Ref-badge-ek ─────────────────────────────────────────────────────────── */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-  max-width: 260px;
-  padding: 1px 6px;
-  border-radius: 9px;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 15px;
-  color: var(--badge-fg);
-  overflow: hidden;
-  text-overflow: ellipsis;
+.switch {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--fg-1); cursor: pointer; user-select: none;
   white-space: nowrap;
 }
-.badge.ref-head, .badge.ref-detached { background: #0e7a3d; font-weight: 900; }
-.badge.ref-branch { background: #1f6feb; }
-.badge.ref-remote { background: #6e4bb8; }
-.badge.ref-tag    { background: var(--tag-bg); border-radius: 3px; }
-.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.85); flex: none; }
-.badge.ref-tag .dot { border-radius: 1px; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.switch .track {
+  position: relative; flex: none;
+  width: 26px; height: 16px; border-radius: 8px;
+  background: var(--track-off);
+  transition: background .15s;
+}
+.switch .track::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 12px; height: 12px; border-radius: 6px;
+  background: #ffffff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+  transition: transform .15s;
+}
+.switch input:checked + .track { background: var(--accent); }
+.switch input:checked + .track::after { transform: translateX(10px); }
+.switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Szűrők: ágválasztó + kapcsolók, egy egységként törnek (`fitChrome`). Több
+   soros fejlécben az ágválasztó kitölti a sort, a kapcsolók jobbra kerülnek. */
+.filters { display: flex; align-items: center; gap: 18px; flex: 0 1 auto; min-width: 0; }
+.chrome.multi .filters { flex-grow: 1; }
+.chrome.multi .filters .menu { flex: 1 1 auto; min-width: 0; }
+.chrome.multi #branchBtn { width: 100%; }
+.chrome.multi #branchBtn .chev { margin-left: auto; }
+.chrome.multi .select-label { max-width: none; }
+.chrome.rows-3 .repo { flex: 1 1 100%; }
+.chrome.rows-3 .head-chip { margin-left: auto; }
+/* Szűkös helyen (a sor tördelne) a kapcsolók felirata helyett ikon. */
+.switch .sw-ic { display: none; color: var(--fg-2); }
+.chrome.compact .switch { gap: 6px; }
+.chrome.compact .switch .sw-txt { display: none; }
+.chrome.compact .switch .sw-ic { display: inline; }
 
-/* ── Commit-részletek panel ──────────────────────────────────────────────── */
+/* Kereső + témaváltó: jobbra zárva, keskeny ablakban együtt törnek új sorba;
+   a kereső kitölti a sorában maradt helyet. */
+.tools { margin-left: auto; flex: 1 1 auto; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+
+.search {
+  display: flex; align-items: center; gap: 7px;
+  flex: 1 1 230px; min-width: 120px; height: 28px; padding: 0 8px;
+  border-radius: 7px;
+  background: var(--ctrl);
+  box-shadow: inset 0 0 0 1px var(--ctrl-border), var(--ctrl-shadow);
+  color: var(--fg-2);
+}
+.search:focus-within { box-shadow: inset 0 0 0 1px var(--accent), var(--ctrl-shadow); }
+.search input {
+  flex: 1; min-width: 0; padding: 0;
+  border: 0; outline: 0; background: transparent;
+  color: var(--fg-0); font: inherit; font-size: 13px;
+}
+.search input::placeholder { color: var(--fg-3); }
+.search input::-webkit-search-cancel-button { cursor: pointer; }
+.search kbd {
+  padding: 0 5px; border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-family: var(--font-ui); font-size: 11px; color: var(--fg-3);
+}
+.search:focus-within kbd { visibility: hidden; }   /* a helye marad: a mező nem ugrik */
+
+/* Témaválasztó (a láblécben): a menü jobbra zárva, felfelé nyílik. */
+.menu-pop.end { left: auto; right: 0; min-width: 170px; }
+.menu-pop.up { top: auto; bottom: calc(100% + 6px); }
+
+/* ── Uncommitted Changes ── fix sáv a lista fölött: mindig látszik. A pontja
+   saját SVG-ben van, a szaggatott vonal innen fut le a HEAD-ig; görgetve a
+   vonal eltűnik, a sáv alatt halvány elválasztó jelenik meg. */
+.pending { flex: none; position: relative; background: var(--bg); z-index: 4; }
+.pending[hidden] { display: none; }
+.pend-lane { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
+.pending .row { position: relative; z-index: 2; }
+.pending.scrolled { box-shadow: 0 1px 0 var(--border-soft); }
+.pending.scrolled .pend-edge, .scroll.scrolled .pend-edge { display: none; }
+
+/* ── Lista ───────────────────────────────────────────────────────────────── */
+.scroll { flex: 1 1 auto; overflow: auto; padding: 0 0 12px; }
+/* A felső hézag a tartalomban van, nem paddingben: így a ragadós napfejléc a
+   görgetőmező legtetejére tapad, és fölötte nem bukkan ki sor. */
+/* A szövegoszlop legalább 320 px (a gráf mellett): ennél keskenyebb panelen
+   vízszintes görgetés; fölötte a sor kétsorosra vált (`fitRows`). */
+.graph-wrap { position: relative; min-width: calc(var(--graph-w, 72px) + 332px); margin-top: 4px; }   /* + a sor 12 px-es jobb paddingje */
+#lanes { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; overflow: visible; }
+.rows { position: relative; z-index: 2; }
+
+/* A nap fejléce görgetéskor fent marad (az aktuális napé). Háttere csak a
+   gráf-oszloptól jobbra van: a sávok vonala alatta sem szakad meg. */
+.day {
+  position: sticky; top: 0; z-index: 3;
+  height: 16px; display: flex; align-items: center;
+  margin-left: var(--graph-w, 72px); padding: 0 16px 0 10px;
+  background: var(--bg);   /* felül ragadva az előző sor alja ne kandikáljon ki */
+  font-size: 11.5px; line-height: 16px; font-weight: 600; color: var(--fg-2);
+}
+/* Ha a következő nap fejléce eléri, a felül ragadó egyben eltűnik (JS: `.gone`). */
+.day.gone { visibility: hidden; }
+.day.stuck::before { display: none; }
+/* Vékony vonal a lista teljes szélességében (a gráf-oszlopon át), a nap
+   felirata mögött kihagyva. */
+.day::before {
+  content: ""; position: absolute; top: 50%; right: 0;
+  left: calc(-1 * var(--graph-w, 72px)); height: 1px;
+  background: var(--border);
+}
+.day .lbl { position: relative; padding-right: 8px; background: var(--bg); }
+.day.lead { margin-bottom: -16px; visibility: hidden; }
+.scroll.scrolled .day.lead:not(.gone) { visibility: visible; }
+
+/* A sor háttere a belső sávon: a gráf-oszlop szabadon marad, a pöttyöket
+   (`#lanes`, a sorok MÖGÖTT) semmi nem takarja. */
+.row {
+  display: flex; align-items: stretch;
+  width: 100%; height: 30px; padding: 2px 12px 2px var(--graph-w, 72px);
+  border: 0; background: transparent; text-align: left; cursor: pointer;
+}
+.row-in {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 10px; border-radius: 7px;
+}
+.row:hover .row-in { background: var(--bg-2); }
+.row[aria-expanded="true"] .row-in { background: var(--accent-bg); }
+.row:focus-visible { outline: 0; }
+/* Billentyűzetes kijelölés: halvány háttér + vékony narancs keret. */
+.row:focus-visible .row-in { background: var(--bg-2); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.row[aria-expanded="true"]:focus-visible .row-in { background: var(--accent-bg); }
+
+.desc { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--fg-0); }
+.subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row.merge .desc { color: var(--fg-2); }
+.refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
+/* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra az idő, az avatar és
+   a diff. Badge-es sornál (`.tight`): fent a tárgy, lent balra a
+   badge-ek, jobbra az idő · avatar · diff blokk — ha nem fér el mellettük,
+   egészben a harmadik sorba kerül (`.three`). */
+/* A plusz magasság alul kell (a kiemelés alja ne érjen a badge-hez / blokkhoz):
+   a sor nő, a belső sáv ugyanennyi alsó paddinget kap, a tartalom helye marad. */
+.row.two, .row.tight { height: 52px; }
+.row:is(.two, .tight) .row-in { padding-bottom: 1px; }
+.row.three { height: 71px; }
+.row.three .row-in { padding-bottom: 2px; }
+.row.two .row-in { flex-direction: column; align-items: stretch; justify-content: center; gap: 3px; }
+.row.two .desc { flex: none; }
+.row.two .meta { justify-content: flex-end; }
+/* Két önálló sor (flex-wrap, `.br` töri): egy közös rács oszlopa a tárgyat a
+   lenti szerző-blokk szélességére szűkítené. */
+.row:is(.tight, .three) .row-in { flex-wrap: wrap; align-content: center; row-gap: 3px; column-gap: 12px; }
+.row:is(.tight, .three) .desc { display: contents; }
+.row:is(.tight, .three) .subject { flex: 1 1 0; }
+.row:is(.tight, .three) .br { display: block; flex-basis: 100%; height: 0; }
+.row.tight .refs { flex: 1 1 0; overflow: hidden; }
+/* Háromsoros (`.three`): a badge-ek teljes sort kapnak, a blokk alattuk jobbra. */
+.row.three .refs { flex: 1 1 100%; overflow: hidden; }
+.row.three .meta { margin-left: auto; }
+.br { display: none; }
+.row.uncommitted .subject { font-style: italic; color: var(--fg-2); }
+.meta {
+  flex: none; display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--fg-2); white-space: nowrap;
+}
+.meta .sep { color: var(--fg-3); }
+.meta .time { font-variant-numeric: tabular-nums; }
+/* A szerző arca: avatar vagy monogram, egyforma körben */
+.meta .author { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none;
+                width: 16px; height: 16px; border-radius: 8px;
+                box-shadow: 0 0 0 1px var(--border); }
+/* a kép a `.av<n>` osztály háttere (page.js) — longhand, hogy azt ne írja felül */
+.meta .author { background-position: center; background-size: cover; background-repeat: no-repeat; }
+/* Saját tooltip (`#tip`, a natív késve és nem mindig jön): egyetlen fix
+   buborék a lap fölött — a lista széle, a sorok rétegei és a ragadós
+   napfejléc nem vághatja le, és görgetést sem nyit. A `data-tip` elem fölé,
+   jobbra zárva úszik be, rövid késleltetéssel (`page.js`: `showTip`). */
+#tip {
+  position: fixed; z-index: 60; padding: 2px 6px; border-radius: 5px; pointer-events: none;
+  background: var(--ctrl); color: var(--fg-1); font: 400 11px/1.4 var(--font-ui); white-space: nowrap;
+  box-shadow: 0 0 0 1px var(--ctrl-border), 0 2px 8px rgba(0, 0, 0, .08);
+  opacity: 0; transform: translateY(2px); transition: opacity .12s, transform .12s;
+}
+#tip.on { opacity: 1; transform: none; }
+.meta .author.ini { background: var(--bg-3); color: var(--fg-1); font-size: 8px; font-weight: 600; letter-spacing: .02em; }
+/* A commit összes változása az avatar után, színes cellákban (a Claude app
+   diff-jelzője mintájára). */
+.sum { display: inline-flex; align-items: center; margin-left: 2px;
+       font: 10px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
+/* Fix cellák: fájlszám (2 karakter) | zöld | piros (3-3 karakter: `888`,
+   `12k` — a +/− jelet a szín adja), a számok jobbra igazítva: mindhárom
+   egy-egy oszlopban áll. */
+.sum > span { box-sizing: border-box; flex: 0 0 24px; padding: 2px 3px; text-align: right; }
+.sum > .f { flex-basis: 18px; position: relative; color: var(--fg-2);
+            background: color-mix(in srgb, var(--fg-2) 14%, var(--bg)); border-radius: 4px 0 0 4px; }
+/* 99 fölött: `99⁺`, a plusz jobbra a címke szélére lóg (felfelé nem) */
+.sum .f sup { position: absolute; top: 0; right: -3px; font: 400 9px/1 var(--font-ui); color: inherit; }
+.sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, var(--bg)); }
+.sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, var(--bg));
+          border-radius: 0 4px 4px 0; }
+
+.empty { padding: 40px; text-align: center; color: var(--fg-2); }
+
+/* ── Ref-badge-ek ───────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px; flex: none;
+  max-width: 260px; height: 18px; padding: 0 6px;
+  border-radius: 6px;
+  font-size: 11px; font-weight: 500; line-height: 18px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.badge .ic { width: 11px; height: 11px; stroke-width: 1.6; }
+.badge .div { align-self: stretch; width: 1px; margin: 0 1px; background: currentColor; opacity: .3; }
+.badge .origin { font-style: italic; opacity: .85; }
+.badge.ref-head, .badge.ref-detached { background: var(--accent); color: #ffffff; font-weight: 600; }
+.badge.ref-head .div, .badge.ref-detached .div { opacity: .45; }
+.badge.ref-branch { background: var(--branch-bg); color: var(--branch-fg); box-shadow: inset 0 0 0 1px var(--branch-bd); }
+.badge.ref-remote { background: var(--remote-bg); color: var(--remote-fg); box-shadow: inset 0 0 0 1px var(--remote-bd); }
+.badge.ref-tag    { background: var(--tag-bg); color: var(--tag-fg); box-shadow: inset 0 0 0 1px var(--tag-bd); border-radius: 4px; }
+
+/* ── Commit-részletek ───────────────────────────────────────────────────── */
 .details {
-  margin-left: var(--graph-w, 96px);   /* a gráf-oszlop szabadon marad */
-  background: var(--bg-elevated);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  padding: 14px 18px 16px;
-  box-shadow: var(--shadow);
+  margin: 2px 12px 10px var(--graph-w, 72px);   /* a gráf-oszlop szabadon marad */
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
 }
-.details h2 {
-  margin: 0 0 10px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--fg-strong);
-  text-wrap: balance;
+.d-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+/* A szerző kitölti a sort, így egy sorban a chipek jobbra kerülnek; ha
+   nem férnek mellé, a saját sorukban balra zárva kezdődnek (nem lógnak jobbra). */
+.who { flex: 1 0 auto; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--fg-2); }
+.who .name { color: var(--fg-1); }
+.who .sep { color: var(--fg-3); }
+.who.face-only :is(.name, .sep) { display: none; }   /* `fitWho`: a név a tooltipben */
+.who img { width: 22px; height: 22px; border-radius: 11px; box-shadow: 0 0 0 1px var(--border); }
+.chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.chip {
+  height: 28px; display: inline-flex; align-items: center; gap: 5px;
+  padding: 0 4px 0 8px; border-radius: 7px;
+  background: var(--ctrl); box-shadow: inset 0 0 0 1px var(--ctrl-border);
+  font-size: 12px; color: var(--fg-2);
 }
-.meta { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; font-size: 12px; margin-bottom: 12px; }
-.meta dt { color: var(--fg-dim); }
-.meta dd { margin: 0; }
-.meta a { color: var(--accent); text-decoration: none; cursor: pointer; }
-.meta a:hover { text-decoration: underline; }
-.body-text { white-space: pre-wrap; font-size: 12px; color: var(--fg); margin: 0 0 12px; max-width: 68ch; }
+.chip .ic { width: 13px; height: 13px; }
+.chip .hash {
+  padding: 0; border: 0; background: none;
+  font-family: var(--font-mono); font-size: 12px; color: var(--accent); text-decoration: none; cursor: pointer;
+}
+.chip button.hash:hover { text-decoration: underline; }
+.chip .hash.plain { color: var(--fg-1); cursor: text; }
+.mini {
+  width: 20px; height: 20px; flex: none; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 5px; background: transparent; color: var(--fg-2); cursor: pointer;
+}
+.mini .ic { width: 12px; height: 12px; }
+.mini:hover { background: var(--bg-2); color: var(--fg-0); }
+.mini.done { color: var(--add); }
+
+.body-text { margin: 0 2px; white-space: pre-wrap; font-size: 12px; line-height: 1.3; color: var(--fg-1); max-width: 72ch; }
 .gh-link { color: var(--accent); text-decoration: none; }
 .gh-link:hover { text-decoration: underline; }
 
-.files { border-top: 1px solid var(--border-soft); padding-top: 10px; }
-.files-head { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-dim); margin-bottom: 6px; }
-.file {
-  display: grid; grid-template-columns: 14px minmax(0, 1fr) 84px; gap: 6px; align-items: center;
-  font-size: 12px; padding: 1px 4px; margin: 0 -4px; border-radius: 3px; cursor: pointer;
+.files { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--border-soft); padding-top: 10px; }
+.files-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-2); }
+.files-head .n {
+  height: 18px; padding: 0 6px; border-radius: 9px; line-height: 18px;
+  background: var(--bg-3); color: var(--fg-1);
 }
-.file:hover { background: var(--bg-hover); }
-.file .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; justify-self: start; max-width: 100%; }
-.file .chev { color: var(--fg-dim); transition: transform .12s; }
+.file {
+  display: grid; grid-template-columns: 14px 16px minmax(0, 1fr) auto 20px; gap: 6px; align-items: center;
+  height: 26px; padding: 0 4px 0 6px; border-radius: 6px;
+  font-size: 12.5px; cursor: pointer;
+}
+.file:hover { background: var(--bg-2); }
+.file[aria-expanded="true"] { background: var(--bg-3); }
+.file:focus { outline: 0; }
+.file:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent); }
+/* Kijelölt diff-blokk: outline, mert a sorok háttere eltakarná az inset árnyékot. */
+.hunk:focus { outline: 0; }
+.hunk:focus-visible { outline: 1.5px solid var(--accent); outline-offset: -1.5px; border-radius: 3px; }
+.file .chev { display: flex; color: var(--fg-2); transition: transform .12s; }
+.file .chev .ic { width: 12px; height: 12px; color: var(--fg-2); }
+.file .fic { width: 16px; height: 16px; display: block; }           /* Catppuccin-ikon */
+.file .ic.fic { width: 13px; height: 13px; margin: auto; color: var(--fg-2); }   /* általános fájlikon */
 .file[aria-expanded="true"] .chev { transform: rotate(90deg); }
-.churn { text-align: right; font-variant-numeric: tabular-nums; }
+.file .path { font-family: var(--font-mono); font-size: 12px; color: var(--fg-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.churn { display: flex; align-items: center; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.churn .a { color: var(--add); }
+.churn .d { color: var(--del); }
+.churn .tag { color: var(--fg-2); }
+.bars { display: flex; gap: 1px; opacity: .7; }   /* a címke mellett ne ez legyen a sor legerősebb eleme */
+.bars i { width: 5px; height: 8px; border-radius: 1px; background: var(--bg-3); }
+.bars i.a { background: var(--add); }
+.bars i.d { background: var(--del); }
 
-/* ── Fájl-diff (lenyitott fájlsor) ── a Claude app diff-nézetének mintájára:
-   sorszám · jel · szöveg, a cserélt szavak erősebb háttérrel. */
+/* ── Fájl-diff ── a Claude app kódnézetének színeivel: sorszám · jel · szöveg,
+   a cserélt szavak erősebb háttérrel. */
 .diff {
-  margin: 4px 0 8px 20px;
-  border: 1px solid var(--border-soft);
-  border-radius: 3px;
-  background: var(--bg);
+  margin: 2px 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--code-bg);
+  color: var(--code-fg);
   font-size: 12px;
-  line-height: 18px;
+  line-height: 1.5;
+  padding: 6px 0;
   overflow: hidden;
   container-type: inline-size;         /* a nézetet a saját szélessége dönti el */
 }
-/* Egymás alatti nézet: `.diff-line`; side-by-side: `.split-row` két `.half`-fel. */
-.diff-line, .half { display: grid; grid-template-columns: 5ch 2ch minmax(0, 1fr); padding-right: 8px; }
-.diff .no { color: var(--fg-faint); text-align: right; padding-right: 1ch; user-select: none; }
+.diff-line, .half { display: grid; grid-template-columns: 5ch 2.5ch minmax(0, 1fr); padding-right: 10px; }
+.diff .no { color: var(--code-no); text-align: right; padding-right: 1.2ch; user-select: none; }
 .diff .sg { user-select: none; }
 .diff .tx { white-space: pre-wrap; overflow-wrap: anywhere; }
-.diff .add { background: var(--add-bg); box-shadow: inset 2px 0 var(--add); }
-.diff .del { background: var(--del-bg); box-shadow: inset 2px 0 var(--del); }
-.diff .add .no, .diff .add .sg { color: var(--add); }
-.diff .del .no, .diff .del .sg { color: var(--del); }
-.diff .add mark { background: var(--add-hl); color: inherit; border-radius: 2px; }
-.diff .del mark { background: var(--del-hl); color: inherit; border-radius: 2px; }
+.diff .add { background: var(--diff-add); }
+.diff .del { background: var(--diff-del); }
+.diff .add .no, .diff .add .sg { color: var(--diff-add-no); }
+.diff .del .no, .diff .del .sg { color: var(--diff-del-no); }
+.diff .add mark { background: var(--diff-add-hl); color: inherit; border-radius: 3px; }
+.diff .del mark { background: var(--diff-del-hl); color: inherit; border-radius: 3px; }
 .split-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .split-row .half + .half { border-left: 1px solid var(--border-soft); }
-.half.none { background: var(--bg-elevated); }
+.half.none { background: var(--bg-1); }
 .diff-split { display: none; }
 @container (min-width: 1000px) {
   .diff-uni { display: none; }
   .diff-split { display: block; }
 }
-.diff-gap, .diff-note {
-  font-size: 12px; color: var(--fg-dim); padding: 4px 8px; margin: 0;
+.diff-gap {
+  margin: 3px 0; padding: 3px 12px;
+  font-family: var(--font-ui); font-size: 11.5px; color: var(--code-no);
+  border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft);
 }
-.diff-gap { padding: 8px 8px; }
-.diff-gap:first-child { padding-top: 6px; }
-.churn .a { color: var(--add); }
-.churn .d { color: var(--del); }
+.diff-gap:first-child { margin-top: 0; border-top: 0; }
+.diff-note { margin: 0; padding: 4px 12px; font-family: var(--font-ui); font-size: 12px; color: var(--fg-2); }
+/* szintaxis */
+.s-kw { color: var(--syn-kw); }
+.s-fn { color: var(--syn-fn); }
+.s-ty { color: var(--syn-ty); }
+.s-st { color: var(--syn-st); }
+.s-nu { color: var(--syn-nu); }
+.s-cm { color: var(--syn-cm); font-style: italic; }
 
-.empty { padding: 40px; text-align: center; color: var(--fg-dim); }
-.foot { padding: 14px 18px 28px; font-size: 11px; color: var(--fg-faint); border-top: 1px solid var(--border-soft); }
-.foot.stale { color: var(--del); }
+/* ── Lábléc ── mindig látszik: élő-állapot · commitszám · verzió */
+.foot {
+  flex: none;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px;
+  /* a pötty közepe az első sáv vonalán (X0 = 16 px); jobbra ugyanennyi az ikonokig */
+  min-height: 30px; padding: 6px 8.5px 6px 12.5px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-1);
+  font-size: 11.5px; color: var(--fg-2);
+}
+/* A bal padding a pulzáló pötty gyűrűjének helye (az overflow különben levágná). */
+.foot .live { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+              padding: 5px 0 5px 6px; margin: -5px 0 -5px -6px; }
+.foot .dot { width: 7px; height: 7px; border-radius: 4px; background: var(--fg-3); flex: none; }
+.foot.on .dot { background: var(--live); }
+.foot.stale .dot { background: var(--del); }
+.foot.stale .live { color: var(--del); white-space: normal; }
+.foot .count { font-variant-numeric: tabular-nums; }
+.foot .count b { color: var(--fg-1); font-weight: 600; }
+/* A verzió az élő-állapot után, ha kifér (`fitFoot`); a figyelmeztetés mindig. */
+.foot .ver:not(:empty)::before { content: "·"; margin-right: 7px; color: var(--fg-3); }
+.foot .ver { white-space: nowrap; }
+.foot .ver.cut, .foot .ver.short .name { display: none; }
+.foot .ver .home { color: inherit; text-decoration: none; }
+.foot .ver .home:hover { text-decoration: underline; }
+.foot .ver.warn { color: var(--del); white-space: normal; }
+.foot .live:has(.ver.warn) { white-space: normal; }
+/* Élőben a pötty folyamatosan pulzál: zölden, ha jön az adat, pirosan, ha a
+   frissítés elakadt. Élőben szöveg nincs, csak a verzió (elválasztó nélkül). */
+#liveText:empty { display: none; }
+#liveText:empty + .ver::before { content: none; }
+.foot.on .dot { --pulse: var(--live); }
+.foot.stale .dot { --pulse: var(--del); }
+@media (prefers-reduced-motion: no-preference) {
+  .foot:is(.on, .stale) .dot { animation: live-pulse 1.6s ease-out infinite; }
+}
+@keyframes live-pulse {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 color-mix(in srgb, var(--pulse) 38%, transparent); }
+  50%  { transform: scale(1.17); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 4px transparent; }
+}
+.foot .links { justify-self: end; display: flex; align-items: center; gap: 4px; }
+.foot .links .mini { width: 22px; height: 22px; }
+.foot .links .mini:hover { background: var(--bg-3); }
+.foot .links .ic { width: 14px; height: 14px; }
+.foot .links .gh { display: flex; align-items: center; gap: 4px; }
+/* a GitHub-linkek és a téma közt halvány elválasztó */
+.foot .links .gh:not(:empty)::after { content: ""; width: 1px; height: 14px; margin: 0 3px; background: var(--border); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
