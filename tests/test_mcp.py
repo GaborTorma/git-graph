@@ -307,6 +307,27 @@ class McpServerTest(unittest.TestCase):
         module.record_open(slug, "s-extra")                                    # egyszerre kettő: kétértelmű
         self.assertFalse(module.panel_focus(slug, "panelnew3", True)["bound"])
 
+    def test_inherit_binding(self) -> None:
+        """Ugyanabban a panelben újraépült keret: az új azonosító örökli az eltűnt kötött panelét."""
+        main, extra = self.make_repo()
+        module = load_module(self.home)
+        module.REPO = main
+        slug = module.slug_for(main)
+        module.record_activity(slug, "s-extra", extra, prompt=False)
+        module.record_open(slug, "s-extra")
+        self.assertTrue(module.panel_focus(slug, "panelold1", True)["bound"])
+        old = self.home / ".git-graph" / slug / "panels" / "panelold1.json"
+        state = json.loads(old.read_text(encoding="utf-8"))
+        state["seen"] -= 20                                   # 20 mp-e hallgat el
+        old.write_text(json.dumps(state), encoding="utf-8")
+        activity = self.home / ".git-graph" / slug / "activity.json"
+        data = json.loads(activity.read_text(encoding="utf-8"))
+        data["opens"] = []                                    # a megnyitási kérés már lejárt
+        activity.write_text(json.dumps(data), encoding="utf-8")
+        self.assertEqual(module.panel_focus(slug, "panelnew9", True),
+                         {"worktree": module.slug_for(extra), "bound": True})
+        self.assertFalse(module.panel_focus(slug, "panelnewa", True)["bound"])   # csak egyszer örökíthető
+
     def test_quiet_hook(self) -> None:
         """UserPromptSubmit: csak aktivitásnapló, kimenet nélkül (a modell kontextusába menne)."""
         main, extra = self.make_repo()

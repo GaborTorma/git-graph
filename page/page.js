@@ -34,16 +34,16 @@ let graphW = 72;
    panel azonosítóját és láthatóságát küldjük, a hook pedig a promptoló
    session munkakönyvtárát jegyzi fel. Kézzel nem választható: a HEAD ott van,
    ahol a session dolgozik — minden git-parancsa ott fut. Az azonosítót a
-   keret neve őrzi meg, így egy újratöltés (verzióváltás) után is ugyanaz a panel. */
+   keret URL-horgonya őrzi meg (`#gg=…`), így a verzióváltáskori újratöltés
+   után is ugyanaz a panel. A `window.name` a platformé (a bootstrapja van
+   benne) — ahhoz nem nyúlunk. Újraépült keretnél a szerver örökíti a kötést. */
 const PANEL = (() => {
   const fresh = () => (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 16);
-  try {
-    const m = /^git-graph:([a-z0-9]{8,32})$/.exec(window.name);
-    if (m) return m[1];
-    const id = fresh();
-    window.name = 'git-graph:' + id;
-    return id;
-  } catch { return fresh(); }
+  const m = /^#gg=([a-z0-9]{8,32})$/.exec(location.hash);
+  if (m) return m[1];
+  const id = fresh();
+  try { history.replaceState(history.state, '', '#gg=' + id); } catch { /* marad memóriában */ }
+  return id;
 })();
 let panelVisible = true;
 // A rejtett panel (másik session van előtérben) a `visibilityState`-ben nem

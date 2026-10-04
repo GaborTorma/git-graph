@@ -1206,6 +1206,7 @@ PANELS_NAME = "panels"            # <panel>.json: {visible, since, seen, session
 PANEL_RE = re.compile(r"^[a-z0-9]{8,32}$")
 BIND_WINDOW = 60                  # ennyi mp-en belüli promptot még összevet a látható panelekkel
 OPEN_WINDOW = 90                  # a megnyitási kérés után ennyi ideig várja az új panelt
+INHERIT_WINDOW = 120              # az eltűnt, kötött panel ennyi ideig örökíthető egy újra
 SEEN_SLACK = 6                    # a lap 2 mp-enként jelentkezik: ennyi késés még élőnek számít
 
 
@@ -1280,6 +1281,26 @@ def panel_focus(slug: str, panel: str, visible: bool) -> dict:
                  if path != own_path} if folder.is_dir() else set()
         if len({o.get("session") for o in opens}) == 1 and opens[-1]["at"] not in taken:
             own.update(session=opens[-1]["session"], opened=opens[-1]["at"])
+        elif visible and folder.is_dir():
+            # Ugyanabban a panelben újraépült keret (pl. közben másik Artifactot
+            # mutatott): új azonosító, de egy kötött, az eltűnésekor látszó panel
+            # épp most hallgatott el — az ő kötését örökli, ha egyértelmű.
+            gone = []
+            for path in folder.glob("*.json"):
+                if path == own_path:
+                    continue
+                state = read_json(path) or {}
+                if (state.get("session") and state.get("visible") and not state.get("inherited")
+                        and SEEN_SLACK < now - state.get("seen", 0) < INHERIT_WINDOW):
+                    gone.append((path, state))
+            if len(gone) == 1:
+                path, state = gone[0]
+                own["session"] = state["session"]
+                state["inherited"] = True            # egy kötést csak egy új panel vihet el
+                try:
+                    write_atomic(path, state)
+                except OSError:
+                    pass
     prompt = activity.get("prompt") or {}
     at = prompt.get("at")
     if isinstance(at, (int, float)) and own.get("checked") != at and now - at < BIND_WINDOW:
