@@ -244,11 +244,10 @@ function drawGraph() {
     const x2 = laneX(e.toLane),   y2 = rowY(b);
     // A vonal annak a sávnak a színét kapja, amelyikben a hossza nagy részén fut:
     // a merge-vonal rögtön a cél sávjába fordul, a leágazó csak a szülő fölött.
+    const color = tint(DATA.commits[e.fromRow],
+      LANE_COLORS[(e.merge ? e.toLane : e.fromLane) % LANE_COLORS.length]);
     // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re (görgetve rejtve).
-    // A szaggatott vonal nem halványul — a háttérrel keverve eltűnne.
     const from = DATA.commits[e.fromRow];
-    const base = LANE_COLORS[(e.merge ? e.toLane : e.fromLane) % LANE_COLORS.length];
-    const color = from.uncommitted ? base : tint(from, base);
     const dash = from.uncommitted ? ' class="pend-edge" stroke-dasharray="3 3"' : '';
     out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
   }
@@ -506,8 +505,8 @@ function drawPending() {
     const c = DATA.commits.find(x => x.sha === row.dataset.sha);
     if (!c) return '';
     const x = laneX(c.lane), y = row.offsetTop + row.offsetHeight / 2;
-    const base = LANE_COLORS[c.lane % LANE_COLORS.length], color = tint(c, base);
-    return `<path class="pend-edge" d="M ${x} ${y + DOT_R + 1} L ${x} ${h}" stroke="${base}" stroke-width="2" stroke-dasharray="3 3"/>`
+    const color = tint(c, LANE_COLORS[c.lane % LANE_COLORS.length]);
+    return `<path class="pend-edge" d="M ${x} ${y + DOT_R + 1} L ${x} ${h}" stroke="${color}" stroke-width="2" stroke-dasharray="3 3"/>`
       + `<circle cx="${x}" cy="${y}" r="${DOT_R + 1}" fill="var(--bg)" stroke="${color}" stroke-width="2"/>`;
   }).join('');
 }
