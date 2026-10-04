@@ -384,7 +384,12 @@ function badges(c) {
     const remotes = multi
       ? r.remotes.map(o => `<span class="div"></span><span class="synced">${cloudOf(o.default)}${esc(o.name)}</span>`).join('')
       : '';
-    const synced = r.remotes.length && !multi ? `<span class="synced lead">${cloud}</span>` : '';
+    // Hozzáadott worktree-ben kivett ág: a branch-ikon után a worktree-jel, kitöltött
+    // körrel, ha szinkronban van az upstreamjével — ez a felhőt is kiváltja.
+    const linked = wt && !wt.main;
+    const wtSynced = linked && wt.upstream && !wt.ahead && !wt.behind;
+    const synced = linked ? `<span class="synced lead">${icon(wtSynced ? 'worktreeSynced' : 'worktree')}</span>`
+      : r.remotes.length && !multi ? `<span class="synced lead">${cloud}</span>` : '';
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
     // A csak remote-os chipen a felhő jelzi a remote-ot: egy remote-nál az
     // `origin/` előtag nem kell, többnél a név mondja meg, melyiké.
