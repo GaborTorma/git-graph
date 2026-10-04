@@ -32,9 +32,9 @@ let graphW = 72;
    A worktree-k közös lapot látnak. Hogy ez a panel melyik sessioné (és így
    melyik worktree-é), azt a szerver dönti el (`focus` a fingerprintben): a
    panel azonosítóját és láthatóságát küldjük, a hook pedig a promptoló
-   session munkakönyvtárát jegyzi fel. A pill-kattintás ezt felülírja
-   (`focusPick`, újratöltésig). Az azonosítót a keret neve őrzi meg, így egy
-   újratöltés (verzióváltás) után is ugyanaz a panel. */
+   session munkakönyvtárát jegyzi fel. Kézzel nem választható: a HEAD ott van,
+   ahol a session dolgozik — minden git-parancsa ott fut. Az azonosítót a
+   keret neve őrzi meg, így egy újratöltés (verzióváltás) után is ugyanaz a panel. */
 const PANEL = (() => {
   const fresh = () => (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 16);
   try {
@@ -48,27 +48,35 @@ const PANEL = (() => {
 let panelVisible = true;
 // A rejtett panel (másik session van előtérben) a `visibilityState`-ben nem
 // látszik, az IntersectionObserverben igen (mérve, docs/artifact-findings.md).
-// Újra látszik (a Fejlesztő visszalépett ebbe a sessionbe): a kézi választás
-// elmúlik, a session saját worktree-je tér vissza.
-new IntersectionObserver(es => {
-  const now = es[es.length - 1].isIntersecting;
-  if (now && !panelVisible && focusPick) {
-    focusPick = null;
-    hydrateFocus(); fillBranches(); render();
-  }
-  panelVisible = now;
-}).observe(document.body);
+new IntersectionObserver(es => { panelVisible = es[es.length - 1].isIntersecting; })
+  .observe(document.body);
 let focusAuto = null;        // { worktree, bound } — a szervertől
-let focusPick = null;        // kézi választás: egy worktree slugja, vagy MAIN_PICK (a fő checkout)
-const MAIN_PICK = '*main';
 const worktrees = () => DATA.meta.worktrees || [];
 const linkedWts = () => worktrees().filter(w => !w.main);
-/* A saját worktree; a fő checkout, ha egyik worktree sincs kijelölve. */
+/* A saját worktree; a fő checkout, ha a session nem egy worktree-ben dolgozik. */
 function focusWt() {
-  const wts = worktrees(), main = wts.find(w => w.main) || wts[0];
-  if (focusPick) return wts.find(w => w.slug === focusPick) || main;
-  return wts.find(w => w.slug === focusAuto?.worktree) || main;
+  const wts = worktrees();
+  return wts.find(w => w.slug === focusAuto?.worktree) || wts.find(w => w.main) || wts[0];
 }
+/* Ami a saját worktree-ben van: a HEAD-jéből elérhető commitok és a saját
+   ál-sora. A többi (más ág, más worktree, a WIP-jük) halványabb (`.foreign`). */
+let ownSet = null;
+function computeOwn() {
+  const own = focusWt();
+  ownSet = null;
+  if (!own || !linkedWts().length) return;          // worktree nélkül nincs mit elválasztani
+  const bySha = new Map(DATA.commits.map(c => [c.sha, c]));
+  const keep = new Set(), stack = own.head ? [own.head] : [];
+  while (stack.length) {
+    const sha = stack.pop();
+    if (keep.has(sha)) continue;
+    keep.add(sha);
+    for (const p of bySha.get(sha)?.parents || []) if (bySha.has(p)) stack.push(p);
+  }
+  for (const c of DATA.commits) if (c.worktree === own.slug) keep.add(c.sha);
+  ownSet = keep;
+}
+const foreign = c => Boolean(ownSet) && !ownSet.has(c.sha);
 /* A worktree színe a gráfban: az ál-sora, vagy a HEAD-je sávjáé. */
 function wtColor(w) {
   const c = DATA.commits.find(x => x.worktree === w.slug)
@@ -147,9 +155,9 @@ function hydrateFocus() {
   chip.hidden = !(own || DATA.meta.head);
   chip.title = !own ? '' : (own.main ? 'fő checkout: ' : 'worktree: ') + own.path
     + (wts.length < 2 ? ''
-      : focusPick ? '\nkézzel választva — a sessionbe visszalépve a sajátja jön vissza'
       : focusAuto?.bound ? '\nennek a panelnek a sessionje itt dolgozik'
       : '\na legutóbb promptolt session itt dolgozik');
+  computeOwn();
   // Csak a valódi worktree-k, a gráfbeli színükkel; kijelölés nélkül a fő
   // checkout a saját. Az előny az upstreamhez, ennek híján az alapághoz mérve.
   const linked = linkedWts();
@@ -209,8 +217,6 @@ function drawGraph() {
   svg.setAttribute('viewBox', `0 0 ${graphW} ${h}`);
 
   let out = '';
-  const sep = worktreeSeparator(rowY, rowIndexBySha);
-  if (sep) out += `<path class="wt-sep" d="M ${sep.x} 0 L ${sep.x} ${sep.y}"/>`;
   for (const e of DATA.edges) {
     const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
     const b = rowIndexBySha.get(DATA.commits[e.toRow].sha);
@@ -221,8 +227,10 @@ function drawGraph() {
     // a merge-vonal rögtön a cél sávjába fordul, a leágazó csak a szülő fölött.
     const color = LANE_COLORS[(e.merge ? e.toLane : e.fromLane) % LANE_COLORS.length];
     // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re (görgetve rejtve).
-    const dash = DATA.commits[e.fromRow].uncommitted ? ' class="pend-edge" stroke-dasharray="3 3"' : '';
-    out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
+    const from = DATA.commits[e.fromRow];
+    const cls = [from.uncommitted && 'pend-edge', foreign(from) && 'foreign'].filter(Boolean).join(' ');
+    const dash = from.uncommitted ? ' stroke-dasharray="3 3"' : '';
+    out += `<path${cls ? ` class="${cls}"` : ''} d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
   }
   visible.forEach((c, i) => {
     if (c.uncommitted) return;            // a pontja a #pending sávban van
@@ -232,29 +240,10 @@ function drawGraph() {
     // commit — a pöttyözött körvonal ezen a méreten csak elmosódna.
     const hollow = merge || c.uncommitted;
     if (fresh.has(c.sha)) out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="8" fill="${color}" opacity=".28"/>`;
-    out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="${hollow ? DOT_R + 1 : DOT_R}"`
+    out += `<circle${foreign(c) ? ' class="foreign"' : ''} cx="${laneX(c.lane)}" cy="${rowY(i)}" r="${hollow ? DOT_R + 1 : DOT_R}"`
         +  ` fill="${hollow ? 'var(--bg)' : color}" stroke="${color}" stroke-width="2"/>`;
   });
   svg.innerHTML = out;
-}
-
-/* A fő checkout ágai és a worktree-k oszlopai közti halvány elválasztó: az
-   első worktree-oszlop előtt, a lista tetejétől a legmélyebb elágazási pontig
-   (ahol egy worktree vonala a szülőjébe fordul). A szerver a worktree-k
-   oszlopait a fő checkout ágai mögé teszi (`worktree_lanes_last`). */
-function worktreeSeparator(rowY, rowIndexBySha) {
-  const bySha = new Map(DATA.commits.map(c => [c.sha, c]));
-  let lane = Infinity, y = -Infinity;
-  for (const w of linkedWts()) {
-    let c = DATA.commits.find(x => x.worktree === w.slug) || bySha.get(w.head);
-    if (!c || !c.lane) continue;                      // a fő vonalon áll: nincs saját oszlopa
-    lane = Math.min(lane, c.lane);
-    const own = c.lane;
-    while (c && c.lane === own) c = bySha.get(c.parents[0]);
-    const i = c && rowIndexBySha.get(c.sha);
-    y = Math.max(y, i === undefined ? rowsEl.offsetHeight : rowY(i));
-  }
-  return lane === Infinity ? null : { x: laneX(lane) - LANE_W / 2, y, lane };
 }
 
 /* Sávváltásnál ott hajlik a vonal, ahol a git is: merge-nél rögtön a merge
@@ -369,7 +358,8 @@ function rowHtml(c) {
   const meta = c.uncommitted ? '' : `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
     + `<span class="author ${av || 'ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
     + `${av ? '' : esc(initials(c.author))}</span>${sum}</span>`;
-  const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
+  const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge',
+    foreign(c) && 'foreign'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>`
     + `${refs ? '<span class="br"></span>' : ''}${refs}</span>${meta}</span>
@@ -429,15 +419,13 @@ function drawPending() {
   const h = pendingEl.offsetHeight;
   lane.setAttribute('width', graphW);
   lane.setAttribute('height', h);
-  const sep = worktreeSeparator(() => 0, new Map());
-  lane.innerHTML = (sep ? `<path class="wt-sep" d="M ${sep.x} 0 L ${sep.x} ${h}"/>` : '')
-    + [...pendingEl.querySelectorAll('.row')].map(row => {
+  lane.innerHTML = [...pendingEl.querySelectorAll('.row')].map(row => {
     const c = DATA.commits.find(x => x.sha === row.dataset.sha);
     if (!c) return '';
     const x = laneX(c.lane), y = row.offsetTop + row.offsetHeight / 2;
-    const color = LANE_COLORS[c.lane % LANE_COLORS.length];
-    return `<path class="pend-edge" d="M ${x} ${y + DOT_R + 1} L ${x} ${h}" stroke="${color}" stroke-width="2" stroke-dasharray="3 3"/>`
-      + `<circle cx="${x}" cy="${y}" r="${DOT_R + 1}" fill="var(--bg)" stroke="${color}" stroke-width="2"/>`;
+    const color = LANE_COLORS[c.lane % LANE_COLORS.length], dim = foreign(c) ? ' foreign' : '';
+    return `<path class="pend-edge${dim}" d="M ${x} ${y + DOT_R + 1} L ${x} ${h}" stroke="${color}" stroke-width="2" stroke-dasharray="3 3"/>`
+      + `<circle class="${dim}" cx="${x}" cy="${y}" r="${DOT_R + 1}" fill="var(--bg)" stroke="${color}" stroke-width="2"/>`;
   }).join('');
 }
 
@@ -862,18 +850,11 @@ function onListClick(e) {
   } else open(row.dataset.sha);
 }
 rowsEl.addEventListener('click', onListClick);
-/* Pill: az a worktree lesz a saját (HEAD-chip, H, kiemelt badge), és a HEAD-jére
-   áll; a kijelölt pillre kattintva egyik sem lesz kijelölve — a fő checkout. A
-   kézi választás a sessionbe visszalépésig tart (IntersectionObserver). */
+/* Pill: a lista a worktree HEAD-jére ugrik. A „saját” nem változik — az a
+   session munkakönyvtára, nem választás. */
 document.getElementById('wtBar').addEventListener('click', e => {
   const pill = e.target.closest('.wt-pill');
-  if (!pill) return;
-  focusPick = focusWt()?.slug === pill.dataset.wt ? MAIN_PICK : pill.dataset.wt;
-  hydrateFocus();
-  fillBranches();
-  render();
-  const own = focusWt()?.slug;
-  selectCommit(visible.find(c => c.refs.some(r => r.worktree === own)));
+  if (pill) selectCommit(visible.find(c => c.refs.some(r => r.worktree === pill.dataset.wt)));
 });
 pendingEl.addEventListener('click', onListClick);
 

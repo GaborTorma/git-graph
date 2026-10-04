@@ -187,7 +187,9 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   szerver (`panel_focus`) panelenként fájlba ír (`panels/<id>.json` — két
   app-szintű példány fut, memória nem közös), és ha a prompt pillanatában a
   repó lapjai közül pontosan egy látszott, azt a promptoló sessionhöz köti.
-  Kötetlen panelnél a legutóbb promptolt session worktree-je a saját. A
+  Kötetlen panelnél a legutóbb promptolt session worktree-je a saját; kézzel
+  nem választható (a HEAD ott van, ahol a session dolgozik). Ami nem a saját
+  HEAD-jéből elérhető (más ág, más worktree, a WIP-jük), halványabb (`.foreign`). A
   `UserPromptSubmit` hook kimenete a modell kontextusába kerülne: semmit nem
   írhat ki (`QUIET_EVENTS`).
 - **A kimenet a repón KÍVÜL, `~/.git-graph/<slug>/`**: `artifact.html` az

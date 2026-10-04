@@ -87,12 +87,14 @@ A **SessionStart hook** a session indulásakor a repó Artifactját nézi:
 checkout slugján). A gráf fölött worktree-pillek (ág, változások pöttye,
 `↑` pusholatlan), minden worktree HEAD-je badge-et kap, és worktree-nként egy
 Uncommitted sor. A „saját” worktree (teli HEAD-badge, HEAD-chip, `H`) annak a
-sessionnek a munkakönyvtára, amelyiknek a paneljén a lap nyitva van: a hook
+sessionnek a munkakönyvtára, amelyiknek a paneljén a lap nyitva van — ami nem
+benne van (más ág, más worktree), halványabb. Kézzel nem választható: a HEAD
+ott van, ahol a session dolgozik; a pillre kattintva a lista csak odaugrik. A hook
 minden promptnál feljegyzi, melyik session hol dolgozik
 (`UserPromptSubmit`, `CwdChanged`), és ha a prompt pillanatában a repó lapjai
 közül pontosan egy látszott, az a promptoló session panelje — onnantól azt
 követi. Amíg ez nem dőlt el (friss panel, split-view), a legutóbb promptolt
-session worktree-je a saját; egy pillre kattintva kézzel is választható. A
+session worktree-je a saját. A
 0.12 előtti, worktree-nkénti Artifactokat a hook felismeri, és megkéri Claude-ot,
 hogy törölje őket, majd `git-graph --forget-artifact <URL>`-lel takarítsa a
 kulcsaikat.
