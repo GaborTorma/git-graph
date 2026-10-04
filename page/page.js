@@ -306,7 +306,7 @@ const commitUrl = c => `${DATA.meta.repoUrl}/commit/${c.sha}`;
 const fileUrl = (c, f) => commitUrl(c) + (f.anchor ? '#diff-' + f.anchor : '');
 
 /* Ha a helyi ág és a remote-ja ugyanazon a commiton áll, egy badge-ben
-   látszanak (`main | origin`); ha szétváltak, külön-külön. */
+   látszanak (az ág neve után felhő-ikon); ha szétváltak, külön-külön. */
 function mergedRefs(refs) {
   const names = new Set(refs.map(r => r.name));
   const used = new Set(), out = [];
@@ -329,7 +329,7 @@ function badges(c) {
     const title = (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name
       + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o}/${r.name}`).join(', ') : '')
       + (wt && !wt.main ? `\nworktree: ${wt.path}` : '');
-    const remotes = r.remotes.map(o => `<span class="div"></span><span class="origin">${esc(o)}</span>`).join('');
+    const remotes = r.remotes.length ? `<span class="synced">${icon('cloud')}</span>` : '';
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
     return `<span class="badge ref-${r.kind}${other}" title="${esc(title)}">${icon(REF_ICON[r.kind] || 'branch')}`
       + `${esc(r.name)}${remotes}</span>`;
