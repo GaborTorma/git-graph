@@ -217,6 +217,8 @@ Uncommitted soré élőben frissül. Egy fájlból legfeljebb 3000 sor látszik.
 A fájlok előtt a típusuk ikonja áll: a
 [Catppuccin VS Code-ikonjai](https://github.com/catppuccin/vscode-icons) (MIT),
 a lap színeire hangolva. Frissítés: `python3 scripts/file-icons.py`.
+A worktree-pillek ikonja a [GitLens](https://github.com/gitkraken/vscode-gitlens)
+`icon-worktree` rajza (MIT, © GitKraken / Eric Amodio).
 
 ## GitHub-linkek
 

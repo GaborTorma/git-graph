@@ -103,7 +103,9 @@ const ICONS = {
   check: '<path d="m3.5 8.5 3 3 6-7"/>',
   file: '<path d="M4 1.5h5l3.5 3.5v9.5H4z"/><path d="M9 1.5V5h3.5"/>',
   chev: '<path d="M6.5 4.5 10 8l-3.5 3.5"/>',
-  folder: '<path d="M2 4.5a1 1 0 0 1 1-1h3.2l1.5 1.5H13a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/>',
+  // a worktree-jel (GitLens icon-worktree, MIT, © GitKraken / Eric Amodio): telt, nem vonalas
+  worktree: '<path fill="currentColor" stroke="none" d="M11.83 6.2a3.5 3.5 0 0 1 0 6.93v2.2h-1v-2.2a3.5 3.5 0 0 1 0-6.93V.67h1V6.2Zm-.5.97a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/>'
+    + '<path fill="currentColor" stroke="none" d="M6.33 2c.54 0 1.12.67 1.34 1h2v1h-2c-.5 0-.88-.38-1.13-.7l-.2-.3H1.66v3H6l.67-.67c.2-.18.36-.26.66-.33h2.34v.3c-.44.17-.85.4-1.22.7H7.33l-.66.67-.17.2-.33.13h-4.5v6h6.4l.17.16c.4.36.86.64 1.36.84H1.33l-.66-.67V2.67L1.33 2h5ZM15.33 12.07v1.26l-.66.67h-1.6a4.68 4.68 0 0 0 2.26-1.93ZM14.67 3l.66.67v3.59A4.7 4.7 0 0 0 13 5.31V5h1.33V4H13V3h1.67Z"/>',
 };
 const icon = (name, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
 // Fájltípus-ikon: a git-graph a fájlhoz rendelt Catppuccin-ikon SVG-jét adja
@@ -172,7 +174,7 @@ function hydrateFocus() {
       + (w.ahead ? `\n${w.ahead} commit a(z) ${w.base} előtt` : '');
     const color = wtColor(w);
     return `<button type="button" class="wt-pill" data-wt="${esc(w.slug)}"`
-      + `${color ? ` style="--wt:${color}"` : ''} aria-pressed="${w === own}" title="${esc(tip)}">${icon('folder')}`
+      + `${color ? ` style="--wt:${color}"` : ''} aria-pressed="${w === own}" title="${esc(tip)}">${icon('worktree')}`
       + `<span class="wt-name">${esc(w.name)}</span>`
       + `<span class="wt-branch">${esc(wtLabel(w))}</span>`
       + (w.dirty ? '<span class="wt-dirty" aria-label="commitolatlan változás"></span>' : '')
@@ -1232,6 +1234,7 @@ const POLL_MS = 2000;
 const SETTLE_MS = 250;      // méretváltás (session-váltás) után ennyit vár a kérdezéssel
 const RETRY_MS = 400;       // átmeneti hiba után ennyi idővel csendben újra
 const QUIET_RETRIES = 3;    // ennyi átmeneti hibát nem ír ki
+const BURST_MS = 250, BURST_FOR_MS = 2500;   // session-váltás után ilyen sűrűn, ennyi ideig
 const foot = document.getElementById('foot');
 const liveText = document.getElementById('liveText');
 const liveDot = document.getElementById('liveDot');
@@ -1384,7 +1387,7 @@ function startLive(src) {
   let last = '';                            // a váz üres: az első kör adatot kér
   let change = '';                          // az utolsó változás: mikor, mennyi idő alatt
   let version = null;                       // a szerver verziója, amikor a lap betöltött
-  let timer = 0, busy = false, again = false, misses = 0;
+  let timer = 0, busy = false, again = false, misses = 0, burstUntil = 0;
   SRC = src;
   async function poll() {
     clearTimeout(timer);
@@ -1442,14 +1445,16 @@ function startLive(src) {
     }
     busy = false;
     if (again) { again = false; wait = 0; }
+    else if (performance.now() < burstUntil) wait = Math.min(wait, BURST_MS);
     timer = setTimeout(poll, wait);             // a következő kör az előző után
   }
   /* Session-váltáskor az app ezt az egy keretet átteszi a másik session
-     paneljébe, ami más méretű (mérve): a méretváltásra azonnal kérdezünk —
-     nem várjuk ki a 2 mp-es kört, hogy a kiemelés a kirajzolás után rögtön
-     a jó worktree-re álljon. */
+     paneljébe, ami más méretű (mérve): a méretváltás után rövid ideig sűrűn
+     kérdezünk. Az app a fókuszt ~1–1,5 mp késéssel írja ki a session-fájlba
+     (mérve), az első azonnali kérdezés így még a régit kapná. */
   let settle = 0;
   addEventListener('resize', () => {           // az áthelyezés végét kivárva
+    burstUntil = performance.now() + BURST_FOR_MS;
     clearTimeout(settle);
     settle = setTimeout(poll, SETTLE_MS);
   });
