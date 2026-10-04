@@ -22,8 +22,7 @@
   --add:         #3d7a37;
   --del:         #c23a3a;
   --live:        #3d9a50;
-  --branch-fg:   #2c5fb3; --branch-bg: color-mix(in srgb, #5b8def 12%, var(--bg));  --branch-bd: color-mix(in srgb, #5b8def 30%, var(--bg));
-  --tag-fg:      #8a5a00; --tag-bg: color-mix(in srgb, #cf9a2c 14%, var(--bg));  --tag-bd: color-mix(in srgb, #cf9a2c 34%, var(--bg));
+  --tag-fg:      #8a5a00;
   /* fájlikonok (Catppuccin, page/file-icons.json): a sávszínek tónusai */
   --ic-red: #c4573a; --ic-orange: #d97757; --ic-yellow: #c08a1e; --ic-green: #3f9455;
   --ic-teal: #2a8e8c; --ic-blue: #4f7fe0; --ic-purple: #8f68cc; --ic-pink: #c4588a;
@@ -69,8 +68,7 @@
     --add:         #86c473;
     --del:         #e5806b;
     --live:        #6cc47e;
-    --branch-fg:   #9dbcf7; --branch-bg: color-mix(in srgb, #5b8def 16%, var(--bg));  --branch-bd: color-mix(in srgb, #5b8def 34%, var(--bg));
-    --tag-fg:      #e6c06e; --tag-bg: color-mix(in srgb, #cf9a2c 16%, var(--bg));  --tag-bd: color-mix(in srgb, #cf9a2c 36%, var(--bg));
+    --tag-fg:      #e6c06e;
     --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
     --ic-teal: #6cc4c0; --ic-blue: #8fb2f5; --ic-purple: #c5aaf0; --ic-pink: #e38fb2;
     --ic-fg: #a8a69d; --ic-muted: #7f7d76;
@@ -112,8 +110,7 @@
   --add:         #86c473;
   --del:         #e5806b;
   --live:        #6cc47e;
-  --branch-fg:   #9dbcf7; --branch-bg: color-mix(in srgb, #5b8def 16%, var(--bg));  --branch-bd: color-mix(in srgb, #5b8def 34%, var(--bg));
-  --tag-fg:      #e6c06e; --tag-bg: color-mix(in srgb, #cf9a2c 16%, var(--bg));  --tag-bd: color-mix(in srgb, #cf9a2c 36%, var(--bg));
+  --tag-fg:      #e6c06e;
   --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
   --ic-teal: #6cc4c0; --ic-blue: #8fb2f5; --ic-purple: #c5aaf0; --ic-pink: #e38fb2;
   --ic-fg: #a8a69d; --ic-muted: #7f7d76;
@@ -469,15 +466,22 @@ button { font: inherit; color: inherit; }
 .badge .synced.lead { margin-left: -2px; }   /* a branch-ikonhoz tapad */
 .badge .div { align-self: stretch; width: 1px; margin: 3px 1px; background: currentColor; opacity: .3; }
 .badge .ic.filled { fill: currentColor; }
-.badge.ref-head, .badge.ref-detached { background: var(--accent); color: #ffffff; font-weight: 600; }
-/* Más worktree HEAD-je: halvány, a saját (teli) mellett. */
-.badge.other { background: var(--accent-bg); color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+/* Az ág, a HEAD és a tag a commit sávjának színét viseli (`--lc`, page.js).
+   A szöveg a sávszín és az előtér keveréke: világos témában sötétebb,
+   sötétben világosabb — a vonalnak szánt színek szövegként gyengék lennének. */
+.badge.ref-branch, .badge.ref-tag, .badge.other {
+  background: color-mix(in srgb, var(--lc) 14%, var(--bg));
+  color: color-mix(in srgb, var(--lc) 70%, var(--fg-0));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc) 38%, var(--bg));
+}
+/* A saját worktree HEAD-je teli, más worktree-é halvány, erős kerettel. */
+.badge:is(.ref-head, .ref-detached):not(.other) { background: var(--lc); color: #ffffff; font-weight: 600; }
+.badge.other { box-shadow: inset 0 0 0 1.5px var(--lc); font-weight: 500; }
 /* Ami nem a saját worktree-ben van (más ág, más worktree): halványabb. */
 .row.foreign .row-in { opacity: .55; }
-.badge.ref-branch { background: var(--branch-bg); color: var(--branch-fg); box-shadow: inset 0 0 0 1px var(--branch-bd); }
 /* Csak a remote-on: szürke chip. */
 .badge.ref-remote { background: var(--bg-3); color: var(--fg-2); box-shadow: inset 0 0 0 1px var(--border); }
-.badge.ref-tag    { background: var(--tag-bg); color: var(--tag-fg); box-shadow: inset 0 0 0 1px var(--tag-bd); border-radius: 9px; }   /* teljesen kerek chip */
+.badge.ref-tag { border-radius: 9px; }   /* a tag az alakjáról ismerszik meg: teljesen kerek chip */
 
 /* ── Commit-részletek ───────────────────────────────────────────────────── */
 .details {

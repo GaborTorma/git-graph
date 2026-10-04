@@ -327,6 +327,9 @@ function mergedRefs(refs) {
 
 const REF_ICON = { head: 'branch', detached: 'commit', branch: 'branch', remote: 'cloud', tag: 'tag' };
 function badges(c) {
+  // A HEAD, az ág és a tag a commit sávjának színét kapja (`--lc`), mint a vonal;
+  // a csak remote-os chip szürke marad.
+  const lane = LANE_COLORS[c.lane % LANE_COLORS.length];
   return mergedRefs(c.refs).map(r => {
     const wt = r.worktree && worktrees().find(w => w.slug === r.worktree);
     const title = (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name
@@ -349,7 +352,8 @@ function badges(c) {
     const name = r.kind === 'remote' && !multi ? r.name.replace(/^origin\//, '') : r.name;
     const lead = r.kind === 'remote' ? cloud : icon(REF_ICON[r.kind] || 'branch') + synced;
     // A tooltip a saját buborék (`data-tip`), mint az avataré — a natív `title` késik.
-    return `<span class="badge ref-${r.kind}${other}" data-tip="${esc(title)}" aria-label="${esc(title)}">`
+    const lc = r.kind === 'remote' ? '' : ` style="--lc:${lane}"`;
+    return `<span class="badge ref-${r.kind}${other}"${lc} data-tip="${esc(title)}" aria-label="${esc(title)}">`
       + `${lead}${esc(name)}${remotes}</span>`;
   }).join('');
 }
