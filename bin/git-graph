@@ -338,6 +338,10 @@ def collect_worktrees() -> list[dict]:
     kimarad.
     """
     worktrees = worktree_list()
+    try:                                  # az alapág: amit a remote alapértelmezettnek mond
+        default = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").strip()
+    except subprocess.CalledProcessError:
+        default = ""
 
     def fill(wt: dict) -> None:
         try:
@@ -346,6 +350,8 @@ def collect_worktrees() -> list[dict]:
             wt["numstat"] = git("diff", "--numstat", "HEAD", repo=wt["path"]) if wt["head"] else ""
         except subprocess.CalledProcessError:
             wt["gone"] = True
+            return
+        wt["ahead"], wt["base"] = ahead_of(wt, default)
 
     with ThreadPoolExecutor(max_workers=max(1, min(8, len(worktrees)))) as pool:
         list(pool.map(fill, worktrees))
@@ -356,11 +362,30 @@ def collect_worktrees() -> list[dict]:
     return worktrees
 
 
+def ahead_of(wt: dict, default: str) -> tuple[int, str]:
+    """Hány committal jár a worktree HEAD-je előrébb, és minek: az upstreamjénél,
+    ha van, különben az alapágnál (`origin/HEAD`) — egy friss feature-ágnak még
+    nincs upstreamje, de a lapnak látszania kell, hogy előrébb van."""
+    if not wt["head"]:
+        return 0, ""
+    for base in ("@{upstream}", default):
+        if not base:
+            continue
+        try:
+            count = git("rev-list", "--count", f"{base}..HEAD", repo=wt["path"]).strip()
+            name = (git("rev-parse", "--abbrev-ref", base, repo=wt["path"]).strip()
+                    if base.startswith("@") else base)
+            return int(count), name
+        except (subprocess.CalledProcessError, ValueError):
+            continue
+    return 0, ""
+
+
 def worktree_meta(wt: dict) -> dict:
-    """Egy worktree a lapnak: azonosító, mappa, ág, HEAD, változások száma."""
+    """Egy worktree a lapnak: azonosító, mappa, ág, HEAD, változások száma, előny."""
     return {"slug": wt["slug"], "name": wt["path"].name, "path": str(wt["path"]),
             "branch": wt["branch"], "head": wt["head"], "main": wt["main"],
-            "dirty": len(wt["status"])}
+            "dirty": len(wt["status"]), "ahead": wt.get("ahead", 0), "base": wt.get("base", "")}
 
 
 def config_get(key: str) -> str:

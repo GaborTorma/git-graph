@@ -310,6 +310,7 @@ button { font: inherit; color: inherit; }
   padding: 8px 14px 8px 16px; border-bottom: 1px solid var(--border-soft); background: var(--bg);
 }
 .wt-bar[hidden] { display: none; }
+.wt-lbl { align-self: center; margin-right: 2px; font-size: 11.5px; color: var(--fg-3); }
 .wt-pill {
   display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 260px;
   height: 22px; padding: 0 8px; border: 0; border-radius: 11px; cursor: pointer;
@@ -322,6 +323,7 @@ button { font: inherit; color: inherit; }
 .wt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wt-dirty { flex: none; width: 6px; height: 6px; border-radius: 3px; background: var(--tag-fg); }
 .wt-ahead { flex: none; font-variant-numeric: tabular-nums; opacity: .8; }
+.wt-tag { flex: none; padding: 0 4px; border-radius: 4px; background: var(--bg-3); color: var(--fg-2); font-size: 10.5px; font-weight: 500; }
 .pending { flex: none; position: relative; background: var(--bg); z-index: 4; }
 .pending[hidden] { display: none; }
 .pend-lane { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }

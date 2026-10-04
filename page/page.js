@@ -75,6 +75,7 @@ const ICONS = {
   check: '<path d="m3.5 8.5 3 3 6-7"/>',
   file: '<path d="M4 1.5h5l3.5 3.5v9.5H4z"/><path d="M9 1.5V5h3.5"/>',
   chev: '<path d="M6.5 4.5 10 8l-3.5 3.5"/>',
+  folder: '<path d="M2 4.5a1 1 0 0 1 1-1h3.2l1.5 1.5H13a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/>',
 };
 const icon = (name, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
 // Fájltípus-ikon: a git-graph a fájlhoz rendelt Catppuccin-ikon SVG-jét adja
@@ -132,16 +133,19 @@ function hydrateFocus() {
     : '\na legutóbb promptolt session itt dolgozik');
   const bar = document.getElementById('wtBar');
   bar.hidden = wts.length < 2;
-  bar.innerHTML = wts.length < 2 ? '' : wts.map(w => {
-    const track = DATA.branches.find(b => b.name === w.branch)?.track || '';
-    const ahead = /ahead (\d+)/.exec(track)?.[1];
-    const tip = `${w.path}${w.main ? ' (fő checkout)' : ''}`
-      + (w.dirty ? `\n${w.dirty} változás` : '') + (ahead ? `\n${ahead} commit pusholatlan` : '');
-    return `<button type="button" class="wt-pill${w.main ? ' main' : ''}" data-wt="${esc(w.slug)}"`
-      + ` aria-pressed="${w === own}" title="${esc(tip)}">${icon(w.branch ? 'branch' : 'commit')}`
+  // A pill worktree, nem ág: mappa-ikon, a fő checkout jelölve; az előny az
+  // upstreamhez, ennek híján az alapághoz (`base`) mérve.
+  const short = b => String(b).replace(/^origin\//, '');
+  bar.innerHTML = wts.length < 2 ? '' : '<span class="wt-lbl">Worktree-k</span>' + wts.map(w => {
+    const tip = `Worktree: ${w.path}${w.main ? ' (fő checkout)' : ''}\nág: ${wtLabel(w)}`
+      + (w.dirty ? `\n${w.dirty} commitolatlan változás` : '')
+      + (w.ahead ? `\n${w.ahead} commit a(z) ${w.base} előtt` : '');
+    return `<button type="button" class="wt-pill" data-wt="${esc(w.slug)}"`
+      + ` aria-pressed="${w === own}" title="${esc(tip)}">${icon('folder')}`
       + `<span class="wt-name">${esc(wtLabel(w))}</span>`
-      + (w.dirty ? '<span class="wt-dirty" aria-label="változott"></span>' : '')
-      + (ahead ? `<span class="wt-ahead">↑${ahead}</span>` : '') + '</button>';
+      + (w.main ? '<span class="wt-tag">fő</span>' : '')
+      + (w.dirty ? '<span class="wt-dirty" aria-label="commitolatlan változás"></span>' : '')
+      + (w.ahead ? `<span class="wt-ahead">↑${w.ahead} ${esc(short(w.base))}</span>` : '') + '</button>';
   }).join('');
 }
 
@@ -292,7 +296,9 @@ function badges(c) {
       + (wt && worktrees().length > 1 ? `\nworktree: ${wt.path}` : '');
     const remotes = r.remotes.map(o => `<span class="div"></span><span class="origin">${esc(o)}</span>`).join('');
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
-    return `<span class="badge ref-${r.kind}${other}" title="${esc(title)}">${icon(REF_ICON[r.kind] || 'branch')}`
+    // Több worktree-nél a kivett ág badge-e mappa-ikont kap: worktree, nem csak ág.
+    const ic = wt && worktrees().length > 1 ? 'folder' : REF_ICON[r.kind] || 'branch';
+    return `<span class="badge ref-${r.kind}${other}" title="${esc(title)}">${icon(ic)}`
       + `${esc(r.name)}${remotes}</span>`;
   }).join('');
 }
