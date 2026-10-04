@@ -22,6 +22,28 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"${CLAUDE_PLUGIN_ROOT}/bin/git-graph\" --session-hook",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "CwdChanged": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"${CLAUDE_PLUGIN_ROOT}/bin/git-graph\" --session-hook",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }

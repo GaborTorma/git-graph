@@ -203,6 +203,91 @@ class McpServerTest(unittest.TestCase):
         self.assertIn("var(--ic-", svg)
         self.assertNotIn("--vscode-ctp", svg)
 
+    def make_repo(self) -> tuple[Path, Path]:
+        """Eldobható repó egy hozzáadott worktree-vel; mindkettőben változás."""
+        root = self.home.resolve()                   # a git a valódi utat adja (/var → /private/var)
+        main, extra = root / "repo", root / "repo-wt"
+        run = lambda *a, cwd=main: subprocess.run(["git", *a], cwd=cwd, check=True,  # noqa: E731
+                                                   capture_output=True)
+        main.mkdir()
+        run("init", "-q", "-b", "main")
+        (main / "a.txt").write_text("egy\n", encoding="utf-8")
+        run("add", ".")
+        run("-c", "user.name=T", "-c", "user.email=t@x.hu", "commit", "-qm", "init")
+        run("worktree", "add", "-q", "-b", "feat", str(extra))
+        (main / "a.txt").write_text("kettő\n", encoding="utf-8")
+        (extra / "uj.txt").write_text("új\n", encoding="utf-8")
+        return main, extra
+
+    def test_worktrees(self) -> None:
+        """Közös adat: minden worktree HEAD-je és ál-sora, a diff a saját mappájából."""
+        main, extra = self.make_repo()
+        module = load_module(self.home)
+        module.REPO = module.main_checkout(extra)
+        self.assertEqual(module.REPO, main)
+        data = module.collect_payload(None)
+        wts = data["meta"]["worktrees"]
+        self.assertEqual([w["branch"] for w in wts], ["main", "feat"])
+        self.assertEqual([w["main"] for w in wts], [True, False])
+        pending = [c for c in data["commits"] if c.get("uncommitted")]
+        self.assertEqual({c["worktree"] for c in pending}, {w["slug"] for w in wts})
+        heads = {r["worktree"] for c in data["commits"] for r in c["refs"] if r["kind"] == "head"}
+        self.assertEqual(heads, {w["slug"] for w in wts})
+        for c in pending:
+            path = data["stats"][c["sha"]]["files"][0]["path"]
+            self.assertTrue(module.file_diff(c["sha"], path)["hunks"], c["sha"])
+        with self.assertRaises(ValueError):
+            module.file_diff("*uncommitted:nincs-ilyen-000000", "a.txt")
+
+    def test_panel_focus(self) -> None:
+        """Prompt egyetlen látszó panellel: az a session panelje; split-view-ban nincs kötés."""
+        main, extra = self.make_repo()
+        module = load_module(self.home)
+        module.REPO = main
+        slug = module.slug_for(main)
+        wt_main, wt_extra = module.slug_for(main), module.slug_for(extra)
+        a, b = "panela00", "panelb00"
+        module.panel_focus(slug, a, True)
+        module.panel_focus(slug, b, False)
+        module.record_activity(slug, "s-extra", extra / "sub", prompt=True)
+        self.assertEqual(module.panel_focus(slug, a, True), {"worktree": wt_extra, "bound": True})
+        self.assertEqual(module.panel_focus(slug, b, False), {"worktree": wt_extra, "bound": False})
+        module.panel_focus(slug, b, True)                  # split-view: mindkettő látszik
+        module.time.sleep(0.6)                             # a látszás a prompt ELŐTT kezdődött
+        module.record_activity(slug, "s-main", main, prompt=True)
+        self.assertEqual(module.panel_focus(slug, b, True), {"worktree": wt_main, "bound": False})
+        self.assertEqual(module.panel_focus(slug, a, True), {"worktree": wt_extra, "bound": True})
+
+    def test_quiet_hook(self) -> None:
+        """UserPromptSubmit: csak aktivitásnapló, kimenet nélkül (a modell kontextusába menne)."""
+        main, extra = self.make_repo()
+        env = {**os.environ, "HOME": str(self.home)}
+        env.pop("CLAUDE_PLUGIN_ROOT", None)
+        payload = {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "cwd": str(extra),
+                   "prompt": "szia"}
+        out = subprocess.run([PYTHON, str(SCRIPT), "--session-hook"], input=json.dumps(payload),
+                             capture_output=True, text=True, env=env, check=True)
+        self.assertEqual(out.stdout, "")
+        module = load_module(self.home)
+        activity = json.loads((self.home / ".git-graph" / module.slug_for(main) / "activity.json")
+                              .read_text(encoding="utf-8"))
+        self.assertEqual(activity["prompt"]["session"], "s1")
+        self.assertEqual(activity["sessions"]["s1"]["cwd"], str(extra))
+
+    def test_vanished_worktree(self) -> None:
+        """A régi, worktree-nkénti lap a mappája megszűnése után rövid üzenetet kap."""
+        state = self.home / ".git-graph"
+        (state / "repos.json").write_text(json.dumps({SLUG: str(self.home / "nincs")}), encoding="utf-8")
+        client = McpClient(SCRIPT, self.home)
+        try:
+            result = client.request("tools/call", {"name": "fingerprint",
+                                                   "arguments": {"repo": SLUG}})["result"]
+            self.assertTrue(result["isError"])
+            self.assertIn("megszűnt", result["content"][0]["text"])
+            self.assertNotIn("\n", result["content"][0]["text"])
+        finally:
+            client.close()
+
     def test_loader(self) -> None:
         """A betöltőbe a kontextus és a cím kerül, `</script>`-biztosan."""
         module = load_module(self.home)

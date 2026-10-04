@@ -304,6 +304,24 @@ button { font: inherit; color: inherit; }
 /* ── Uncommitted Changes ── fix sáv a lista fölött: mindig látszik. A pontja
    saját SVG-ben van, a szaggatott vonal innen fut le a HEAD-ig; görgetve a
    vonal eltűnik, a sáv alatt halvány elválasztó jelenik meg. */
+/* Worktree-pillek (több worktree-nél): a saját kiemelve, kattintásra választható. */
+.wt-bar {
+  flex: none; display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 8px 14px 8px 16px; border-bottom: 1px solid var(--border-soft); background: var(--bg);
+}
+.wt-bar[hidden] { display: none; }
+.wt-pill {
+  display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 260px;
+  height: 22px; padding: 0 8px; border: 0; border-radius: 11px; cursor: pointer;
+  background: var(--ctrl); box-shadow: inset 0 0 0 1px var(--ctrl-border);
+  color: var(--fg-2); font-size: 12px;
+}
+.wt-pill:hover { background: var(--bg-3); }
+.wt-pill[aria-pressed="true"] { background: var(--accent-bg); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 600; }
+.wt-pill .ic { width: 12px; height: 12px; }
+.wt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-dirty { flex: none; width: 6px; height: 6px; border-radius: 3px; background: var(--tag-fg); }
+.wt-ahead { flex: none; font-variant-numeric: tabular-nums; opacity: .8; }
 .pending { flex: none; position: relative; background: var(--bg); z-index: 4; }
 .pending[hidden] { display: none; }
 .pend-lane { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
@@ -447,6 +465,8 @@ button { font: inherit; color: inherit; }
 .badge .origin { font-style: italic; opacity: .85; }
 .badge.ref-head, .badge.ref-detached { background: var(--accent); color: #ffffff; font-weight: 600; }
 .badge.ref-head .div, .badge.ref-detached .div { opacity: .45; }
+/* Más worktree HEAD-je: halvány, a saját (teli) mellett. */
+.badge.other { background: var(--accent-bg); color: var(--accent); }
 .badge.ref-branch { background: var(--branch-bg); color: var(--branch-fg); box-shadow: inset 0 0 0 1px var(--branch-bd); }
 .badge.ref-remote { background: var(--remote-bg); color: var(--remote-fg); box-shadow: inset 0 0 0 1px var(--remote-bd); }
 .badge.ref-tag    { background: var(--tag-bg); color: var(--tag-fg); box-shadow: inset 0 0 0 1px var(--tag-bd); border-radius: 4px; }
@@ -591,7 +611,7 @@ button { font: inherit; color: inherit; }
 .foot .dot { width: 7px; height: 7px; border-radius: 4px; background: var(--fg-3); flex: none; }
 .foot.on .dot { background: var(--live); }
 .foot.stale .dot { background: var(--del); }
-.foot.stale .live { color: var(--del); white-space: normal; }
+.foot.stale .live { color: var(--del); }
 .foot .count { font-variant-numeric: tabular-nums; }
 .foot .count b { color: var(--fg-1); font-weight: 600; }
 /* A verzió az élő-állapot után, ha kifér (`fitFoot`); a figyelmeztetés mindig. */

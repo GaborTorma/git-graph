@@ -28,6 +28,37 @@ let visible = DATA.commits; // szűrés utáni lista
 
 let graphW = 72;
 
+/* ── A „saját” worktree ───────────────────────────────────────────────────
+   A worktree-k közös lapot látnak. Hogy ez a panel melyik sessioné (és így
+   melyik worktree-é), azt a szerver dönti el (`focus` a fingerprintben): a
+   panel azonosítóját és láthatóságát küldjük, a hook pedig a promptoló
+   session munkakönyvtárát jegyzi fel. A pill-kattintás ezt felülírja
+   (`focusPick`, újratöltésig). Az azonosítót a keret neve őrzi meg, így egy
+   újratöltés (verzióváltás) után is ugyanaz a panel. */
+const PANEL = (() => {
+  const fresh = () => (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 16);
+  try {
+    const m = /^git-graph:([a-z0-9]{8,32})$/.exec(window.name);
+    if (m) return m[1];
+    const id = fresh();
+    window.name = 'git-graph:' + id;
+    return id;
+  } catch { return fresh(); }
+})();
+let panelVisible = true;
+// A rejtett panel (másik session van előtérben) a `visibilityState`-ben nem
+// látszik, az IntersectionObserverben igen (mérve, docs/artifact-findings.md).
+new IntersectionObserver(es => { panelVisible = es[es.length - 1].isIntersecting; })
+  .observe(document.body);
+let focusAuto = null;        // { worktree, bound } — a szervertől
+let focusPick = null;        // a pill-kattintással választott worktree slugja
+const worktrees = () => DATA.meta.worktrees || [];
+function focusWt() {
+  const wts = worktrees();
+  return wts.find(w => w.slug === focusPick) || wts.find(w => w.slug === focusAuto?.worktree) || wts[0];
+}
+const wtLabel = w => w.branch || `HEAD ${String(w.head || '').slice(0, 7)}`;
+
 /* ── Ikonok ── stroke-os, 16×16-os rácson; a CSS `.ic` színezi. */
 const ICONS = {
   branch: '<circle cx="5" cy="3.5" r="1.5"/><circle cx="5" cy="12.5" r="1.5"/><circle cx="11" cy="5.5" r="1.5"/><path d="M5 5v6M11 7c0 2.5-3 2.5-6 4"/>',
@@ -78,8 +109,7 @@ function hydrate() {
   graphW = Math.max(32, X0 * 2 + (laneCount - 1) * LANE_W);
   document.documentElement.style.setProperty('--graph-w', graphW + 'px');
   document.getElementById('repoName').textContent = DATA.meta.repo;
-  document.getElementById('headName').textContent = DATA.meta.head;
-  document.getElementById('headChip').hidden = !DATA.meta.head;
+  hydrateFocus();
   const base = DATA.meta.repoUrl;
   document.getElementById('footLinks').innerHTML = base
     ? ghLink(`${base}/issues`, icon('issue'), 'mini', 'Issue-k a GitHubon')
@@ -87,6 +117,32 @@ function hydrate() {
       + ghLink(base, icon('github'), 'mini', 'A repó a GitHubon') : '';
   fitChrome();                // a repó- és ágnév hossza dönt a kompakt fejlécről
   hydrateAvatars();
+}
+
+/* A HEAD-chip a saját worktree ágát mutatja; több worktree-nél fölötte a
+   worktree-pillek: ág, változások pöttye, ↑ahead. */
+function hydrateFocus() {
+  const wts = worktrees(), own = focusWt();
+  const chip = document.getElementById('headChip');
+  document.getElementById('headName').textContent = own ? wtLabel(own) : DATA.meta.head;
+  chip.hidden = !(own || DATA.meta.head);
+  chip.title = !own ? '' : own.path + (wts.length < 2 ? ''
+    : focusPick ? '\nkézzel választva — a pillre újra kattintva vissza'
+    : focusAuto?.bound ? '\nennek a panelnek a sessionje itt dolgozik'
+    : '\na legutóbb promptolt session itt dolgozik');
+  const bar = document.getElementById('wtBar');
+  bar.hidden = wts.length < 2;
+  bar.innerHTML = wts.length < 2 ? '' : wts.map(w => {
+    const track = DATA.branches.find(b => b.name === w.branch)?.track || '';
+    const ahead = /ahead (\d+)/.exec(track)?.[1];
+    const tip = `${w.path}${w.main ? ' (fő checkout)' : ''}`
+      + (w.dirty ? `\n${w.dirty} változás` : '') + (ahead ? `\n${ahead} commit pusholatlan` : '');
+    return `<button type="button" class="wt-pill${w.main ? ' main' : ''}" data-wt="${esc(w.slug)}"`
+      + ` aria-pressed="${w === own}" title="${esc(tip)}">${icon(w.branch ? 'branch' : 'commit')}`
+      + `<span class="wt-name">${esc(wtLabel(w))}</span>`
+      + (w.dirty ? '<span class="wt-dirty" aria-label="változott"></span>' : '')
+      + (ahead ? `<span class="wt-ahead">↑${ahead}</span>` : '') + '</button>';
+  }).join('');
 }
 
 /* Az avatarok (data URI, néhány KB) szerzőnként egyszer kerülnek a lapra, egy
@@ -108,17 +164,20 @@ function laneX(l) { return X0 + l * LANE_W; }
 /* A sorok Y-pozíciója a DOM-ból jön, nem sorszám × magasság: a napok fejléce
    és a kinyitott commit-panel az alattuk lévő sorokat lejjebb tolja, és a
    pöttyöknek velük kell menniük — közben a vonal egyszerűen hosszabb lesz. */
-/* Az Uncommitted ál-sor a lista FÖLÖTT, a fix `#pending` sávban ül: a pontja
-   ott van, a szaggatott vonala innen, a lista teteje fölül (negatív Y, az
-   SVG túllóghat) fut le a HEAD-ig. */
-const PENDING_Y = -(4 + ROW_H / 2);   // 4: a .graph-wrap felső margója
+/* Az Uncommitted ál-sorok a lista FÖLÖTT, a fix `#pending` sávban ülnek: a
+   pontjuk ott van, a szaggatott vonaluk innen, a lista teteje fölül (negatív
+   Y, az SVG túllóghat) fut le a HEAD-ig. */
+const WRAP_TOP = 4;                   // a .graph-wrap felső margója
 function drawGraph() {
+  drawPending();
   const rowIndexBySha = new Map(visible.map((c, i) => [c.sha, i]));
   // A sor közepe: a kétsoros sor (`.two`) magasabb.
   const midBySha = new Map([...rowsEl.querySelectorAll('.row')]
     .map(el => [el.dataset.sha, el.offsetTop + el.offsetHeight / 2]));
-  const rowY = i => visible[i].uncommitted ? PENDING_Y
-    : midBySha.get(visible[i].sha) ?? i * ROW_H + ROW_H / 2;
+  for (const el of pendingEl.querySelectorAll('.row')) {
+    midBySha.set(el.dataset.sha, el.offsetTop + el.offsetHeight / 2 - pendingEl.offsetHeight - WRAP_TOP);
+  }
+  const rowY = i => midBySha.get(visible[i].sha) ?? i * ROW_H + ROW_H / 2;
   const h = Math.max(rowsEl.offsetHeight, visible.length * ROW_H);
   svg.setAttribute('width', graphW);
   svg.setAttribute('height', h);
@@ -227,10 +286,13 @@ function mergedRefs(refs) {
 const REF_ICON = { head: 'branch', detached: 'commit', branch: 'branch', remote: 'cloud', tag: 'tag' };
 function badges(c) {
   return mergedRefs(c.refs).map(r => {
+    const wt = r.worktree && worktrees().find(w => w.slug === r.worktree);
     const title = (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name
-      + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o}/${r.name}`).join(', ') : '');
+      + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o}/${r.name}`).join(', ') : '')
+      + (wt && worktrees().length > 1 ? `\nworktree: ${wt.path}` : '');
     const remotes = r.remotes.map(o => `<span class="div"></span><span class="origin">${esc(o)}</span>`).join('');
-    return `<span class="badge ref-${r.kind}" title="${esc(title)}">${icon(REF_ICON[r.kind] || 'branch')}`
+    const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
+    return `<span class="badge ref-${r.kind}${other}" title="${esc(title)}">${icon(REF_ICON[r.kind] || 'branch')}`
       + `${esc(r.name)}${remotes}</span>`;
   }).join('');
 }
@@ -278,7 +340,7 @@ function render() {
     ?.dataset.path;               // blokkon állva a fájljára áll vissza
   let day = '', html = '';
   const today = dayKey(new Date());
-  renderPending(visible.find(c => c.uncommitted));
+  renderPending(visible.filter(c => c.uncommitted));
   for (const c of visible) {
     if (c.uncommitted) continue;          // a fix #pending sávban van
     const key = dayKey(c.date);
@@ -305,17 +367,30 @@ function render() {
   back?.focus({ preventScroll: true });
 }
 
-/* Az Uncommitted ál-sor mindig látszik: a lista fölötti fix sávban, saját
-   üres karikával és a lista felé futó szaggatott csonkkal (görgetve rejtve). */
+/* Az Uncommitted ál-sorok (worktree-nként egy) mindig látszanak: a lista
+   fölötti fix sávban, saját üres karikával és a lista felé futó szaggatott
+   csonkkal (görgetve rejtve). A karikák a sorok mért közepére kerülnek
+   (`drawPending`, a `drawGraph` hívja): a sor kétsoros is lehet. */
 const pendingEl = document.getElementById('pending');
-function renderPending(c) {
-  pendingEl.hidden = !c;
-  if (!c) { pendingEl.innerHTML = ''; return; }
-  const x = laneX(c.lane), color = LANE_COLORS[c.lane % LANE_COLORS.length];
-  pendingEl.innerHTML = `<svg class="pend-lane" width="${graphW}" height="${ROW_H}" aria-hidden="true">`
-    + `<path class="pend-edge" d="M ${x} ${ROW_H / 2 + DOT_R + 1} L ${x} ${ROW_H}" stroke="${color}" stroke-width="2" stroke-dasharray="3 3"/>`
-    + `<circle cx="${x}" cy="${ROW_H / 2}" r="${DOT_R + 1}" fill="var(--bg)" stroke="${color}" stroke-width="2"/></svg>`
-    + rowHtml(c);
+function renderPending(list) {
+  pendingEl.hidden = !list.length;
+  pendingEl.innerHTML = list.length
+    ? '<svg class="pend-lane" aria-hidden="true"></svg>' + list.map(rowHtml).join('') : '';
+}
+function drawPending() {
+  const lane = pendingEl.querySelector('.pend-lane');
+  if (!lane) return;
+  const h = pendingEl.offsetHeight;
+  lane.setAttribute('width', graphW);
+  lane.setAttribute('height', h);
+  lane.innerHTML = [...pendingEl.querySelectorAll('.row')].map(row => {
+    const c = DATA.commits.find(x => x.sha === row.dataset.sha);
+    if (!c) return '';
+    const x = laneX(c.lane), y = row.offsetTop + row.offsetHeight / 2;
+    const color = LANE_COLORS[c.lane % LANE_COLORS.length];
+    return `<path class="pend-edge" d="M ${x} ${y + DOT_R + 1} L ${x} ${h}" stroke="${color}" stroke-width="2" stroke-dasharray="3 3"/>`
+      + `<circle cx="${x}" cy="${y}" r="${DOT_R + 1}" fill="var(--bg)" stroke="${color}" stroke-width="2"/>`;
+  }).join('');
 }
 
 /* ── Commit-részletek ────────────────────────────────────────────────────── */
@@ -739,6 +814,18 @@ function onListClick(e) {
   } else open(row.dataset.sha);
 }
 rowsEl.addEventListener('click', onListClick);
+/* Pill: az a worktree lesz a saját (HEAD-chip, H, kiemelt badge), és a HEAD-jére
+   áll; a már kézzel választott pillre kattintva a session szerinti tér vissza. */
+document.getElementById('wtBar').addEventListener('click', e => {
+  const pill = e.target.closest('.wt-pill');
+  if (!pill) return;
+  focusPick = focusPick === pill.dataset.wt ? null : pill.dataset.wt;
+  hydrateFocus();
+  fillBranches();
+  render();
+  const own = focusWt()?.slug;
+  selectCommit(visible.find(c => c.refs.some(r => r.worktree === own)));
+});
 pendingEl.addEventListener('click', onListClick);
 
 document.addEventListener('keydown', e => {
@@ -762,7 +849,8 @@ function fillBranches() {
   const opt = (value, name, extra = '') => `<button type="button" class="option" role="option" data-value="${esc(value)}"`
     + ` aria-selected="${value === branchValue}">${icon('check')}<span class="name">${name}</span>${extra}</button>`;
   branchPop.innerHTML = opt('', 'Minden ág') + (DATA.branches.length ? '<div class="menu-sep"></div>' : '')
-    + DATA.branches.map(b => opt(b.name, esc(b.name) + (b.current ? '<span class="cur">HEAD</span>' : ''),
+    + DATA.branches.map(b => opt(b.name, esc(b.name) + (b.worktree === focusWt()?.slug
+      || (b.worktree === undefined && b.current) ? '<span class="cur">HEAD</span>' : ''),
       b.track ? `<span class="track">${esc(trackText(b.track))}</span>` : '<span></span>')).join('');
   const label = branchValue || 'Minden ág';
   if (branchLabel.textContent !== label) {
@@ -850,7 +938,8 @@ function applyFilters() {
   const keep = branch ? ancestryOf(branch) : null;
 
   visible = DATA.commits.filter(c => {
-    if (c.uncommitted) return !words.length;   // állapot, nem commit: keresésnél nem kell
+    // Állapot, nem commit: keresésnél nem kell; ágszűrésnél csak a látszó HEAD-é.
+    if (c.uncommitted) return !words.length && (!keep || keep.has(c.parents[0]));
     if (keep && !keep.has(c.sha)) return false;
     if (refsOnly && c.refs.length === 0) return false;
     if (!remotes && c.refs.length && c.refs.every(r => r.kind === 'remote')) return false;
@@ -1021,7 +1110,10 @@ document.addEventListener('keydown', e => {
   } else if (k === 'ArrowLeft' && cur && expanded === cur.sha) {
     closeCommit();
   } else if ((k === 'h' || k === 'H') && !mod) {
-    handled = selectCommit(visible.find(c => c.refs.some(r => r.kind === 'head' || r.kind === 'detached')));
+    const isHead = r => r.kind === 'head' || r.kind === 'detached';
+    const own = focusWt()?.slug;
+    handled = selectCommit(visible.find(c => c.refs.some(r => isHead(r) && r.worktree === own))
+      || visible.find(c => c.refs.some(isHead)));
   } else {
     handled = false;
   }
@@ -1167,7 +1259,8 @@ function mcpSource() {
   const mcp = CTX.mcp;
   const call = (tool, args) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
     { cache: false }).then(r => r.payload);
-  return { fingerprint: () => call('fingerprint'), data: () => call('graph_data'),
+  return { fingerprint: () => call('fingerprint', { panel: PANEL, visible: panelVisible }),
+           data: () => call('graph_data'),
            diff: (sha, path) => call('file_diff', { sha, path }) };
 }
 
@@ -1245,12 +1338,17 @@ function startLive(src) {
       // újratöltve a betöltő az új `page_code`-ot kéri.
       if (version && f.version && f.version !== version) { location.reload(); return; }
       version = version || f.version;
-      const key = JSON.stringify(f);
+      // A fókusz nem adatváltozás: a lap csak a kiemelést rajzolja újra.
+      const { focus, ...state } = f;
+      const key = JSON.stringify(state);
+      const focusChanged = JSON.stringify(focus ?? null) !== JSON.stringify(focusAuto);
+      focusAuto = focus ?? null;
+      if (focusChanged && key === last) { hydrateFocus(); fillBranches(); render(); }
       if (key !== last) {
         const t1 = performance.now();
         DATA = await src.data();
         const td = performance.now() - t1;
-        for (const [k, v] of diffCache) if (k.startsWith('*uncommitted\n')) v.stale = true;
+        for (const [k, v] of diffCache) if (k.startsWith('*uncommitted')) v.stale = true;
         const top = scroller.scrollTop;
         hydrate();
         fillBranches();

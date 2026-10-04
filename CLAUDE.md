@@ -16,7 +16,7 @@ Használat és felépítés: [README.md](README.md).
 | `ruff.toml`, `biome.json` | lint: Python (3.9-célverzióval) és a `page/` JS / CSS / HTML-je |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
-| `hooks/hooks.json` | a plugin hookja (`--session-hook`): SessionStart, és PostToolUse az `EnterWorktree` / `ExitWorktree` után |
+| `hooks/hooks.json` | a plugin hookja (`--session-hook`): SessionStart, PostToolUse az `EnterWorktree` / `ExitWorktree` után, UserPromptSubmit és CwdChanged (csak aktivitásnapló) |
 | `skills/artifact/SKILL.md` | a `/git-graph:artifact` skill (`git-graph --publish`, és publikálja vagy megnyitja) |
 | `skills/remove/SKILL.md` | a `/git-graph:remove` skill: Artifactok törlése + `git-graph --forget` az uninstall előtt |
 | `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
@@ -36,7 +36,7 @@ git-graph --published <URL>  # a session publikálása után: URL + hash a .git/
 git-graph --mcp              # MCP szerver stdio-n — a Claude app indítja, nem kézzel
 git-graph --artifacts        # ismert repók Artifactjai (regiszter + a szülőmappák repói)
 git-graph --forget           # a repó git-graph nyomai + automatikus publikálás KI
-git-graph --forget-artifact <URL>   # egyetlen Artifact nyomai (megszűnt worktree)
+git-graph --forget-artifact <URL>   # egyetlen Artifact nyomai (régi, worktree-nkénti lap)
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
 python3 bin/git-graph --dev-install   # a working tree az appban futó git-graph helyére (+dev), a lap élőben
 ```
@@ -119,9 +119,8 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 - **`<meta charset="utf-8">` a generált fájl legelső sora** — enélkül
   `file://`-ról latin-1-ként olvasódik.
 - **Repónév az `origin` remote-ból**, nem a mappanévből (a mappa eltérhet:
-  `auto-bpm` → `WristBPM`). Ez adja az Artifact címét is; worktree-ben a
-  mappa neve is mellé kerül (`Git Graph (git-graph · <mappa>)`). A cím a
-  publikált `<title>`-ből jön, a lap JS-e nem írja felül.
+  `auto-bpm` → `WristBPM`). Ez adja az Artifact címét is (`Git Graph (<repó>)`).
+  A cím a publikált `<title>`-ből jön, a lap JS-e nem írja felül.
 - **A beágyazott JSON lezárhatja a script blokkot**: egy commit-üzenetben tényleg
   előfordult `</script>` (varazskez repó) → a lap fele nyers JSON-ként ömlött ki.
   A `build()` ezért az `embed()`-en át ágyaz (`</` → `<\/`, U+2028/29 escape).
@@ -141,11 +140,14 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   belső sávra (`.row-in`) megy. Az SVG-t a sorok fölé emelni nem megoldás: a `.rows`
   (`z-index: 2`) saját rétegkontextust nyit, így a benne lévő `.details` sosem
   kerülhet a testvér `#lanes` fölé — a kinyitott panelen átlógnának a vonalak.
-- **Az `Uncommitted Changes` ál-sor a `commits` lista 0. eleme** (`sha`:
-  `*uncommitted`), a szülője a HEAD. Az `assign_lanes` magától kezeli, de az
-  `edges` **sorindexeket** használ — ezért az ál-sort a lane-kiosztás ELŐTT kell
-  beszúrni, a `meta` viszont még a valódi commitokból készül (különben a
-  „N commit látszik" hazudna).
+- **Az `Uncommitted Changes` ál-sorok a `commits` lista elején** (worktree-nként
+  egy, `sha`: `*uncommitted:<worktree-slug>` — ebből tudja a `file_diff`, melyik
+  mappát diffelje; a slugnak élő worktree-é kell lennie), a szülőjük a worktree
+  HEAD-je. Az `assign_lanes` magától kezeli, de az `edges` **sorindexeket**
+  használ — ezért az ál-sorokat a lane-kiosztás ELŐTT kell beszúrni, a `meta`
+  viszont még a valódi commitokból készül (különben a „N commit látszik"
+  hazudna). A lapon a fix `#pending` sávban ülnek; a pontjuk Y-ja a sáv mért
+  soraiból jön (`drawPending`), negatív a lista tetejéhez képest.
 - **Minden git-hívás `--no-optional-locks`**: a `git status` egyébként frissíti
   az indexet, ahhoz `index.lock`-ot vesz, és a 2 mp-es pollozás így a Fejlesztő
   saját git-parancsait akasztja meg (egy commit tényleg elhasalt rajta).
@@ -165,15 +167,29 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   kér publikálást. Némán kilép, ha a mappa nem repó: egy SessionStart hook
   minden sessionben lefut, zajt nem csinálhat. A repót mindig regisztrálja — a
   `git-graph --mcp` a lap slugjából a `repos.json`-ból találja meg.
-- **Worktree-nként saját Artifact, közös `.git/config`-ban**: a fő checkout
-  kulcsai `git-graph.*`, egy worktree-é `git-graph.<slug>.*` (`config_section`)
-  — közös kulcson a worktree-k egymás lapját publikálnák felül, oda-vissza.
-  `extensions.worktreeConfig`-ot szándékosan nem kapcsolunk be (a repó
-  beállítása lenne). A megszűnt worktree szakaszát a hook ismeri fel
-  (`orphan_artifacts`: nincs a `git worktree list`-ben), és törölteti az
-  Artifactot, majd `--forget-artifact` — a `/worktree-close` erről nem tud.
-  Az `EnterWorktree` session közben történik, ezért a hook PostToolUse-ként
-  is fut: a `cwd` ilyenkor már az új munkakönyvtár (docs).
+- **Repónként egy Artifact, a worktree-k közösen látják** (0.12 óta): minden
+  út a fő checkoutra képződik le (`main_checkout`) — slug, `git-graph.*`
+  kulcsok, cím. A `graph_data` minden worktree-t ad (`meta.worktrees`, HEAD-badge
+  `worktree` mezővel, worktree-nkénti ál-sor), az állapotukat párhuzamosan gyűjti
+  (`collect_worktrees`). A 0.12 előtti `git-graph.<slug>.*` szakaszokat a hook
+  ismeri fel (`legacy_artifacts`), és törölteti az Artifactot, majd
+  `--forget-artifact`. A régi lap a mappája megszűnése után rövid hibát kap,
+  nem nyers git-kivételt. Az `EnterWorktree` után a hook PostToolUse-ként is
+  fut, de ugyanazon a repón belül nem nyit újra (sessionönként egyszer).
+- **A „saját” worktree a panel ↔ session kötésből jön** — mérve,
+  docs/artifact-findings.md: a link `#horgony`-a nem jut át, a host-híd
+  hívásából a session nem derül ki (a `git-graph --mcp` app-szintű), és
+  session-váltásra nincs hook. Ezért: a hook (`UserPromptSubmit`, `CwdChanged`,
+  `SessionStart`) a `~/.git-graph/<slug>/activity.json`-ba írja, melyik session
+  hol dolgozik, és ki promptolt utoljára; a lap a `fingerprint`-tel küldi a
+  panel azonosítóját (a keret `window.name`-jében marad meg) és láthatóságát
+  (IntersectionObserver — a `visibilityState` rejtett panelnél is `visible`). A
+  szerver (`panel_focus`) panelenként fájlba ír (`panels/<id>.json` — két
+  app-szintű példány fut, memória nem közös), és ha a prompt pillanatában a
+  repó lapjai közül pontosan egy látszott, azt a promptoló sessionhöz köti.
+  Kötetlen panelnél a legutóbb promptolt session worktree-je a saját. A
+  `UserPromptSubmit` hook kimenete a modell kontextusába kerülne: semmit nem
+  írhat ki (`QUIET_EVENTS`).
 - **A kimenet a repón KÍVÜL, `~/.git-graph/<slug>/`**: `artifact.html` az
   Artifact betöltője — innen publikál a session. Ne tedd konfigurálhatóvá. A projektmappába nem írunk.
 - **Az Artifact nem tárol adatot** — ez a lényeg, nem optimalizálás. Egy

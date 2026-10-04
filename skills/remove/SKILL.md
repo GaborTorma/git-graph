@@ -13,7 +13,7 @@ az URL-jük. Ez a skill ezt takarítja el — a plugin eltávolítása előtt.
 ### 1. Lista
 
 Futtasd: `git-graph --artifacts`. Soronként `<repó>\t<URL>`; egy repó több sorban is
-szerepelhet (a fő checkout és a worktree-k Artifactja). Ha üres, mondd meg,
+szerepelhet (a közös lap és a 0.12 előtti, worktree-nkénti lapok). Ha üres, mondd meg,
 hogy nincs mit törölni, és ugorj az 5. lépésre.
 
 ### 2. Megerősítés
