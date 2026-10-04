@@ -1248,7 +1248,8 @@ const POLL_MS = 2000;
 const SETTLE_MS = 250;      // méretváltás (session-váltás) után ennyit vár a kérdezéssel
 const RETRY_MS = 400;       // átmeneti hiba után ennyi idővel csendben újra
 const QUIET_RETRIES = 3;    // ennyi átmeneti hibát nem ír ki
-const BURST_MS = 250, BURST_FOR_MS = 2000;   // session-váltás után ilyen sűrűn, ennyi ideig
+const ARRIVAL_MS = 2000;    // ennyin belül a fókuszváltás az utolsó jelé (a tooltipben)
+const FOCUS_WAIT_S = 50;    // a nyitva tartott hívás leghosszabb várakozása
 const foot = document.getElementById('foot');
 const liveText = document.getElementById('liveText');
 const liveDot = document.getElementById('liveDot');
@@ -1334,6 +1335,7 @@ function mcpSource() {
   const call = (tool, args) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
     { cache: false }).then(r => r.payload);
   return { fingerprint: () => call('fingerprint'),
+           waitFocus: cursor => call('fingerprint', { wait: FOCUS_WAIT_S, cursor }),
            data: () => call('graph_data'),
            diff: (sha, path) => call('file_diff', { sha, path }) };
 }
@@ -1402,13 +1404,23 @@ function startLive(src) {
   let change = '';                          // az utolsó változás: mikor, mennyi idő alatt
   let switched = '', arrival = null;        // az utolsó session-váltás: mi indította, mennyi idő alatt
   let version = null;                       // a szerver verziója, amikor a lap betöltött
-  let timer = 0, busy = false, again = false, misses = 0, burstUntil = 0;
+  let timer = 0, busy = false, again = false, misses = 0;
   SRC = src;
   /* Rajzol-e most a lap: rejtett keretben a requestAnimationFrame nem fut. */
   const rendering = () => new Promise(done => {
     requestAnimationFrame(() => done(true));
     setTimeout(() => done(false), 250);
   });
+  /* Az új fókusz; true, ha a saját worktree megváltozott (a hívó rajzol újra). */
+  function setFocus(focus, how) {
+    const before = focusWt()?.slug;
+    focusAuto = focus ?? null;
+    if (focusWt()?.slug === before) return false;
+    const since = arrival && performance.now() - arrival.at;
+    switched = `\nsession-váltás ${clock()}: ` + (how
+      || (since < ARRIVAL_MS ? `${arrival.kind} után ${Math.round(since)} ms` : 'a rendes körben'));
+    return true;
+  }
   async function poll() {
     clearTimeout(timer);
     if (busy) { again = true; return; }       // fut egy kör: utána azonnal még egy
@@ -1425,15 +1437,7 @@ function startLive(src) {
       // A fókusz nem adatváltozás: a lap csak a kiemelést rajzolja újra.
       const { focus, ...state } = f;
       const key = JSON.stringify(state);
-      const before = focusWt()?.slug;
-      focusAuto = focus ?? null;
-      const focusChanged = focusWt()?.slug !== before;
-      if (focusChanged && key === last) { hydrateFocus(); fillBranches(); render(); }
-      if (focusChanged) {
-        const since = arrival && performance.now() - arrival.at;
-        switched = `\nsession-váltás ${clock()}: `
-          + (since < BURST_FOR_MS ? `${arrival.kind} után ${Math.round(since)} ms` : 'a rendes körben');
-      }
+      if (setFocus(focus) && key === last) { hydrateFocus(); fillBranches(); render(); }
       if (key !== last) {
         const t1 = performance.now();
         DATA = await src.data();
@@ -1478,27 +1482,43 @@ function startLive(src) {
     }
     busy = false;
     if (again) { again = false; wait = 0; }
-    else if (performance.now() < burstUntil) wait = Math.min(wait, BURST_MS);
     timer = setTimeout(poll, wait);             // a következő kör az előző után
   }
   /* Session-váltáskor az app ezt az egy keretet átteszi a másik session
-     paneljébe, ami más méretű (mérve): a méretváltás után rövid ideig sűrűn
-     kérdezünk. A szerver a fókuszt az app naplójából ~20 ms-mal a váltás után
-     tudja (mérve); a rövid várakozás a keret áthelyezését várja ki, közben a
-     host-híd nem válaszol. */
+     paneljébe. Ha közben más Artifact látszott, a keret rejtve volt: a
+     megjelenése után egyszer kérdezünk — a rövid várakozás az áthelyezést
+     várja ki, közben a host-híd nem válaszol. Sűrű kérdezés nem kell, a host
+     rövid idő alatt ~20 hívás után visszafogja (`rate_limited`, mérve). */
   let settle = 0;
-  function arrive(kind) {                      // az áthelyezés végét kivárva
+  function arrive(kind, delay = SETTLE_MS) {    // az áthelyezés végét kivárva
     arrival = { kind, at: performance.now() };
-    burstUntil = performance.now() + BURST_FOR_MS;
     clearTimeout(settle);
-    settle = setTimeout(poll, SETTLE_MS);
+    settle = setTimeout(poll, delay);
   }
-  addEventListener('resize', () => arrive('méretváltás'));
-  /* Egyforma méretű paneleknél nincs `resize`, de a keret a váltás alatt nem
-     látszik (a rajzolás szünetel), megjelenéskor pedig az IntersectionObserver
-     jelez (mérve). */
+  /* Rejtve a rajzolás szünetel, megjelenéskor az IntersectionObserver jelez (mérve). */
   new IntersectionObserver(es => { if (es[es.length - 1].isIntersecting) arrive('megjelenés'); })
     .observe(document.body);
+  /* Ugyanazon Artifact sessionjei között a keret rejtés nélkül költözik, és
+     egyforma panelméretnél semmilyen eseményt nem kap (mérve). Ezért a lap
+     egy hívást nyitva tart: a szerver akkor válaszol, amikor az app
+     naplójában session-váltás jelenik meg, és a válasz az új fókuszt is
+     hozza — váltásonként egyetlen hívás. */
+  (async function watchFocus() {
+    let cursor = '';
+    for (;;) {
+      try {
+        const r = await src.waitFocus(cursor);
+        if (typeof r?.cursor !== 'string') return;   // régi szerver: csak a rendes kör marad
+        if (r.switched && 'focus' in r) {
+          if (last && setFocus(r.focus, 'várakozó hívás')) { hydrateFocus(); fillBranches(); render(); }
+        } else if (r.switched) arrive('session-váltás', 0);
+        cursor = r.cursor;
+      } catch (e) {
+        const pause = e?.retryable ? Math.max(1000, e.retryAfterMs || 0) : 10000;
+        await new Promise(done => setTimeout(done, pause));
+      }
+    }
+  })();
   poll();
 }
 

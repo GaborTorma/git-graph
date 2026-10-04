@@ -88,8 +88,9 @@ checkout slugján). A gráf fölött worktree-pillek (mappa, ág, változások
 pöttye, `↑` előrébb / `↓` hátrébb jár; az ikon köre kitöltve, ha szinkronban van
 az upstreamjével), minden worktree HEAD-je badge-et kap, és worktree-nként egy
 Uncommitted sor. A „saját” worktree (teli HEAD-badge, HEAD-chip, `H`) az
-előtérben lévő sessioné: a lap a Claude app session-adataiból tudja, melyik
-session van épp elöl, és session-váltáskor prompt nélkül, ≤ 2 mp alatt átáll.
+előtérben lévő sessioné: a lap a Claude app naplójából és session-adataiból
+tudja, melyik session van épp elöl, és session-váltáskor prompt nélkül,
+~50 ms alatt átáll.
 Kézzel nem választható — a HEAD ott van, ahol a session dolgozik; a pillre
 kattintva a lista csak odaugrik. Ami nem a sajáté, halványabb (a sehol ki nem
 vett ágak a fő checkouté). A
@@ -136,8 +137,9 @@ Az Artifact **élő**, de sem adatot, sem kódot nem tárol: egy betöltő, amel
 Claude appban megnyitva a lap kódját (`page_code`) és az adatot is a gépeden
 futó `git-graph --mcp`-ből kéri, az app **host-hídján** át
 (`callTool("host:git-graph", …)`): 2 mp-enként az olcsó `fingerprint` (refek, HEAD, munkakönyvtár — ~40 ms), és
-csak változáskor a teljes `graph_data` (150–300 ms). A lábléc kiírja a mért
-időket. Egy lenyitott fájl diffje a `file_diff` toolból jön.
+csak változáskor a teljes `graph_data` (150–300 ms). Mellette egy nyitva
+tartott `fingerprint`-hívás (`wait`) a session-váltásra vár. A lábléc kiírja a
+mért időket. Egy lenyitott fájl diffje a `file_diff` toolból jön.
 
 Megkötések (a platformé, mérve — [docs/artifact-findings.md](docs/artifact-findings.md)):
 

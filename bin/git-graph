@@ -1215,6 +1215,7 @@ APP_LOG_TAIL = 2 << 20          # induláskor ennyit olvasunk vissza a napló v�
 FOCUS_LINE = re.compile(rb"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) \[info\] \[CCD\] "
                         rb"LocalSessions\.setFocusedSession: sessionId=(local_[0-9a-f-]+)", re.M)
 _APP_LOG: dict = {"ino": None, "pos": 0, "seq": 0, "focus": {}}   # focus: id → (idő, sorszám)
+FOCUS_LOCK = threading.Lock()
 
 
 def app_sessions() -> list[dict]:
@@ -1303,8 +1304,10 @@ def focused_worktree(worktrees: list[dict]) -> dict:
     `known`: van-e a repóban dolgozó session; ha nincs, a lap a fő checkoutot
     tekinti sajátnak.
     """
-    best, logged = None, app_log_focus()
-    for session in app_sessions():
+    with FOCUS_LOCK:                          # a várakozó hívás szála is számolja
+        logged, sessions = dict(app_log_focus()), app_sessions()
+    best = None
+    for session in sessions:
         if session["archived"]:
             continue
         slug = worktree_of(session["cwd"], worktrees)
@@ -1312,6 +1315,56 @@ def focused_worktree(worktrees: list[dict]) -> dict:
         if slug and (best is None or at > best[0]):
             best = (at, slug)
     return {"worktree": best[1] if best else None, "known": best is not None}
+
+
+FOCUS_WAIT_MAX = 50.0          # s — a host válasz-időkorlátja alatt (mérve)
+WAKE = threading.Event()      # újraindulás előtt: a várakozó hívások azonnal válaszolnak
+_WAITING = {"n": 0}            # nyitott várakozó hívások (a `restart` kivárja őket)
+_WAITING_LOCK = threading.Lock()
+
+
+def wait_focus(cursor: str, timeout: float) -> dict:
+    """Vár, amíg az app naplójában új session-váltás jelenik meg (legfeljebb `timeout` s-ig).
+
+    A lap ezzel tart nyitva egy hívást: ugyanazon Artifact sessionjei között a
+    keret rejtés nélkül költözik, egyforma panelméretnél semmilyen eseményt
+    nem kap (mérve). A `cursor` (inode:pozíció) az előző válaszé — ami a két
+    hívás között jött, az sem vész el. Üres vagy idegen cursornál azonnal
+    visszatér a mostanival. Saját fájlolvasás, megosztott állapot nélkül: a
+    hívás külön szálon fut, a többi kérés közben is kiszolgálódik.
+    """
+    try:
+        ino, pos = (int(x) for x in cursor.split(":"))
+    except ValueError:
+        ino = pos = -1
+    deadline = time.monotonic() + max(0.0, min(timeout, FOCUS_WAIT_MAX))
+    while True:
+        try:
+            st = APP_LOG.stat()
+        except OSError:
+            st = None
+        if st and (st.st_ino != ino or st.st_size < pos):
+            # Első hívás vagy forgatás: innen figyelünk; forgatáskor jelzünk is.
+            switched = ino != -1
+            ino, pos = st.st_ino, st.st_size
+            if switched:
+                return {"switched": True, "cursor": f"{ino}:{pos}"}
+            if cursor == "":
+                return {"switched": False, "cursor": f"{ino}:{pos}"}
+        elif st and st.st_size > pos:
+            try:
+                with APP_LOG.open("rb") as f:
+                    f.seek(pos)
+                    chunk = f.read(st.st_size - pos)
+            except OSError:
+                chunk = b""
+            end = chunk.rfind(b"\n") + 1
+            pos += end
+            if FOCUS_LINE.search(chunk, 0, end):
+                return {"switched": True, "cursor": f"{ino}:{pos}"}
+        if WAKE.is_set() or time.monotonic() >= deadline:
+            return {"switched": False, "cursor": f"{ino}:{pos}"}
+        time.sleep(0.05)
 
 
 def registered_repos() -> dict:
@@ -1460,8 +1513,13 @@ def mark_published(url: str) -> None:
 MCP_NAME = "git-graph"        # a Claude app configjában ez a kulcs → a lapon host:git-graph
 _REPO_ARG = {"type": "object", "required": ["repo"], "properties": {
     "repo": {"type": "string", "description": "a repó slugja (~/.git-graph/repos.json)"}}}
+_FINGERPRINT_ARG = {"type": "object", "required": ["repo"], "properties": {
+    **_REPO_ARG["properties"],
+    "wait": {"type": "number", "description": "csak várakozás: legfeljebb ennyi s-ig vár "
+             "a következő session-váltásra (az app naplójából), és csak {switched, cursor}-t ad"},
+    "cursor": {"type": "string", "description": "az előző várakozó válasz cursorja"}}}
 MCP_TOOLS = [
-    {"name": "fingerprint", "inputSchema": _REPO_ARG, "annotations": {"readOnlyHint": True},
+    {"name": "fingerprint", "inputSchema": _FINGERPRINT_ARG, "annotations": {"readOnlyHint": True},
      "description": "Olcsó ujjlenyomat a repó állapotáról (refek, worktree-k HEAD-je és "
                     "munkakönyvtára) — ha változott, kérd a graph_data-t. Az előtérben "
                     "lévő session worktree-jét is adja (focus)."},
@@ -1554,9 +1612,12 @@ def mcp_serve(limit: int | None) -> int:
             log(f"git-graph: a lap fájlja hiányzik: {exc}")
     threading.Thread(target=watch_plugin, daemon=True).start()
 
+    lock = threading.Lock()                # a várakozó hívások saját szálról válaszolnak
+
     def send(message: dict) -> None:
-        out.write(json.dumps(message).encode() + b"\n")   # ASCII: nem függ a locale-tól
-        out.flush()
+        with lock:
+            out.write(json.dumps(message).encode() + b"\n")   # ASCII: nem függ a locale-tól
+            out.flush()
 
     # Puffereletlen olvasás, saját sorpufferrel: újraindulni (`restart`) csak
     # akkor szabad, ha nincs beolvasott, de feldolgozatlan bemenet — a csőben
@@ -1599,6 +1660,27 @@ def respond(raw: bytes, send, limit: int | None) -> None:
         result = {}
     elif method == "tools/list":
         result = {"tools": MCP_TOOLS}
+    elif method == "tools/call" and params.get("name") == "fingerprint" \
+            and "wait" in (params.get("arguments") or {}):
+        args = params["arguments"]
+
+        def waiter() -> None:
+            try:
+                value = wait_focus(str(args.get("cursor", "")), float(args.get("wait") or 0))
+                repo = repo_for_slug(str(args.get("repo", "")))
+                if value["switched"] and repo and repo.is_dir():
+                    value["focus"] = focused_worktree(worktree_list(repo))   # nem kell külön ujjlenyomat
+                body = {"content": [{"type": "text", "text": json.dumps(value)}], "isError": False}
+            except Exception as exc:           # a szerver éljen tovább
+                body = {"content": [{"type": "text", "text": f"hiba: {exc}"}], "isError": True}
+            send({"jsonrpc": "2.0", "id": mid, "result": body})
+            with _WAITING_LOCK:
+                _WAITING["n"] -= 1
+
+        with _WAITING_LOCK:
+            _WAITING["n"] += 1
+        threading.Thread(target=waiter, daemon=True).start()
+        return
     elif method == "tools/call":
         try:
             result = mcp_tool(params.get("name", ""), params.get("arguments") or {}, limit)
@@ -1614,6 +1696,10 @@ def respond(raw: bytes, send, limit: int | None) -> None:
 def restart() -> None:
     """A frissült stabil másolat futtatása ugyanebben a folyamatban (stdio marad)."""
     log(f"git-graph: frissült ({RUNNING_VERSION} → {stable_version()}) — újraindulás")
+    WAKE.set()                                 # a nyitott várakozó hívások most válaszolnak
+    deadline = time.monotonic() + 1
+    while _WAITING["n"] and time.monotonic() < deadline:
+        time.sleep(0.02)
     sys.stdout.flush()
     python = sys.executable or SYSTEM_PYTHON
     os.execv(python, [python, str(STABLE), *sys.argv[1:]])

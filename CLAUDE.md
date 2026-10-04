@@ -187,7 +187,13 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   `fingerprint` `focus` mezője). A `lastFocusedAt` 1–3 s késéssel íródik, ezért
   a fókusz ideje az app naplójából jön (`~/Library/Logs/Claude/main.log`,
   `setFocusedSession`, ~20 ms-mal a váltás után; `app_log_focus`, csak az új
-  sorokat olvassa, a forgatást kezeli). Belső fájlok, ismeretlen formánál nem
+  sorokat olvassa, a forgatást kezeli). A lap erről nem kap eseményt (a keret
+  rejtés nélkül költözik, egyforma panelméretnél `resize` sincs), ezért egy
+  `fingerprint`-hívást nyitva tart (`wait` + `cursor`, `wait_focus`): a szerver
+  külön szálon, a naplóban megjelenő váltásra válaszol, az új fókusszal együtt.
+  A `send` ezért zárolt, a fókusz-gyorstárak `FOCUS_LOCK` alatt; a `restart`
+  előbb a várakozókat válaszoltatja. Sűrű kérdezés tilos: a host ~20 gyors
+  hívás után `rate_limited`-del fog vissza. Belső fájlok, ismeretlen formánál nem
   dönt; a több száz, nagy session-fájlt `stat`-tal figyeli, csak a
   megváltozottat olvassa újra (`app_sessions`). Kézzel nem választható. Halványabb (`.foreign`), ami nem a
   sajáté: worktree-ből nézve ami a HEAD-jéből nem érhető el; a fő checkoutból

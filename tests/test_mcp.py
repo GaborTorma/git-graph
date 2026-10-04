@@ -312,6 +312,12 @@ class McpServerTest(unittest.TestCase):
         focus(tail="\n")
         self.assertEqual(module.focused_worktree(wts)["worktree"], module.slug_for(extra))
 
+        # A nyitva tartott hívás: a cursor óta jött váltásra azonnal, különben a határidőre válaszol.
+        cursor = module.wait_focus("", 5)["cursor"]
+        self.assertEqual(module.wait_focus(cursor, 0.1), {"switched": False, "cursor": cursor})
+        focus("local_a")
+        self.assertTrue(module.wait_focus(cursor, 5)["switched"])
+
     def test_vanished_worktree(self) -> None:
         """A régi, worktree-nkénti lap a mappája megszűnése után rövid üzenetet kap."""
         state = self.home / ".git-graph"
