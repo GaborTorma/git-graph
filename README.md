@@ -84,8 +84,9 @@ A **SessionStart hook** a session indulásakor a repó Artifactját nézi:
   ilyenkor először ez a hook fut.
 
 **Worktree-k:** repónként egy Artifact van, a worktree-k közösen látják (a fő
-checkout slugján). A gráf fölött worktree-pillek (ág, változások pöttye,
-`↑` pusholatlan), minden worktree HEAD-je badge-et kap, és worktree-nként egy
+checkout slugján). A gráf fölött worktree-pillek (mappa, ág, változások
+pöttye, `↑` előrébb / `↓` hátrébb jár; az ikon köre kitöltve, ha szinkronban van
+az upstreamjével), minden worktree HEAD-je badge-et kap, és worktree-nként egy
 Uncommitted sor. A „saját” worktree (teli HEAD-badge, HEAD-chip, `H`) az
 előtérben lévő sessioné: a lap a Claude app session-adataiból tudja, melyik
 session van épp elöl, és session-váltáskor prompt nélkül, ≤ 2 mp alatt átáll.

@@ -138,6 +138,8 @@ const ICONS = {
   // a worktree-jel (GitLens icon-worktree, MIT, © GitKraken / Eric Amodio): telt, nem vonalas
   worktree: '<path fill="currentColor" stroke="none" d="M11.83 6.2a3.5 3.5 0 0 1 0 6.93v2.2h-1v-2.2a3.5 3.5 0 0 1 0-6.93V.67h1V6.2Zm-.5.97a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/>'
     + '<path fill="currentColor" stroke="none" d="M6.33 2c.54 0 1.12.67 1.34 1h2v1h-2c-.5 0-.88-.38-1.13-.7l-.2-.3H1.66v3H6l.67-.67c.2-.18.36-.26.66-.33h2.34v.3c-.44.17-.85.4-1.22.7H7.33l-.66.67-.17.2-.33.13h-4.5v6h6.4l.17.16c.4.36.86.64 1.36.84H1.33l-.66-.67V2.67L1.33 2h5ZM15.33 12.07v1.26l-.66.67h-1.6a4.68 4.68 0 0 0 2.26-1.93ZM14.67 3l.66.67v3.59A4.7 4.7 0 0 0 13 5.31V5h1.33V4H13V3h1.67Z"/>',
+  // ugyanez szinkronban (GitLens icon-worktree-synced): a kör kitöltve
+  get worktreeSynced() { return this.worktree + '<path fill="currentColor" stroke="none" d="M11.33 12.67a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>'; },
 };
 const icon = (name, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
 // Fájltípus-ikon: a git-graph a fájlhoz rendelt Catppuccin-ikon SVG-jét adja
@@ -201,18 +203,23 @@ function hydrateFocus() {
   bar.hidden = !linked.length;
   const short = b => String(b).replace(/^origin\//, '');
   bar.innerHTML = !linked.length ? '' : '<span class="wt-lbl">Worktree-k</span>' + linked.map(w => {
+    // Szinkronban: van upstreamje, és se előrébb, se hátrébb nem jár — kitöltött kör az ikonon.
+    const synced = w.upstream && !w.ahead && !w.behind;
     const tip = `Worktree: ${w.path}\nág: ${wtLabel(w)}`
       + (w.dirty ? `\n${w.dirty} commitolatlan változás` : '')
-      + (w.ahead ? `\n${w.ahead} commit a(z) ${w.base} előtt` : '');
+      + (w.ahead ? `\n${w.ahead} commit a(z) ${w.base} előtt` : '')
+      + (w.behind ? `\n${w.behind} commit a(z) ${w.base} mögött` : '')
+      + (synced ? `\nszinkronban: ${w.base}` : !w.upstream ? '\nnincs upstream' : '');
     const color = wtColor(w);
     return `<button type="button" class="wt-pill" data-wt="${esc(w.slug)}"`
-      + `${color ? ` style="--wt:${color}"` : ''} aria-pressed="${w === own}" title="${esc(tip)}">${icon('worktree')}`
+      + `${color ? ` style="--wt:${color}"` : ''} aria-pressed="${w === own}" title="${esc(tip)}">${icon(synced ? 'worktreeSynced' : 'worktree')}`
       + `<span class="wt-name">${esc(w.name)}</span>`
       + `<span class="wt-branch">${esc(wtLabel(w))}</span>`
       + (w.dirty ? '<span class="wt-dirty" aria-label="commitolatlan változás"></span>' : '')
       // A saját upstreamjéhez mérve elég a szám; az alapághoz mérve a neve is kell.
-      + (w.ahead ? `<span class="wt-ahead">↑${w.ahead}${short(w.base) === w.branch ? ''
-        : ' ' + esc(short(w.base))}</span>` : '') + '</button>';
+      + (w.ahead || w.behind ? `<span class="wt-ahead">${w.ahead ? `↑${w.ahead}` : ''}`
+        + `${w.ahead && w.behind ? ' ' : ''}${w.behind ? `↓${w.behind}` : ''}`
+        + `${w.upstream ? '' : ' ' + esc(short(w.base))}</span>` : '') + '</button>';
   }).join('');
 }
 

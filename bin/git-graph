@@ -356,7 +356,7 @@ def collect_worktrees() -> list[dict]:
         except subprocess.CalledProcessError:
             wt["gone"] = True
             return
-        wt["ahead"], wt["base"] = ahead_of(wt, default)
+        wt["track"] = ahead_of(wt, default)
 
     with ThreadPoolExecutor(max_workers=max(1, min(8, len(worktrees)))) as pool:
         list(pool.map(fill, worktrees))
@@ -367,30 +367,31 @@ def collect_worktrees() -> list[dict]:
     return worktrees
 
 
-def ahead_of(wt: dict, default: str) -> tuple[int, str]:
-    """Hány committal jár a worktree HEAD-je előrébb, és minek: az upstreamjénél,
-    ha van, különben az alapágnál (`origin/HEAD`) — egy friss feature-ágnak még
-    nincs upstreamje, de a lapnak látszania kell, hogy előrébb van."""
-    if not wt["head"]:
-        return 0, ""
+def ahead_of(wt: dict, default: str) -> dict:
+    """Hány committal jár a worktree HEAD-je előrébb és hátrébb, és minek: az
+    upstreamjénél, ha van, különben az alapágnál (`origin/HEAD`) — egy friss
+    feature-ágnak még nincs upstreamje, de a lapnak látszania kell, hogy
+    előrébb van. `upstream`: a saját upstreamjéhez mért-e (a szinkron-jelhez)."""
     for base in ("@{upstream}", default):
-        if not base:
+        if not base or not wt["head"]:
             continue
         try:
-            count = git("rev-list", "--count", f"{base}..HEAD", repo=wt["path"]).strip()
+            behind, ahead = git("rev-list", "--left-right", "--count", f"{base}...HEAD",
+                                repo=wt["path"]).split()
             name = (git("rev-parse", "--abbrev-ref", base, repo=wt["path"]).strip()
                     if base.startswith("@") else base)
-            return int(count), name
+            return {"ahead": int(ahead), "behind": int(behind), "base": name,
+                    "upstream": base.startswith("@")}
         except (subprocess.CalledProcessError, ValueError):
             continue
-    return 0, ""
+    return {"ahead": 0, "behind": 0, "base": "", "upstream": False}
 
 
 def worktree_meta(wt: dict) -> dict:
-    """Egy worktree a lapnak: azonosító, mappa, ág, HEAD, változások száma, előny."""
+    """Egy worktree a lapnak: azonosító, mappa, ág, HEAD, változások száma, előny / hátralék."""
     return {"slug": wt["slug"], "name": wt["path"].name, "path": str(wt["path"]),
             "branch": wt["branch"], "head": wt["head"], "main": wt["main"],
-            "dirty": len(wt["status"]), "ahead": wt.get("ahead", 0), "base": wt.get("base", "")}
+            "dirty": len(wt["status"]), **wt.get("track", {})}
 
 
 def config_get(key: str) -> str:
