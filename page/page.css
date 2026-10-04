@@ -177,10 +177,14 @@ button { font: inherit; color: inherit; }
 .head-chip {
   display: inline-flex; align-items: center; gap: 4px;
   height: 20px; padding: 0 7px; border-radius: 6px;
-  background: var(--accent-bg); color: var(--accent);
+  background: color-mix(in srgb, var(--lc) 14%, var(--bg));
+  color: color-mix(in srgb, var(--lc) 70%, var(--fg-0));
   font-size: 12px; font-weight: 500; white-space: nowrap;
 }
 .head-chip .ic { width: 12px; height: 12px; }
+.head-chip .wt-ahead { margin-left: 3px; opacity: 1; }
+/* Commitolatlan változás: üres karika, mint az Uncommitted ál-sor pontja. */
+.head-chip .ring { width: 8px; height: 8px; margin-left: 3px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px currentColor; }
 
 /* Ágválasztó: saját legördülő menü — a natív <select> listája a macOS kék
    menüjét hozná, ami kilóg az app nyelvéből. */

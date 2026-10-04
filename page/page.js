@@ -163,7 +163,16 @@ function hydrate() {
 function hydrateFocus() {
   const wts = worktrees(), own = focusWt();
   const chip = document.getElementById('headChip');
-  document.getElementById('headName').textContent = own ? wtLabel(own) : DATA.meta.head;
+  // A fejléc chipje a saját ág gráfbeli színét viseli; worktree-ben a worktree-ikonnal,
+  // az előnnyel és — ha van commitolatlan változás — üres karikával, mint az ál-sor pontja.
+  const linkedOwn = own && !own.main;
+  chip.style.setProperty('--lc', (own && wtColor(own)) || 'var(--accent)');
+  chip.innerHTML = icon(own && !own.branch ? 'commit' : 'branch')
+    + (linkedOwn ? icon(own.upstream && !own.ahead && !own.behind ? 'worktreeSynced' : 'worktree') : '')
+    + `<span id="headName">${esc(own ? wtLabel(own) : DATA.meta.head || '')}</span>`
+    + (linkedOwn && own.dirty ? `<span class="ring" title="${own.dirty} commitolatlan változás"></span>` : '')
+    + (linkedOwn && (own.ahead || own.behind) ? `<span class="wt-ahead">${own.ahead ? `↑${own.ahead}` : ''}`
+      + `${own.ahead && own.behind ? ' ' : ''}${own.behind ? `↓${own.behind}` : ''}</span>` : '');
   chip.hidden = !(own || DATA.meta.head);
   chip.title = !own ? '' : (own.main ? 'fő checkout: ' : 'worktree: ') + own.path
     + (wts.length < 2 ? ''
