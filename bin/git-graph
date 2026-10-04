@@ -389,9 +389,13 @@ def ahead_of(wt: dict, default: str) -> dict:
 
 def worktree_meta(wt: dict) -> dict:
     """Egy worktree a lapnak: azonosító, mappa, ág, HEAD, változások száma, előny / hátralék."""
-    return {"slug": wt["slug"], "name": wt["path"].name, "path": str(wt["path"]),
+    meta = {"slug": wt["slug"], "name": wt["path"].name, "path": str(wt["path"]),
             "branch": wt["branch"], "head": wt["head"], "main": wt["main"],
             "dirty": len(wt["status"]), **wt.get("track", {})}
+    if not wt["branch"] and not wt["main"]:
+        # Leválasztott HEAD: a git nem jegyzi, melyik ágé volt — a Claude app igen.
+        meta["appBranch"] = app_worktree_branches().get(str(wt["path"].resolve()))
+    return meta
 
 
 def config_get(key: str) -> str:
@@ -1315,6 +1319,35 @@ def app_log_focus() -> dict:
         state["seq"] += 1
         state["focus"][m.group(2).decode()] = (at, state["seq"])
     return state["focus"]
+
+
+APP_WORKTREES = Path.home() / "Library" / "Application Support" / "Claude" / "git-worktrees.json"
+_APP_WORKTREES: dict = {"mtime": None, "branches": {}}
+
+
+def app_worktree_branches() -> dict[str, str]:
+    """Az app által létrehozott worktree-k ága, a mappájuk szerint (`git-worktrees.json`).
+
+    A session törlésekor az app leválasztja a worktree HEAD-jét; az ágat a git
+    ezután semmivel nem köti a worktree-hez, az app nyilvántartása igen. Belső
+    fájl: ismeretlen formánál üres.
+    """
+    try:
+        mtime = APP_WORKTREES.stat().st_mtime
+    except OSError:
+        return {}
+    if mtime != _APP_WORKTREES["mtime"]:
+        branches = {}
+        try:
+            entries = json.loads(APP_WORKTREES.read_text(encoding="utf-8")).get("worktrees") or {}
+            for entry in entries.values():
+                path, branch = entry.get("path"), entry.get("branch")
+                if isinstance(path, str) and isinstance(branch, str) and branch:
+                    branches[str(Path(path).resolve())] = branch
+        except (OSError, ValueError, AttributeError):
+            branches = {}
+        _APP_WORKTREES.update(mtime=mtime, branches=branches)
+    return _APP_WORKTREES["branches"]
 
 
 def worktree_of(cwd: str, worktrees: list[dict]) -> str | None:

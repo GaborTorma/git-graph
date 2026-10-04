@@ -348,13 +348,14 @@ function mergedRefs(refs) {
 }
 
 /* A chipek sorrendje: a fő checkout HEAD-je, az ágak, a remote-ok, aztán a
-   hozzáadott worktree-k HEAD-je és a nevüket viselő ág (egymás után), végül
+   hozzáadott worktree-k HEAD-je és leválasztott HEAD-nél az águk (egymás után), végül
    a tag. */
-/* A hozzáadott worktree, amelyhez a chip tartozik: a HEAD-je, vagy a nevét viselő ág. */
+/* A hozzáadott worktree, amelyhez a chip tartozik: a HEAD-je, vagy leválasztott
+   HEAD-nél az az ág, amelyen a Claude app szerint a worktree állt (`appBranch`). */
 function wtOfRef(r) {
   const linked = linkedWts();
   return r.worktree ? linked.find(w => w.slug === r.worktree)
-    : r.kind === 'branch' ? linked.find(w => r.name.endsWith(w.name)) : null;
+    : r.kind === 'branch' ? linked.find(w => w.appBranch === r.name) : null;
 }
 function sortRefs(refs) {
   const linked = linkedWts();
@@ -405,7 +406,7 @@ function badges(c) {
       : orphan ? icon('worktree')
       : icon(REF_ICON[r.kind] || 'branch') + synced;
     // A tooltip a saját buborék (`data-tip`), mint az avataré — a natív `title` késik.
-    // A worktree-csoport (HEAD-je, a nevét viselő ág) a csonkja színét kapja.
+    // A worktree-csoport (HEAD-je, leválasztva az ága) a csonkja színét kapja.
     const stub = (c.stubs || []).find(t => t.worktree === wtOfRef(r)?.slug);
     const lc = r.kind === 'remote' ? '' : ` style="--lc:${stub ? LANE_COLORS[stub.lane % LANE_COLORS.length] : lane}"`;
     return `<span class="badge ref-${r.kind}${other}"${lc} data-tip="${esc(title)}" aria-label="${esc(title)}">`

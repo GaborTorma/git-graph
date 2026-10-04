@@ -331,6 +331,16 @@ class McpServerTest(unittest.TestCase):
         self.assertNotIn("stubs", commits[1])
         self.assertEqual(commits[2]["stubs"], [{"lane": 2, "worktree": "old"}])
 
+    def test_app_worktree_branches(self) -> None:
+        """A leválasztott worktree ága a Claude app nyilvántartásából, a mappa szerint."""
+        module = load_module(self.home)
+        self.assertEqual(module.app_worktree_branches(), {})
+        module.APP_WORKTREES.parent.mkdir(parents=True, exist_ok=True)
+        folder = self.home / "wt"
+        module.APP_WORKTREES.write_text(json.dumps({"worktrees": {
+            "wt": {"path": str(folder), "branch": "claude/wt"}, "rossz": {"path": 1}}}), encoding="utf-8")
+        self.assertEqual(module.app_worktree_branches(), {str(folder.resolve()): "claude/wt"})
+
     def test_vanished_worktree(self) -> None:
         """A régi, worktree-nkénti lap a mappája megszűnése után rövid üzenetet kap."""
         state = self.home / ".git-graph"
