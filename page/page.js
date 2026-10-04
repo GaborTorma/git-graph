@@ -29,28 +29,12 @@ let visible = DATA.commits; // szűrés utáni lista
 let graphW = 72;
 
 /* ── A „saját” worktree ───────────────────────────────────────────────────
-   A worktree-k közös lapot látnak. Hogy ez a panel melyik sessioné (és így
-   melyik worktree-é), azt a szerver dönti el (`focus` a fingerprintben): a
-   panel azonosítóját és láthatóságát küldjük, a hook pedig a promptoló
-   session munkakönyvtárát jegyzi fel. Kézzel nem választható: a HEAD ott van,
-   ahol a session dolgozik — minden git-parancsa ott fut. Az azonosítót a
-   keret URL-horgonya őrzi meg (`#gg=…`), így a verzióváltáskori újratöltés
-   után is ugyanaz a panel. A `window.name` a platformé (a bootstrapja van
-   benne) — ahhoz nem nyúlunk. Újraépült keretnél a szerver örökíti a kötést. */
-const PANEL = (() => {
-  const fresh = () => (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 16);
-  const m = /^#gg=([a-z0-9]{8,32})$/.exec(location.hash);
-  if (m) return m[1];
-  const id = fresh();
-  try { history.replaceState(history.state, '', '#gg=' + id); } catch { /* marad memóriában */ }
-  return id;
-})();
-let panelVisible = true;
-// A rejtett panel (másik session van előtérben) a `visibilityState`-ben nem
-// látszik, az IntersectionObserverben igen (mérve, docs/artifact-findings.md).
-new IntersectionObserver(es => { panelVisible = es[es.length - 1].isIntersecting; })
-  .observe(document.body);
-let focusAuto = null;        // { worktree, bound } — a szervertől
+   A worktree-k közös lapot látnak, és az app ezt az egy keretet mutatja
+   minden sessionben. Hogy épp melyik session van előtérben, azt a szerver
+   tudja (a Claude app session-fájljaiból, `focus` a fingerprintben): annak
+   a worktree-je a saját. Kézzel nem választható — a HEAD ott van, ahol a
+   session dolgozik, minden git-parancsa ott fut. */
+let focusAuto = null;        // { worktree, known } — a szervertől
 const worktrees = () => DATA.meta.worktrees || [];
 const linkedWts = () => worktrees().filter(w => !w.main);
 /* A saját worktree; a fő checkout, ha a session nem egy worktree-ben dolgozik. */
@@ -173,8 +157,8 @@ function hydrateFocus() {
   chip.hidden = !(own || DATA.meta.head);
   chip.title = !own ? '' : (own.main ? 'fő checkout: ' : 'worktree: ') + own.path
     + (wts.length < 2 ? ''
-      : focusAuto?.bound ? '\nennek a panelnek a sessionje itt dolgozik'
-      : '\na legutóbb promptolt session itt dolgozik');
+      : focusAuto?.known ? '\naz előtérben lévő session itt dolgozik'
+      : '\nnincs ismert session a repóban — a fő checkout');
   computeOwn();
   // Csak a valódi worktree-k, a gráfbeli színükkel; kijelölés nélkül a fő
   // checkout a saját. Az előny az upstreamhez, ennek híján az alapághoz mérve.
@@ -1329,7 +1313,7 @@ function mcpSource() {
   const mcp = CTX.mcp;
   const call = (tool, args) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
     { cache: false }).then(r => r.payload);
-  return { fingerprint: () => call('fingerprint', { panel: PANEL, visible: panelVisible }),
+  return { fingerprint: () => call('fingerprint'),
            data: () => call('graph_data'),
            diff: (sha, path) => call('file_diff', { sha, path }) };
 }

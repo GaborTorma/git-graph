@@ -1189,64 +1189,55 @@ def shown_in_session(session_id: str, slug: str) -> bool:
     return seen
 
 
-# ── Melyik panel melyik sessioné ────────────────────────────────────────────
+# ── Melyik session van előtérben ───────────────────────────────────────────
 #
-# A worktree-k közös lapot látnak, a „saját” worktree-t viszont a lap nem
-# tudja: a link horgonya nem jut át, a host-híd hívásából a session nem
-# derül ki, session-váltásra nincs hook (mérve, docs/artifact-findings.md).
-# Amit tudunk: a hook látja, melyik session promptol és hol (`cwd`), a lap
-# pedig látja, hogy a panelje éppen látszik-e (IntersectionObserver). Ha egy
-# prompt pillanatában a repó lapjai közül pontosan egy látszott, az a
-# promptoló session panelje: onnantól a panel azt a sessiont követi, és annak
-# a worktree-jét emeli ki. Különben (split-view, friss panel) a legutóbb
-# promptolt sessionét.
+# A worktree-k közös lapot látnak, az app pedig egy Artifactnak egyetlen
+# keretet tart, és azt mutatja minden sessionben — a lap maga nem tudhatja,
+# melyik sessionben látszik éppen; a host-híd hívásából sem derül ki (mérve,
+# docs/artifact-findings.md). A Claude app viszont sessionönként JSON-t tart
+# (`claude-code-sessions/<fiók>/<szervezet>/local_<id>.json`) a
+# munkakönyvtárral és a `lastFocusedAt` időbélyeggel: a repóban dolgozó
+# sessionök közül a legutóbb fókuszált van előtérben. Belső fájl — ismeretlen
+# formánál nem dönt (a fő checkout a saját).
 
-ACTIVITY_NAME = "activity.json"   # {sessions: {id: {cwd, at}}, prompt: {session, at}} — a hook írja
-PANELS_NAME = "panels"            # <panel>.json: {visible, since, seen, session, checked} — a szerver írja
-PANEL_RE = re.compile(r"^[a-z0-9]{8,32}$")
-BIND_WINDOW = 60                  # ennyi mp-en belüli promptot még összevet a látható panelekkel
-OPEN_WINDOW = 90                  # a megnyitási kérés után ennyi ideig várja az új panelt
-INHERIT_WINDOW = 120              # az eltűnt, kötött panel ennyi ideig örökíthető egy újra
-SEEN_SLACK = 6                    # a lap 2 mp-enként jelentkezik: ennyi késés még élőnek számít
+APP_SESSIONS = (Path.home() / "Library" / "Application Support" / "Claude"
+                / "claude-code-sessions")
+_APP_SESSIONS: dict[str, tuple[float, dict | None]] = {}   # fájl → (mtime, {cwd, focused, archived})
 
 
-def write_atomic(path: Path, data: dict) -> None:
-    """JSON atomi cserével — több hook és szerverpéldány írhat egyszerre."""
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+def app_sessions() -> list[dict]:
+    """A Claude app desktop-sessionjei: munkakönyvtár és utolsó fókusz.
 
-
-def record_activity(slug: str, session_id: str, cwd: Path, prompt: bool) -> None:
-    """A session munkakönyvtára (és ha promptolt, az időpontja) a repó aktivitásnaplójába."""
-    path = STATE_DIR / slug / ACTIVITY_NAME
-    now = time.time()
-    data = read_json(path) or {}
-    sessions = {sid: v for sid, v in (data.get("sessions") or {}).items()
-                if isinstance(v, dict) and now - v.get("at", 0) < SESSION_TTL}
-    sessions[session_id] = {"cwd": str(cwd), "at": now}
-    data["sessions"] = sessions
-    if prompt:
-        data["prompt"] = {"session": session_id, "at": now}
-    try:
-        write_atomic(path, data)
-    except OSError as exc:
-        log(f"git-graph: az aktivitásnapló nem írható: {exc}")
-
-
-def record_open(slug: str, session_id: str) -> None:
-    """A hook megnyitást (vagy publikálást) kért ettől a sessiontől: az első új
-    panel, ami ezután jelentkezik, az övé — prompt nélkül köthető."""
-    path = STATE_DIR / slug / ACTIVITY_NAME
-    now = time.time()
-    data = read_json(path) or {}
-    opens = [o for o in data.get("opens") or [] if isinstance(o, dict) and now - o.get("at", 0) < OPEN_WINDOW]
-    data["opens"] = opens + [{"session": session_id, "at": now}]
-    try:
-        write_atomic(path, data)
-    except OSError as exc:
-        log(f"git-graph: az aktivitásnapló nem írható: {exc}")
+    A fájlok nagyok (több száz, egyenként akár ~800 KB), a `fingerprint` pedig
+    2 mp-enként kérdez: mindet `stat`-oljuk (< 1 ms), de csak a megváltozottat
+    olvassuk újra — váltáskor ez egyetlen fájl.
+    """
+    out, live = [], set()
+    for path in APP_SESSIONS.glob("*/*/local_*.json"):
+        key = str(path)
+        live.add(key)
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
+        cached = _APP_SESSIONS.get(key)
+        if cached is None or cached[0] != mtime:
+            info = None
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                cwd = data.get("worktreePath") or data.get("cwd")
+                focused = data.get("lastFocusedAt")
+                if isinstance(cwd, str) and isinstance(focused, (int, float)):
+                    info = {"cwd": cwd, "focused": focused / 1000,
+                            "archived": bool(data.get("isArchived"))}
+            except (OSError, ValueError, AttributeError):
+                pass
+            cached = _APP_SESSIONS[key] = (mtime, info)
+        if cached[1]:
+            out.append(cached[1])
+    for key in set(_APP_SESSIONS) - live:
+        del _APP_SESSIONS[key]
+    return out
 
 
 def worktree_of(cwd: str, worktrees: list[dict]) -> str | None:
@@ -1257,76 +1248,20 @@ def worktree_of(cwd: str, worktrees: list[dict]) -> str | None:
     return slug_for(max(hits, key=lambda wt: len(wt["path"].parts))["path"]) if hits else None
 
 
-def panel_focus(slug: str, panel: str, visible: bool) -> dict:
-    """A panel „saját” worktree-je; közben feljegyzi a láthatóságát, és ha lehet, a sessionhöz köti.
+def focused_worktree(worktrees: list[dict]) -> dict:
+    """A repó előtérben lévő sessionjének worktree-je (`worktree`: slug, vagy None).
 
-    `bound`: a panel egy sessionhöz kötött (pontos); különben a legutóbb
-    promptolt session worktree-je (`worktree` lehet None is).
+    `known`: van-e a repóban dolgozó session; ha nincs, a lap a fő checkoutot
+    tekinti sajátnak.
     """
-    now = time.time()
-    folder = STATE_DIR / slug / PANELS_NAME
-    own_path = folder / f"{panel}.json"
-    own = read_json(own_path) or {}
-    first = "since" not in own                         # most jelentkezik először
-    if own.get("visible") is not visible or "since" not in own:
-        own["since"] = now
-    own.update(visible=visible, seen=now)
-    activity = read_json(STATE_DIR / slug / ACTIVITY_NAME) or {}
-    if first and not own.get("session"):
-        # Új panel a hook megnyitási kérése után: ha a közelmúltban egyetlen
-        # session kapott ilyet, és a kérést más új panel még nem vitte el, az övé.
-        opens = [o for o in activity.get("opens") or []
-                 if isinstance(o, dict) and 0 <= now - o.get("at", 0) < OPEN_WINDOW]
-        taken = {(read_json(path) or {}).get("opened") for path in folder.glob("*.json")
-                 if path != own_path} if folder.is_dir() else set()
-        if len({o.get("session") for o in opens}) == 1 and opens[-1]["at"] not in taken:
-            own.update(session=opens[-1]["session"], opened=opens[-1]["at"])
-        elif visible and folder.is_dir():
-            # Ugyanabban a panelben újraépült keret (pl. közben másik Artifactot
-            # mutatott): új azonosító, de egy kötött, az eltűnésekor látszó panel
-            # épp most hallgatott el — az ő kötését örökli, ha egyértelmű.
-            gone = []
-            for path in folder.glob("*.json"):
-                if path == own_path:
-                    continue
-                state = read_json(path) or {}
-                if (state.get("session") and state.get("visible") and not state.get("inherited")
-                        and SEEN_SLACK < now - state.get("seen", 0) < INHERIT_WINDOW):
-                    gone.append((path, state))
-            if len(gone) == 1:
-                path, state = gone[0]
-                own["session"] = state["session"]
-                state["inherited"] = True            # egy kötést csak egy új panel vihet el
-                try:
-                    write_atomic(path, state)
-                except OSError:
-                    pass
-    prompt = activity.get("prompt") or {}
-    at = prompt.get("at")
-    if isinstance(at, (int, float)) and own.get("checked") != at and now - at < BIND_WINDOW:
-        shown = []
-        for path in folder.glob("*.json") if folder.is_dir() else []:
-            state = own if path == own_path else read_json(path) or {}
-            if (state.get("visible") and state.get("since", now) <= at + 0.5
-                    and state.get("seen", 0) >= at - SEEN_SLACK):
-                shown.append(path)
-        if own_path not in shown and own["visible"] and own["since"] <= at + 0.5:
-            shown.append(own_path)                    # az első jelentkezése
-        if shown == [own_path]:
-            own["session"] = prompt.get("session")
-        own["checked"] = at
-    try:
-        write_atomic(own_path, own)
-        for path in folder.glob("*.json"):           # a régi panelek nyoma
-            if path != own_path and now - path.stat().st_mtime > SESSION_TTL:
-                path.unlink()
-    except OSError as exc:
-        log(f"git-graph: a panel állapota nem írható: {exc}")
-    sessions = activity.get("sessions") or {}
-    session = own.get("session") if own.get("session") in sessions else None
-    cwd = (sessions.get(session or prompt.get("session")) or {}).get("cwd")
-    return {"worktree": worktree_of(cwd, worktree_list()) if cwd else None,
-            "bound": session is not None}
+    best = None
+    for session in app_sessions():
+        if session["archived"]:
+            continue
+        slug = worktree_of(session["cwd"], worktrees)
+        if slug and (best is None or session["focused"] > best[0]):
+            best = (session["focused"], slug)
+    return {"worktree": best[1] if best else None, "known": best is not None}
 
 
 def registered_repos() -> dict:
@@ -1476,14 +1411,10 @@ MCP_NAME = "git-graph"        # a Claude app configjában ez a kulcs → a lapon
 _REPO_ARG = {"type": "object", "required": ["repo"], "properties": {
     "repo": {"type": "string", "description": "a repó slugja (~/.git-graph/repos.json)"}}}
 MCP_TOOLS = [
-    {"name": "fingerprint", "annotations": {"readOnlyHint": True},
-     "inputSchema": {"type": "object", "required": ["repo"], "properties": {
-         **_REPO_ARG["properties"],
-         "panel": {"type": "string", "description": "a lap véletlen azonosítója (a panelé)"},
-         "visible": {"type": "boolean", "description": "látszik-e most a panel"}}},
+    {"name": "fingerprint", "inputSchema": _REPO_ARG, "annotations": {"readOnlyHint": True},
      "description": "Olcsó ujjlenyomat a repó állapotáról (refek, worktree-k HEAD-je és "
-                    "munkakönyvtára) — ha változott, kérd a graph_data-t. A panel "
-                    "„saját” worktree-jét is adja (focus)."},
+                    "munkakönyvtára) — ha változott, kérd a graph_data-t. Az előtérben "
+                    "lévő session worktree-jét is adja (focus)."},
     {"name": "graph_data", "inputSchema": _REPO_ARG, "annotations": {"readOnlyHint": True},
      "description": "A commit-gráf teljes adata: commitok, élek, fájlstatisztika, ágak, meta."},
     {"name": "file_diff", "annotations": {"readOnlyHint": True},
@@ -1527,9 +1458,7 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
             # frissítés utáni, még újra nem indított app a láblécben azonnal látszik.
             result = {"refs": refs, "files": files, "avatars": avatar_signal(),
                       "version": RUNNING_VERSION, "installed": installed_version()}
-            panel = str(args.get("panel", ""))
-            if PANEL_RE.match(panel):
-                result["focus"] = panel_focus(slug_for(REPO), panel, bool(args.get("visible")))
+            result["focus"] = focused_worktree(worktree_list())
             return text(result)
         if name == "graph_data":
             return text(collect_payload(limit))
@@ -1931,11 +1860,8 @@ def watch_plugin() -> None:
         time.sleep(PLUGIN_POLL_S)
 
 
-QUIET_EVENTS = ("UserPromptSubmit", "CwdChanged")   # csak az aktivitásnapló, kimenet nélkül
-
-
 def session_hook() -> int:
-    """Claude Code hook: a gépi rész, a repó közös Artifactja, és a session aktivitása.
+    """Claude Code hook: a gépi rész és a repó közös Artifactja.
 
     SessionStartként és az `EnterWorktree` / `ExitWorktree` utáni
     PostToolUse-ként fut — a `cwd` ilyenkor már az új munkakönyvtár. A repó
@@ -1947,11 +1873,6 @@ def session_hook() -> int:
     repón belül nem nyit újra). A régi, worktree-nkénti Artifactok törlését is
     kéri. Headless (`-p`, SDK) sessionben nem kér publikálást: ott nincs, aki
     a gráfot nézné.
-
-    `UserPromptSubmit`-ként és `CwdChanged`-ként csak feljegyzi, melyik
-    session hol dolgozik (`record_activity`) — ebből köti a szerver a
-    panelt a sessionhöz. Ilyenkor semmit nem ír ki: a prompt hookjának
-    kimenete a modell kontextusába kerülne.
     """
     global REPO
     try:
@@ -1959,16 +1880,7 @@ def session_hook() -> int:
     except Exception:
         payload = {}
     event = payload.get("hook_event_name") or "SessionStart"
-    start = Path(payload.get("new_cwd") or payload.get("cwd") or Path.cwd())
-    session_id = payload.get("session_id")
-    if event in QUIET_EVENTS:
-        try:
-            REPO = main_checkout(resolve_repo(start))
-        except (SystemExit, subprocess.CalledProcessError):
-            return 0
-        if session_id:
-            record_activity(register(REPO), session_id, start, event == "UserPromptSubmit")
-        return 0
+    start = Path(payload.get("cwd") or Path.cwd())
     try:
         notice = ensure_installed()
     except Exception as exc:                       # a telepítés hibája ne vigye el a sessiont
@@ -1979,16 +1891,12 @@ def session_hook() -> int:
     except (SystemExit, subprocess.CalledProcessError):
         return emit_context(notice, event=event)   # nem repó: nincs mit mutatni
     slug = register(REPO)                          # a git-graph --mcp a lap slugjából ebből találja meg
-    if session_id:
-        record_activity(slug, session_id, start, False)
     url = config_get("artifact")
     headless = os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk")
     cleanup = None if headless else legacy_request()
     job = None if headless or NO_AUTO_PUBLISH.exists() else prepare_publish()
     seen = (shown_in_session(payload["session_id"], slug)
             if payload.get("session_id") and not headless else False)
-    if session_id and (job or url and not seen):
-        record_open(slug, session_id)              # az új panelje prompt nélkül köthető
     if job:
         state = "elavult (a git-graph frissült)" if job["url"] else "még nincs"
         context = (f"A(z) {REPO} repó élő git-graph Artifactja {state}. Most, a "
@@ -2065,10 +1973,9 @@ def main() -> int:
                     help="fejlesztés: a working tree a stabil helyre (+dev verzióval) — a "
                          "Claude appban futó git-graph átvált rá, a lap élőben kipróbálható")
     ap.add_argument("--session-hook", action="store_true", dest="session_hook",
-                    help="Claude Code hook (SessionStart, PostToolUse a worktree-váltásra, "
-                         "UserPromptSubmit, CwdChanged): telepítés, a repó Artifactjának "
-                         "megnyitása vagy publikálása, a régi worktree-lapok törlése, a "
-                         "session aktivitása (stdin: a hook JSON-ja)")
+                    help="Claude Code hook (SessionStart, és PostToolUse a worktree-"
+                         "váltásra): telepítés, a repó Artifactjának megnyitása vagy "
+                         "publikálása, a régi worktree-lapok törlése (stdin: a hook JSON-ja)")
     args = ap.parse_args()
 
     global REPO

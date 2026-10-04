@@ -16,7 +16,7 @@ Használat és felépítés: [README.md](README.md).
 | `ruff.toml`, `biome.json` | lint: Python (3.9-célverzióval) és a `page/` JS / CSS / HTML-je |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
-| `hooks/hooks.json` | a plugin hookja (`--session-hook`): SessionStart, PostToolUse az `EnterWorktree` / `ExitWorktree` után, UserPromptSubmit és CwdChanged (csak aktivitásnapló) |
+| `hooks/hooks.json` | a plugin hookja (`--session-hook`): SessionStart, és PostToolUse az `EnterWorktree` / `ExitWorktree` után |
 | `skills/artifact/SKILL.md` | a `/git-graph:artifact` skill (`git-graph --publish`, és publikálja vagy megnyitja) |
 | `skills/remove/SKILL.md` | a `/git-graph:remove` skill: Artifactok törlése + `git-graph --forget` az uninstall előtt |
 | `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
@@ -176,27 +176,20 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   `--forget-artifact`. A régi lap a mappája megszűnése után rövid hibát kap,
   nem nyers git-kivételt. Az `EnterWorktree` után a hook PostToolUse-ként is
   fut, de ugyanazon a repón belül nem nyit újra (sessionönként egyszer).
-- **A „saját” worktree a panel ↔ session kötésből jön** — mérve,
-  docs/artifact-findings.md: a link `#horgony`-a nem jut át, a host-híd
-  hívásából a session nem derül ki (a `git-graph --mcp` app-szintű), és
-  session-váltásra nincs hook. Ezért: a hook (`UserPromptSubmit`, `CwdChanged`,
-  `SessionStart`) a `~/.git-graph/<slug>/activity.json`-ba írja, melyik session
-  hol dolgozik, és ki promptolt utoljára; a lap a `fingerprint`-tel küldi a
-  panel azonosítóját (a keret `window.name`-jében marad meg) és láthatóságát
-  (IntersectionObserver — a `visibilityState` rejtett panelnél is `visible`). A
-  szerver (`panel_focus`) panelenként fájlba ír (`panels/<id>.json` — két
-  app-szintű példány fut, memória nem közös), és ha a prompt pillanatában a
-  repó lapjai közül pontosan egy látszott, azt a promptoló sessionhöz köti.
-  Új sessionnél prompt sem kell: a hook feljegyzi, kitől kért megnyitást
-  (`record_open`), és az első utána jelentkező új panel az övé — ha a
-  közelmúltban csak egy session kapott ilyet.
-  Kötetlen panelnél a legutóbb promptolt session worktree-je a saját; kézzel
-  nem választható (a HEAD ott van, ahol a session dolgozik). Halványabb
-  (`.foreign`), ami nem a sajáté: worktree-ből nézve ami a HEAD-jéből nem
-  érhető el; a fő checkoutból nézve csak a worktree-k saját commitjai és
-  WIP-je — a gazdátlan ágak a fő checkouté (a git nem jegyzi fel, hol jöttek létre). A
-  `UserPromptSubmit` hook kimenete a modell kontextusába kerülne: semmit nem
-  írhat ki (`QUIET_EVENTS`).
+- **A „saját” worktree az előtérben lévő sessioné** — mérve,
+  docs/artifact-findings.md: az app egy Artifactnak **egyetlen keretet** tart,
+  és azt mutatja minden sessionben; a link `#horgony`-a nem jut át, a host-híd
+  hívásából a session nem derül ki, session-váltásra nincs hook. A Claude app
+  viszont sessionönként JSON-t tart (`~/Library/Application Support/Claude/
+  claude-code-sessions/*/*/local_*.json`: `cwd` / `worktreePath`,
+  `lastFocusedAt`, `isArchived`): a repóban dolgozó, nem archivált sessionök
+  közül a legutóbb fókuszált van előtérben (`focused_worktree`, a
+  `fingerprint` `focus` mezője). Belső fájl, ismeretlen formánál nem dönt; a
+  több száz, nagy fájlt `stat`-tal figyeli, csak a megváltozottat olvassa újra
+  (`app_sessions`). Kézzel nem választható. Halványabb (`.foreign`), ami nem a
+  sajáté: worktree-ből nézve ami a HEAD-jéből nem érhető el; a fő checkoutból
+  nézve csak a worktree-k saját commitjai és WIP-je — a gazdátlan ágak a fő
+  checkouté (a git nem jegyzi fel, hol jöttek létre).
 - **A kimenet a repón KÍVÜL, `~/.git-graph/<slug>/`**: `artifact.html` az
   Artifact betöltője — innen publikál a session. Ne tedd konfigurálhatóvá. A projektmappába nem írunk.
 - **Az Artifact nem tárol adatot** — ez a lényeg, nem optimalizálás. Egy

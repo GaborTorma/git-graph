@@ -86,16 +86,12 @@ A **SessionStart hook** a session indulásakor a repó Artifactját nézi:
 **Worktree-k:** repónként egy Artifact van, a worktree-k közösen látják (a fő
 checkout slugján). A gráf fölött worktree-pillek (ág, változások pöttye,
 `↑` pusholatlan), minden worktree HEAD-je badge-et kap, és worktree-nként egy
-Uncommitted sor. A „saját” worktree (teli HEAD-badge, HEAD-chip, `H`) annak a
-sessionnek a munkakönyvtára, amelyiknek a paneljén a lap nyitva van — ami nem
-az övé, halványabb (a sehol ki nem vett ágak a fő checkouté). Kézzel nem választható: a HEAD
-ott van, ahol a session dolgozik; a pillre kattintva a lista csak odaugrik. A hook
-minden promptnál feljegyzi, melyik session hol dolgozik
-(`UserPromptSubmit`, `CwdChanged`), és ha a prompt pillanatában a repó lapjai
-közül pontosan egy látszott, az a promptoló session panelje — onnantól azt
-követi, a session-váltás után is prompt nélkül. Új sessionnél az első prompt
-sem kell: a hook megnyitási kérése után először jelentkező új panel az övé. Amíg ez nem dőlt el (friss panel, split-view), a legutóbb promptolt
-session worktree-je a saját. A
+Uncommitted sor. A „saját” worktree (teli HEAD-badge, HEAD-chip, `H`) az
+előtérben lévő sessioné: a lap a Claude app session-adataiból tudja, melyik
+session van épp elöl, és session-váltáskor prompt nélkül, ≤ 2 mp alatt átáll.
+Kézzel nem választható — a HEAD ott van, ahol a session dolgozik; a pillre
+kattintva a lista csak odaugrik. Ami nem a sajáté, halványabb (a sehol ki nem
+vett ágak a fő checkouté). A
 0.12 előtti, worktree-nkénti Artifactokat a hook felismeri, és megkéri Claude-ot,
 hogy törölje őket, majd `git-graph --forget-artifact <URL>`-lel takarítsa a
 kulcsaikat.
@@ -114,7 +110,7 @@ kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
 | `tests/` | füstteszt az MCP szerverre (stdlib `unittest`) |
 | `.claude-plugin/plugin.json` | a plugin manifestje — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace (egyetlen plugin: ez a repó) |
-| `hooks/hooks.json` | SessionStart, worktree-váltás (PostToolUse), UserPromptSubmit és CwdChanged hook: `git-graph --session-hook` (telepít + megnyittatja vagy publikáltatja a gráfot + a régi worktree-Artifactokat töröltet + feljegyzi, melyik session hol dolgozik) |
+| `hooks/hooks.json` | SessionStart és worktree-váltás (PostToolUse) hook: `git-graph --session-hook` (telepít + megnyittatja vagy publikáltatja a gráfot + a régi worktree-Artifactokat töröltet) |
 | `skills/artifact/SKILL.md` | `/git-graph:artifact`: `git-graph --publish`, és publikálja vagy megnyitja az Artifactot |
 | `skills/remove/SKILL.md` | `/git-graph:remove`: az Artifactok törlése és a repók kitakarítása az eltávolítás előtt |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |

@@ -272,77 +272,27 @@ class McpServerTest(unittest.TestCase):
         self.assertFalse([r for r in refs if r["name"].endswith("/HEAD")])
         self.assertTrue(next(r for r in refs if r["name"] == "origin/main").get("default"))
 
-    def test_panel_focus(self) -> None:
-        """Prompt egyetlen látszó panellel: az a session panelje; split-view-ban nincs kötés."""
+    def test_focused_worktree(self) -> None:
+        """A saját worktree a repóban dolgozó, legutóbb fókuszált desktop-sessioné."""
         main, extra = self.make_repo()
         module = load_module(self.home)
-        module.REPO = main
-        slug = module.slug_for(main)
-        wt_main, wt_extra = module.slug_for(main), module.slug_for(extra)
-        a, b = "panela00", "panelb00"
-        module.panel_focus(slug, a, True)
-        module.panel_focus(slug, b, False)
-        module.record_activity(slug, "s-extra", extra / "sub", prompt=True)
-        self.assertEqual(module.panel_focus(slug, a, True), {"worktree": wt_extra, "bound": True})
-        self.assertEqual(module.panel_focus(slug, b, False), {"worktree": wt_extra, "bound": False})
-        module.panel_focus(slug, b, True)                  # split-view: mindkettő látszik
-        module.time.sleep(0.6)                             # a látszás a prompt ELŐTT kezdődött
-        module.record_activity(slug, "s-main", main, prompt=True)
-        self.assertEqual(module.panel_focus(slug, b, True), {"worktree": wt_main, "bound": False})
-        self.assertEqual(module.panel_focus(slug, a, True), {"worktree": wt_extra, "bound": True})
+        folder = module.APP_SESSIONS / "acc" / "org"
+        folder.mkdir(parents=True)
 
-    def test_open_binding(self) -> None:
-        """A hook megnyitási kérése után az első új panel prompt nélkül a sessionhöz kötődik."""
-        main, extra = self.make_repo()
-        module = load_module(self.home)
-        module.REPO = main
-        slug = module.slug_for(main)
-        module.record_activity(slug, "s-extra", extra, prompt=False)
-        module.record_open(slug, "s-extra")
-        self.assertEqual(module.panel_focus(slug, "panelnew1", True),
-                         {"worktree": module.slug_for(extra), "bound": True})
-        self.assertFalse(module.panel_focus(slug, "panelnew2", True)["bound"])   # a kérést már elvitték
-        module.record_activity(slug, "s-main", main, prompt=False)
-        module.record_open(slug, "s-main")
-        module.record_open(slug, "s-extra")                                    # egyszerre kettő: kétértelmű
-        self.assertFalse(module.panel_focus(slug, "panelnew3", True)["bound"])
+        def session(name: str, cwd: Path, focused: float, **more: object) -> None:
+            data = {"cwd": str(cwd), "lastFocusedAt": focused * 1000, **more}
+            (folder / f"local_{name}.json").write_text(json.dumps(data), encoding="utf-8")
 
-    def test_inherit_binding(self) -> None:
-        """Ugyanabban a panelben újraépült keret: az új azonosító örökli az eltűnt kötött panelét."""
-        main, extra = self.make_repo()
-        module = load_module(self.home)
-        module.REPO = main
-        slug = module.slug_for(main)
-        module.record_activity(slug, "s-extra", extra, prompt=False)
-        module.record_open(slug, "s-extra")
-        self.assertTrue(module.panel_focus(slug, "panelold1", True)["bound"])
-        old = self.home / ".git-graph" / slug / "panels" / "panelold1.json"
-        state = json.loads(old.read_text(encoding="utf-8"))
-        state["seen"] -= 20                                   # 20 mp-e hallgat el
-        old.write_text(json.dumps(state), encoding="utf-8")
-        activity = self.home / ".git-graph" / slug / "activity.json"
-        data = json.loads(activity.read_text(encoding="utf-8"))
-        data["opens"] = []                                    # a megnyitási kérés már lejárt
-        activity.write_text(json.dumps(data), encoding="utf-8")
-        self.assertEqual(module.panel_focus(slug, "panelnew9", True),
-                         {"worktree": module.slug_for(extra), "bound": True})
-        self.assertFalse(module.panel_focus(slug, "panelnewa", True)["bound"])   # csak egyszer örökíthető
-
-    def test_quiet_hook(self) -> None:
-        """UserPromptSubmit: csak aktivitásnapló, kimenet nélkül (a modell kontextusába menne)."""
-        main, extra = self.make_repo()
-        env = {**os.environ, "HOME": str(self.home)}
-        env.pop("CLAUDE_PLUGIN_ROOT", None)
-        payload = {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "cwd": str(extra),
-                   "prompt": "szia"}
-        out = subprocess.run([PYTHON, str(SCRIPT), "--session-hook"], input=json.dumps(payload),
-                             capture_output=True, text=True, env=env, check=True)
-        self.assertEqual(out.stdout, "")
-        module = load_module(self.home)
-        activity = json.loads((self.home / ".git-graph" / module.slug_for(main) / "activity.json")
-                              .read_text(encoding="utf-8"))
-        self.assertEqual(activity["prompt"]["session"], "s1")
-        self.assertEqual(activity["sessions"]["s1"]["cwd"], str(extra))
+        wts = module.worktree_list(main)
+        self.assertEqual(module.focused_worktree(wts), {"worktree": None, "known": False})
+        session("a", main, 100)
+        session("b", extra / "sub", 200)
+        session("c", self.home, 300)                                 # más repó: nem számít
+        session("d", main, 400, isArchived=True)                     # archivált: nem számít
+        self.assertEqual(module.focused_worktree(wts), {"worktree": module.slug_for(extra), "known": True})
+        session("a", main, 500)                                      # visszaváltás a fő checkoutra
+        os.utime(folder / "local_a.json", (1e9, 1e9))                # más mtime: újraolvassa
+        self.assertEqual(module.focused_worktree(wts)["worktree"], module.slug_for(main))
 
     def test_vanished_worktree(self) -> None:
         """A régi, worktree-nkénti lap a mappája megszűnése után rövid üzenetet kap."""
