@@ -336,15 +336,15 @@ function mergedRefs(refs) {
 
 /* Hozzáadott worktree leválasztott HEAD-je egy ág csúcsán (pl. a session
    törlésekor az app leválasztja): egy chip — az ágé, worktree-ikonnal. Az
-   ág nincs kivéve, ezért nem kap erős körvonalat. Ha több ág áll ott, a
-   worktree nevét viselő. */
+   ág nincs kivéve, ezért nem kap erős körvonalat. A git leválasztott HEAD-hez
+   ágat nem jegyez fel: csak a worktree nevét viselő ágba vonjuk, különben
+   marad a külön, worktree-nevű chip. */
 function adoptOrphans(refs) {
   const out = refs.slice();
   for (const r of refs) {
     const wt = r.kind === 'detached' && r.worktree && worktrees().find(w => w.slug === r.worktree);
     if (!wt || wt.main) continue;
-    const ours = out.filter(o => o.kind === 'branch' && !o.parked);
-    const branch = ours.find(o => o.name.endsWith(wt.name)) || ours[0];
+    const branch = out.find(o => o.kind === 'branch' && !o.parked && o.name.endsWith(wt.name));
     if (!branch) continue;
     out[out.indexOf(branch)] = { ...branch, parked: wt };
     out.splice(out.indexOf(r), 1);
