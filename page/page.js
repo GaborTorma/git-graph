@@ -1381,8 +1381,12 @@ function startLive(src) {
   let last = '';                            // a váz üres: az első kör adatot kér
   let change = '';                          // az utolsó változás: mikor, mennyi idő alatt
   let version = null;                       // a szerver verziója, amikor a lap betöltött
+  let timer = 0, busy = false, again = false;
   SRC = src;
   async function poll() {
+    clearTimeout(timer);
+    if (busy) { again = true; return; }       // fut egy kör: utána azonnal még egy
+    busy = true;
     let wait = POLL_MS;
     try {
       const t0 = performance.now();
@@ -1422,11 +1426,18 @@ function startLive(src) {
       showVersion(f);
     } catch (e) {
       notice(mcpProblem(e), true);
-      if (!e?.retryable) return;                // magától nem javul: nincs több kör
+      if (!e?.retryable) { busy = false; return; }   // magától nem javul: nincs több kör
       wait = Math.max(POLL_MS, e.retryAfterMs || 0) * 2;
     }
-    setTimeout(poll, wait);                     // a következő kör az előző után
+    busy = false;
+    if (again) { again = false; wait = 0; }
+    timer = setTimeout(poll, wait);             // a következő kör az előző után
   }
+  /* Session-váltáskor az app ezt az egy keretet átteszi a másik session
+     paneljébe, ami más méretű (mérve): a méretváltásra azonnal kérdezünk —
+     nem várjuk ki a 2 mp-es kört, hogy a kiemelés a kirajzolás után rögtön
+     a jó worktree-re álljon. */
+  addEventListener('resize', () => poll());
   poll();
 }
 
