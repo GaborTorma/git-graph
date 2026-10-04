@@ -1400,6 +1400,7 @@ new ResizeObserver(fitFoot).observe(document.getElementById('foot'));
 function startLive(src) {
   let last = '';                            // a váz üres: az első kör adatot kér
   let change = '';                          // az utolsó változás: mikor, mennyi idő alatt
+  let switched = '', arrival = null;        // az utolsó session-váltás: mi indította, mennyi idő alatt
   let version = null;                       // a szerver verziója, amikor a lap betöltött
   let timer = 0, busy = false, again = false, misses = 0, burstUntil = 0;
   SRC = src;
@@ -1428,6 +1429,11 @@ function startLive(src) {
       focusAuto = focus ?? null;
       const focusChanged = focusWt()?.slug !== before;
       if (focusChanged && key === last) { hydrateFocus(); fillBranches(); render(); }
+      if (focusChanged) {
+        const since = arrival && performance.now() - arrival.at;
+        switched = `\nsession-váltás ${clock()}: `
+          + (since < BURST_FOR_MS ? `${arrival.kind} után ${Math.round(since)} ms` : 'a rendes körben');
+      }
       if (key !== last) {
         const t1 = performance.now();
         DATA = await src.data();
@@ -1447,7 +1453,7 @@ function startLive(src) {
         liveText.textContent = '';
         fitFoot();                            // a hibaüzenet helyén a verzió is elfér
       }
-      liveDot.title = `Élő · frissítve ${clock()}\nujjlenyomat ${Math.round(tf)} ms` + change;
+      liveDot.title = `Élő · frissítve ${clock()}\nujjlenyomat ${Math.round(tf)} ms` + change + switched;
       liveDot.setAttribute('aria-label', 'Élő');
       showVersion(f);
       misses = 0;
@@ -1481,16 +1487,17 @@ function startLive(src) {
      tudja (mérve); a rövid várakozás a keret áthelyezését várja ki, közben a
      host-híd nem válaszol. */
   let settle = 0;
-  function arrive() {                          // az áthelyezés végét kivárva
+  function arrive(kind) {                      // az áthelyezés végét kivárva
+    arrival = { kind, at: performance.now() };
     burstUntil = performance.now() + BURST_FOR_MS;
     clearTimeout(settle);
     settle = setTimeout(poll, SETTLE_MS);
   }
-  addEventListener('resize', arrive);
+  addEventListener('resize', () => arrive('méretváltás'));
   /* Egyforma méretű paneleknél nincs `resize`, de a keret a váltás alatt nem
      látszik (a rajzolás szünetel), megjelenéskor pedig az IntersectionObserver
      jelez (mérve). */
-  new IntersectionObserver(es => { if (es[es.length - 1].isIntersecting) arrive(); })
+  new IntersectionObserver(es => { if (es[es.length - 1].isIntersecting) arrive('megjelenés'); })
     .observe(document.body);
   poll();
 }
