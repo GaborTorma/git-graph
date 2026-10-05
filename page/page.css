@@ -253,7 +253,7 @@ button { font: inherit; color: inherit; }
 .option.blk { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 3px 0; }
 .blk .ln {
   display: grid; grid-template-columns: 14px 14px 14px minmax(0, 1fr) auto; gap: 8px; align-items: center;
-  height: 21px; padding: 0 10px 0 8px;
+  height: 20px; padding: 0 10px 0 8px;
 }
 .blk .ln .ic { visibility: visible; width: 14px; height: 14px; color: var(--fg-2); stroke-width: 1.5; }
 .blk .col { display: inline-flex; }
