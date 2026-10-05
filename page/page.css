@@ -218,12 +218,13 @@ button { font: inherit; color: inherit; }
   font-size: 13px; color: var(--fg-0); text-align: left; cursor: pointer;
 }
 .option:hover, .option:focus-visible { outline: 0; background: var(--bg-2); }
-.option .ic { width: 12px; height: 12px; color: var(--accent); stroke-width: 2; visibility: hidden; }
-.option[aria-selected="true"] .ic { visibility: visible; }
+/* Az opció ikonjai látszanak; a pipa (`.ck`) csak a kiválasztotton (az ágválasztó
+   blokkjában soronként, `.ln.on`). */
+.option .ic { width: 14px; height: 14px; color: var(--fg-2); stroke-width: 1.5; }
+.option .ic.ck { width: 12px; height: 12px; color: var(--accent); stroke-width: 2; visibility: hidden; }
+.option[aria-selected="true"] .ic.ck, .blk .ln.on .ic.ck { visibility: visible; }
 .option.with-icon { grid-template-columns: 16px minmax(0, 1fr) 14px; }
-.option .ic.ti { width: 14px; height: 14px; color: var(--fg-2); stroke-width: 1.5; visibility: visible; }
 .option .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.option .track { font-size: 11.5px; color: var(--fg-2); }
 /* A HEAD-jel az ág színében (`--lc`), mint a chipek. */
 .option .cur {
   margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 500;
@@ -238,7 +239,7 @@ button { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 6px 10px 0 8px;
   font-size: 12.5px; font-weight: 500; color: var(--fg-0);
 }
-.menu-wt .ic { width: 14px; height: 14px; flex: none; color: var(--fg-2); stroke-width: 1.5; visibility: visible; }
+.menu-wt .ic { width: 14px; height: 14px; flex: none; color: var(--fg-2); }
 .menu-wt .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-wt .note { margin-left: -4px; font-weight: 400; font-style: italic; color: var(--fg-3); font-size: 11.5px; }
 .menu-wt-cur { font-weight: 700; }
@@ -272,12 +273,9 @@ button { font: inherit; color: inherit; }
   display: grid; grid-template-columns: 14px 14px minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
   height: 20px; padding: 0 10px 0 8px;
 }
-.blk .ln .ic { visibility: visible; width: 14px; height: 14px; color: var(--fg-2); stroke-width: 1.5; }
 .blk .col { display: inline-flex; }
 /* A pipa külön kattintható: kipipáltnál kivesz, máskor (hoverre halványan) hozzáad. */
 .blk .ckc { display: inline-flex; margin: -4px; padding: 4px; border-radius: 4px; }
-.blk .ln .ic.ck { color: var(--accent); stroke-width: 2; visibility: hidden; }
-.blk .ln.on .ic.ck { visibility: visible; }
 .blk .ckc[data-refs]:hover .ic.ck { visibility: visible; }
 .blk .ln:not(.on) .ckc:hover .ic.ck { opacity: .4; }
 .blk .det { display: inline-flex; color: var(--fg-3); }
