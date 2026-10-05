@@ -472,6 +472,8 @@ button { font: inherit; color: inherit; }
 .badge .ic.filled { fill: currentColor; }
 /* Az ág távolsága (alapág / upstream): ikon és nyilak, egy szakaszban. */
 .badge .dist, .head-chip .dist { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
+/* Az alapág helyi párja előrébb jár a remote-jánál: anomália. */
+.badge .dist.warn, .head-chip .dist.warn { color: var(--del); font-weight: 600; }
 .head-chip .div { align-self: stretch; width: 1px; margin: 3px 2px; background: currentColor; opacity: .3; }
 .badge .synced:has(.wt-ic) { opacity: 1; }   /* a worktree-jel teljes erővel, a felhő visszafogott */
 /* Az ág, a HEAD és a tag a commit sávjának színét viseli (`--lc`, page.js).

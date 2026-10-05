@@ -182,9 +182,14 @@ function wtChipInner(w) {
 const arrows = ([a, b]) => [a && `↑${a}`, b && `↓${b}`].filter(Boolean).join(' ');
 function distSegs(name) {
   const tr = DATA.meta.tracks?.[name] || {};
-  return [[tr.base, ''], [tr.up, icon('cloud')], [tr.local, icon('branch')]]
+  // Az alapág helyi párján (pl. `main`) nem dolgozunk: ha előrébb jár a remote-jánál,
+  // az anomália (teszt vagy tévedés) — figyelmeztető szín és magyarázat.
+  const base = DATA.meta.base || '', local = base.slice(base.indexOf('/') + 1);
+  const odd = base && name === local && tr.up?.[0] > 0;
+  const warn = odd ? ` warn" data-tip="${esc(`A helyi ${name}-en ${tr.up[0]} pusholatlan commit van, pedig a ${name}-en nem dolgozunk — teszt vagy tévedés?`)}` : '';
+  return [[tr.base, '', ''], [tr.up, icon('cloud'), warn], [tr.local, icon('branch'), '']]
     .filter(([d]) => d && (d[0] || d[1]))
-    .map(([d, ic]) => `<span class="div"></span><span class="dist">${ic}${arrows(d)}</span>`).join('');
+    .map(([d, ic, cls]) => `<span class="div"></span><span class="dist${cls}">${ic}${arrows(d)}</span>`).join('');
 }
 function hydrateFocus() {
   const wts = worktrees(), own = focusWt();

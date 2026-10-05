@@ -578,7 +578,16 @@ def collect_meta(commits: list[dict], worktrees: list[dict]) -> dict:
         "worktrees": [worktree_meta(wt) for wt in worktrees],
         "remotes": sorted(remotes()),     # több remote-nál a badge a nevüket is mutatja
         "tracks": branch_tracks(),
+        "base": default_base(),           # az alapág (origin/HEAD célja) — a helyi párján nem dolgozunk
     }
+
+
+def default_base() -> str:
+    """Az alapág: amire az `origin/HEAD` mutat (pl. `origin/main`); üres, ha nincs."""
+    try:
+        return git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").strip()
+    except subprocess.CalledProcessError:
+        return ""
 
 
 def branch_tracks() -> dict[str, dict]:
@@ -587,10 +596,7 @@ def branch_tracks() -> dict[str, dict]:
     `origin/x` kulccsal; ha van helyi párja, `local` a helyi ághoz), `up` a saját upstreamjéhez
     (ha van, és nem tűnt el). Egyetlen `for-each-ref` (git 2.41+:
     `%(ahead-behind:…)`); régebbi gitnél ágankénti `rev-list`."""
-    try:
-        base = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").strip()
-    except subprocess.CalledProcessError:
-        base = ""
+    base = default_base()
     fields = "%(refname:short)%00%(upstream:short)%00%(upstream:track,nobracket)"
     try:
         lines = git("for-each-ref", f"--format={fields}%00%(ahead-behind:{base or 'HEAD'})",
