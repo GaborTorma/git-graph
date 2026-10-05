@@ -255,7 +255,7 @@ button { font: inherit; color: inherit; }
 .option.blk { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 3px 0; position: relative; }
 /* A jobb szél: a távolságok fix szélességű, balra zárt oszlopban (a nyilak egymás
    alatt); utolsóként, a szélen a helyi ág és az upstreamje közti ↕, a két sor között.
-   Ha van ilyen jel, minden sor fenntartja neki a helyet: a távolság-oszlop egy vonalban. */
+   Csak az ilyen blokk tartja fenn neki a helyet; a többi sor távolsága a szélen. */
 .blk .gap {
   position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
   display: inline-flex; align-items: center; gap: 2px;
@@ -263,7 +263,7 @@ button { font: inherit; color: inherit; }
 }
 .blk .gap .ud { display: inline-flex; flex-direction: column; align-items: center; line-height: 7px; }
 .blk .gap.warn { color: var(--del); font-weight: 600; }
-.menu-pop:has(.gap) .blk .ln { padding-right: 40px; }
+.blk:has(.gap) .ln { padding-right: 40px; }
 .blk .ln {
   display: grid; grid-template-columns: 14px 14px 14px minmax(0, 1fr) auto; gap: 8px; align-items: center;
   height: 20px; padding: 0 10px 0 8px;
