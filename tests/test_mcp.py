@@ -362,6 +362,26 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(tracks["origin/only-remote"], {"base": [2, 0]})
         self.assertEqual(tracks["origin/main"], {"local": [0, 1]})     # az alapág remote-ja: csak a helyi párjához
 
+    def test_branch_owners(self) -> None:
+        """Az ág a worktree-é, amelyikben utoljára ki volt véve (HEAD-reflog); a soha ki nem vett gazdátlan."""
+        main, extra = self.make_repo()
+        git_in(extra, "switch", "-q", "-c", "wt-side")                 # a worktree-ben létrehozva
+        git_in(extra, "switch", "-q", "feat")
+        git_in(main, "branch", "orphan")                               # sehol nem volt kivéve
+        module = load_module(self.home)
+        module.REPO = main
+        wts = module.collect_worktrees()
+        owners = module.branch_owners(wts)
+        slug = {w["path"]: w["slug"] for w in wts}
+        self.assertEqual(owners["main"], slug[main])
+        self.assertEqual(owners["side"], slug[main])                   # a fő checkoutban járt
+        self.assertEqual(owners["feat"], slug[extra])                  # ott van kivéve
+        self.assertEqual(owners["wt-side"], slug[extra])
+        self.assertNotIn("orphan", owners)
+        branches = {b["name"]: b for b in module.collect_branches(wts)}
+        self.assertEqual(branches["wt-side"]["owner"], slug[extra])
+        self.assertIsNone(branches["orphan"]["owner"])
+
     def test_worktree_order(self) -> None:
         """A hozzáadott worktree-k a létrehozásuk sorrendjében, nem név szerint."""
         main, extra = self.make_repo()

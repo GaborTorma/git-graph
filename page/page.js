@@ -92,6 +92,11 @@ function wtColor(w) {
     || DATA.commits.find(x => x.sha === w.head);
   return c ? LANE_COLORS[c.lane % LANE_COLORS.length] : '';
 }
+/* Egy ref színe a gráfban: a csúcs-commitja sávjáé (az ágválasztó ikonjaihoz). */
+function refColor(name) {
+  const c = DATA.commits.find(x => x.refs.some(r => r.name === name && r.kind !== 'tag'));
+  return c ? LANE_COLORS[c.lane % LANE_COLORS.length] : 'var(--fg-3)';
+}
 const wtLabel = w => w.branch || `HEAD ${String(w.head || '').slice(0, 7)}`;
 
 /* ── Ikonok ── stroke-os, 16×16-os rácson; a CSS `.ic` színezi. */
@@ -114,6 +119,8 @@ const ICONS = {
     + '<circle class="wt-ic" cx="8" cy="9" r="1.5" fill="currentColor"/>',
   // a fő checkout: ugyanaz a mappa, pötty nélkül — maga a repó, nem egy kivett másolat
   mainWorktree: '<path class="wt-ic" d="M3 13a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h2.5L7 4.5h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1z"/>',
+  // leválasztott HEAD az ágválasztóban: szétkapcsolt lánc
+  detached: '<path d="M6.5 9.5 4.8 11.2a2 2 0 0 1-2.8-2.8L3.7 6.7M9.5 6.5l1.7-1.7a2 2 0 0 1 2.8 2.8l-1.7 1.7M5.5 2.5V4M2.5 5.5H4M10.5 13.5V12M13.5 10.5H12"/>',
   // a szinkron állapot külön jele egyelőre nincs: ugyanaz a rajz
   get worktreeSynced() { return this.worktree; },
 };
@@ -1086,19 +1093,73 @@ const branchPop = document.getElementById('branchPop');
 const branchLabel = document.getElementById('branchLabel');
 let branchValue = '';
 
-/* `ahead 8, behind 3` → `↑8 ↓3` — a git felirata helyett rövid jel. */
-const trackText = t => String(t || '').replace(/ahead (\d+)/, '↑$1').replace(/behind (\d+)/, '↓$1')
-  .replace(/gone/, 'törölve').replace(/,\s*/, ' ');
-
-/* A kiválasztott ágat megtartjuk, ha az adatcsere után is létezik. */
+/* A kiválasztott ágat megtartjuk, ha az adatcsere után is létezik.
+   Worktree-k esetén worktree-nként egy fejléc (a saját a fejléc chipjének
+   színével), alatta az ágai: amelyikben utoljára ki volt véve (`owner`, a
+   worktree-k HEAD-reflogjából); a gazdátlanok utánuk, fejléc nélkül, a csak
+   remote ágak a végén. A helyi ág és az upstreamje egy blokk, egy opció: a
+   szűrő mindkettőt mutatja. HEAD worktree-nként, `default` az alapág helyi
+   párja. Worktree nélkül csak az ágak. */
 function fillBranches() {
   if (!DATA.branches.some(b => b.name === branchValue)) branchValue = '';
-  const opt = (value, name, extra = '') => `<button type="button" class="option" role="option" data-value="${esc(value)}"`
-    + ` aria-selected="${value === branchValue}">${icon('check')}<span class="name">${name}</span>${extra}</button>`;
-  branchPop.innerHTML = opt('', 'Minden ág') + (DATA.branches.length ? '<div class="menu-sep"></div>' : '')
-    + DATA.branches.map(b => opt(b.name, esc(b.name) + (b.worktree === focusWt()?.slug
-      || (b.worktree === undefined && b.current) ? '<span class="cur">HEAD</span>' : ''),
-      b.track ? `<span class="track">${esc(trackText(b.track))}</span>` : '<span></span>')).join('');
+  const remote = document.getElementById('showRemotes')?.checked ?? true;
+  const wts = worktrees(), multi = linkedWts().length > 0, own = focusWt();
+  const base = DATA.meta.base || '', baseLocal = base.slice(base.indexOf('/') + 1);
+  const local = DATA.branches.filter(b => !b.remote);
+  const detachedOf = name => wts.find(w => !w.branch && w.appBranch === name);
+  const isHead = b => Boolean(b.worktree) || Boolean(detachedOf(b.name))
+    || (b.worktree === undefined && b.current);
+  // HEAD elöl, aztán az alapág, a többi a git sorrendjében (név szerint).
+  const rank = b => (isHead(b) ? 0 : b.name === baseLocal ? 1 : 2);
+  const sorted = list => [...list].sort((a, b) => rank(a) - rank(b));
+  const ck = icon('check', 'ic ck');
+  const line = (ic, name, dists, cls = 'ln') =>
+    `<span class="${cls}">${ck}${ic}<span class="name">${name}</span><span class="dists">${dists}</span></span>`;
+  const block = (b, label = esc(b.name)) => {
+    const det = detachedOf(b.name);
+    const name = (det ? `<i>${label}</i>` : label)
+      + (isHead(b) ? '<span class="cur">HEAD</span>' : '')
+      + (b.name === baseLocal ? '<span class="def">default</span>' : '');
+    const end = det ? `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`
+      : distSegs(b.name);
+    const up = remote && b.upstream && b.track !== 'gone'
+      ? line(icon('cloud'), esc(b.upstream), distSegs(b.upstream), 'ln up') : '';
+    return `<button type="button" class="option blk" role="option" data-value="${esc(b.name)}"`
+      + ` aria-selected="${b.name === branchValue}">`
+      + line(`<svg class="ic bi" style="color:${refColor(b.name)}" viewBox="0 0 16 16" aria-hidden="true">${ICONS.branch}</svg>`,
+        name, end) + up + '</button>';
+  };
+  const header = w => {
+    const ic = icon(w.main ? 'mainWorktree' : 'worktree');
+    const name = esc(w.main ? 'main' : w.name);
+    const lc = wtColor(w) || 'var(--accent)';
+    const wip = w.dirty ? `<span class="wip" style="color:${lc}" title="nem commitolt változás"></span>` : '';
+    return w.slug === own?.slug
+      ? `<div class="menu-wt"><span class="menu-wt-cur" style="--lc:${lc}" title="itt dolgozik az előtérben lévő session">${ic}${name}</span>${wip}</div>`
+      : `<div class="menu-wt">${ic}<span class="name">${name}</span>${wip}</div>`;
+  };
+  const sep = '<div class="menu-sep"></div>';
+  let html = `<button type="button" class="option" role="option" data-value="" aria-selected="${!branchValue}">`
+    + `${icon('check')}<span class="name">Minden ág</span><span></span></button>`;
+  if (multi) {
+    const slugs = new Set(wts.map(w => w.slug));
+    html += sep + wts.map(w => header(w) + sorted(local.filter(b => b.owner === w.slug)).map(b => block(b)).join('')).join('');
+    const orphans = local.filter(b => !slugs.has(b.owner));
+    if (orphans.length) html += sep + sorted(orphans).map(b => block(b)).join('');
+  } else if (local.length) {
+    html += sep + sorted(local).map(b => block(b)).join('');
+  }
+  // Csak remote ágak, remote-onként egy fejléc.
+  const byRemote = new Map();
+  if (remote) for (const b of DATA.branches.filter(x => x.remote)) {
+    const r = b.name.slice(0, b.name.indexOf('/'));
+    byRemote.set(r, [...(byRemote.get(r) || []), b]);
+  }
+  for (const [r, list] of byRemote) {
+    html += sep + `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
+      + list.map(b => block(b, esc(b.name.slice(r.length + 1)))).join('');
+  }
+  branchPop.innerHTML = html;
   const label = branchValue || 'Minden ág';
   if (branchLabel.textContent !== label) {
     branchLabel.textContent = label;
@@ -1151,10 +1212,13 @@ makeMenu(branchBtn, branchPop, o => {
   applyFilters();
 });
 
+/* Az ág őseit, és — remote ágakkal — az upstreamjéét is: a blokk mindkét sora szűr. */
 function ancestryOf(name) {
-  const tip = DATA.commits.find(c => c.refs.some(r => r.name === name &&
-    (r.kind === 'branch' || r.kind === 'head')));
-  return tip ? reachable([tip.sha]) : null;
+  const up = (document.getElementById('showRemotes')?.checked ?? true)
+    && DATA.branches.find(b => b.name === name)?.upstream;
+  const names = new Set([name, up].filter(Boolean));
+  const tips = DATA.commits.filter(c => c.refs.some(r => names.has(r.name) && r.kind !== 'tag'));
+  return tips.length ? reachable(tips.map(c => c.sha)) : null;
 }
 /* A remote ágak nélkül: ami helyi ágból, HEAD-ből, tagből vagy WIP-ből elérhető. */
 const localReach = () => reachable(DATA.commits.filter(c => c.uncommitted
@@ -1207,7 +1271,7 @@ function applyFilters() {
 }
 document.getElementById('onlyRefs').addEventListener('change', applyFilters);
 // A remote-kapcsoló a fejléc chipjét is érinti (a ☁ szakasz).
-document.getElementById('showRemotes').addEventListener('change', () => { hydrateFocus(); applyFilters(); });
+document.getElementById('showRemotes').addEventListener('change', () => { hydrateFocus(); fillBranches(); applyFilters(); });
 /* A keresés törlésekor (Escape, a mező ×-e vagy kitörölt szöveg) a szűrés
    megszűnik; ha van kinyitott commit, az a lista tetejére kerül (a napfejléc
    alá), hogy a visszajött sorok közt se vesszen el. */

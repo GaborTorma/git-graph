@@ -183,7 +183,11 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   `for-each-ref` adja: `base` az `origin/HEAD` céljához (`%(ahead-behind:…)`, git
   2.41+, régebbin ágankénti `rev-list`), `up` az upstreamhez, a remote-only ágnak
   `local` a helyi párjához; a forrás-ágat (reflog) szándékosan nem használjuk — az
-  ágak alja mindig az `origin/main`-en van. A leválasztott
+  ágak alja mindig az `origin/main`-en van. Az ágválasztó viszont a worktree-k
+  HEAD-reflogjából (`logs/HEAD`, `checkout: moving … to <ág>`) csoportosít: az ág
+  azé a worktree-é, ahol utoljára ki volt véve (`branch_owners`, a `branches`
+  `owner` mezője; csak fájlt olvas). Törölt worktree reflogja vele megy: az ága
+  gazdátlan. A `branches` a csak remote ágakat is adja (`remote: true`). A leválasztott
   HEAD-ű worktree ágát a git nem jegyzi — a Claude app `git-worktrees.json`-ja
   igen (`app_worktree_branches`, a worktree `appBranch` mezője); név szerint
   nem azonosítunk. A 0.12 előtti `git-graph.<slug>.*` szakaszokat a hook
