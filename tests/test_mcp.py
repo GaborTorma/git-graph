@@ -11,6 +11,7 @@ import importlib.util
 import json
 import os
 import subprocess
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -330,6 +331,15 @@ class McpServerTest(unittest.TestCase):
         self.assertNotIn("stubs", commits[0])
         self.assertNotIn("stubs", commits[1])
         self.assertEqual(commits[2]["stubs"], [{"lane": 2, "worktree": "old"}])
+
+    def test_worktree_order(self) -> None:
+        """A hozzáadott worktree-k a létrehozásuk sorrendjében, nem név szerint."""
+        main, extra = self.make_repo()
+        later = self.home.resolve() / "aaa-wt"                         # névben előrébb, de újabb
+        time.sleep(0.05)
+        git_in(main, "worktree", "add", "-q", "--detach", str(later))
+        module = load_module(self.home)
+        self.assertEqual([w["path"] for w in module.worktree_list(main)], [main, extra, later])
 
     def test_last_change(self) -> None:
         """A WIP-sor ideje: a commitolatlan fájlok legutóbbi mtime-ja; a törölt kimarad."""

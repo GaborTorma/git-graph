@@ -173,7 +173,8 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   út a fő checkoutra képződik le (`main_checkout`) — slug, `git-graph.*`
   kulcsok, cím. A `graph_data` minden worktree-t ad (`meta.worktrees`, HEAD-badge
   `worktree` mezővel, worktree-nkénti ál-sor), az állapotukat párhuzamosan gyűjti
-  (`collect_worktrees`). A saját commit és WIP nélküli worktree HEAD-je (pl. egy trunk-
+  (`collect_worktrees`). A hozzáadott worktree-k a létrehozásuk sorrendjében
+  (`worktree_created`: az admin-mappa születési ideje; a git a név szerinti ábécét adná). A saját commit és WIP nélküli worktree HEAD-je (pl. egy trunk-
   commiton, vagy a session törlésekor leválasztva) csonkot kap (`worktree_stubs`:
   a commit `stubs` listája, commitonként a sávok utáni első szabad oszloptól; a lap
   legyezőszerűen rajzolja), így az is elágazik. A saját worktree WIP-je a fix

@@ -349,7 +349,21 @@ def worktree_list(repo: Path | None = None) -> list[dict]:
             cur["branch"] = value[len("refs/heads/"):] if value.startswith("refs/heads/") else value
         elif key in ("bare", "prunable"):
             cur[key] = True
-    return out
+    # A hozzáadott worktree-k a létrehozásuk sorrendjében (a git az admin-mappák
+    # olvasási sorrendjében adja, macOS-en ez a név szerinti ábécé).
+    return out[:1] + sorted(out[1:], key=worktree_created)
+
+
+def worktree_created(wt: dict) -> float:
+    """A worktree létrehozásának ideje: az admin-mappája (`.git/worktrees/<név>`)
+    születési ideje; ahol ez nincs (Linux), a `ctime`-ja. A mappát a worktree
+    `.git` fájlja adja meg (`gitdir: …`)."""
+    try:
+        line = (wt["path"] / ".git").read_text(encoding="utf-8").strip()
+        st = Path(line.partition("gitdir:")[2].strip()).stat()
+    except OSError:
+        return float("inf")
+    return getattr(st, "st_birthtime", st.st_ctime)
 
 
 def main_checkout(repo: Path) -> Path:
