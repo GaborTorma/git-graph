@@ -121,8 +121,8 @@ const ICONS = {
     + '<circle class="wt-ic" cx="8" cy="9" r="1.5" fill="currentColor"/>',
   // a fő checkout: ugyanaz a mappa, pötty nélkül — maga a repó, nem egy kivett másolat
   mainWorktree: '<path class="wt-ic" d="M3 13a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h2.5L7 4.5h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1z"/>',
-  // minden ág: két sáv, egy-egy üres csomóponttal (r=2: 14 px-en r=1.5-nél telinek látszik)
-  allBranches: '<path d="M5 2v6M5 12v2M11 2v2M11 8v6"/><circle cx="5" cy="10" r="2"/><circle cx="11" cy="6" r="2"/>',
+  // minden ág: két sáv, egy-egy üres csomóponttal, mint a branch-ikonon
+  allBranches: '<path d="M5 2.5v6M5 11.5v2M11 2.5v2M11 7.5v6"/><circle cx="5" cy="10" r="1.5"/><circle cx="11" cy="6" r="1.5"/>',
   // leválasztott HEAD az ágválasztóban: szétkapcsolt lánc
   detached: '<path d="M6.5 9.5 4.8 11.2a2 2 0 0 1-2.8-2.8L3.7 6.7M9.5 6.5l1.7-1.7a2 2 0 0 1 2.8 2.8l-1.7 1.7M5.5 2.5V4M2.5 5.5H4M10.5 13.5V12M13.5 10.5H12"/>',
   // a szinkron állapot külön jele egyelőre nincs: ugyanaz a rajz
