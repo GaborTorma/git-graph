@@ -112,6 +112,8 @@ const ICONS = {
   // a worktree-jel: mappa, benne egy kör (a kivett állapot) — saját rajz a készlet vonalvastagságával
   worktree: '<path class="wt-ic" d="M3 13a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h2.5L7 4.5h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1z"/>'
     + '<circle class="wt-ic" cx="8" cy="9" r="1.5" fill="currentColor"/>',
+  // a fő checkout: ugyanaz a mappa, pötty nélkül — maga a repó, nem egy kivett másolat
+  mainWorktree: '<path class="wt-ic" d="M3 13a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h2.5L7 4.5h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1z"/>',
   // a szinkron állapot külön jele egyelőre nincs: ugyanaz a rajz
   get worktreeSynced() { return this.worktree; },
 };
@@ -384,9 +386,16 @@ function sortRefs(refs) {
     .sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2]).map(x => x.r);
 }
 
-/* A worktree HEAD-badge-e (ahogy a commitján látszik) — a WIP-sor elejére. */
+/* A worktree HEAD-badge-e (ahogy a commitján látszik) — a WIP-sor elejére; a fő
+   checkouté saját jel. */
 function headBadge(w) {
   const head = DATA.commits.find(x => x.sha === w.head);
+  if (w.main) {   // a fő checkout: üres mappa és „main” — az ágát a commitja mutatja
+    const tip = `fő checkout: ${w.path}\nág: ${wtLabel(w)}`;
+    const lane = LANE_COLORS[(head ? head.lane : 0) % LANE_COLORS.length];
+    return `<span class="badge ref-head other" style="--lc:${lane}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">`
+      + `${icon('mainWorktree')}main</span>`;
+  }
   const ref = { kind: w.branch ? 'head' : 'detached', name: w.branch || 'HEAD', worktree: w.slug };
   return badges({ refs: [ref], lane: head ? head.lane : 0 });
 }
