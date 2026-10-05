@@ -1318,9 +1318,19 @@ branchQuery.addEventListener('input', filterBranches);
 /* Közös legördülő menü (ágválasztó, téma): nyíl-, Home/End-, Escape- és
    Tab-billentyű, kattintás kívülre csuk. `onPick` a választott opciót kapja. */
 function makeMenu(btn, pop, onPick) {
+  // A menü a látható részen belül marad (`--room`, a CSS max-height-jában): ami nem fér
+  // ki, az görgethető. A lap nem görgethető, a kilógó rész különben elveszne.
+  const fit = () => {
+    if (pop.hidden) return;
+    const r = pop.getBoundingClientRect();
+    const room = pop.classList.contains('up') ? r.bottom : innerHeight - r.top;
+    pop.style.setProperty('--room', `${Math.max(120, room - 8)}px`);
+  };
+  addEventListener('resize', fit);
   const toggle = open => {
     pop.hidden = !open;
     btn.setAttribute('aria-expanded', String(open));
+    fit();
     const query = pop.querySelector('input');
     if (open && query) {          // szűrős menü: üres szűrővel nyílik, a fókusz a mezőben
       query.value = '';
