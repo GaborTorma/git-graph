@@ -252,7 +252,15 @@ button { font: inherit; color: inherit; }
   display: flex; height: auto; min-height: 26px; padding: 4px 10px 2px 8px; margin-top: 2px;
   font-size: 12.5px; font-weight: 500;
 }
-.option.blk { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 3px 0; }
+.option.blk { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 3px 0; position: relative; }
+/* A helyi ág és az upstreamje közti távolság a két sor között, saját oszlopban: ha
+   van ilyen, minden sor távolságai ennyivel beljebb kezdődnek (egy vonalban maradnak). */
+.blk .gap {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 11px; color: var(--fg-2); font-variant-numeric: tabular-nums;
+}
+.blk .gap.warn { color: var(--del); font-weight: 600; }
+.menu-pop:has(.gap) .blk .ln { padding-right: 40px; }
 .blk .ln {
   display: grid; grid-template-columns: 14px 14px 14px minmax(0, 1fr) auto; gap: 8px; align-items: center;
   height: 20px; padding: 0 10px 0 8px;

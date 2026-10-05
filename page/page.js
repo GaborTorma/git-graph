@@ -204,7 +204,7 @@ function distText(name) {
   if (tr.local?.[1]) lines.push(`⑂ ↓${tr.local[1]}: ennyivel van a helyi ág mögött`);
   return lines.length ? `\n${lines.join('\n')}` : '';
 }
-function distSegs(name) {
+function distSegs(name, { noUp = false, noLocal = false } = {}) {
   const tr = DATA.meta.tracks?.[name] || {};
   // Remote ágak nélkül a remote-hoz mért szakaszok sem kellenek (☁ és a remote chip ⑂-je).
   const remote = document.getElementById('showRemotes')?.checked ?? true;
@@ -213,7 +213,8 @@ function distSegs(name) {
   const base = DATA.meta.base || '', local = base.slice(base.indexOf('/') + 1);
   const odd = base && name === local && tr.up?.[0] > 0;
   const warn = odd ? ` warn" data-tip="${esc(`A helyi ${name}-en ${tr.up[0]} pusholatlan commit van`)}` : '';
-  return [[tr.base, '', ''], [remote && tr.up, icon('cloud'), warn], [remote && tr.local, icon('branch'), '']]
+  return [[tr.base, '', ''], [remote && !noUp && tr.up, icon('cloud'), warn],
+    [remote && !noLocal && tr.local, icon('branch'), '']]
     .filter(([d]) => d && (d[0] || d[1]))
     .map(([d, ic, cls]) => `<span class="div"></span><span class="dist${cls}">${ic}${arrows(d)}</span>`).join('');
 }
@@ -1173,18 +1174,29 @@ function fillBranches() {
       + `<span class="col">${bIc}</span><span class="col">${cIc}</span>`
       + `<span class="name">${name}</span><span class="dists">${dists}</span></span>`;
   };
+  // A helyi ág és az upstreamje közti távolság (`↕`): a két sor közé, jobbra. Az
+  // alapág helyi párjának előnye anomália (piros), mint a chipeken.
+  const pairGap = b => {
+    const [a, d] = DATA.meta.tracks?.[b.name]?.up || [0, 0];
+    const odd = b.name === baseLocal && a > 0;
+    const tip = [a && `↑${a}: a helyi ${b.name} ennyivel jár előrébb`, d && `↓${d}: a ${b.upstream} ennyivel jár előrébb`]
+      .filter(Boolean).join('\n');
+    return `<span class="gap${odd ? ' warn' : ''}" title="${esc(tip)}">↕${a && d ? `${a}/${d}` : a || d}</span>`;
+  };
   const block = b => {
     const det = detachedOf(b.name);
     const name = (det ? `<i>${esc(b.name)}</i>` : esc(b.name))
       + (isHead(b) ? `<span class="cur" style="--lc:${branchColor(b)}">HEAD</span>` : '');
-    const end = det ? `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`
-      : distSegs(b.name);
     const refs = blockRefs(b, remote), up = refs[1];
+    const pair = up && !synced(b);
+    // Két sornál az ág és az upstream távolsága a két sor között, egyetlen jellel.
+    const end = det ? `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`
+      : distSegs(b.name, { noUp: pair });
     const c = branchColor(b);
-    const lines = up && synced(b)
+    const lines = up && !pair
       ? line(refs, tinted('branch', c), cloudIc(up, c), name, end)
       : line([b.name], tinted('branch', c), '', name, end)
-        + (up ? line([up], '', cloudIc(up, c), esc(up), distSegs(up)) : '');
+        + (up ? line([up], '', cloudIc(up, c), esc(up), distSegs(up, { noLocal: true })) + pairGap(b) : '');
     return blockBtn(refs, lines);
   };
   const blockBtn = (refs, lines) => `<button type="button" class="option blk" role="option" data-refs="${esc(refs.join(' '))}"`
@@ -1215,7 +1227,7 @@ function fillBranches() {
   } else if (local.length) {
     html += sep + sorted(local).map(block).join('');
   }
-  // Csak remote ágak, remote-onként egy fejléc; a sor a felhő-oszlopban.
+  // Csak remote ágak, remote-onként egy fejléc; a felhő az első oszlopban (más nincs a sorban).
   const byRemote = new Map();
   if (remote) for (const b of DATA.branches.filter(x => x.remote)) {
     const r = b.name.slice(0, b.name.indexOf('/'));
@@ -1223,7 +1235,7 @@ function fillBranches() {
   }
   for (const [r, list] of byRemote) {
     html += sep + `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
-      + list.map(b => blockBtn([b.name], line([b.name], '', cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), distSegs(b.name)))).join('');
+      + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), '', esc(b.name.slice(r.length + 1)), distSegs(b.name)))).join('');
   }
   branchPop.innerHTML = html;
   const [ics, label] = selView();
