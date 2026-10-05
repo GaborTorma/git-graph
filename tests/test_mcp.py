@@ -253,7 +253,6 @@ class McpServerTest(unittest.TestCase):
         self.assertNotEqual(lane[wts[1]["head"]], 0)               # a worktree ága elágazik
         side = git_in(main, "rev-parse", "side").strip()
         self.assertLess(lane[side], lane[wts[1]["head"]])          # a worktree oszlopa a végén
-        self.assertEqual(wts[1]["ahead"], 0)                       # nincs upstream, se origin/HEAD
         for c in pending:
             path = data["stats"][c["sha"]]["files"][0]["path"]
             self.assertTrue(module.file_diff(c["sha"], path)["hunks"], c["sha"])

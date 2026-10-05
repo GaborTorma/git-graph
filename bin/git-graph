@@ -354,13 +354,25 @@ def worktree_list(repo: Path | None = None) -> list[dict]:
     return out[:1] + sorted(out[1:], key=worktree_created)
 
 
+def admin_dir(wt: dict) -> Path:
+    """A worktree git-mappája: a fő checkoutban a `.git`, a hozzáadottban az, amire
+    a `.git` fájlja mutat (`gitdir: …/.git/worktrees/<név>`). `OSError`, ha nincs."""
+    dot = wt["path"] / ".git"
+    return dot if dot.is_dir() else Path(dot.read_text(encoding="utf-8").partition("gitdir:")[2].strip())
+
+
+def app_branch(wt: dict) -> str | None:
+    """A leválasztott HEAD-ű hozzáadott worktree ága: a git nem jegyzi, a Claude app igen."""
+    if wt["branch"] or (wt["path"] / ".git").is_dir():
+        return None
+    return app_worktree_branches().get(str(wt["path"].resolve()))
+
+
 def worktree_created(wt: dict) -> float:
     """A worktree létrehozásának ideje: az admin-mappája (`.git/worktrees/<név>`)
-    születési ideje; ahol ez nincs (Linux), a `ctime`-ja. A mappát a worktree
-    `.git` fájlja adja meg (`gitdir: …`)."""
+    születési ideje; ahol ez nincs (Linux), a `ctime`-ja."""
     try:
-        line = (wt["path"] / ".git").read_text(encoding="utf-8").strip()
-        st = Path(line.partition("gitdir:")[2].strip()).stat()
+        st = admin_dir(wt).stat()
     except OSError:
         return float("inf")
     return getattr(st, "st_birthtime", st.st_ctime)
@@ -380,10 +392,6 @@ def collect_worktrees() -> list[dict]:
     kimarad.
     """
     worktrees = worktree_list()
-    try:                                  # az alapág: amit a remote alapértelmezettnek mond
-        default = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").strip()
-    except subprocess.CalledProcessError:
-        default = ""
 
     def fill(wt: dict) -> None:
         try:
@@ -392,8 +400,6 @@ def collect_worktrees() -> list[dict]:
             wt["numstat"] = git("diff", "--numstat", "HEAD", repo=wt["path"]) if wt["head"] else ""
         except subprocess.CalledProcessError:
             wt["gone"] = True
-            return
-        wt["track"] = ahead_of(wt, default)
 
     with ThreadPoolExecutor(max_workers=max(1, min(8, len(worktrees)))) as pool:
         list(pool.map(fill, worktrees))
@@ -404,34 +410,14 @@ def collect_worktrees() -> list[dict]:
     return worktrees
 
 
-def ahead_of(wt: dict, default: str) -> dict:
-    """Hány committal jár a worktree HEAD-je előrébb és hátrébb, és minek: az
-    upstreamjénél, ha van, különben az alapágnál (`origin/HEAD`) — egy friss
-    feature-ágnak még nincs upstreamje, de a lapnak látszania kell, hogy
-    előrébb van. `upstream`: a saját upstreamjéhez mért-e (a szinkron-jelhez)."""
-    for base in ("@{upstream}", default):
-        if not base or not wt["head"]:
-            continue
-        try:
-            behind, ahead = git("rev-list", "--left-right", "--count", f"{base}...HEAD",
-                                repo=wt["path"]).split()
-            name = (git("rev-parse", "--abbrev-ref", base, repo=wt["path"]).strip()
-                    if base.startswith("@") else base)
-            return {"ahead": int(ahead), "behind": int(behind), "base": name,
-                    "upstream": base.startswith("@")}
-        except (subprocess.CalledProcessError, ValueError):
-            continue
-    return {"ahead": 0, "behind": 0, "base": "", "upstream": False}
-
-
 def worktree_meta(wt: dict) -> dict:
-    """Egy worktree a lapnak: azonosító, mappa, ág, HEAD, változások száma, előny / hátralék."""
+    """Egy worktree a lapnak: azonosító, mappa, ág, HEAD, változások száma (az ág
+    távolságait a `meta.tracks` adja)."""
     meta = {"slug": wt["slug"], "name": wt["path"].name, "path": str(wt["path"]),
             "branch": wt["branch"], "head": wt["head"], "main": wt["main"],
-            "dirty": len(wt["status"]), **wt.get("track", {})}
+            "dirty": len(wt["status"])}
     if not wt["branch"] and not wt["main"]:
-        # Leválasztott HEAD: a git nem jegyzi, melyik ágé volt — a Claude app igen.
-        meta["appBranch"] = app_worktree_branches().get(str(wt["path"].resolve()))
+        meta["appBranch"] = app_branch(wt)
     return meta
 
 
@@ -550,15 +536,11 @@ def branch_owners(worktrees: list[dict]) -> dict[str, str]:
     best: dict[str, tuple[float, str]] = {}
     pattern = re.compile(r"> (\d+) [+-]\d{4}\tcheckout: moving from \S+ to (\S+)$")
     for wt in worktrees:
-        claim = wt["branch"] or (None if wt["main"] else
-                                 app_worktree_branches().get(str(wt["path"].resolve())))
+        claim = wt["branch"] or app_branch(wt)
         if claim:
             best[claim] = (float("inf"), wt["slug"])
         try:
-            dot = wt["path"] / ".git"
-            admin = dot if dot.is_dir() else Path(
-                dot.read_text(encoding="utf-8").partition("gitdir:")[2].strip())
-            lines = (admin / "logs" / "HEAD").read_text(encoding="utf-8", errors="replace").splitlines()
+            lines = (admin_dir(wt) / "logs" / "HEAD").read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError:
             continue
         for line in lines:
@@ -1491,12 +1473,12 @@ def app_worktree_branches() -> dict[str, str]:
     return _APP_WORKTREES["branches"]
 
 
-def worktree_of(cwd: str, worktrees: list[dict]) -> str | None:
-    """A munkakönyvtárat tartalmazó worktree slugja (a legmélyebb, ha egymásba ágyazottak)."""
+def worktree_of(cwd: str, roots: list[tuple[Path, str]]) -> str | None:
+    """A munkakönyvtárat tartalmazó worktree slugja (a legmélyebb, ha egymásba
+    ágyazottak). `roots`: a worktree-k feloldott útja és slugja, hívásonként egyszer."""
     path = Path(cwd).resolve()                    # a git a valódi utat adja (/var → /private/var)
-    hits = [wt for wt in worktrees
-            if wt["path"].resolve() == path or wt["path"].resolve() in path.parents]
-    return slug_for(max(hits, key=lambda wt: len(wt["path"].parts))["path"]) if hits else None
+    hits = [(root, slug) for root, slug in roots if root == path or root in path.parents]
+    return max(hits, key=lambda hit: len(hit[0].parts))[1] if hits else None
 
 
 def focused_worktree(worktrees: list[dict]) -> dict:
@@ -1507,11 +1489,12 @@ def focused_worktree(worktrees: list[dict]) -> dict:
     """
     with FOCUS_LOCK:                          # a várakozó hívás szála is számolja
         logged, sessions = dict(app_log_focus()), app_sessions()
+    roots = [(wt["path"].resolve(), slug_for(wt["path"])) for wt in worktrees]
     best = None
     for session in sessions:
         if session["archived"]:
             continue
-        slug = worktree_of(session["cwd"], worktrees)
+        slug = worktree_of(session["cwd"], roots)
         at = max((session["focused"], 0), logged.get(session["id"], (0, 0)))
         if slug and (best is None or at > best[0]):
             best = (at, slug)
