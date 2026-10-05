@@ -396,8 +396,12 @@ function headBadge(w) {
     return `<span class="badge ref-head other" style="--lc:${lane}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">`
       + `${icon('mainWorktree')}main</span>`;
   }
-  const ref = { kind: w.branch ? 'head' : 'detached', name: w.branch || 'HEAD', worktree: w.slug };
-  return badges({ refs: [ref], lane: head ? head.lane : 0 });
+  if (!w.branch) {   // ág nélkül: a WIP nem HEAD (az mindig commit) — a worktree jele és neve
+    const tip = `worktree: ${w.path}\nág nélkül, HEAD: ${String(w.head || '').slice(0, 7)}`;
+    return `<span class="badge ref-head other" style="--lc:${wtColor(w) || LANE_COLORS[0]}" `
+      + `data-tip="${esc(tip)}" aria-label="${esc(tip)}">${icon('worktree')}${esc(w.name)}</span>`;
+  }
+  return badges({ refs: [{ kind: 'head', name: w.branch, worktree: w.slug }], lane: head ? head.lane : 0 });
 }
 
 const REF_ICON = { head: 'branch', branch: 'branch', remote: 'cloud', tag: 'tag' };   // a leválasztott HEAD ikon nélkül
