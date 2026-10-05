@@ -584,7 +584,7 @@ def collect_meta(commits: list[dict], worktrees: list[dict]) -> dict:
 def branch_tracks() -> dict[str, dict]:
     """Ágankénti távolság (`ahead`, `behind`): `base` az alapághoz (amire az
     `origin/HEAD` mutat; magán az alapágon nincs; a remote-only ágaknak is,
-    `origin/x` kulccsal), `up` a saját upstreamjéhez
+    `origin/x` kulccsal; ha van helyi párja, `local` a helyi ághoz), `up` a saját upstreamjéhez
     (ha van, és nem tűnt el). Egyetlen `for-each-ref` (git 2.41+:
     `%(ahead-behind:…)`); régebbi gitnél ágankénti `rev-list`."""
     try:
@@ -599,6 +599,7 @@ def branch_tracks() -> dict[str, dict]:
     except subprocess.CalledProcessError:
         lines, rich = git("for-each-ref", f"--format={fields}", "refs/heads").splitlines(), False
     out: dict[str, dict] = {}
+    locals_: dict[str, list[int]] = {}             # upstream neve → távolsága a helyi ágtól
     for line in lines:
         name, upstream, track, *rest = line.split("\0")
         entry: dict = {}
@@ -606,6 +607,7 @@ def branch_tracks() -> dict[str, dict]:
             ahead = re.search(r"ahead (\d+)", track)
             behind = re.search(r"behind (\d+)", track)
             entry["up"] = [int(ahead.group(1)) if ahead else 0, int(behind.group(1)) if behind else 0]
+            locals_[upstream] = entry["up"][::-1]     # a remote chipjén: a helyi ághoz mérve
         if base and base.split("/", 1)[-1] != name:
             if rich and rest:
                 a, b = rest[0].split()
@@ -622,6 +624,8 @@ def branch_tracks() -> dict[str, dict]:
                 if name != base and not name.endswith("/HEAD") and name not in out:
                     a, b = counts.split()
                     out[name] = {"base": [int(a), int(b)]}
+                    if name in locals_:
+                        out[name]["local"] = locals_[name]
         except (subprocess.CalledProcessError, ValueError):
             pass                              # régi git: a remote-only chip szám nélkül marad
     return out

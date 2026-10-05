@@ -177,11 +177,12 @@ function wtChipInner(w) {
 /* Az ág távolságai (`DATA.meta.tracks`, csak a nem nulla irány): `↑a ↓b` az
    alapághoz (amire az origin/HEAD mutat) — ikon nélkül, a chip maga az ág —, és
    `☁ ↑c ↓d` az upstreamjéhez, csak ha nem egy helyen állnak (különben a felhő a
-   branch-ikon után ül). Ami a chipből már kiderül, annak nem jár újabb ikon. */
+   branch-ikon után ül); a remote-only chipen utolsóként `⑂ ↑e ↓f` a helyi ágához.
+   Ami a chipből már kiderül, annak nem jár újabb ikon. */
 const arrows = ([a, b]) => [a && `↑${a}`, b && `↓${b}`].filter(Boolean).join(' ');
 function distSegs(name) {
   const tr = DATA.meta.tracks?.[name] || {};
-  return [[tr.base, ''], [tr.up, icon('cloud')]]
+  return [[tr.base, ''], [tr.up, icon('cloud')], [tr.local, icon('branch')]]
     .filter(([d]) => d && (d[0] || d[1]))
     .map(([d, ic]) => `<span class="div"></span><span class="dist">${ic}${arrows(d)}</span>`).join('');
 }
