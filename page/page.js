@@ -122,13 +122,10 @@ const ICONS = {
   // a fő checkout: ugyanaz a mappa, pötty nélkül — maga a repó, nem egy kivett másolat
   mainWorktree: '<path class="wt-ic" d="M3 13a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h2.5L7 4.5h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1z"/>',
   // ág és upstream egy helyen: felhő, az alsó vonala közepén csomópont, onnan ág két
-  // csomópontra; a teli változat (alapág) kitöltése a csomópont körül kivágva
-  branchCloud: '<path d="M9.5 9.4h1.49a2.76 2.76 0 0 0 .37-5.52A3.68 3.68 0 0 0 4.37 4.89 2.3 2.3 0 0 0 4.55 9.4H6.5"/>'
-    + '<circle cx="8" cy="9.4" r="1.5"/><path d="M8 10.9v2.4M4.5 13.3h7"/><circle cx="3" cy="13.3" r="1.5"/><circle cx="13" cy="13.3" r="1.5"/>',
-  get branchCloudFill() {
-    return '<path fill="currentColor" stroke="none" d="M4.55 9.4H5.1A2.9 2.9 0 0 1 10.9 9.4h.09a2.76 2.76 0 0 0 .37-5.52A3.68 3.68 0 0 0 4.37 4.89 2.3 2.3 0 0 0 4.55 9.4z"/>'
-      + this.branchCloud;
-  },
+  // csomópontra; a teli változat (alapág) a csomópont körül kivágva. A Fejlesztő
+  // rajza (CorelDRAW), 16-os rácsra méretezve; a vonala 1,6 (a csomópontok sugara).
+  branchCloud: '<g stroke-width="1.6"><path d="M12.07 9.06c1.16-0.4 2-1.5 2-2.79 0-1.55-1.2-2.84-2.75-2.94-0.64-1.4-2.03-2.29-3.57-2.29-1.95 0-3.61 1.44-3.89 3.37-1.1 0.26-1.88 1.25-1.88 2.39 0 0.97 0.57 1.83 1.42 2.23"/><circle cx="7.73" cy="8.4" r="1.6"/><path d="M7.73 10.81l0 2.56m-3.73 0l7.47 0"/><circle cx="2.4" cy="13.37" r="1.6"/><circle cx="13.6" cy="13.37" r="1.6"/></g>',
+  branchCloudFill: '<g stroke-width="1.6"><path fill="currentColor" stroke="none" d="M12.07 9.06c1.16-0.4 2-1.5 2-2.79 0-1.55-1.2-2.84-2.75-2.94-0.64-1.4-2.03-2.29-3.57-2.29-1.95 0-3.61 1.44-3.89 3.37-1.1 0.26-1.88 1.25-1.88 2.39 0 0.97 0.57 1.83 1.42 2.22 0.06-2.35 1.98-4.23 4.34-4.23 2.38 0 4.3 1.91 4.34 4.28z"/><circle cx="7.73" cy="8.4" r="1.6"/><path d="M7.73 10.81l0 2.56m-3.73 0l7.47 0"/><circle cx="2.4" cy="13.37" r="1.6"/><circle cx="13.6" cy="13.37" r="1.6"/><path d="M12.07 9.06c1.16-0.4 2-1.5 2-2.79 0-1.55-1.2-2.84-2.75-2.94-0.64-1.4-2.03-2.29-3.57-2.29-1.95 0-3.61 1.44-3.89 3.37-1.1 0.26-1.88 1.25-1.88 2.39 0 0.97 0.57 1.83 1.42 2.22l0-0.7 0 0c0-2.4 1.94-4.34 4.34-4.34 2.4 0 4.34 1.94 4.34 4.34l0 0 0 0.75z"/><path stroke-width=".3" d="M4.64 9.21H10.83"/></g>',
   // minden ág: két sáv, egy-egy üres csomóponttal, mint a branch-ikonon
   allBranches: '<path d="M5 2.5v6M5 11.5v2M11 2.5v2M11 7.5v6"/><circle cx="5" cy="10" r="1.5"/><circle cx="11" cy="6" r="1.5"/>',
   // leválasztott HEAD az ágválasztóban: szétkapcsolt lánc
