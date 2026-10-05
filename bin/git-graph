@@ -627,11 +627,13 @@ def branch_tracks() -> dict[str, dict]:
             for line in git("for-each-ref", f"--format=%(refname:short)%00%(ahead-behind:{base})",
                             "refs/remotes").splitlines():
                 name, counts = line.split("\0")
-                if name != base and not name.endswith("/HEAD") and name not in out:
-                    a, b = counts.split()
-                    out[name] = {"base": [int(a), int(b)]}
-                    if name in locals_:
-                        out[name]["local"] = locals_[name]
+                if name.endswith("/HEAD") or name in out:
+                    continue
+                a, b = counts.split()
+                # Az alapág remote-jának nincs base-szakasza (önmaga), de a helyi párjához mérve igen.
+                out[name] = {} if name == base else {"base": [int(a), int(b)]}
+                if name in locals_:
+                    out[name]["local"] = locals_[name]
         except (subprocess.CalledProcessError, ValueError):
             pass                              # régi git: a remote-only chip szám nélkül marad
     return out

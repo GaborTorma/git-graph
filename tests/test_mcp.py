@@ -360,6 +360,7 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(tracks["main"], {"up": [1, 0]})              # az alapágnak nincs base-szakasza
         self.assertEqual(tracks["origin/feat"]["local"], [0, 1])       # a helyi feat egy committal előrébb
         self.assertEqual(tracks["origin/only-remote"], {"base": [2, 0]})
+        self.assertEqual(tracks["origin/main"], {"local": [0, 1]})     # az alapág remote-ja: csak a helyi párjához
 
     def test_worktree_order(self) -> None:
         """A hozzáadott worktree-k a létrehozásuk sorrendjében, nem név szerint."""
