@@ -1005,7 +1005,12 @@ function fitRows() {
   for (const r of tight) r.classList.add('tight');
   // Ha a badge-ek mellett nem fér el az idő · avatar · diff blokk, a badge-ek
   // tördelődnek (`.three`): a blokk az utolsó sorukba, ha ott sincs hely, alá.
-  const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };
+  // Zsúfolt: a badge-ek kilógnak, vagy egy badge neve már rövidülne (`…`) a blokk mellett.
+  const crowded = r => {
+    const f = r.querySelector('.refs');
+    return f.scrollWidth > f.clientWidth
+      || [...f.querySelectorAll('.badge-name')].some(n => n.scrollWidth > n.clientWidth + 1);
+  };
   for (const r of tight.filter(crowded)) r.classList.replace('tight', 'three');
 }
 
