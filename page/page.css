@@ -224,9 +224,11 @@ button { font: inherit; color: inherit; }
 .option .ic.ti { width: 14px; height: 14px; color: var(--fg-2); stroke-width: 1.5; visibility: visible; }
 .option .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .option .track { font-size: 11.5px; color: var(--fg-2); }
+/* A HEAD-jel az ág színében (`--lc`), mint a chipek. */
 .option .cur {
-  margin-left: 6px; padding: 1px 6px; border-radius: 4px;
-  background: var(--accent-bg); color: var(--accent); font-size: 10.5px; font-weight: 500;
+  margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 500;
+  background: color-mix(in srgb, var(--lc, var(--accent)) 14%, var(--bg));
+  color: color-mix(in srgb, var(--lc, var(--accent)) 70%, var(--fg-0));
 }
 .menu-sep { height: 1px; margin: 3px 6px; background: var(--border-soft); }
 /* Ágválasztó: worktree-fejléc, alatta az ágai; a helyi ág és az upstreamje egy

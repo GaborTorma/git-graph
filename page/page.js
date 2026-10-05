@@ -1176,7 +1176,7 @@ function fillBranches() {
   const block = b => {
     const det = detachedOf(b.name);
     const name = (det ? `<i>${esc(b.name)}</i>` : esc(b.name))
-      + (isHead(b) ? '<span class="cur">HEAD</span>' : '');
+      + (isHead(b) ? `<span class="cur" style="--lc:${branchColor(b)}">HEAD</span>` : '');
     const end = det ? `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`
       : distSegs(b.name);
     const refs = blockRefs(b, remote), up = refs[1];
