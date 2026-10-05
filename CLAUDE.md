@@ -178,7 +178,12 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   commiton, vagy a session törlésekor leválasztva) csonkot kap (`worktree_stubs`:
   a commit `stubs` listája, commitonként a sávok utáni első szabad oszloptól; a lap
   legyezőszerűen rajzolja), így az is elágazik. A saját worktree WIP-je a fix
-  sávban, a többié a lista elején, a fájlok `mtime`-ja szerint (`last_change`). A leválasztott
+  sávban, a többié a listában, a fájlok `mtime`-ja szerint (`last_change`; az
+  ujjlenyomatban is). Az ágak távolságát (`branch_tracks`, a `meta.tracks`) egyetlen
+  `for-each-ref` adja: `base` az `origin/HEAD` céljához (`%(ahead-behind:…)`, git
+  2.41+, régebbin ágankénti `rev-list`), `up` az upstreamhez, a remote-only ágnak
+  `local` a helyi párjához; a forrás-ágat (reflog) szándékosan nem használjuk — az
+  ágak alja mindig az `origin/main`-en van. A leválasztott
   HEAD-ű worktree ágát a git nem jegyzi — a Claude app `git-worktrees.json`-ja
   igen (`app_worktree_branches`, a worktree `appBranch` mezője); név szerint
   nem azonosítunk. A 0.12 előtti `git-graph.<slug>.*` szakaszokat a hook

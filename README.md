@@ -7,7 +7,13 @@ mintáját követi, a megjelenés a Claude appét: meleg paletta, Claude Light /
 kódszínek, napokra bontott egysoros lista. A soron kattintva lefelé nyílik a
 commit: szerző GitHub-avatarral, szülő(k), GitHub-link, fájlok és
 szintaxisszínezett diff. Ha a helyi ág és a remote-ja ugyanott áll, egy
-badge-ben látszanak (`main | origin`). A kereső (⌘F) az üzenetben, a
+badge-ben látszanak (felhő a branch-ikon után). Az ág-badge végén a távolságai,
+csak a nem nulla irány: `↑a ↓b` az alapághoz (amire az `origin/HEAD` mutat —
+mennyit jött az ág, mennyit haladt közben a main), `☁ ↑c ↓d` a remote-társához
+(ha nem egy helyen állnak); a csak remote-os ág badge-én utolsóként `⑂ ↑e ↓f` a
+helyi párjához. Ha az alapág helyi párja (`main`) előrébb jár a remote-jánál, a
+`☁ ↑` piros — a `main`-en nem dolgozunk. Ha a badge nem fér ki, csak a név
+rövidül. A kereső (⌘F) az üzenetben, a
 szerzőben, a ref-nevekben és a hash elején keres, ékezettől függetlenül;
 minden szónak egyeznie kell. Escape vagy a mező × gombja törli; ha közben nyitva
 volt egy commit, a teljes listában az kerül legfelülre.
@@ -89,9 +95,9 @@ Claude app naplójából és session-adataiból tudja, melyik session van épp e
 és session-váltáskor prompt nélkül, ~50 ms alatt átáll. Kézzel nem választható
 — a HEAD ott van, ahol a session dolgozik. A fejléc chipje a saját ágat mutatja
 a sávja színében; worktree-ben a worktree-jellel (mappa), commitolatlan
-változásnál üres karikával és `↑` előny / `↓` lemaradás számmal. A saját
-worktree Uncommitted sora a lista fölötti sávban ül, a többi worktree-é a lista
-elején (a legutóbb változott elöl), a worktree chipjével. Minden worktree HEAD-je
+változásnál üres karikával és az ág távolságaival. A saját worktree „Nem
+commitolt változások” sora a lista fölötti sávban ül (nem mai időnél a nappal),
+a többi worktree-é a listában, az ideje szerint, a worktree jelével és ágával. Minden worktree HEAD-je
 badge-et kap; a saját commit és WIP nélküli worktree-k csonkkal ágaznak le a
 commitjukról, több csonk legyezőszerűen. Ami nem a sajáté, halványabb (a sehol ki nem
 vett ágak a fő checkouté). A
