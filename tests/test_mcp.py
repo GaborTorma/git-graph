@@ -331,6 +331,14 @@ class McpServerTest(unittest.TestCase):
         self.assertNotIn("stubs", commits[1])
         self.assertEqual(commits[2]["stubs"], [{"lane": 2, "worktree": "old"}])
 
+    def test_last_change(self) -> None:
+        """A WIP-sor ideje: a commitolatlan fájlok legutóbbi mtime-ja; a törölt kimarad."""
+        module = load_module(self.home)
+        (self.home / "a.txt").write_text("x", encoding="utf-8")
+        os.utime(self.home / "a.txt", (1000, 1000))
+        files = [{"path": "a.txt"}, {"path": "torolt.txt"}]
+        self.assertEqual(module.last_change(self.home, files), 1000)
+
     def test_app_worktree_branches(self) -> None:
         """A leválasztott worktree ága a Claude app nyilvántartásából, a mappa szerint."""
         module = load_module(self.home)

@@ -190,6 +190,19 @@ UNCOMMITTED = "*uncommitted"
 UNCOMMITTED_RE = re.compile(r"^\*uncommitted(?::([a-z0-9-]+))?$")
 
 
+def last_change(root: Path, files: list[dict]) -> int:
+    """A commitolatlan fájlok legutóbbi módosítása (epoch s) — a git ezt nem tárolja,
+    a fájlrendszer igen; a törölt fájl kimarad. A lap ebben a sorrendben mutatja
+    a worktree-k WIP-sorait."""
+    latest = 0
+    for f in files:
+        try:
+            latest = max(latest, int((root / f["path"].rstrip("/")).stat().st_mtime))
+        except OSError:
+            pass
+    return latest
+
+
 def collect_uncommitted(wt: dict, named: bool = False) -> tuple[dict, dict] | None:
     """Egy worktree változásai egy ál-commitként, a Git Graph mintájára.
 
@@ -236,6 +249,7 @@ def collect_uncommitted(wt: dict, named: bool = False) -> tuple[dict, dict] | No
         "body": "",
         "uncommitted": True,
         "worktree": wt["slug"],
+        "changed": last_change(wt["path"], files),
     }
     return commit, {"files": files, "add": added, "del": deleted}
 
@@ -638,8 +652,8 @@ def worktree_stubs(commits: list[dict], edges: list[dict], worktrees: list[dict]
     Ha a worktree HEAD-je egy más által is használt commiton áll (a trunkon,
     egy továbbmenő ág közepén, vagy ahol másik HEAD is van — pl. a session
     törlésekor leválasztott worktree), a worktree nem ágazna el. A commit
-    `stubs` listát kap: a következő szabad oszlop, a lap vízszintes vonallal és
-    pöttyel rajzolja, a HEAD-badge ennek a színét kapja.
+    `stubs` listát kap: a sávok utáni első szabad oszloptól, commitonként újra
+    kezdve; a lap vonallal és pöttyel rajzolja, a HEAD-badge ennek a színét kapja.
     """
     row_of = {c["sha"]: i for i, c in enumerate(commits)}
     has_child = {(e["toRow"], e["fromLane"]) for e in edges if not e["merge"]}
@@ -654,8 +668,10 @@ def worktree_stubs(commits: list[dict], edges: list[dict], worktrees: list[dict]
         c = commits[row]
         own = c["lane"] != 0 and (row, c["lane"]) not in has_child and heads[wt["head"]] == 1
         if not own:
-            c.setdefault("stubs", []).append({"lane": lanes, "worktree": wt["slug"]})
-            lanes += 1
+            # Commitonként a következő szabad oszloptól: a csonk a soron belül marad,
+            # más sorok csonkjaival nem ütközik — a gráf nem szélesedik feleslegesen.
+            stubs = c.setdefault("stubs", [])
+            stubs.append({"lane": lanes + len(stubs), "worktree": wt["slug"]})
 
 
 def fold_remote_heads(commits: list[dict]) -> None:
