@@ -492,7 +492,7 @@ function rowHtml(c) {
   // idő · avatar · diff; a hash a lenyitott commit fejében (a keresés is megtalálja)
   // Más worktree WIP-je: elöl a worktree jele (`wtBadge`).
   const other = c.uncommitted && c.worktree !== focusWt()?.slug && worktrees().find(w => w.slug === c.worktree);
-  const lead = other ? `<span class="refs">${wtBadge(other)}</span>` : '';
+  const lead = other ? `<span class="refs wip-lead">${wtBadge(other)}</span>` : '';
   const subject = c.subject;
   // A WIP-soron is: a fájlok utolsó módosítása, a gép git-felhasználója, a diff.
   // A saját WIP a rögzített sávban ül, napfejléc nélkül: nem mai időnél a nap is kell.

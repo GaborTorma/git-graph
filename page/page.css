@@ -460,6 +460,9 @@ button { font: inherit; color: inherit; }
 /* Ha nem fér ki, csak a név rövidül (`…`); az ikonok, az elválasztó és a
    távolság-szakaszok nem nyomódnak össze. */
 .badge > *, .head-chip > * { flex: none; }
+/* A WIP-sor eleji worktree-badge egyedül áll a sorban: szélesebb lehet (a cím rövidül előbb). */
+.refs.wip-lead { flex: 0 1 auto; max-width: min(640px, 65%); }
+.refs.wip-lead .badge { max-width: 100%; }
 .badge > .badge-name, .head-chip > .chip-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* A remote-on is ugyanott áll: felhő az ág neve után. */
 .badge .synced { display: inline-flex; align-items: center; gap: 3px; margin-left: 1px; opacity: .8; }
