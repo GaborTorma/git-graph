@@ -195,12 +195,14 @@ function distText(name) {
 }
 function distSegs(name) {
   const tr = DATA.meta.tracks?.[name] || {};
+  // Remote ágak nélkül a remote-hoz mért szakaszok sem kellenek (☁ és a remote chip ⑂-je).
+  const remote = document.getElementById('showRemotes')?.checked ?? true;
   // Az alapág helyi párján (pl. `main`) nem dolgozunk: ha előrébb jár a remote-jánál,
   // az anomália (teszt vagy tévedés) — figyelmeztető szín és magyarázat.
   const base = DATA.meta.base || '', local = base.slice(base.indexOf('/') + 1);
   const odd = base && name === local && tr.up?.[0] > 0;
   const warn = odd ? ` warn" data-tip="${esc(`A helyi ${name}-en ${tr.up[0]} pusholatlan commit van`)}` : '';
-  return [[tr.base, '', ''], [tr.up, icon('cloud'), warn], [tr.local, icon('branch'), '']]
+  return [[tr.base, '', ''], [remote && tr.up, icon('cloud'), warn], [remote && tr.local, icon('branch'), '']]
     .filter(([d]) => d && (d[0] || d[1]))
     .map(([d, ic, cls]) => `<span class="div"></span><span class="dist${cls}">${ic}${arrows(d)}</span>`).join('');
 }
@@ -461,7 +463,7 @@ function badges(c) {
     const cloud = cloudOf(r.default);
     const multi = (DATA.meta.remotes || []).length > 1;
     // Egy remote-nál a felhő a branch-ikon után, a név előtt áll (`⎇☁ main`).
-    const remotes = multi
+    const remotes = multi && showRemote
       ? r.remotes.map(o => `<span class="div"></span><span class="synced">${cloudOf(o.default)}${esc(o.name)}</span>`).join('')
       : '';
     // Hozzáadott worktree-ben kivett ág: elöl a worktree-jel (a fontosabb), kitöltött
@@ -469,7 +471,7 @@ function badges(c) {
     const linked = wt && !wt.main;
     const wtSynced = linked && wt.upstream && !wt.ahead && !wt.behind;
     const wtLead = linked ? `<span class="synced wt-lead">${icon(wtSynced ? 'worktreeSynced' : 'worktree')}</span>` : '';
-    const synced = !linked && r.remotes.length && !multi ? `<span class="synced lead">${cloud}</span>` : '';
+    const synced = !linked && showRemote && r.remotes.length && !multi ? `<span class="synced lead">${cloud}</span>` : '';
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
     // A csak remote-os chipen a felhő jelzi a remote-ot: egy remote-nál az
     // `origin/` előtag nem kell, többnél a név mondja meg, melyiké.
@@ -1203,8 +1205,9 @@ function applyFilters() {
   });
   render();
 }
-['showRemotes', 'onlyRefs'].forEach(id =>
-  document.getElementById(id).addEventListener('change', applyFilters));
+document.getElementById('onlyRefs').addEventListener('change', applyFilters);
+// A remote-kapcsoló a fejléc chipjét is érinti (a ☁ szakasz).
+document.getElementById('showRemotes').addEventListener('change', () => { hydrateFocus(); applyFilters(); });
 /* A keresés törlésekor (Escape, a mező ×-e vagy kitörölt szöveg) a szűrés
    megszűnik; ha van kinyitott commit, az a lista tetejére kerül (a napfejléc
    alá), hogy a visszajött sorok közt se vesszen el. */
