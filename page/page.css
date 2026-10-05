@@ -257,8 +257,10 @@ button { font: inherit; color: inherit; }
    van ilyen, minden sor távolságai ennyivel beljebb kezdődnek (egy vonalban maradnak). */
 .blk .gap {
   position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; gap: 2px;
   font-size: 11px; color: var(--fg-2); font-variant-numeric: tabular-nums;
 }
+.blk .gap .ud { display: inline-flex; flex-direction: column; align-items: center; line-height: 10px; }
 .blk .gap.warn { color: var(--del); font-weight: 600; }
 .menu-pop:has(.gap) .blk .ln { padding-right: 40px; }
 .blk .ln {

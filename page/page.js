@@ -1181,7 +1181,9 @@ function fillBranches() {
     const odd = b.name === baseLocal && a > 0;
     const tip = [a && `↑${a}: a helyi ${b.name} ennyivel jár előrébb`, d && `↓${d}: a ${b.upstream} ennyivel jár előrébb`]
       .filter(Boolean).join('\n');
-    return `<span class="gap${odd ? ' warn' : ''}" title="${esc(tip)}">↕${a && d ? `${a}/${d}` : a || d}</span>`;
+    // A jel a többi távolság ↑ és ↓ karaktere egymás fölött: a nyílhegyük ugyanaz.
+    return `<span class="gap${odd ? ' warn' : ''}" title="${esc(tip)}"><span class="ud" aria-hidden="true">`
+      + `<span>↑</span><span>↓</span></span>${a && d ? `${a}/${d}` : a || d}</span>`;
   };
   const block = b => {
     const det = detachedOf(b.name);
