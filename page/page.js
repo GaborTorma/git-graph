@@ -406,16 +406,17 @@ function sortRefs(refs) {
 }
 
 /* A WIP-sor eleji worktree-jel: sima (nem HEAD-) badge a worktree színével, vékony
-   körvonallal — az erős körvonal a HEAD-é, a HEAD pedig mindig commit. A fő checkout
-   üres mappa és „main”; ág nélkül a worktree neve; különben a worktree-jel és az ág. */
+   körvonallal — az erős körvonal a HEAD-é, a HEAD pedig mindig commit. A fő checkout:
+   üres mappa és az ága; a többi: a worktree jele és neve | az ága (ha van). */
 function wtBadge(w) {
   const head = DATA.commits.find(x => x.sha === w.head);
   const lc = w.main ? LANE_COLORS[(head ? head.lane : 0) % LANE_COLORS.length] : wtColor(w) || LANE_COLORS[0];
   const tip = `${w.main ? 'fő checkout' : 'worktree'}: ${w.path}\n`
     + (w.branch ? `ág: ${w.branch}` : `ág nélkül, HEAD: ${String(w.head || '').slice(0, 7)}`);
-  const body = w.main ? `${icon('mainWorktree')}<span class="badge-name">main</span>`
-    : `<span class="synced wt-lead">${icon('worktree')}</span>`
-      + (w.branch ? `${icon('branch')}<span class="badge-name">${esc(w.branch)}</span>` : `<span class="badge-name">${esc(w.name)}</span>`);
+  const branch = w.branch ? `${icon('branch')}<span class="badge-name">${esc(w.branch)}</span>` : '';
+  const body = w.main
+    ? `<span class="synced wt-lead">${icon('mainWorktree')}</span>${branch || '<span class="badge-name">HEAD</span>'}`
+    : `${icon('worktree')}<span class="badge-name">${esc(w.name)}</span>${branch ? `<span class="div"></span>${branch}` : ''}`;
   return `<span class="badge ref-branch" style="--lc:${lc}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${body}</span>`;
 }
 
