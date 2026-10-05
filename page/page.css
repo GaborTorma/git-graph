@@ -341,6 +341,7 @@ button { font: inherit; color: inherit; }
   background: var(--border);
 }
 .day .lbl { position: relative; padding-right: 8px; background: var(--bg); }
+.day .cnt { font-weight: 500; color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .day.lead { margin-bottom: -16px; visibility: hidden; }
 .scroll.scrolled .day.lead:not(.gone) { visibility: visible; }
 

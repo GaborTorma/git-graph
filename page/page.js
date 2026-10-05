@@ -519,7 +519,7 @@ function render() {
     if (key !== day) {
       const lead = !day && key === today ? ' lead' : '';
       html += `${day ? '</section>' : ''}<section class="day-group">`
-        + `<div class="day${lead}"><span class="lbl">${dayLabel(key)}</span></div>`;
+        + `<div class="day${lead}"><span class="lbl">${dayLabel(key)}<span class="cnt"></span></span></div>`;
       day = key;
     }
     html += rowHtml(c);
@@ -1389,10 +1389,27 @@ function stackDays() {
   // Előbb minden mérés, aztán az írás: a görgetés minden képkockáján fut, a
   // váltakozó olvasás-írás napfejlécenként újratördelést kényszerítene.
   const ys = days.map(d => d.getBoundingClientRect().top), hs = days.map(d => d.offsetHeight);
+  // A napfejléc mellett: a nap hány sora van a fejléc fölött (`↑`, alá csúszva) és
+  // alatta (`↓`) — a kettő összege mindig a nap összes sora. Csak a nézetbe érő
+  // napokat méri; a többinél minden sor a fejléc alatt van.
+  const bottom = scroller.getBoundingClientRect().bottom;
+  const counts = days.map((d, i) => {
+    const rows = d.parentElement.getElementsByClassName('row');   // élő gyűjtemény: olcsó
+    let up = 0;
+    const group = d.parentElement.getBoundingClientRect();
+    if (group.bottom > top && group.top < bottom) {
+      const line = ys[i] + hs[i];
+      for (const r of rows) if (r.getBoundingClientRect().top < line - 0.5) up++;
+    }
+    const down = rows.length - up;
+    return [up && `↑${up}`, down && `↓${down}`].filter(Boolean).join(' ');
+  });
   days.forEach((d, i) => {
     d.classList.toggle('gone', i + 1 < days.length && ys[i + 1] - ys[i] <= hs[i] + 0.5);
     // Felül ragadva (`.stuck`) a vonal nem kell, csak a felirat.
     d.classList.toggle('stuck', scrolled && ys[i] - top <= 0.5);
+    const cnt = d.querySelector('.cnt'), text = counts[i] ? ` · ${counts[i]}` : '';
+    if (cnt && cnt.textContent !== text) cnt.textContent = text;
   });
 }
 scroller.addEventListener('scroll', stackDays, { passive: true });
