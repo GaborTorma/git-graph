@@ -431,7 +431,7 @@ button { font: inherit; color: inherit; }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
 /* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra az idő, az avatar és
    a diff. Badge-es sornál (`.tight`): fent a tárgy, lent balra a
-   badge-ek, jobbra az idő · diff · avatar blokk. Ha nem férnek el mellette
+   badge-ek, jobbra az idő · avatar · diff blokk. Ha nem férnek el mellette
    (`.three`), a badge-ek tördelődnek: ami nem fér ki, a következő sor elejére
    csúszik, a blokk az utolsó sorukban jobbra zár, ha ott sincs hely, alá. */
 /* A plusz magasság alul kell (a kiemelés alja ne érjen a badge-hez / blokkhoz):
