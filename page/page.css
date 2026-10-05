@@ -524,7 +524,7 @@ button { font: inherit; color: inherit; }
 /* Az ág, a HEAD és a tag a commit sávjának színét viseli (`--lc`, page.js).
    A szöveg a sávszín és az előtér keveréke: világos témában sötétebb,
    sötétben világosabb — a vonalnak szánt színek szövegként gyengék lennének. */
-.badge.ref-branch, .badge.ref-tag, .badge.other {
+.badge.ref-branch, .badge.ref-remote, .badge.ref-tag, .badge.other {
   background: color-mix(in srgb, var(--lc) 14%, var(--bg));
   color: color-mix(in srgb, var(--lc) 70%, var(--fg-0));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc) 38%, var(--bg));
@@ -537,8 +537,6 @@ button { font: inherit; color: inherit; }
    erős, mint a panelé. (A `.desc` a kétsoros elrendezésben `display: contents`,
    ezért a gyerekei kapják.) */
 .row.foreign .row-in > :not(.desc), .row.foreign .desc > * { opacity: .55; }
-/* Csak a remote-on: szürke chip. */
-.badge.ref-remote { background: var(--bg-3); color: var(--fg-2); box-shadow: inset 0 0 0 1px var(--border); }
 .badge.ref-tag { border-radius: 9px; }   /* a tag az alakjáról ismerszik meg: teljesen kerek chip */
 
 /* ── Commit-részletek ───────────────────────────────────────────────────── */

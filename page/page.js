@@ -454,8 +454,9 @@ function wtBadge(w) {
 
 const REF_ICON = { head: 'branch', branch: 'branch', remote: 'cloud', tag: 'tag' };   // a leválasztott HEAD ikon nélkül
 function badges(c) {
-  // A HEAD, az ág és a tag a commit sávjának színét kapja (`--lc`), mint a vonal;
-  // a csak remote-os chip szürke marad.
+  // A HEAD, az ág és a tag a commit sávjának színét kapja (`--lc`), mint a vonal; a
+  // remote chip is: ha van helyi ága, annak a színét (mint az ágválasztóban), különben
+  // a pöttyéét, amin áll.
   const lane = LANE_COLORS[c.lane % LANE_COLORS.length];
   const showRemote = document.getElementById('showRemotes')?.checked ?? true;
   return sortRefs(mergedRefs(c.refs)).filter(r => showRemote || r.kind !== 'remote').map(r => {
@@ -494,7 +495,8 @@ function badges(c) {
     // A hozzáadott worktree csoportja (HEAD-je, leválasztva az ága) a worktree színét
     // kapja: a csonkjáét, a WIP-soráét, vagy a HEAD-jéét (`wtColor`) — mint a fejléc chipje.
     const group = wtOfRef(r);
-    const lc = r.kind === 'remote' ? '' : ` style="--lc:${(group && wtColor(group)) || lane}"`;
+    const pair = r.kind === 'remote' && DATA.branches.find(b => !b.remote && b.upstream === r.name);
+    const lc = ` style="--lc:${pair ? branchColor(pair) : (group && wtColor(group)) || lane}"`;
     return `<span class="badge ref-${r.kind}${other}"${lc} data-tip="${esc(title)}" aria-label="${esc(title)}">`
       + `${lead}<span class="badge-name">${esc(name)}</span>${orphan ? `<span class="div"></span><span class="badge-name">${esc(wt.name)}</span>` : ''}`
       + `${distSegs(r.kind === 'tag' || r.kind === 'detached' ? '' : r.name)}${remotes}</span>`;
