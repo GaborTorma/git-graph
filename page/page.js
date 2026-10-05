@@ -160,7 +160,7 @@ function hydrate() {
 
 /* A HEAD-chip a saját worktree ágát mutatja; több worktree-nél fölötte a
    worktree-pillek: ág, változások pöttye, ↑ahead. */
-/* Egy worktree chipje (a fejlécben a sajátjáé, a WIP-sávban a többié): worktree-ikon,
+/* A fejléc chipje (a saját worktree-é): worktree-ikon,
    branch-ikon, az ág neve, commitolatlan változásnál üres karika (mint az ál-sor
    pontja), az előny. A fő checkoutnak csak ikon és név. */
 function wtChipInner(w) {
@@ -172,8 +172,6 @@ function wtChipInner(w) {
     + (linked && (w.ahead || w.behind) ? `<span class="wt-ahead">${w.ahead ? `↑${w.ahead}` : ''}`
       + `${w.ahead && w.behind ? ' ' : ''}${w.behind ? `↓${w.behind}` : ''}</span>` : '');
 }
-const wtChip = w => `<span class="head-chip" style="--lc:${wtColor(w) || 'var(--accent)'}" `
-  + `title="${esc(`${w.main ? 'fő checkout' : 'worktree'}: ${w.path}`)}">${wtChipInner(w)}</span>`;
 function hydrateFocus() {
   const wts = worktrees(), own = focusWt();
   const chip = document.getElementById('headChip');
@@ -386,6 +384,13 @@ function sortRefs(refs) {
     .sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2]).map(x => x.r);
 }
 
+/* A worktree HEAD-badge-e (ahogy a commitján látszik) — a WIP-sor elejére. */
+function headBadge(w) {
+  const head = DATA.commits.find(x => x.sha === w.head);
+  const ref = { kind: w.branch ? 'head' : 'detached', name: w.branch || 'HEAD', worktree: w.slug };
+  return badges({ refs: [ref], lane: head ? head.lane : 0 });
+}
+
 const REF_ICON = { head: 'branch', branch: 'branch', remote: 'cloud', tag: 'tag' };   // a leválasztott HEAD ikon nélkül
 function badges(c) {
   // A HEAD, az ág és a tag a commit sávjának színét kapja (`--lc`), mint a vonal;
@@ -455,11 +460,12 @@ function rowHtml(c) {
   // a név hoverre (`data-tip`).
   const av = avatarClass.get(c.email);
   // idő · avatar · diff; a hash a lenyitott commit fejében (a keresés is megtalálja)
-  // Más worktree WIP-je: elöl a worktree chipje (a fő checkouté csak ág), a cím rövid.
+  // Más worktree WIP-je: elöl ugyanaz a badge, amit a worktree HEAD-je a commitján kap.
   const other = c.uncommitted && c.worktree !== focusWt()?.slug && worktrees().find(w => w.slug === c.worktree);
-  const lead = other ? wtChip(other) : '';
-  const subject = other ? `Uncommitted Changes (${st?.files.length ?? 0} fájl)` : c.subject;
-  const meta = c.uncommitted ? '' : `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
+  const lead = other ? `<span class="refs">${headBadge(other)}</span>` : '';
+  const subject = c.subject;
+  // A WIP-soron is: a fájlok utolsó módosítása, a gép git-felhasználója, a diff.
+  const meta = `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
     + `<span class="author ${av || 'ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
     + `${av ? '' : esc(initials(c.author))}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge',
@@ -480,21 +486,29 @@ function render() {
     ?.dataset.path;               // blokkon állva a fájljára áll vissza
   let day = '', html = '';
   const today = dayKey(new Date());
-  // A saját worktree WIP-je a fix sávban; a többié a lista elején, az első nap
-  // fejléce fölött, a legutóbb változott elöl — a chipjükkel.
+  // A saját worktree WIP-je a fix sávban; a többié a listában, a chipjükkel.
   const ownSlug = focusWt()?.slug;
   renderPending(visible.filter(c => c.uncommitted && c.worktree === ownSlug));
-  const others = visible.filter(c => c.uncommitted && c.worktree !== ownSlug)
-    .sort((a, b) => (b.changed || 0) - (a.changed || 0));
+  // A többi worktree WIP-je a commitok közé kerül, a fájlok utolsó módosítása
+  // szerint — de sosem a saját HEAD-je alá.
+  const at = c => {
+    const head = DATA.commits.find(x => x.sha === c.parents[0]);
+    return Math.max(Date.parse(c.date) || 0, head ? Date.parse(head.date) + 1 : 0);
+  };
+  const others = visible.filter(c => c.uncommitted && c.worktree !== ownSlug).sort((a, b) => at(b) - at(a));
   otherWip = others.length > 0;
-  html += others.map(rowHtml).join('');
+  const list = [];
+  let k = 0;
   for (const c of visible) {
-    if (c.uncommitted) continue;          // fent: a sávban vagy a lista elején
+    if (c.uncommitted) continue;
+    while (k < others.length && at(others[k]) >= Date.parse(c.date)) list.push(others[k++]);
+    list.push(c);
+  }
+  list.push(...others.slice(k));
+  for (const c of list) {
     const key = dayKey(c.date);
     if (key !== day) {
-      // A legfelső mai fejléc csak görgetve látszik — kivéve, ha más worktree WIP-sorai
-      // állnak fölötte: akkor helyet kap, és fent is látszik.
-      const lead = !day && key === today && !others.length ? ' lead' : '';
+      const lead = !day && key === today ? ' lead' : '';
       html += `${day ? '</section>' : ''}<section class="day-group">`
         + `<div class="day${lead}"><span class="lbl">${dayLabel(key)}</span></div>`;
       day = key;
@@ -541,6 +555,9 @@ function hideOwnEdge() {
 function drawPending() {
   const lane = pendingEl.querySelector('.pend-lane');
   if (!lane) return;
+  // A lista görgetősávja szűkíti a sorokat: a sáv ugyanennyivel beljebb zár, hogy
+  // az idő · avatar · diff oszlopban álljon a lista soraival.
+  pendingEl.style.paddingRight = `${scroller.offsetWidth - scroller.clientWidth}px`;
   const h = pendingEl.offsetHeight;
   lane.setAttribute('width', graphW);
   lane.setAttribute('height', h);

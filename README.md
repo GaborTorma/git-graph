@@ -190,15 +190,17 @@ Fájlon a `→` kinyitja a diffet, és rögtön az első módosított blokkra l�
 `···` elválasztóig tart); `↓` vagy `→` a következő blokkra, az utolsó után a következő fájlra, `↑`-ra visszafelé,
 `←`-re bezárja a fájlt. A görgő egy kattanása egy commitot lép.
 
-## Uncommitted Changes
+## Nem commitolt változások
 
-Ha a munkakönyvtárban van változás, a gráf tetején — a Git Graph mintájára —
-megjelenik egy **ál-sor**: `Uncommitted Changes (3 fájl)`, üres karikával,
-szaggatott vonallal a HEAD-re. Worktree-nként egy, több worktree-nél az ággal
-(`Uncommitted Changes · feat/x (3 fájl)`), a saját HEAD-jére kötve. A zárójelben az érintett fájlok száma — így a
-panel kinyitása nélkül is látszik. Rákattintva ugyanaz a részletek-panel nyílik, mint egy
-commitnál: fájlonkénti `+`/`−` a HEAD-hez képest, a követetlen fájlok pedig
-`új` jelöléssel (számok nélkül — a diff nem látja őket).
+Ha a munkakönyvtárban van változás, a Git Graph mintájára megjelenik egy
+**ál-sor**: *Nem commitolt változások*, üres karikával, szaggatott vonallal a
+HEAD-re. Worktree-nként egy, mindegyik a saját HEAD-jére kötve. A sor végén,
+mint a commitoknál: az idő (a fájlok utolsó módosítása), a gép git-felhasználója
+és a diff. A saját worktree-é a lista fölötti sávban ül; a többié a listában, az
+ideje szerinti helyen (sosem a HEAD-je alatt), elöl a worktree chipjével.
+Rákattintva ugyanaz a részletek-panel nyílik, mint egy commitnál: fájlonkénti
+`+`/`−` a HEAD-hez képest, a követetlen fájlok pedig `új` jelöléssel (számok
+nélkül — a diff nem látja őket).
 
 Nem commit, ezért a fejléc számlálójába nem számít bele; ágszűrésnél csak az
 látszik, amelyiknek a HEAD-je a szűrt ágon van. Élő módban magától megjelenik és tűnik el, ahogy szerkesztesz.

@@ -140,14 +140,16 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   belső sávra (`.row-in`) megy. Az SVG-t a sorok fölé emelni nem megoldás: a `.rows`
   (`z-index: 2`) saját rétegkontextust nyit, így a benne lévő `.details` sosem
   kerülhet a testvér `#lanes` fölé — a kinyitott panelen átlógnának a vonalak.
-- **Az `Uncommitted Changes` ál-sorok a `commits` lista elején** (worktree-nként
+- **A „Nem commitolt változások” ál-sorok a `commits` lista elején** (worktree-nként
   egy, `sha`: `*uncommitted:<worktree-slug>` — ebből tudja a `file_diff`, melyik
   mappát diffelje; a slugnak élő worktree-é kell lennie), a szülőjük a worktree
   HEAD-je. Az `assign_lanes` magától kezeli, de az `edges` **sorindexeket**
   használ — ezért az ál-sorokat a lane-kiosztás ELŐTT kell beszúrni, a `meta`
   viszont még a valódi commitokból készül (különben a „N commit látszik"
-  hazudna). A lapon a fix `#pending` sávban ülnek; a pontjuk Y-ja a sáv mért
-  soraiból jön (`drawPending`), negatív a lista tetejéhez képest.
+  hazudna). A szerzőjük a worktree `user.name`-je, az idejük a fájlok `mtime`-ja.
+  A lapon a saját worktree-é a fix `#pending` sávban ül (a pontja Y-ja a sáv mért
+  soraiból jön, `drawPending`, negatív a lista tetejéhez képest); a többié a
+  listában, az ideje szerint a commitok közé sorolva, sosem a HEAD-je alá.
 - **Minden git-hívás `--no-optional-locks`**: a `git status` egyébként frissíti
   az indexet, ahhoz `index.lock`-ot vesz, és a 2 mp-es pollozás így a Fejlesztő
   saját git-parancsait akasztja meg (egy commit tényleg elhasalt rajta).

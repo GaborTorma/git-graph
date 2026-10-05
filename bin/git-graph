@@ -190,6 +190,14 @@ UNCOMMITTED = "*uncommitted"
 UNCOMMITTED_RE = re.compile(r"^\*uncommitted(?::([a-z0-9-]+))?$")
 
 
+def user_config(root: Path, key: str) -> str:
+    """A worktree git-felhasználója (`user.name` / `user.email`) — a WIP-sor szerzője."""
+    try:
+        return git("config", f"user.{key}", repo=root).strip()
+    except subprocess.CalledProcessError:
+        return ""
+
+
 def last_change(root: Path, files: list[dict]) -> int:
     """A commitolatlan fájlok legutóbbi módosítása (epoch s) — a git ezt nem tárolja,
     a fájlrendszer igen; a törölt fájl kimarad. A lap ebben a sorrendben mutatja
@@ -203,14 +211,15 @@ def last_change(root: Path, files: list[dict]) -> int:
     return latest
 
 
-def collect_uncommitted(wt: dict, named: bool = False) -> tuple[dict, dict] | None:
+def collect_uncommitted(wt: dict) -> tuple[dict, dict] | None:
     """Egy worktree változásai egy ál-commitként, a Git Graph mintájára.
 
     A gráf tetejére kerül, szülője a worktree HEAD-je — így szaggatott vonallal
     odalóg, és a soron kattintva ugyanaz a részletek-panel nyílik, mint egy
     commitnál. A sha-ja `*uncommitted:<worktree-slug>`: ebből tudja a
-    `file_diff`, melyik munkakönyvtárat diffelje. Több worktree-nél (`named`) a
-    címben az ága (vagy a mappája) is ott áll. Változás nélkül nincs sor.
+    `file_diff`, melyik munkakönyvtárat diffelje. A szerzője a gép git-felhasználója
+    (a worktree configjából), az ideje a fájlok legutóbbi módosítása — a lap ez
+    alapján teszi a helyére. Változás nélkül nincs sor.
     """
     status = wt["status"]
     if not status or not wt["head"]:     # commit nélküli repó: nincs mihez kötni
@@ -235,21 +244,21 @@ def collect_uncommitted(wt: dict, named: bool = False) -> tuple[dict, dict] | No
             if path not in known:
                 files.append({"path": path, "add": 0, "del": 0, "bin": False, "new": True})
 
+    changed = last_change(wt["path"], files)
     commit = {
         "sha": f"{UNCOMMITTED}:{wt['slug']}",
         "short": "*",
         "parents": [wt["head"]],
-        "author": "*",
-        "date": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "author": user_config(wt["path"], "name") or "*",
+        "email": user_config(wt["path"], "email"),
+        "date": datetime.datetime.fromtimestamp(changed or time.time()).astimezone()
+                .isoformat(timespec="seconds"),
         "refs": [],
-        # A fájlszám a soron is látszik — a részletek-panel kinyitása nélkül.
-        "subject": "Uncommitted Changes"
-                   + (f" · {wt['branch'] or wt['path'].name}" if named else "")
-                   + f" ({len(files)} fájl)",
+        "subject": "Nem commitolt változások",
         "body": "",
         "uncommitted": True,
         "worktree": wt["slug"],
-        "changed": last_change(wt["path"], files),
+        "changed": changed,
     }
     return commit, {"files": files, "add": added, "del": deleted}
 
@@ -711,7 +720,7 @@ def collect_payload(limit: int | None) -> dict:
     # előtt, mert az élek sorindexeket használnak.
     trunk = None
     for wt in reversed(worktrees):
-        pending = collect_uncommitted(wt, named=len(worktrees) > 1)
+        pending = collect_uncommitted(wt)
         if pending:
             commit, churn = pending
             commits.insert(0, commit)
