@@ -1109,6 +1109,8 @@ document.addEventListener('keydown', e => {
    upstream, csak remote ág); üres = minden ág. */
 const branchBtn = document.getElementById('branchBtn');
 const branchPop = document.getElementById('branchPop');
+const branchList = document.getElementById('branchList');
+const branchQuery = document.getElementById('branchQuery');
 const branchLabel = document.getElementById('branchLabel');
 const branchIc = document.getElementById('branchIc');
 let branchSel = new Set();
@@ -1264,7 +1266,8 @@ function fillBranches() {
     html += sep + `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
       + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), '', cell(b.name)))).join('');
   }
-  branchPop.innerHTML = html;
+  branchList.innerHTML = html;
+  filterBranches();
   // A két távolság-oszlop szélessége külön-külön a saját leghosszabb számához igazodik
   // (1–4 jegy); a ↕ jel a szélső oszlophoz tartozik.
   const longest = sel => Math.max(1, ...[...branchPop.querySelectorAll(sel)].map(e => e.textContent.length));
@@ -1278,13 +1281,51 @@ function fillBranches() {
   }
 }
 
+/* Az ágválasztó szűrője: minden szó (kis-nagybetű és ékezet nélkül) szerepeljen a
+   blokk valamelyik refjében. A worktree- és remote-fejléc csak akkor marad, ha alatta
+   legalább egy ág látszik; a „Minden ág” szűrés közben rejtve, az elválasztó csak két
+   látható csoport között. */
+function filterBranches() {
+  const words = fold(branchQuery.value).split(/\s+/).filter(Boolean);
+  const items = [...branchList.children];
+  for (const el of items) {
+    if (el.matches('.blk')) {
+      const refs = fold(el.dataset.refs);
+      el.hidden = el.dataset.refs ? !words.every(w => refs.includes(w)) : words.length > 0;
+    }
+  }
+  // Fejléc: a következő fejlécig vagy elválasztóig tartó blokkjai közül látszik-e egy.
+  let head = null, any = false;
+  for (const el of [...items, null]) {
+    if (!el || el.matches('.menu-wt, .menu-sep')) {
+      if (head) head.hidden = !any;
+      head = el?.matches('.menu-wt') ? el : null;
+      any = false;
+    } else if (!el.hidden) any = true;
+  }
+  let seen = false, sep = null;
+  for (const el of items) {
+    if (el.matches('.menu-sep')) { el.hidden = true; sep = el; }
+    else if (!el.hidden) { if (sep && seen) sep.hidden = false; sep = null; seen = true; }
+  }
+  branchList.classList.toggle('empty', !seen);
+}
+branchQuery.addEventListener('input', filterBranches);
+
 /* Közös legördülő menü (ágválasztó, téma): nyíl-, Home/End-, Escape- és
    Tab-billentyű, kattintás kívülre csuk. `onPick` a választott opciót kapja. */
 function makeMenu(btn, pop, onPick) {
   const toggle = open => {
     pop.hidden = !open;
     btn.setAttribute('aria-expanded', String(open));
-    if (open) (pop.querySelector('[aria-selected="true"]') || pop.querySelector('.option'))?.focus();
+    const query = pop.querySelector('input');
+    if (open && query) {          // szűrős menü: üres szűrővel nyílik, a fókusz a mezőben
+      query.value = '';
+      query.dispatchEvent(new Event('input'));
+      pop.style.minWidth = '';    // a teljes lista szélessége marad, szűréskor nem ugrik össze
+      pop.style.minWidth = `${pop.offsetWidth}px`;
+      query.focus();
+    } else if (open) (pop.querySelector('[aria-selected="true"]') || pop.querySelector('.option'))?.focus();
   };
   btn.addEventListener('click', () => toggle(pop.hidden));
   btn.addEventListener('keydown', e => {
@@ -1298,12 +1339,21 @@ function makeMenu(btn, pop, onPick) {
     onPick(o);
   });
   pop.addEventListener('keydown', e => {
-    const items = [...pop.querySelectorAll('.option')];
+    const items = [...pop.querySelectorAll('.option')].filter(o => !o.hidden);
     const i = items.indexOf(document.activeElement);
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const inQuery = e.target.matches('input');
+    if (inQuery && e.key === 'Enter') {
       e.preventDefault();
-      items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
-    } else if (e.key === 'Home' || e.key === 'End') {
+      (items.find(o => o.matches('.blk')) || items[0])?.click();   // az első látható ág
+    } else if (inQuery && e.key === 'Escape' && e.target.value) {
+      e.stopPropagation();          // előbb a szűrőt üríti, a második Escape csuk
+      e.target.value = '';
+      e.target.dispatchEvent(new Event('input'));
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = items.length, down = e.key === 'ArrowDown';
+      if (n) items[i < 0 ? (down ? 0 : n - 1) : (i + (down ? 1 : n - 1)) % n].focus();
+    } else if (!inQuery && items.length && (e.key === 'Home' || e.key === 'End')) {
       e.preventDefault();
       items[e.key === 'Home' ? 0 : items.length - 1].focus();
     } else if (e.key === 'Escape' || e.key === 'Tab') {
