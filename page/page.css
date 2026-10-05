@@ -223,7 +223,7 @@ button { font: inherit; color: inherit; }
 .option .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .option .track { font-size: 11.5px; color: var(--fg-2); }
 .option .cur {
-  margin-left: 6px; padding: 0 5px; border-radius: 4px;
+  margin-left: 6px; padding: 1px 6px; border-radius: 4px;
   background: var(--accent-bg); color: var(--accent); font-size: 10.5px; font-weight: 500;
 }
 .menu-sep { height: 1px; margin: 3px 6px; background: var(--border-soft); }
@@ -243,20 +243,24 @@ button { font: inherit; color: inherit; }
   background: color-mix(in srgb, var(--lc) 14%, var(--bg));
   color: color-mix(in srgb, var(--lc) 70%, var(--fg-0));
 }
-.menu-wt-cur .ic { color: inherit; width: 13px; height: 13px; }
+.menu-wt-cur .ic { color: inherit; width: 14px; height: 14px; }
 .menu-wt .wip {
   width: 7px; height: 7px; margin-left: auto; flex: none; box-sizing: border-box;
   border: 1.5px dashed currentColor; border-radius: 50%;
 }
-.option.blk { display: flex; flex-direction: column; align-items: stretch; height: auto; padding: 0; }
+.option.blk { display: flex; flex-direction: column; align-items: stretch; height: auto; padding: 3px 0; }
 .blk .ln {
-  display: grid; grid-template-columns: 14px 14px minmax(0, 1fr) auto; gap: 8px; align-items: center;
-  height: 26px; padding: 0 10px 0 8px;
+  display: grid; grid-template-columns: 14px 14px 14px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  height: 21px; padding: 0 10px 0 8px;
 }
-.blk .ln.up { height: 16px; margin-top: -5px; padding-bottom: 4px; box-sizing: content-box; font-size: 12px; color: var(--fg-2); }
-.blk .ln .ic { visibility: visible; width: 13px; height: 13px; color: var(--fg-3); stroke-width: 1.5; }
-.blk .ln .ic.ck { width: 12px; height: 12px; color: var(--accent); stroke-width: 2; visibility: hidden; }
-.blk[aria-selected="true"] .ln .ic.ck { visibility: visible; }
+.blk .ln .ic { visibility: visible; width: 14px; height: 14px; color: var(--fg-2); stroke-width: 1.5; }
+.blk .col { display: inline-flex; }
+/* A pipa külön kattintható: kipipáltnál kivesz, máskor (hoverre halványan) hozzáad. */
+.blk .ckc { display: inline-flex; margin: -4px; padding: 4px; border-radius: 4px; }
+.blk .ln .ic.ck { color: var(--accent); stroke-width: 2; visibility: hidden; }
+.blk .ln.on .ic.ck { visibility: visible; }
+.blk .ckc[data-refs]:hover .ic.ck { visibility: visible; }
+.blk .ln:not(.on) .ckc:hover .ic.ck { opacity: .4; }
 .blk .dists { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--fg-2); }
 .blk .dists > .div:first-child { display: none; }
 .blk .dists .div { width: 1px; height: 11px; background: var(--border); }
@@ -264,9 +268,9 @@ button { font: inherit; color: inherit; }
 .blk .dists .dist.warn { color: var(--del); font-weight: 600; }
 .blk .dists .ic { width: 12px; height: 12px; color: inherit; }
 .blk .det { display: inline-flex; color: var(--fg-3); }
-.blk .det .ic { color: inherit; }
+.blk .det .ic { width: 13px; height: 13px; color: inherit; }
 .option .def {
-  margin-left: 6px; padding: 0 5px; border-radius: 4px;
+  margin-left: 6px; padding: 1px 6px; border-radius: 4px;
   background: var(--bg-3); color: var(--fg-2); font-size: 10.5px; font-weight: 500;
 }
 

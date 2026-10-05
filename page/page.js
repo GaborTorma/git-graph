@@ -119,6 +119,8 @@ const ICONS = {
     + '<circle class="wt-ic" cx="8" cy="9" r="1.5" fill="currentColor"/>',
   // a fő checkout: ugyanaz a mappa, pötty nélkül — maga a repó, nem egy kivett másolat
   mainWorktree: '<path class="wt-ic" d="M3 13a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h2.5L7 4.5h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1z"/>',
+  // minden ág: három sáv, egy-egy pöttyel (a gráf maga)
+  allBranches: '<path d="M4 2.5v11M8 2.5v11M12 2.5v11"/><circle cx="4" cy="10.5" r="1.6" fill="currentColor"/><circle cx="8" cy="5.5" r="1.6" fill="currentColor"/><circle cx="12" cy="8.5" r="1.6" fill="currentColor"/>',
   // leválasztott HEAD az ágválasztóban: szétkapcsolt lánc
   detached: '<path d="M6.5 9.5 4.8 11.2a2 2 0 0 1-2.8-2.8L3.7 6.7M9.5 6.5l1.7-1.7a2 2 0 0 1 2.8 2.8l-1.7 1.7M5.5 2.5V4M2.5 5.5H4M10.5 13.5V12M13.5 10.5H12"/>',
   // a szinkron állapot külön jele egyelőre nincs: ugyanaz a rajz
@@ -1087,22 +1089,36 @@ document.addEventListener('keydown', e => {
 });
 
 /* ── Szűrők ──────────────────────────────────────────────────────────────── */
-/* Ágválasztó: saját listbox-menü. Az érték `''` = minden ág. */
+/* Ágválasztó: saját listbox-menü. A kijelölés ref-nevek halmaza (helyi ág,
+   upstream, csak remote ág); üres = minden ág. */
 const branchBtn = document.getElementById('branchBtn');
 const branchPop = document.getElementById('branchPop');
 const branchLabel = document.getElementById('branchLabel');
-let branchValue = '';
+let branchSel = new Set();
 
-/* A kiválasztott ágat megtartjuk, ha az adatcsere után is létezik.
-   Worktree-k esetén worktree-nként egy fejléc (a saját a fejléc chipjének
+/* Remote ref-e a név: valamelyik helyi ág upstreamje, vagy csak remote ág. */
+const remoteRefs = () => new Set(DATA.branches.flatMap(b => b.remote ? [b.name] : b.upstream ? [b.upstream] : []));
+/* A gomb felirata: egy blokk (ág + upstreamje) az ág neve; több ref: az első + a többi száma. */
+function selLabel() {
+  if (!branchSel.size) return 'Minden ág';
+  const names = [...branchSel];
+  const b = DATA.branches.find(x => !x.remote && branchSel.has(x.name));
+  if (b && names.every(n => n === b.name || n === b.upstream)) return b.name;
+  return names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`;
+}
+
+/* Worktree-k esetén worktree-nként egy fejléc (a saját a fejléc chipjének
    színével), alatta az ágai: amelyikben utoljára ki volt véve (`owner`, a
    worktree-k HEAD-reflogjából); a gazdátlanok utánuk, fejléc nélkül, a csak
-   remote ágak a végén. A helyi ág és az upstreamje egy blokk, egy opció: a
-   szűrő mindkettőt mutatja. HEAD worktree-nként, `default` az alapág helyi
-   párja. Worktree nélkül csak az ágak. */
+   remote ágak a végén. A helyi ág és az upstreamje egy blokk, egy opció: a sorra
+   kattintva mindkettő kijelölődik; egy kipipált sor pipájára kattintva csak az a
+   ref kerül ki (a ki nem pipáltéra kattintva bekerül). Ha egy helyen állnak, egy
+   sor a két ikonnal. Az ág- és a felhő-ikon külön oszlopban. HEAD worktree-nként,
+   DEFAULT az alapág helyi párja. Worktree nélkül csak az ágak. */
 function fillBranches() {
-  if (!DATA.branches.some(b => b.name === branchValue)) branchValue = '';
   const remote = document.getElementById('showRemotes')?.checked ?? true;
+  const valid = new Set([...DATA.branches.map(b => b.name), ...(remote ? remoteRefs() : [])]);
+  for (const n of branchSel) if (!valid.has(n)) branchSel.delete(n);
   const wts = worktrees(), multi = linkedWts().length > 0, own = focusWt();
   const base = DATA.meta.base || '', baseLocal = base.slice(base.indexOf('/') + 1);
   const local = DATA.branches.filter(b => !b.remote);
@@ -1111,24 +1127,34 @@ function fillBranches() {
     || (b.worktree === undefined && b.current);
   // HEAD elöl, aztán az alapág, a többi a git sorrendjében (név szerint).
   const rank = b => (isHead(b) ? 0 : b.name === baseLocal ? 1 : 2);
-  const sorted = list => [...list].sort((a, b) => rank(a) - rank(b));
-  const ck = icon('check', 'ic ck');
-  const line = (ic, name, dists, cls = 'ln') =>
-    `<span class="${cls}">${ck}${ic}<span class="name">${name}</span><span class="dists">${dists}</span></span>`;
-  const block = (b, label = esc(b.name)) => {
+  const sorted = list => [...list].sort((x, y) => rank(x) - rank(y));
+  const synced = b => { const up = DATA.meta.tracks?.[b.name]?.up; return up && !up[0] && !up[1]; };
+  const branchIc = name => `<svg class="ic" style="color:${refColor(name)}" viewBox="0 0 16 16" aria-hidden="true">${ICONS.branch}</svg>`;
+  // Egy sor: pipa (külön kattintható), ág-oszlop, felhő-oszlop, név, távolságok.
+  const line = (refs, bIc, cIc, name, dists) => {
+    const on = refs.every(r => branchSel.has(r));
+    return `<span class="ln${on ? ' on' : ''}"><span class="ckc" data-refs="${esc(refs.join(' '))}"`
+      + ` title="${on ? 'kivesz' : 'hozzáad'}">${icon('check', 'ic ck')}</span>`
+      + `<span class="col">${bIc}</span><span class="col">${cIc}</span>`
+      + `<span class="name">${name}</span><span class="dists">${dists}</span></span>`;
+  };
+  const block = b => {
     const det = detachedOf(b.name);
-    const name = (det ? `<i>${label}</i>` : label)
+    const name = (det ? `<i>${esc(b.name)}</i>` : esc(b.name))
       + (isHead(b) ? '<span class="cur">HEAD</span>' : '')
-      + (b.name === baseLocal ? '<span class="def">default</span>' : '');
+      + (b.name === baseLocal ? '<span class="def">DEFAULT</span>' : '');
     const end = det ? `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`
       : distSegs(b.name);
-    const up = remote && b.upstream && b.track !== 'gone'
-      ? line(icon('cloud'), esc(b.upstream), distSegs(b.upstream), 'ln up') : '';
-    return `<button type="button" class="option blk" role="option" data-value="${esc(b.name)}"`
-      + ` aria-selected="${b.name === branchValue}">`
-      + line(`<svg class="ic bi" style="color:${refColor(b.name)}" viewBox="0 0 16 16" aria-hidden="true">${ICONS.branch}</svg>`,
-        name, end) + up + '</button>';
+    const up = remote && b.upstream && b.track !== 'gone' ? b.upstream : '';
+    const refs = up ? [b.name, up] : [b.name];
+    const lines = up && synced(b)
+      ? line(refs, branchIc(b.name), icon('cloud'), name, end)
+      : line([b.name], branchIc(b.name), '', name, end)
+        + (up ? line([up], '', icon('cloud'), esc(up), distSegs(up)) : '');
+    return blockBtn(refs, lines);
   };
+  const blockBtn = (refs, lines) => `<button type="button" class="option blk" role="option" data-refs="${esc(refs.join(' '))}"`
+    + ` data-key="${esc(refs[0])}" aria-selected="${refs.every(r => branchSel.has(r))}">${lines}</button>`;
   const header = w => {
     const ic = icon(w.main ? 'mainWorktree' : 'worktree');
     const name = esc(w.main ? 'main' : w.name);
@@ -1139,17 +1165,18 @@ function fillBranches() {
       : `<div class="menu-wt">${ic}<span class="name">${name}</span>${wip}</div>`;
   };
   const sep = '<div class="menu-sep"></div>';
-  let html = `<button type="button" class="option" role="option" data-value="" aria-selected="${!branchValue}">`
-    + `${icon('check')}<span class="name">Minden ág</span><span></span></button>`;
+  let html = `<button type="button" class="option blk" role="option" data-refs="" data-key="" aria-selected="${!branchSel.size}">`
+    + `<span class="ln${branchSel.size ? '' : ' on'}"><span class="ckc">${icon('check', 'ic ck')}</span>`
+    + `<span class="col">${icon('allBranches')}</span><span class="col"></span><span class="name">Minden ág</span><span></span></span></button>`;
   if (multi) {
     const slugs = new Set(wts.map(w => w.slug));
-    html += sep + wts.map(w => header(w) + sorted(local.filter(b => b.owner === w.slug)).map(b => block(b)).join('')).join('');
+    html += sep + wts.map(w => header(w) + sorted(local.filter(b => b.owner === w.slug)).map(block).join('')).join('');
     const orphans = local.filter(b => !slugs.has(b.owner));
-    if (orphans.length) html += sep + sorted(orphans).map(b => block(b)).join('');
+    if (orphans.length) html += sep + sorted(orphans).map(block).join('');
   } else if (local.length) {
-    html += sep + sorted(local).map(b => block(b)).join('');
+    html += sep + sorted(local).map(block).join('');
   }
-  // Csak remote ágak, remote-onként egy fejléc.
+  // Csak remote ágak, remote-onként egy fejléc; a sor a felhő-oszlopban.
   const byRemote = new Map();
   if (remote) for (const b of DATA.branches.filter(x => x.remote)) {
     const r = b.name.slice(0, b.name.indexOf('/'));
@@ -1157,10 +1184,10 @@ function fillBranches() {
   }
   for (const [r, list] of byRemote) {
     html += sep + `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
-      + list.map(b => block(b, esc(b.name.slice(r.length + 1)))).join('');
+      + list.map(b => blockBtn([b.name], line([b.name], '', icon('cloud'), esc(b.name.slice(r.length + 1)), distSegs(b.name)))).join('');
   }
   branchPop.innerHTML = html;
-  const label = branchValue || 'Minden ág';
+  const label = selLabel();
   if (branchLabel.textContent !== label) {
     branchLabel.textContent = label;
     fitChrome();                // a hosszabb ágnév más sorbontást hozhat
@@ -1207,16 +1234,27 @@ function makeMenu(btn, pop, onPick) {
 }
 
 makeMenu(branchBtn, branchPop, o => {
-  branchValue = o.dataset.value;
+  branchSel = new Set(o.dataset.refs.split(' ').filter(Boolean));
   fillBranches();
   applyFilters();
 });
+/* A pipára kattintás csak azt a sort veszi ki vagy teszi be, a menü nyitva marad
+   (a makeMenu kattintás-kezelője elé, rögzítő fázisban). */
+branchPop.addEventListener('click', e => {
+  const c = e.target.closest('.ckc[data-refs]');
+  if (!c) return;
+  e.stopPropagation();
+  const refs = c.dataset.refs.split(' ');
+  const on = refs.every(r => branchSel.has(r));
+  for (const r of refs) on ? branchSel.delete(r) : branchSel.add(r);
+  const key = c.closest('.option')?.dataset.key;
+  fillBranches();
+  applyFilters();
+  branchPop.querySelector(`.option[data-key="${CSS.escape(key || '')}"]`)?.focus();
+}, true);
 
-/* Az ág őseit, és — remote ágakkal — az upstreamjéét is: a blokk mindkét sora szűr. */
-function ancestryOf(name) {
-  const up = (document.getElementById('showRemotes')?.checked ?? true)
-    && DATA.branches.find(b => b.name === name)?.upstream;
-  const names = new Set([name, up].filter(Boolean));
+/* A kijelölt refek őseinek uniója (null, ha egyik csúcsa sincs a listában). */
+function ancestryOf(names) {
   const tips = DATA.commits.filter(c => c.refs.some(r => names.has(r.name) && r.kind !== 'tag'));
   return tips.length ? reachable(tips.map(c => c.sha)) : null;
 }
@@ -1247,7 +1285,7 @@ function matches(c, words) {
 }
 
 function applyFilters() {
-  const branch = branchValue;
+  const branch = branchSel.size ? branchSel : null;
   const remotes = document.getElementById('showRemotes').checked;
   const refsOnly = document.getElementById('onlyRefs').checked;
   const words = fold(searchEl.value).split(/\s+/).filter(Boolean);
@@ -1258,7 +1296,7 @@ function applyFilters() {
     // Állapot, nem commit: keresésnél nem kell; ágszűrésnél csak annak a worktree-nek
     // a WIP-je, amelyikben a szűrt ág van kivéve (nem elég, hogy a HEAD-je rajta van).
     if (c.uncommitted) {
-      return !words.length && (!branch || worktrees().some(w => w.slug === c.worktree && w.branch === branch));
+      return !words.length && (!branch || worktrees().some(w => w.slug === c.worktree && branch.has(w.branch)));
     }
     if (keep && !keep.has(c.sha)) return false;
     // Remote ágak nélkül a helyi történet minden commitja marad (csak a remote-badge
@@ -1271,7 +1309,11 @@ function applyFilters() {
 }
 document.getElementById('onlyRefs').addEventListener('change', applyFilters);
 // A remote-kapcsoló a fejléc chipjét is érinti (a ☁ szakasz).
-document.getElementById('showRemotes').addEventListener('change', () => { hydrateFocus(); fillBranches(); applyFilters(); });
+document.getElementById('showRemotes').addEventListener('change', () => {
+  // Remote ágak nélkül a kijelölt remote refek is kiesnek (üresen: minden ág).
+  if (!document.getElementById('showRemotes').checked) for (const r of remoteRefs()) branchSel.delete(r);
+  hydrateFocus(); fillBranches(); applyFilters();
+});
 /* A keresés törlésekor (Escape, a mező ×-e vagy kitörölt szöveg) a szűrés
    megszűnik; ha van kinyitott commit, az a lista tetejére kerül (a napfejléc
    alá), hogy a visszajött sorok közt se vesszen el. */

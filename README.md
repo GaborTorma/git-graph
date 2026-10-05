@@ -103,8 +103,10 @@ commitjukról, több csonk legyezőszerűen. Ami nem a sajáté, halványabb (a 
 vett ágak a fő checkouté). Az ágválasztó worktree-nként csoportosít: fejléc (a
 sajáté a fejléc chipjének színével), alatta az ágai — amelyikben utoljára ki volt
 véve, a worktree HEAD-reflogja szerint —, a gazdátlanok utánuk, a csak remote ágak a
-végén. A helyi ág és az upstreamje egy opció: a szűrő mindkettőt mutatja. HEAD
-worktree-nként, `default` az alapág helyi párja; worktree nélkül csak az ágak. A
+végén. A helyi ág és az upstreamje egy opció (ha egy helyen állnak, egy sor a két
+ikonnal): a sorra kattintva mindkettő kijelölődik, egy kipipált sor pipájára
+kattintva csak az kerül ki; ha semmi sem marad, újra minden ág látszik. HEAD
+worktree-nként, DEFAULT az alapág helyi párja; worktree nélkül csak az ágak. A
 0.12 előtti, worktree-nkénti Artifactokat a hook felismeri, és megkéri Claude-ot,
 hogy törölje őket, majd `git-graph --forget-artifact <URL>`-lel takarítsa a
 kulcsaikat.
