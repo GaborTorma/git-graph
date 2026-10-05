@@ -202,8 +202,8 @@ Rákattintva ugyanaz a részletek-panel nyílik, mint egy commitnál: fájlonké
 `+`/`−` a HEAD-hez képest, a követetlen fájlok pedig `új` jelöléssel (számok
 nélkül — a diff nem látja őket).
 
-Nem commit, ezért a fejléc számlálójába nem számít bele; ágszűrésnél csak az
-látszik, amelyiknek a HEAD-je a szűrt ágon van. Élő módban magától megjelenik és tűnik el, ahogy szerkesztesz.
+Nem commit, ezért a fejléc számlálójába nem számít bele; ágszűrésnél csak annak
+a worktree-nek a sora látszik, amelyikben a szűrt ág van kivéve. Élő módban magától megjelenik és tűnik el, ahogy szerkesztesz.
 
 ## Fájl-diff
 

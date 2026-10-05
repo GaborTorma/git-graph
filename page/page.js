@@ -1155,8 +1155,11 @@ function applyFilters() {
   const keep = branch ? ancestryOf(branch) : null;
 
   visible = DATA.commits.filter(c => {
-    // Állapot, nem commit: keresésnél nem kell; ágszűrésnél csak a látszó HEAD-é.
-    if (c.uncommitted) return !words.length && (!keep || keep.has(c.parents[0]));
+    // Állapot, nem commit: keresésnél nem kell; ágszűrésnél csak annak a worktree-nek
+    // a WIP-je, amelyikben a szűrt ág van kivéve (nem elég, hogy a HEAD-je rajta van).
+    if (c.uncommitted) {
+      return !words.length && (!branch || worktrees().some(w => w.slug === c.worktree && w.branch === branch));
+    }
     if (keep && !keep.has(c.sha)) return false;
     if (refsOnly && c.refs.length === 0) return false;
     if (!remotes && c.refs.length && c.refs.every(r => r.kind === 'remote')) return false;
