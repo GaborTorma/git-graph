@@ -523,7 +523,6 @@ button { font: inherit; color: inherit; }
 .badge > .badge-name, .head-chip > .chip-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* A remote-on is ugyanott áll: felhő az ág neve után. */
 .badge .synced { display: inline-flex; align-items: center; gap: 3px; margin-left: 1px; opacity: .8; }
-.badge .synced.lead { margin-left: -2px; }   /* a branch-ikonhoz tapad */
 .badge .synced.wt-lead { margin: 0 -2px 0 0; }   /* a worktree-jel elöl, a branch-ikonhoz tapad */
 .badge .div { align-self: stretch; width: 1px; margin: 3px 1px; background: currentColor; opacity: .3; }
 .badge .ic.filled { fill: currentColor; }

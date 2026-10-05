@@ -7,7 +7,7 @@ mintáját követi, a megjelenés a Claude appét: meleg paletta, Claude Light /
 kódszínek, napokra bontott egysoros lista. A soron kattintva lefelé nyílik a
 commit: szerző GitHub-avatarral, szülő(k), GitHub-link, fájlok és
 szintaxisszínezett diff. Ha a helyi ág és a remote-ja ugyanott áll, egy
-badge-ben látszanak (felhő a branch-ikon után). Az ág-badge végén a távolságai,
+badge-ben látszanak, egyetlen felhő-és-ág ikonnal (az alapágé teli). Az ág-badge végén a távolságai,
 csak a nem nulla irány: `↑a ↓b` az alapághoz (amire az `origin/HEAD` mutat —
 mennyit jött az ág, mennyit haladt közben a main), `☁ ↑c ↓d` a remote-társához
 (ha nem egy helyen állnak); a csak remote-os ág badge-én utolsóként `⑂ ↑e ↓f` a

@@ -192,8 +192,8 @@ function wtChipInner(w) {
 
 /* Az ág távolságai (`DATA.meta.tracks`, csak a nem nulla irány): `↑a ↓b` az
    alapághoz (amire az origin/HEAD mutat) — ikon nélkül, a chip maga az ág —, és
-   `☁ ↑c ↓d` az upstreamjéhez, csak ha nem egy helyen állnak (különben a felhő a
-   branch-ikon után ül); a remote-only chipen utolsóként `⑂ ↑e ↓f` a helyi ágához.
+   `☁ ↑c ↓d` az upstreamjéhez, csak ha nem egy helyen állnak (különben a chip a
+   felhő-és-ág ikont kapja); a remote-only chipen utolsóként `⑂ ↑e ↓f` a helyi ágához.
    Ami a chipből már kiderül, annak nem jár újabb ikon. */
 const arrows = ([a, b]) => [a && `↑${a}`, b && `↓${b}`].filter(Boolean).join(' ');
 /* Ugyanez szövegesen, a tooltipbe (soronként egy viszony). */
@@ -479,7 +479,7 @@ function badges(c) {
     const cloudOf = on => icon('cloud', on ? 'ic filled' : 'ic');
     const cloud = cloudOf(r.default);
     const multi = (DATA.meta.remotes || []).length > 1;
-    // Egy remote-nál a felhő a branch-ikon után, a név előtt áll (`⎇☁ main`).
+    // Egy remote-nál a szinkronban lévő ág egyetlen felhő-és-ág ikont kap (lent, `synced`).
     const remotes = multi && showRemote
       ? r.remotes.map(o => `<span class="div"></span><span class="synced">${cloudOf(o.default)}${esc(o.name)}</span>`).join('')
       : '';
@@ -488,14 +488,17 @@ function badges(c) {
     const linked = wt && !wt.main;
     const wtSynced = linked && wt.upstream && !wt.ahead && !wt.behind;
     const wtLead = linked ? `<span class="synced wt-lead">${icon(wtSynced ? 'worktreeSynced' : 'worktree')}</span>` : '';
-    const synced = !linked && showRemote && r.remotes.length && !multi ? `<span class="synced lead">${cloud}</span>` : '';
+    // Egy remote-nál a helyi ág és a remote párja egy helyen: egyetlen felhő-és-ág ikon
+    // (az alapágé teli) a branch-ikon és a felhő helyett.
+    const synced = !linked && showRemote && r.remotes.length && !multi;
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
     // A csak remote-os chipen a felhő jelzi a remote-ot: egy remote-nál az
     // `origin/` előtag nem kell, többnél a név mondja meg, melyiké.
     const name = r.kind === 'remote' && !multi ? r.name.replace(/^origin\//, '') : r.name;
     const lead = r.kind === 'remote' ? cloud
       : orphan ? icon('worktree')
-      : wtLead + (REF_ICON[r.kind] ? icon(REF_ICON[r.kind]) : '') + synced;
+      : synced ? icon(r.default ? 'branchCloudFill' : 'branchCloud')
+      : wtLead + (REF_ICON[r.kind] ? icon(REF_ICON[r.kind]) : '');
     // A tooltip a saját buborék (`data-tip`), mint az avataré — a natív `title` késik.
     // A hozzáadott worktree csoportja (HEAD-je, leválasztva az ága) a worktree színét
     // kapja: a csonkjáét, a WIP-soráét, vagy a HEAD-jéét (`wtColor`) — mint a fejléc chipje.
