@@ -1251,9 +1251,11 @@ function fillBranches() {
       + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), '', esc(b.name.slice(r.length + 1)), '', cell(b.name)))).join('');
   }
   branchPop.innerHTML = html;
-  // A távolság-cellák szélessége a leghosszabb számhoz igazodik, legalább két jegyre.
-  const digits = Math.max(2, ...[...branchPop.querySelectorAll('.dc > :last-child')].map(e => e.textContent.length));
-  branchPop.style.setProperty('--dc-digits', digits);
+  // A két távolság-oszlop szélessége külön-külön a saját leghosszabb számához igazodik
+  // (1–4 jegy); a ↕ jel a szélső oszlophoz tartozik.
+  const longest = sel => Math.max(1, ...[...branchPop.querySelectorAll(sel)].map(e => e.textContent.length));
+  branchPop.style.setProperty('--c1-digits', longest('.c1 .dc > :last-child, .gap > :last-child'));
+  branchPop.style.setProperty('--c2-digits', longest('.c2 .dc > :last-child'));
   const [ics, label] = selView();
   if (branchIc.innerHTML !== ics) branchIc.innerHTML = ics;
   if (branchLabel.textContent !== label) {
