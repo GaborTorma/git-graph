@@ -167,7 +167,8 @@ function hydrate() {
    változást a rögzített sáv WIP-sora mutatja. */
 function wtChipInner(w) {
   const linked = !w.main;
-  return (linked ? icon(w.upstream && !w.ahead && !w.behind ? 'worktreeSynced' : 'worktree') : '')
+  // A fő checkout üres mappát kap, ha vannak worktree-k (megkülönböztetésül).
+  return (linked ? icon('worktree') : linkedWts().length ? icon('mainWorktree') : '')
     + (w.branch ? icon('branch') : '')   // ág nélkül: csak a HEAD és a hash
     + `<span class="chip-name">${esc(wtLabel(w))}</span>`
     + (w.branch ? distSegs(w.branch) : '');
@@ -502,7 +503,6 @@ const initials = name => String(name || '?').trim().split(/\s+/).slice(0, 2)
 
 function rowHtml(c) {
   const color = fresh.has(c.sha) ? ` style="color:${LANE_COLORS[c.lane % LANE_COLORS.length]}"` : '';
-  const refs = c.refs.length ? `<span class="refs">${badges(c)}</span>` : '';
   const st = DATA.stats[c.sha];
   const sum = st?.files.length ? diffTag(st.files.length, st.add, st.del) : '';
   // A szerző a soron csak arcként: avatar (`hydrateAvatars`), ha nincs, monogram;
@@ -511,7 +511,10 @@ function rowHtml(c) {
   // idő · avatar · diff; a hash a lenyitott commit fejében (a keresés is megtalálja)
   // Más worktree WIP-je: elöl a worktree jele (`wtBadge`).
   const other = c.uncommitted && c.worktree !== focusWt()?.slug && worktrees().find(w => w.slug === c.worktree);
-  const lead = other ? `<span class="refs wip-lead">${wtBadge(other)}</span>` : '';
+  // A WIP-badge a ref-badge-ek helyén ül: szűk sorban ugyanúgy a második sorba tördelődik;
+  // egysoros elrendezésben a CSS a cím elé teszi (`order`).
+  const refs = other ? `<span class="refs wip-lead">${wtBadge(other)}</span>`
+    : c.refs.length ? `<span class="refs">${badges(c)}</span>` : '';
   const subject = c.subject;
   // A WIP-soron is: a fájlok utolsó módosítása, a gép git-felhasználója, a diff.
   // A saját WIP a rögzített sávban ül, napfejléc nélkül: nem mai időnél a nap is kell.
@@ -522,7 +525,7 @@ function rowHtml(c) {
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge',
     foreign(c) && 'foreign'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
-      <span class="row-in">${lead}<span class="desc"><span class="subject"${color}>${linkify(subject)}</span>`
+      <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(subject)}</span>`
     + `${refs ? '<span class="br"></span>' : ''}${refs}</span>${meta}</span>
     </button>`;
 }
