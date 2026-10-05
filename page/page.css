@@ -253,19 +253,20 @@ button { font: inherit; color: inherit; }
   font-size: 12.5px; font-weight: 500;
 }
 .option.blk { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 3px 0; position: relative; }
-/* A jobb szél: a távolságok fix szélességű, balra zárt oszlopban (a nyilak egymás
-   alatt); utolsóként, a szélen a helyi ág és az upstreamje közti ↕, a két sor között.
-   Csak az ilyen blokk tartja fenn neki a helyet; a többi sor távolsága a szélen. */
-.blk .gap {
-  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-  display: inline-flex; align-items: center; gap: 2px;
-  font-size: 11px; color: var(--fg-2); font-variant-numeric: tabular-nums;
+/* A jobb szél két oszlopa (`c2`, `c1`), egyforma, fix szélességű cellákkal: elöl a
+   nyíl, a cella végén a szám — a nyilak és a számvégek oszloponként egy vonalban. A
+   két soros blokk ↕ jele a szélső oszlopban, a két sor között. */
+.blk .dc {
+  display: flex; justify-content: space-between; align-items: center; width: 30px;
+  font-size: 11px; color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
+.blk .gap { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
 .blk .gap .ud { display: inline-flex; flex-direction: column; align-items: center; line-height: 7px; }
 .blk .gap.warn { color: var(--del); font-weight: 600; }
-.blk:has(.gap) .ln { padding-right: 40px; }
+.blk .c1 { display: flex; justify-content: flex-end; width: 30px; }
+.blk .c2 { display: flex; justify-content: flex-end; }
 .blk .ln {
-  display: grid; grid-template-columns: 14px 14px 14px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  display: grid; grid-template-columns: 14px 14px 14px minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
   height: 20px; padding: 0 10px 0 8px;
 }
 .blk .ln .ic { visibility: visible; width: 14px; height: 14px; color: var(--fg-2); stroke-width: 1.5; }
@@ -276,12 +277,6 @@ button { font: inherit; color: inherit; }
 .blk .ln.on .ic.ck { visibility: visible; }
 .blk .ckc[data-refs]:hover .ic.ck { visibility: visible; }
 .blk .ln:not(.on) .ckc:hover .ic.ck { opacity: .4; }
-.blk .dists { display: inline-flex; align-items: center; gap: 6px; min-width: 32px; font-size: 11px; color: var(--fg-2); }
-.blk .dists > .div:first-child { display: none; }
-.blk .dists .div { width: 1px; height: 11px; background: var(--border); }
-.blk .dists .dist { display: inline-flex; align-items: center; gap: 3px; }
-.blk .dists .dist.warn { color: var(--del); font-weight: 600; }
-.blk .dists .ic { width: 12px; height: 12px; color: inherit; }
 .blk .det { display: inline-flex; color: var(--fg-3); }
 .blk .det .ic { width: 13px; height: 13px; color: inherit; }
 

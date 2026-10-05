@@ -204,7 +204,7 @@ function distText(name) {
   if (tr.local?.[1]) lines.push(`⑂ ↓${tr.local[1]}: ennyivel van a helyi ág mögött`);
   return lines.length ? `\n${lines.join('\n')}` : '';
 }
-function distSegs(name, { noUp = false, noLocal = false } = {}) {
+function distSegs(name) {
   const tr = DATA.meta.tracks?.[name] || {};
   // Remote ágak nélkül a remote-hoz mért szakaszok sem kellenek (☁ és a remote chip ⑂-je).
   const remote = document.getElementById('showRemotes')?.checked ?? true;
@@ -213,8 +213,7 @@ function distSegs(name, { noUp = false, noLocal = false } = {}) {
   const base = DATA.meta.base || '', local = base.slice(base.indexOf('/') + 1);
   const odd = base && name === local && tr.up?.[0] > 0;
   const warn = odd ? ` warn" data-tip="${esc(`A helyi ${name}-en ${tr.up[0]} pusholatlan commit van`)}` : '';
-  return [[tr.base, '', ''], [remote && !noUp && tr.up, icon('cloud'), warn],
-    [remote && !noLocal && tr.local, icon('branch'), '']]
+  return [[tr.base, '', ''], [remote && tr.up, icon('cloud'), warn], [remote && tr.local, icon('branch'), '']]
     .filter(([d]) => d && (d[0] || d[1]))
     .map(([d, ic, cls]) => `<span class="div"></span><span class="dist${cls}">${ic}${arrows(d)}</span>`).join('');
 }
@@ -1166,13 +1165,24 @@ function fillBranches() {
   const rank = b => (isHead(b) ? 0 : b.name === baseLocal ? 1 : 2);
   const sorted = list => [...list].sort((x, y) => rank(x) - rank(y));
   const synced = b => { const up = DATA.meta.tracks?.[b.name]?.up; return up && !up[0] && !up[1]; };
-  // Egy sor: pipa (külön kattintható), ág-oszlop, felhő-oszlop, név, távolságok.
-  const line = (refs, bIc, cIc, name, dists) => {
+  /* Egy sor: pipa (külön kattintható), ág-oszlop, felhő-oszlop, név, és jobbra két
+     távolság-oszlop. A szélső (`c1`): az egysoros blokk távolsága, a két soros blokkban
+     a ↕ jel helye; előtte (`c2`) a két soros blokk soronkénti távolsága. Egy cella: a
+     nyíl elöl, a szám a cella végén — így a nyilak és a számvégek egy vonalban. */
+  const line = (refs, bIc, cIc, name, c2, c1) => {
     const on = refs.every(r => branchSel.has(r));
     return `<span class="ln${on ? ' on' : ''}"><span class="ckc" data-refs="${esc(refs.join(' '))}"`
       + ` title="${on ? 'kivesz' : 'hozzáad'}">${icon('check', 'ic ck')}</span>`
       + `<span class="col">${bIc}</span><span class="col">${cIc}</span>`
-      + `<span class="name">${name}</span><span class="dists">${dists}</span></span>`;
+      + `<span class="name">${name}</span><span class="c2">${c2}</span><span class="c1">${c1}</span></span>`;
+  };
+  // Az alapághoz mért távolság egy cellában (a távolság-szöveg a tooltipben).
+  const cell = name => {
+    const [a, d] = DATA.meta.tracks?.[name]?.base || [0, 0];
+    if (!a && !d) return '';
+    const tip = esc(distText(name).trim());
+    return a && d ? `<span class="dc" title="${tip}">↑${a} ↓${d}</span>`
+      : `<span class="dc" title="${tip}"><span>${a ? '↑' : '↓'}</span><span>${a || d}</span></span>`;
   };
   // A helyi ág és az upstreamje közti távolság (`↕`): a két sor közé, jobbra. Az
   // alapág helyi párjának előnye anomália (piros), mint a chipeken.
@@ -1182,8 +1192,8 @@ function fillBranches() {
     const tip = [a && `↑${a}: a helyi ${b.name} ennyivel jár előrébb`, d && `↓${d}: a ${b.upstream} ennyivel jár előrébb`]
       .filter(Boolean).join('\n');
     // A jel a többi távolság ↑ és ↓ karaktere egymás fölött: a nyílhegyük ugyanaz.
-    return `<span class="gap${odd ? ' warn' : ''}" title="${esc(tip)}"><span class="ud" aria-hidden="true">`
-      + `<span>↑</span><span>↓</span></span>${a && d ? `${a}/${d}` : a || d}</span>`;
+    return `<span class="dc gap${odd ? ' warn' : ''}" title="${esc(tip)}"><span class="ud" aria-hidden="true">`
+      + `<span>↑</span><span>↓</span></span><span>${a && d ? `${a}/${d}` : a || d}</span></span>`;
   };
   const block = b => {
     const det = detachedOf(b.name);
@@ -1191,14 +1201,15 @@ function fillBranches() {
       + (isHead(b) ? `<span class="cur" style="--lc:${branchColor(b)}">HEAD</span>` : '');
     const refs = blockRefs(b, remote), up = refs[1];
     const pair = up && !synced(b);
-    // Két sornál az ág és az upstream távolsága a két sor között, egyetlen jellel.
-    const end = det ? `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`
-      : distSegs(b.name, { noUp: pair });
+    // A leválasztott HEAD jele is cella: a nyilak helyén áll.
+    const end = det ? `<span class="dc"><span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span></span>`
+      : cell(b.name);
     const c = branchColor(b);
-    const lines = up && !pair
-      ? line(refs, tinted('branch', c), cloudIc(up, c), name, end)
-      : line([b.name], tinted('branch', c), '', name, end)
-        + (up ? line([up], '', cloudIc(up, c), esc(up), distSegs(up, { noLocal: true })) + pairGap(b) : '');
+    // Két sornál a soronkénti távolság a belső oszlopban, a szélen a kettejük közti ↕.
+    const lines = !pair
+      ? line(refs, tinted('branch', c), up ? cloudIc(up, c) : '', name, '', end)
+      : line([b.name], tinted('branch', c), '', name, end, '')
+        + line([up], '', cloudIc(up, c), esc(up), cell(up), '') + pairGap(b);
     return blockBtn(refs, lines);
   };
   const blockBtn = (refs, lines) => `<button type="button" class="option blk" role="option" data-refs="${esc(refs.join(' '))}"`
@@ -1220,7 +1231,7 @@ function fillBranches() {
   const sep = '<div class="menu-sep"></div>';
   let html = `<button type="button" class="option blk" role="option" data-refs="" data-key="" aria-selected="${!branchSel.size}">`
     + `<span class="ln${branchSel.size ? '' : ' on'}"><span class="ckc">${icon('check', 'ic ck')}</span>`
-    + `<span class="col">${icon('allBranches')}</span><span class="col"></span><span class="name">Minden ág</span><span></span></span></button>`;
+    + `<span class="col">${icon('allBranches')}</span><span class="col"></span><span class="name">Minden ág</span></span></button>`;
   if (multi) {
     const slugs = new Set(wts.map(w => w.slug));
     html += sep + wts.map(w => header(w) + sorted(local.filter(b => b.owner === w.slug)).map(block).join('')).join('');
@@ -1237,7 +1248,7 @@ function fillBranches() {
   }
   for (const [r, list] of byRemote) {
     html += sep + `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
-      + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), '', esc(b.name.slice(r.length + 1)), distSegs(b.name)))).join('');
+      + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), '', esc(b.name.slice(r.length + 1)), '', cell(b.name)))).join('');
   }
   branchPop.innerHTML = html;
   const [ics, label] = selView();
