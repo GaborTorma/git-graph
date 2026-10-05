@@ -1241,8 +1241,8 @@ function fillBranches() {
     const refs = ownedBy(w).flatMap(b => blockRefs(b, remote));
     return refs.length
       ? `<button type="button" class="option menu-wt" role="option" data-refs="${esc(refs.join(' '))}" data-key="wt:${esc(w.slug)}"`
-        + ` aria-selected="${refs.every(r => branchSel.has(r))}" title="a worktree összes ága">${body}</button>`
-      : `<div class="menu-wt">${body}</div>`;
+        + ` data-name="${name}" aria-selected="${refs.every(r => branchSel.has(r))}" title="a worktree összes ága">${body}</button>`
+      : `<div class="menu-wt" data-name="${name}">${body}</div>`;
   };
   const sep = '<div class="menu-sep"></div>';
   let html = `<button type="button" class="option blk" role="option" data-refs="" data-key="" aria-selected="${!branchSel.size}">`
@@ -1263,7 +1263,7 @@ function fillBranches() {
     byRemote.set(r, [...(byRemote.get(r) || []), b]);
   }
   for (const [r, list] of byRemote) {
-    html += sep + `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
+    html += sep + `<div class="menu-wt" data-name="${esc(r)}">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
       + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), '', cell(b.name)))).join('');
   }
   branchList.innerHTML = html;
@@ -1282,16 +1282,19 @@ function fillBranches() {
 }
 
 /* Az ágválasztó szűrője: minden szó (kis-nagybetű és ékezet nélkül) szerepeljen a
-   blokk valamelyik refjében. A worktree- és remote-fejléc csak akkor marad, ha alatta
+   blokk refjeiben vagy a fejléce nevében (worktree, remote) — a worktree nevére
+   szűrve az összes ága látszik. A worktree- és remote-fejléc csak akkor marad, ha alatta
    legalább egy ág látszik; a „Minden ág” szűrés közben rejtve, az elválasztó csak két
    látható csoport között. */
 function filterBranches() {
   const words = fold(branchQuery.value).split(/\s+/).filter(Boolean);
   const items = [...branchList.children];
+  let group = '';                 // az aktuális fejléc neve; elválasztó után nincs
   for (const el of items) {
-    if (el.matches('.blk')) {
-      const refs = fold(el.dataset.refs);
-      el.hidden = el.dataset.refs ? !words.every(w => refs.includes(w)) : words.length > 0;
+    if (el.matches('.menu-wt, .menu-sep')) group = el.dataset.name || '';
+    else if (el.matches('.blk')) {
+      const text = fold(`${group} ${el.dataset.refs}`);
+      el.hidden = el.dataset.refs ? !words.every(w => text.includes(w)) : words.length > 0;
     }
   }
   // Fejléc: a következő fejlécig vagy elválasztóig tartó blokkjai közül látszik-e egy.

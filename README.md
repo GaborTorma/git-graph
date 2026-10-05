@@ -108,7 +108,8 @@ felhő-és-ág ikonnal, különben egymás alatt az ág és a felhő): a sorra k
 kattintva csak az kerül ki; ha semmi sem marad, újra minden ág látszik. A worktree
 fejlécére kattintva az összes ága kijelölődik; a gomb ikonja és felirata a
 kijelölést követi. HEAD worktree-nként; worktree nélkül csak az ágak. A menü
-tetején szűrő: név szerint szűkít, a worktree-fejléc csak akkor marad, ha alatta
+tetején szűrő: ág- vagy worktree-név szerint szűkít (a worktree nevére az összes
+ága), a worktree-fejléc csak akkor marad, ha alatta
 legalább egy ág látszik; az Enter az első találatot választja. A
 0.12 előtti, worktree-nkénti Artifactokat a hook felismeri, és megkéri Claude-ot,
 hogy törölje őket, majd `git-graph --forget-artifact <URL>`-lel takarítsa a
