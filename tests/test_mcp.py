@@ -332,6 +332,35 @@ class McpServerTest(unittest.TestCase):
         self.assertNotIn("stubs", commits[1])
         self.assertEqual(commits[2]["stubs"], [{"lane": 2, "worktree": "old"}])
 
+    def test_branch_tracks(self) -> None:
+        """Ágankénti távolság: az alapághoz, az upstreamhez, és a remote-only ágnak a helyi párjához."""
+        root = self.home.resolve()
+        bare, repo = root / "remote.git", root / "work"
+        git = lambda *a, cwd=repo: subprocess.run(["git", "-c", "user.name=T", "-c", "user.email=t@x.hu", *a],  # noqa: E731
+                                                  cwd=cwd, check=True, capture_output=True)
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
+        repo.mkdir()
+        git("init", "-q", "-b", "main")
+        git("remote", "add", "origin", str(bare))
+        git("commit", "-q", "--allow-empty", "-m", "init")
+        git("push", "-q", "-u", "origin", "main")
+        git("remote", "set-head", "origin", "main")
+        git("switch", "-q", "-c", "feat")
+        git("commit", "-q", "--allow-empty", "-m", "f1")
+        git("push", "-q", "-u", "origin", "feat")
+        git("commit", "-q", "--allow-empty", "-m", "f2")                 # egy pusholatlan
+        git("push", "-q", "origin", "feat:only-remote")                 # remote-only ág
+        git("switch", "-q", "main")
+        git("commit", "-q", "--allow-empty", "-m", "anomália")           # a helyi main előreszalad
+        module = load_module(self.home)
+        module.REPO = repo
+        tracks = module.branch_tracks()
+        self.assertEqual(module.default_base(), "origin/main")
+        self.assertEqual(tracks["feat"], {"up": [1, 0], "base": [2, 0]})
+        self.assertEqual(tracks["main"], {"up": [1, 0]})              # az alapágnak nincs base-szakasza
+        self.assertEqual(tracks["origin/feat"]["local"], [0, 1])       # a helyi feat egy committal előrébb
+        self.assertEqual(tracks["origin/only-remote"], {"base": [2, 0]})
+
     def test_worktree_order(self) -> None:
         """A hozzáadott worktree-k a létrehozásuk sorrendjében, nem név szerint."""
         main, extra = self.make_repo()
