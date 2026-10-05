@@ -257,13 +257,14 @@ button { font: inherit; color: inherit; }
    nyíl, a cella végén a szám — a nyilak és a számvégek oszloponként egy vonalban. A
    két soros blokk ↕ jele a szélső oszlopban, a két sor között. */
 .blk .dc {
-  display: flex; justify-content: space-between; align-items: center; width: 30px;
+  display: flex; justify-content: space-between; align-items: center;
+  width: calc(var(--dc-digits, 2) * 1ch + 11px);   /* nyíl + a leghosszabb szám (a lap állítja) */
   font-size: 11px; color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .blk .gap { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
 .blk .gap .ud { display: inline-flex; flex-direction: column; align-items: center; line-height: 7px; }
 .blk .gap.warn { color: var(--del); font-weight: 600; }
-.blk .c1 { display: flex; justify-content: flex-end; width: 30px; }
+.blk .c1 { display: flex; justify-content: flex-end; font-size: 11px; min-width: calc(var(--dc-digits, 2) * 1ch + 11px); }
 .blk .c2 { display: flex; justify-content: flex-end; }
 .blk .ln {
   display: grid; grid-template-columns: 14px 14px 14px minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
@@ -279,6 +280,7 @@ button { font: inherit; color: inherit; }
 .blk .ln:not(.on) .ckc:hover .ic.ck { opacity: .4; }
 .blk .det { display: inline-flex; color: var(--fg-3); }
 .blk .det .ic { width: 13px; height: 13px; color: inherit; }
+.blk .c1 .det { margin-right: -2px; }   /* a közepe a WIP-karika (9 px) közepén */
 
 
 .switch {

@@ -1201,8 +1201,8 @@ function fillBranches() {
       + (isHead(b) ? `<span class="cur" style="--lc:${branchColor(b)}">HEAD</span>` : '');
     const refs = blockRefs(b, remote), up = refs[1];
     const pair = up && !synced(b);
-    // A leválasztott HEAD jele is cella: a nyilak helyén áll.
-    const end = det ? `<span class="dc"><span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span></span>`
+    // A leválasztott HEAD jele a szélen, a worktree-fejléc WIP-karikájának oszlopában.
+    const end = det ? `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`
       : cell(b.name);
     const c = branchColor(b);
     // Két sornál a soronkénti távolság a belső oszlopban, a szélen a kettejük közti ↕.
@@ -1251,6 +1251,9 @@ function fillBranches() {
       + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), '', esc(b.name.slice(r.length + 1)), '', cell(b.name)))).join('');
   }
   branchPop.innerHTML = html;
+  // A távolság-cellák szélessége a leghosszabb számhoz igazodik, legalább két jegyre.
+  const digits = Math.max(2, ...[...branchPop.querySelectorAll('.dc > :last-child')].map(e => e.textContent.length));
+  branchPop.style.setProperty('--dc-digits', digits);
   const [ics, label] = selView();
   if (branchIc.innerHTML !== ics) branchIc.innerHTML = ics;
   if (branchLabel.textContent !== label) {
