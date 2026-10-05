@@ -231,7 +231,6 @@ button { font: inherit; color: inherit; }
   background: color-mix(in srgb, var(--lc, var(--accent)) 14%, var(--bg));
   color: color-mix(in srgb, var(--lc, var(--accent)) 70%, var(--fg-0));
 }
-.menu-sep { height: 1px; margin: 3px 6px; background: var(--border-soft); }
 /* Ágválasztó: worktree-fejléc, alatta az ágai; a helyi ág és az upstreamje egy
    blokk (egy opció, két sor, szorosan). A pipa oszlopa a fejléc ikonja alatt. */
 .menu-pop.branches { max-width: 460px; max-height: min(460px, var(--room, 100vh)); padding: 0; gap: 0; overflow: hidden; }
@@ -239,6 +238,11 @@ button { font: inherit; color: inherit; }
 /* Csak az ágak listája görget; a szűrő és a „Minden ág” fölötte áll. */
 .menu-all { flex: none; padding: 4px 4px 3px; border-bottom: 1px solid var(--border-soft); }
 .menu-all .option { width: 100%; }
+.menu-grp { display: flex; flex-direction: column; gap: 1px; }
+/* Elválasztó a `sep` csoport fölött, ha előtte látszik egy csoport. */
+.menu-grp:not([hidden]) ~ .menu-grp.sep::before {
+  content: ""; height: 1px; margin: 3px 6px; background: var(--border-soft);
+}
 .menu-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px; display: flex; flex-direction: column; gap: 1px; }
 .menu-list.empty::after { content: "Nincs ilyen ág"; padding: 6px 12px; font-size: 12.5px; color: var(--fg-3); }
 /* A szűrőmező a menü tetején. */
@@ -249,11 +253,6 @@ button { font: inherit; color: inherit; }
   color: var(--fg-3);
 }
 .menu-search .ic { width: 14px; height: 14px; flex: none; }
-.menu-search input {
-  flex: 1; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent;
-  color: var(--fg-0); font: inherit; font-size: 13px;
-}
-.menu-search input::placeholder { color: var(--fg-3); }
 .menu-wt {
   display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 6px 10px 0 8px;
   font-size: 12.5px; font-weight: 500; color: var(--fg-0);
@@ -352,12 +351,12 @@ button { font: inherit; color: inherit; }
   color: var(--fg-2);
 }
 .search:focus-within { box-shadow: inset 0 0 0 1px var(--accent), var(--ctrl-shadow); }
-.search input {
+.search input, .menu-search input {
   flex: 1; min-width: 0; padding: 0;
   border: 0; outline: 0; background: transparent;
   color: var(--fg-0); font: inherit; font-size: 13px;
 }
-.search input::placeholder { color: var(--fg-3); }
+.search input::placeholder, .menu-search input::placeholder { color: var(--fg-3); }
 .search input::-webkit-search-cancel-button { cursor: pointer; }
 .search kbd {
   padding: 0 5px; border-radius: 4px;

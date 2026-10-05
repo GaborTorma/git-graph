@@ -1242,21 +1242,24 @@ function fillBranches() {
     const refs = ownedBy(w).flatMap(b => blockRefs(b, remote));
     return refs.length
       ? `<button type="button" class="option menu-wt" role="option" data-refs="${esc(refs.join(' '))}" data-key="wt:${esc(w.slug)}"`
-        + ` data-name="${name}" aria-selected="${refs.every(r => branchSel.has(r))}" title="a worktree összes ága">${body}</button>`
-      : `<div class="menu-wt" data-name="${name}">${body}</div>`;
+        + ` aria-selected="${refs.every(r => branchSel.has(r))}" title="a worktree összes ága">${body}</button>`
+      : `<div class="menu-wt">${body}</div>`;
   };
-  const sep = '<div class="menu-sep"></div>';
+  /* Egy csoport: fejléc (worktree, remote; a szűrő a nevét is nézi) és az ágai. A `sep`
+     csoport fölött vonal, ha előtte látszik egy csoport (CSS). */
+  const group = (name, inner, sep) => `<div class="menu-grp${sep ? ' sep' : ''}" data-name="${esc(name)}">${inner}</div>`;
   branchAll.innerHTML = `<button type="button" class="option blk" role="option" data-refs="" data-key="" aria-selected="${!branchSel.size}">`
     + `<span class="ln${branchSel.size ? '' : ' on'}"><span class="ckc">${icon('check', 'ic ck')}</span>`
     + `<span class="col">${icon('allBranches')}</span><span class="name">Minden ág</span></span></button>`;
-  let html = '';                  // a nyitó elválasztót a szűrő rejti
+  let html = '';
   if (multi) {
     const slugs = new Set(wts.map(w => w.slug));
-    html += sep + wts.map(w => header(w) + sorted(local.filter(b => b.owner === w.slug)).map(block).join('')).join('');
+    html += wts.map(w => group(w.main ? 'main' : w.name,
+      header(w) + sorted(local.filter(b => b.owner === w.slug)).map(block).join(''))).join('');
     const orphans = local.filter(b => !slugs.has(b.owner));
-    if (orphans.length) html += sep + sorted(orphans).map(block).join('');
+    if (orphans.length) html += group('', sorted(orphans).map(block).join(''), true);
   } else if (local.length) {
-    html += sep + sorted(local).map(block).join('');
+    html += group('', sorted(local).map(block).join(''));
   }
   // Csak remote ágak, remote-onként egy fejléc.
   const byRemote = new Map();
@@ -1265,8 +1268,8 @@ function fillBranches() {
     byRemote.set(r, [...(byRemote.get(r) || []), b]);
   }
   for (const [r, list] of byRemote) {
-    html += sep + `<div class="menu-wt" data-name="${esc(r)}">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
-      + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), '', cell(b.name)))).join('');
+    html += group(r, `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
+      + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), '', cell(b.name)))).join(''), true);
   }
   branchList.innerHTML = html;
   filterBranches();
@@ -1284,43 +1287,43 @@ function fillBranches() {
 }
 
 /* Az ágválasztó szűrője: minden szó (kis-nagybetű és ékezet nélkül) szerepeljen a
-   blokk refjeiben vagy a fejléce nevében (worktree, remote) — a worktree nevére
-   szűrve az összes ága látszik. A worktree- és remote-fejléc csak akkor marad, ha alatta
-   legalább egy ág látszik; a „Minden ág” szűrés közben rejtve, az elválasztó csak két
-   látható csoport között. */
+   blokk refjeiben vagy a csoportja nevében (worktree, remote) — a worktree nevére
+   szűrve az összes ága látszik. A csoport (a fejlécével) csak akkor marad, ha legalább
+   egy ága látszik; a „Minden ág” szűrés közben rejtve. */
 function filterBranches() {
-  const words = fold(branchQuery.value).split(/\s+/).filter(Boolean);
+  const words = queryWords(branchQuery.value);
   branchAll.hidden = words.length > 0;
-  const items = [...branchList.children];
-  let group = '';                 // az aktuális fejléc neve; elválasztó után nincs
-  for (const el of items) {
-    if (el.matches('.menu-wt, .menu-sep')) group = el.dataset.name || '';
-    else if (el.matches('.blk')) {
-      const text = fold(`${group} ${el.dataset.refs}`);
+  let any = false;
+  for (const grp of branchList.children) {
+    let shown = false;
+    for (const el of grp.querySelectorAll('.blk')) {
+      const text = fold(`${grp.dataset.name} ${el.dataset.refs}`);
       el.hidden = !words.every(w => text.includes(w));
+      shown ||= !el.hidden;
     }
+    grp.hidden = !shown;
+    any ||= shown;
   }
-  // Fejléc: a következő fejlécig vagy elválasztóig tartó blokkjai közül látszik-e egy.
-  let head = null, any = false;
-  for (const el of [...items, null]) {
-    if (!el || el.matches('.menu-wt, .menu-sep')) {
-      if (head) head.hidden = !any;
-      head = el?.matches('.menu-wt') ? el : null;
-      any = false;
-    } else if (!el.hidden) any = true;
-  }
-  let seen = false, sep = null;
-  for (const el of items) {
-    if (el.matches('.menu-sep')) { el.hidden = true; sep = el; }
-    else if (!el.hidden) { if (sep && seen) sep.hidden = false; sep = null; seen = true; }
-  }
-  branchList.classList.toggle('empty', !seen && words.length > 0);
+  branchList.classList.toggle('empty', !any && words.length > 0);
 }
 branchQuery.addEventListener('input', filterBranches);
+/* A mező billentyűi (a makeMenu kezelője előtt): Enter az első látható ágat
+   választja, Escape előbb a szűrőt üríti; Home/End a kurzort mozgatja. A nyilak, a
+   Tab és az üres mezőben az Escape a menüé. */
+branchQuery.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    branchList.querySelector('.blk:not([hidden])')?.click();
+  } else if (e.key === 'Escape' && branchQuery.value) {
+    e.stopPropagation();
+    branchQuery.value = '';
+    filterBranches();
+  } else if (e.key === 'Home' || e.key === 'End') e.stopPropagation();
+});
 
 /* Közös legördülő menü (ágválasztó, téma): nyíl-, Home/End-, Escape- és
    Tab-billentyű, kattintás kívülre csuk. `onPick` a választott opciót kapja. */
-function makeMenu(btn, pop, onPick) {
+function makeMenu(btn, pop, onPick, onOpen) {
   // A menü a látható részen belül marad (`--room`, a CSS max-height-jában): ami nem fér
   // ki, az görgethető. A lap nem görgethető, a kilógó rész különben elveszne.
   const fit = () => {
@@ -1334,14 +1337,8 @@ function makeMenu(btn, pop, onPick) {
     pop.hidden = !open;
     btn.setAttribute('aria-expanded', String(open));
     fit();
-    const query = pop.querySelector('input');
-    if (open && query) {          // szűrős menü: üres szűrővel nyílik, a fókusz a mezőben
-      query.value = '';
-      query.dispatchEvent(new Event('input'));
-      pop.style.minWidth = '';    // a teljes lista szélessége marad, szűréskor nem ugrik össze
-      pop.style.minWidth = `${pop.offsetWidth}px`;
-      query.focus();
-    } else if (open) (pop.querySelector('[aria-selected="true"]') || pop.querySelector('.option'))?.focus();
+    if (open && onOpen) onOpen();     // a fókuszt is ő teszi a helyére
+    else if (open) (pop.querySelector('[aria-selected="true"]') || pop.querySelector('.option'))?.focus();
   };
   btn.addEventListener('click', () => toggle(pop.hidden));
   btn.addEventListener('keydown', e => {
@@ -1357,19 +1354,14 @@ function makeMenu(btn, pop, onPick) {
   pop.addEventListener('keydown', e => {
     const items = [...pop.querySelectorAll('.option')].filter(o => !o.hidden);
     const i = items.indexOf(document.activeElement);
-    const inQuery = e.target.matches('input');
-    if (inQuery && e.key === 'Enter') {
-      e.preventDefault();
-      (items.find(o => o.matches('.blk')) || items[0])?.click();   // az első látható ág
-    } else if (inQuery && e.key === 'Escape' && e.target.value) {
-      e.stopPropagation();          // előbb a szűrőt üríti, a második Escape csuk
-      e.target.value = '';
-      e.target.dispatchEvent(new Event('input'));
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') && !items.length) {
+      e.preventDefault();             // szűrés után nincs látható opció
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       const n = items.length, down = e.key === 'ArrowDown';
-      if (n) items[i < 0 ? (down ? 0 : n - 1) : (i + (down ? 1 : n - 1)) % n].focus();
-    } else if (!inQuery && items.length && (e.key === 'Home' || e.key === 'End')) {
+      // A fókusz nincs opción (a szűrőmezőben van): lefelé az első, felfelé az utolsó.
+      items[i < 0 ? (down ? 0 : n - 1) : (i + (down ? 1 : n - 1)) % n].focus();
+    } else if (e.key === 'Home' || e.key === 'End') {
       e.preventDefault();
       items[e.key === 'Home' ? 0 : items.length - 1].focus();
     } else if (e.key === 'Escape' || e.key === 'Tab') {
@@ -1387,6 +1379,13 @@ makeMenu(branchBtn, branchPop, o => {
   branchSel = new Set(o.dataset.refs.split(' ').filter(Boolean));
   fillBranches();
   applyFilters();
+}, () => {
+  // Üres szűrővel nyílik; a teljes lista szélessége marad, szűréskor nem ugrik össze.
+  branchQuery.value = '';
+  filterBranches();
+  branchPop.style.minWidth = '';      // a természetes szélesség méréséhez
+  branchPop.style.minWidth = `${branchPop.offsetWidth}px`;
+  branchQuery.focus();
 });
 /* A pipára kattintás csak azt a sort veszi ki vagy teszi be, a menü nyitva marad
    (a makeMenu kattintás-kezelője elé, rögzítő fázisban). */
@@ -1428,6 +1427,7 @@ function reachable(tips) {
    hash eleje legyen. Kis- és nagybetű, ékezet nem számít. */
 const searchEl = document.getElementById('search');
 const fold = s => String(s).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+const queryWords = s => fold(s).split(/\s+/).filter(Boolean);
 function matches(c, words) {
   if (!words.length) return true;
   const hay = fold([c.subject, c.body, c.author, c.email, ...c.refs.map(r => r.name)].join('\n'));
@@ -1438,7 +1438,7 @@ function applyFilters() {
   const branch = branchSel.size ? branchSel : null;
   const remotes = remotesOn();
   const refsOnly = document.getElementById('onlyRefs').checked;
-  const words = fold(searchEl.value).split(/\s+/).filter(Boolean);
+  const words = queryWords(searchEl.value);
   const keep = branch ? ancestryOf(branch) : null;
   const local = remotes ? null : localReach();
 
