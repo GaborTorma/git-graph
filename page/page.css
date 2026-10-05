@@ -253,16 +253,16 @@ button { font: inherit; color: inherit; }
   font-size: 12.5px; font-weight: 500;
 }
 .option.blk { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 3px 0; position: relative; }
-/* A helyi ág és az upstreamje közti távolság a két sor között, saját oszlopban: ha
-   van ilyen, minden sor távolságai ennyivel beljebb kezdődnek (egy vonalban maradnak). */
+/* A helyi ág és az upstreamje közti távolság a két sor között, a távolság-oszlop
+   előtt (a többi sor távolságai így a helyükön maradnak). */
 .blk .gap {
-  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  position: absolute; right: 54px; top: 50%; transform: translateY(-50%);
   display: inline-flex; align-items: center; gap: 2px;
   font-size: 11px; color: var(--fg-2); font-variant-numeric: tabular-nums;
 }
-.blk .gap .ud { display: inline-flex; flex-direction: column; align-items: center; line-height: 10px; }
+.blk .gap .ud { display: inline-flex; flex-direction: column; align-items: center; line-height: 7px; }
 .blk .gap.warn { color: var(--del); font-weight: 600; }
-.menu-pop:has(.gap) .blk .ln { padding-right: 40px; }
+.blk:has(.gap) .dists { padding-left: 40px; }   /* hely a jelnek, a név ne fusson alá */
 .blk .ln {
   display: grid; grid-template-columns: 14px 14px 14px minmax(0, 1fr) auto; gap: 8px; align-items: center;
   height: 20px; padding: 0 10px 0 8px;
@@ -275,7 +275,8 @@ button { font: inherit; color: inherit; }
 .blk .ln.on .ic.ck { visibility: visible; }
 .blk .ckc[data-refs]:hover .ic.ck { visibility: visible; }
 .blk .ln:not(.on) .ckc:hover .ic.ck { opacity: .4; }
-.blk .dists { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--fg-2); }
+/* A távolságok balra zárt, közös szélességű oszlopban: a nyilak egymás alatt maradnak. */
+.blk .dists { display: inline-flex; align-items: center; gap: 6px; min-width: 34px; font-size: 11px; color: var(--fg-2); }
 .blk .dists > .div:first-child { display: none; }
 .blk .dists .div { width: 1px; height: 11px; background: var(--border); }
 .blk .dists .dist { display: inline-flex; align-items: center; gap: 3px; }
