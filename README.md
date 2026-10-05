@@ -103,8 +103,8 @@ commitjukról, több csonk legyezőszerűen. Ami nem a sajáté, halványabb (a 
 vett ágak a fő checkouté). Az ágválasztó worktree-nként csoportosít: fejléc (a
 sajáté a fejléc chipjének színével), alatta az ágai — amelyikben utoljára ki volt
 véve, a worktree HEAD-reflogja szerint —, a gazdátlanok utánuk, a csak remote ágak a
-végén. A helyi ág és az upstreamje egy opció (ha egy helyen állnak, egy sor a két
-ikonnal): a sorra kattintva mindkettő kijelölődik, egy kipipált sor pipájára
+végén. A helyi ág és az upstreamje egy opció (ha egy helyen állnak, egy sor a közös
+felhő-és-ág ikonnal, különben egymás alatt az ág és a felhő): a sorra kattintva mindkettő kijelölődik, egy kipipált sor pipájára
 kattintva csak az kerül ki; ha semmi sem marad, újra minden ág látszik. A worktree
 fejlécére kattintva az összes ága kijelölődik; a gomb ikonja és felirata a
 kijelölést követi. HEAD worktree-nként; worktree nélkül csak az ágak. A

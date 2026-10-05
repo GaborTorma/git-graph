@@ -121,6 +121,14 @@ const ICONS = {
     + '<circle class="wt-ic" cx="8" cy="9" r="1.5" fill="currentColor"/>',
   // a fő checkout: ugyanaz a mappa, pötty nélkül — maga a repó, nem egy kivett másolat
   mainWorktree: '<path class="wt-ic" d="M3 13a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h2.5L7 4.5h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1z"/>',
+  // ág és upstream egy helyen: felhő, az alsó vonala közepén csomópont, onnan ág két
+  // csomópontra; a teli változat (alapág) kitöltése a csomópont körül kivágva
+  branchCloud: '<path d="M9.5 9.4h1.49a2.76 2.76 0 0 0 .37-5.52A3.68 3.68 0 0 0 4.37 4.89 2.3 2.3 0 0 0 4.55 9.4H6.5"/>'
+    + '<circle cx="8" cy="9.4" r="1.5"/><path d="M8 10.9v2.4M4.5 13.3h7"/><circle cx="3" cy="13.3" r="1.5"/><circle cx="13" cy="13.3" r="1.5"/>',
+  get branchCloudFill() {
+    return '<path fill="currentColor" stroke="none" d="M4.55 9.4H5.1A2.9 2.9 0 0 1 10.9 9.4h.09a2.76 2.76 0 0 0 .37-5.52A3.68 3.68 0 0 0 4.37 4.89 2.3 2.3 0 0 0 4.55 9.4z"/>'
+      + this.branchCloud;
+  },
   // minden ág: két sáv, egy-egy üres csomóponttal, mint a branch-ikonon
   allBranches: '<path d="M5 2.5v6M5 11.5v2M11 2.5v2M11 7.5v6"/><circle cx="5" cy="10" r="1.5"/><circle cx="11" cy="6" r="1.5"/>',
   // leválasztott HEAD az ágválasztóban: szétkapcsolt lánc
@@ -1113,6 +1121,8 @@ function branchColor(b) {
   return (w && wtColor(w)) || refColor(b.name);
 }
 const cloudIc = (ref, color) => tinted(ref === DATA.meta.base ? 'cloudFill' : 'cloud', color);
+/* Ág és upstream együtt (egy helyen állnak, vagy mindkettő kijelölve): egy ikon. */
+const branchCloudIc = (ref, color) => tinted(ref === DATA.meta.base ? 'branchCloudFill' : 'branchCloud', color);
 /* Egy helyi ág refjei a menüben: maga, és — remote ágakkal — az élő upstreamje. */
 const blockRefs = (b, remote) => (remote && b.upstream && b.track !== 'gone' ? [b.name, b.upstream] : [b.name]);
 /* Egy worktree-hez tartozó ágak (`owner`). */
@@ -1134,7 +1144,8 @@ function selView() {
   const b = DATA.branches.find(x => !x.remote && (x.name === names[0] || x.upstream === names[0]));
   if (b && names.every(n => n === b.name || n === b.upstream)) {
     const c = branchColor(b);
-    return [(branchSel.has(b.name) ? tinted('branch', c) : '') + (branchSel.has(b.upstream) ? cloudIc(b.upstream, c) : ''),
+    const both = branchSel.has(b.name) && branchSel.has(b.upstream);
+    return [both ? branchCloudIc(b.upstream, c) : branchSel.has(b.name) ? tinted('branch', c) : cloudIc(b.upstream, c),
       branchSel.has(b.name) ? b.name : b.upstream];
   }
   const lb = DATA.branches.find(x => !x.remote && x.name === names[0]);
@@ -1148,7 +1159,7 @@ function selView() {
    remote ágak a végén. A helyi ág és az upstreamje egy blokk, egy opció: a sorra
    kattintva mindkettő kijelölődik; egy kipipált sor pipájára kattintva csak az a
    ref kerül ki (a ki nem pipáltéra kattintva bekerül). Ha egy helyen állnak, egy
-   sor a két ikonnal. Az ág- és a felhő-ikon külön oszlopban. A worktree fejlécére
+   sor a közös ikonnal (`branchCloud`); különben egymás alatt az ág és a felhő. A worktree fejlécére
    kattintva az összes ága kijelölődik. HEAD worktree-nként. Worktree nélkül csak
    az ágak. */
 function fillBranches() {
@@ -1165,15 +1176,15 @@ function fillBranches() {
   const rank = b => (isHead(b) ? 0 : b.name === baseLocal ? 1 : 2);
   const sorted = list => [...list].sort((x, y) => rank(x) - rank(y));
   const synced = b => { const up = DATA.meta.tracks?.[b.name]?.up; return up && !up[0] && !up[1]; };
-  /* Egy sor: pipa (külön kattintható), ág-oszlop, felhő-oszlop, név, és jobbra két
+  /* Egy sor: pipa (külön kattintható), egy ikon (ág, felhő, vagy a kettő együtt), név, és jobbra két
      távolság-oszlop. A szélső (`c1`): az egysoros blokk távolsága, a két soros blokkban
      a ↕ jel helye; előtte (`c2`) a két soros blokk soronkénti távolsága. Egy cella: a
      nyíl elöl, a szám a cella végén — így a nyilak és a számvégek egy vonalban. */
-  const line = (refs, bIc, cIc, name, c2, c1) => {
+  const line = (refs, ic, name, c2, c1) => {
     const on = refs.every(r => branchSel.has(r));
     return `<span class="ln${on ? ' on' : ''}"><span class="ckc" data-refs="${esc(refs.join(' '))}"`
       + ` title="${on ? 'kivesz' : 'hozzáad'}">${icon('check', 'ic ck')}</span>`
-      + `<span class="col">${bIc}</span><span class="col">${cIc}</span>`
+      + `<span class="col">${ic}</span>`
       + `<span class="name">${name}</span><span class="c2">${c2}</span><span class="c1">${c1}</span></span>`;
   };
   // Az alapághoz mért távolság egy cellában (a távolság-szöveg a tooltipben).
@@ -1207,9 +1218,9 @@ function fillBranches() {
     const c = branchColor(b);
     // Két sornál a soronkénti távolság a belső oszlopban, a szélen a kettejük közti ↕.
     const lines = !pair
-      ? line(refs, tinted('branch', c), up ? cloudIc(up, c) : '', name, '', end)
-      : line([b.name], tinted('branch', c), '', name, end, '')
-        + line([up], '', cloudIc(up, c), esc(up), cell(up), '') + pairGap(b);
+      ? line(refs, up ? branchCloudIc(up, c) : tinted('branch', c), name, '', end)
+      : line([b.name], tinted('branch', c), name, end, '')
+        + line([up], cloudIc(up, c), esc(up), cell(up), '') + pairGap(b);
     return blockBtn(refs, lines);
   };
   const blockBtn = (refs, lines) => `<button type="button" class="option blk" role="option" data-refs="${esc(refs.join(' '))}"`
@@ -1231,7 +1242,7 @@ function fillBranches() {
   const sep = '<div class="menu-sep"></div>';
   let html = `<button type="button" class="option blk" role="option" data-refs="" data-key="" aria-selected="${!branchSel.size}">`
     + `<span class="ln${branchSel.size ? '' : ' on'}"><span class="ckc">${icon('check', 'ic ck')}</span>`
-    + `<span class="col">${icon('allBranches')}</span><span class="col"></span><span class="name">Minden ág</span></span></button>`;
+    + `<span class="col">${icon('allBranches')}</span><span class="name">Minden ág</span></span></button>`;
   if (multi) {
     const slugs = new Set(wts.map(w => w.slug));
     html += sep + wts.map(w => header(w) + sorted(local.filter(b => b.owner === w.slug)).map(block).join('')).join('');
@@ -1240,7 +1251,7 @@ function fillBranches() {
   } else if (local.length) {
     html += sep + sorted(local).map(block).join('');
   }
-  // Csak remote ágak, remote-onként egy fejléc; a felhő az első oszlopban (más nincs a sorban).
+  // Csak remote ágak, remote-onként egy fejléc.
   const byRemote = new Map();
   if (remote) for (const b of DATA.branches.filter(x => x.remote)) {
     const r = b.name.slice(0, b.name.indexOf('/'));
@@ -1248,7 +1259,7 @@ function fillBranches() {
   }
   for (const [r, list] of byRemote) {
     html += sep + `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
-      + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), '', esc(b.name.slice(r.length + 1)), '', cell(b.name)))).join('');
+      + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), '', cell(b.name)))).join('');
   }
   branchPop.innerHTML = html;
   // A két távolság-oszlop szélessége külön-külön a saját leghosszabb számához igazodik

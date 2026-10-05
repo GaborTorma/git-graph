@@ -269,7 +269,7 @@ button { font: inherit; color: inherit; }
 .blk .c1 { display: flex; justify-content: flex-end; font-size: 11px; min-width: calc(var(--digits, 2) * 1ch + 11px); }
 .blk .c2 { display: flex; justify-content: flex-end; }
 .blk .ln {
-  display: grid; grid-template-columns: 14px 14px 14px minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
+  display: grid; grid-template-columns: 14px 14px minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
   height: 20px; padding: 0 10px 0 8px;
 }
 .blk .ln .ic { visibility: visible; width: 14px; height: 14px; color: var(--fg-2); stroke-width: 1.5; }
