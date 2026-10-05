@@ -444,7 +444,8 @@ function badges(c) {
   // A HEAD, az ág és a tag a commit sávjának színét kapja (`--lc`), mint a vonal;
   // a csak remote-os chip szürke marad.
   const lane = LANE_COLORS[c.lane % LANE_COLORS.length];
-  return sortRefs(mergedRefs(c.refs)).map(r => {
+  const showRemote = document.getElementById('showRemotes')?.checked ?? true;
+  return sortRefs(mergedRefs(c.refs)).filter(r => showRemote || r.kind !== 'remote').map(r => {
     const wt = r.worktree && worktrees().find(w => w.slug === r.worktree);
     // Hozzáadott worktree leválasztott HEAD-je: ág nincs — worktree-ikon, HEAD, a worktree neve.
     const orphan = r.kind === 'detached' && wt && !wt.main;
@@ -514,7 +515,7 @@ function rowHtml(c) {
   // A WIP-badge a ref-badge-ek helyén ül: szűk sorban ugyanúgy a második sorba tördelődik;
   // egysoros elrendezésben a CSS a cím elé teszi (`order`).
   const refs = other ? `<span class="refs wip-lead">${wtBadge(other)}</span>`
-    : c.refs.length ? `<span class="refs">${badges(c)}</span>` : '';
+    : (() => { const b = badges(c); return b ? `<span class="refs">${b}</span>` : ''; })();
   const subject = c.subject;
   // A WIP-soron is: a fájlok utolsó módosítása, a gép git-felhasználója, a diff.
   // A saját WIP a rögzített sávban ül, napfejléc nélkül: nem mai időnél a nap is kell.
@@ -1151,8 +1152,13 @@ makeMenu(branchBtn, branchPop, o => {
 function ancestryOf(name) {
   const tip = DATA.commits.find(c => c.refs.some(r => r.name === name &&
     (r.kind === 'branch' || r.kind === 'head')));
-  if (!tip) return null;
-  const keep = new Set(), stack = [tip.sha];
+  return tip ? reachable([tip.sha]) : null;
+}
+/* A remote ágak nélkül: ami helyi ágból, HEAD-ből, tagből vagy WIP-ből elérhető. */
+const localReach = () => reachable(DATA.commits.filter(c => c.uncommitted
+  || c.refs.some(r => r.kind !== 'remote')).map(c => c.uncommitted ? c.parents[0] : c.sha));
+function reachable(tips) {
+  const keep = new Set(), stack = [...tips];
   const bySha = new Map(DATA.commits.map(c => [c.sha, c]));
   while (stack.length) {
     const sha = stack.pop();
@@ -1180,6 +1186,7 @@ function applyFilters() {
   const refsOnly = document.getElementById('onlyRefs').checked;
   const words = fold(searchEl.value).split(/\s+/).filter(Boolean);
   const keep = branch ? ancestryOf(branch) : null;
+  const local = remotes ? null : localReach();
 
   visible = DATA.commits.filter(c => {
     // Állapot, nem commit: keresésnél nem kell; ágszűrésnél csak annak a worktree-nek
@@ -1188,8 +1195,10 @@ function applyFilters() {
       return !words.length && (!branch || worktrees().some(w => w.slug === c.worktree && w.branch === branch));
     }
     if (keep && !keep.has(c.sha)) return false;
-    if (refsOnly && c.refs.length === 0) return false;
-    if (!remotes && c.refs.length && c.refs.every(r => r.kind === 'remote')) return false;
+    // Remote ágak nélkül a helyi történet minden commitja marad (csak a remote-badge
+    // tűnik el); ami csak remote ágból érhető el, az kimarad.
+    if (local && !local.has(c.sha)) return false;
+    if (refsOnly && !c.refs.some(r => remotes || r.kind !== 'remote')) return false;
     return matches(c, words);
   });
   render();
