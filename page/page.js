@@ -532,7 +532,7 @@ function rowHtml(c) {
   // A szerző a soron csak arcként: avatar (`hydrateAvatars`), ha nincs, monogram;
   // a név hoverre (`data-tip`).
   const av = avatarClass.get(c.email);
-  // idő · avatar · diff; a hash a lenyitott commit fejében (a keresés is megtalálja)
+  // idő · diff · avatar; a hash a lenyitott commit fejében (a keresés is megtalálja)
   // Más worktree WIP-je: elöl a worktree jele (`wtBadge`).
   const other = c.uncommitted && c.worktree !== focusWt()?.slug && worktrees().find(w => w.slug === c.worktree);
   // A WIP-badge a ref-badge-ek helyén ül: szűk sorban ugyanúgy a második sorba tördelődik;
@@ -544,8 +544,8 @@ function rowHtml(c) {
   // A saját WIP a rögzített sávban ül, napfejléc nélkül: nem mai időnél a nap is kell.
   const pinned = c.uncommitted && c.worktree === focusWt()?.slug;
   const meta = `<span class="meta"><span class="time">${pinned ? pinnedTime(c.date) : fmtTime(c.date)}</span>`
-    + `<span class="author ${av || 'ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
-    + `${av ? '' : esc(initials(c.author))}</span>${sum}</span>`;
+    + `${sum}<span class="author ${av || 'ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
+    + `${av ? '' : esc(initials(c.author))}</span></span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge',
     foreign(c) && 'foreign'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
@@ -634,7 +634,7 @@ function drawPending() {
   const lane = pendingEl.querySelector('.pend-lane');
   if (!lane) return;
   // A lista görgetősávja szűkíti a sorokat: a sáv ugyanennyivel beljebb zár, hogy
-  // az idő · avatar · diff oszlopban álljon a lista soraival.
+  // az idő · diff · avatar oszlopban álljon a lista soraival.
   pendingEl.style.paddingRight = `${scroller.offsetWidth - scroller.clientWidth}px`;
   const h = pendingEl.offsetHeight;
   lane.setAttribute('width', graphW);
@@ -1007,8 +1007,8 @@ function fitWho() {
 
 /* A commit-sor elrendezése a szövegoszlop szélességétől (`.row-in`) függ, fix
    határokkal — így egy adott szélességen minden sima sor ugyanúgy néz ki:
-     ≥ 480 px  egysoros: tárgy … idő · avatar · diff
-     < 480 px  kétsoros (`.two`): fent a tárgy, lent jobbra idő · avatar · diff
+     ≥ 480 px  egysoros: tárgy … idő · diff · avatar
+     < 480 px  kétsoros (`.two`): fent a tárgy, lent jobbra idő · diff · avatar
    A lista nem szűkül 320 px alá (page.css: `.graph-wrap`). A badge-es sorokat
    mérni kell, mert a badge-ek hossza soronként más: ha a tárgy 260 px alá
    szorulna, vagy a lista kétsoros, kétsorosak (`.tight`: lent balra a badge-ek,
@@ -1027,7 +1027,7 @@ function fitRows() {
   const tight = rows.filter(r => r.querySelector('.refs') && (!one || squeezed(r)));
   if (!one) for (const r of rows) if (!r.querySelector('.refs')) r.classList.add('two');
   for (const r of tight) r.classList.add('tight');
-  // Ha a badge-ek mellett nem fér el az idő · avatar · diff blokk, a badge-ek
+  // Ha a badge-ek mellett nem fér el az idő · diff · avatar blokk, a badge-ek
   // tördelődnek (`.three`): a blokk az utolsó sorukba, ha ott sincs hely, alá.
   // Zsúfolt: a badge-ek kilógnak, vagy egy badge neve már rövidülne (`…`) a blokk mellett.
   const crowded = r => {
