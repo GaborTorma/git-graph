@@ -507,7 +507,7 @@ const initials = name => String(name || '?').trim().split(/\s+/).slice(0, 2)
 function rowHtml(c) {
   const color = fresh.has(c.sha) ? ` style="color:${LANE_COLORS[c.lane % LANE_COLORS.length]}"` : '';
   const st = DATA.stats[c.sha];
-  const sum = st?.files.length ? diffTag(st.files.length, st.add, st.del) : '';
+  const sum = st ? diffTag(st.files.length, st.add, st.del) : '';   // üres commitnál is: 0 | 0 | 0
   // A szerző a soron csak arcként: avatar (`hydrateAvatars`), ha nincs, monogram;
   // a név hoverre (`data-tip`).
   const av = avatarClass.get(c.email);
