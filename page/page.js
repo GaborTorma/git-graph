@@ -199,7 +199,7 @@ function distSegs(name) {
   // az anomália (teszt vagy tévedés) — figyelmeztető szín és magyarázat.
   const base = DATA.meta.base || '', local = base.slice(base.indexOf('/') + 1);
   const odd = base && name === local && tr.up?.[0] > 0;
-  const warn = odd ? ` warn" data-tip="${esc(`A helyi ${name}-en ${tr.up[0]} pusholatlan commit van, pedig a ${name}-en nem dolgozunk — teszt vagy tévedés?`)}` : '';
+  const warn = odd ? ` warn" data-tip="${esc(`A helyi ${name}-en ${tr.up[0]} pusholatlan commit van`)}` : '';
   return [[tr.base, '', ''], [tr.up, icon('cloud'), warn], [tr.local, icon('branch'), '']]
     .filter(([d]) => d && (d[0] || d[1]))
     .map(([d, ic, cls]) => `<span class="div"></span><span class="dist${cls}">${ic}${arrows(d)}</span>`).join('');
