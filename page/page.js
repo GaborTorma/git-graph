@@ -386,22 +386,18 @@ function sortRefs(refs) {
     .sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2]).map(x => x.r);
 }
 
-/* A worktree HEAD-badge-e (ahogy a commitján látszik) — a WIP-sor elejére; a fő
-   checkouté saját jel. */
-function headBadge(w) {
+/* A WIP-sor eleji worktree-jel: sima (nem HEAD-) badge a worktree színével, vékony
+   körvonallal — az erős körvonal a HEAD-é, a HEAD pedig mindig commit. A fő checkout
+   üres mappa és „main”; ág nélkül a worktree neve; különben a worktree-jel és az ág. */
+function wtBadge(w) {
   const head = DATA.commits.find(x => x.sha === w.head);
-  if (w.main) {   // a fő checkout: üres mappa és „main” — az ágát a commitja mutatja
-    const tip = `fő checkout: ${w.path}\nág: ${wtLabel(w)}`;
-    const lane = LANE_COLORS[(head ? head.lane : 0) % LANE_COLORS.length];
-    return `<span class="badge ref-head other" style="--lc:${lane}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">`
-      + `${icon('mainWorktree')}main</span>`;
-  }
-  if (!w.branch) {   // ág nélkül: a WIP nem HEAD (az mindig commit) — a worktree jele és neve
-    const tip = `worktree: ${w.path}\nág nélkül, HEAD: ${String(w.head || '').slice(0, 7)}`;
-    return `<span class="badge ref-head other" style="--lc:${wtColor(w) || LANE_COLORS[0]}" `
-      + `data-tip="${esc(tip)}" aria-label="${esc(tip)}">${icon('worktree')}${esc(w.name)}</span>`;
-  }
-  return badges({ refs: [{ kind: 'head', name: w.branch, worktree: w.slug }], lane: head ? head.lane : 0 });
+  const lc = w.main ? LANE_COLORS[(head ? head.lane : 0) % LANE_COLORS.length] : wtColor(w) || LANE_COLORS[0];
+  const tip = `${w.main ? 'fő checkout' : 'worktree'}: ${w.path}\n`
+    + (w.branch ? `ág: ${w.branch}` : `ág nélkül, HEAD: ${String(w.head || '').slice(0, 7)}`);
+  const body = w.main ? `${icon('mainWorktree')}main`
+    : `<span class="synced wt-lead">${icon('worktree')}</span>`
+      + (w.branch ? `${icon('branch')}${esc(w.branch)}` : esc(w.name));
+  return `<span class="badge ref-branch" style="--lc:${lc}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${body}</span>`;
 }
 
 const REF_ICON = { head: 'branch', branch: 'branch', remote: 'cloud', tag: 'tag' };   // a leválasztott HEAD ikon nélkül
@@ -473,9 +469,9 @@ function rowHtml(c) {
   // a név hoverre (`data-tip`).
   const av = avatarClass.get(c.email);
   // idő · avatar · diff; a hash a lenyitott commit fejében (a keresés is megtalálja)
-  // Más worktree WIP-je: elöl ugyanaz a badge, amit a worktree HEAD-je a commitján kap.
+  // Más worktree WIP-je: elöl a worktree jele (`wtBadge`).
   const other = c.uncommitted && c.worktree !== focusWt()?.slug && worktrees().find(w => w.slug === c.worktree);
-  const lead = other ? `<span class="refs">${headBadge(other)}</span>` : '';
+  const lead = other ? `<span class="refs">${wtBadge(other)}</span>` : '';
   const subject = c.subject;
   // A WIP-soron is: a fájlok utolsó módosítása, a gép git-felhasználója, a diff.
   const meta = `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
