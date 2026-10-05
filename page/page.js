@@ -314,6 +314,13 @@ const fmtTime = iso => { const p = fmtParts(iso, { hour: '2-digit', minute: '2-d
 const clock = () => { const p = fmtParts(new Date(),
   { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
   return `${p.hour}:${p.minute}:${p.second}`; };
+/* Az idő a napjával, ha nem mai (a rögzített sávnak nincs napfejléce): `tegnap 23:30`, `okt. 3. 23:30`. */
+function pinnedTime(iso) {
+  if (dayKey(iso) === dayKey(new Date())) return fmtTime(iso);
+  if (dayKey(iso) === dayKey(new Date(Date.now() - 864e5))) return `tegnap ${fmtTime(iso)}`;
+  const p = fmtParts(iso, { month: 'short', day: 'numeric' });
+  return `${p.month} ${p.day}. ${fmtTime(iso)}`;
+}
 const fmtDate = iso =>`${dayKey(iso).replaceAll('-', '.')}. ${fmtTime(iso)}`;
 function dayLabel(key) {
   const [y, m, d] = key.split('-').map(Number);
@@ -474,7 +481,9 @@ function rowHtml(c) {
   const lead = other ? `<span class="refs">${wtBadge(other)}</span>` : '';
   const subject = c.subject;
   // A WIP-soron is: a fájlok utolsó módosítása, a gép git-felhasználója, a diff.
-  const meta = `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
+  // A saját WIP a rögzített sávban ül, napfejléc nélkül: nem mai időnél a nap is kell.
+  const pinned = c.uncommitted && c.worktree === focusWt()?.slug;
+  const meta = `<span class="meta"><span class="time">${pinned ? pinnedTime(c.date) : fmtTime(c.date)}</span>`
     + `<span class="author ${av || 'ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
     + `${av ? '' : esc(initials(c.author))}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge',
