@@ -13,6 +13,7 @@ let DATA = { commits: [], edges: [], stats: {}, branches: [], avatars: {},
 const LANE_COLORS = ['#d97757', '#5b8def', '#4fa564', '#a07ad6', '#cf9a2c',
                      '#2f9c9a', '#d0628f', '#8a9a3a', '#6a7fd1', '#c4573a'];
 const ROW_H = 30, LANE_W = 14, X0 = 16, DOT_R = 4;
+const EDGE_HUG = DOT_R + 1;   // a sávváltó vonal ennyit fut a commit sávjában, mielőtt elfordul
 const STUB_GAP = 11;   // több worktree-csonk pöttyei közti függőleges távolság
 // Friss commitok: a legújabbtól visszafelé, amíg a szomszédok közt ≤ 10 mp telt
 // el — és csak 5 percig. Egy újabb sorozat így magától leváltja az előzőt.
@@ -294,12 +295,12 @@ function edgePath(x1, y1, x2, y2, merge) {
   // worktree-csonk ívét elforgatva fordul a másik sávba egy soron belül.
   if (merge) {
     const bend = Math.min(y1 + ROW_H, y2);
-    const dy = bend - y1;
-    return `M ${x1} ${y1} C ${x1} ${y1 + dy * 0.45}, ${x2} ${y1 + dy * 0.35}, ${x2} ${bend} L ${x2} ${y2}`;
+    const s1 = Math.min(y1 + EDGE_HUG, bend), dy = bend - s1;
+    return `M ${x1} ${y1} L ${x1} ${s1} C ${x1} ${s1 + dy * 0.45}, ${x2} ${s1 + dy * 0.35}, ${x2} ${bend} L ${x2} ${y2}`;
   }
   const bend = Math.max(y2 - ROW_H, y1);
-  const dy = bend - y2;
-  return `M ${x1} ${y1} L ${x1} ${bend} C ${x1} ${y2 + dy * 0.35}, ${x2} ${y2 + dy * 0.45}, ${x2} ${y2}`;
+  const s2 = Math.max(y2 - EDGE_HUG, bend), dy = bend - s2;
+  return `M ${x1} ${y1} L ${x1} ${bend} C ${x1} ${s2 + dy * 0.35}, ${x2} ${s2 + dy * 0.45}, ${x2} ${s2} L ${x2} ${y2}`;
 }
 
 /* ── Dátum ── budapesti idő szerint, magyar formában. */
