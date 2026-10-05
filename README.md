@@ -94,8 +94,8 @@ checkout slugján). A „saját” worktree az előtérben lévő sessioné: a l
 Claude app naplójából és session-adataiból tudja, melyik session van épp elöl,
 és session-váltáskor prompt nélkül, ~50 ms alatt átáll. Kézzel nem választható
 — a HEAD ott van, ahol a session dolgozik. A fejléc chipje a saját ágat mutatja
-a sávja színében; worktree-ben a worktree-jellel (mappa), commitolatlan
-változásnál üres karikával és az ág távolságaival. A saját worktree „Nem
+a sávja színében; worktree-ben a worktree-jellel (mappa) és az ág
+távolságaival. A saját worktree „Nem
 commitolt változások” sora a lista fölötti sávban ül (nem mai időnél a nappal),
 a többi worktree-é a listában, az ideje szerint, a worktree jelével és ágával. Minden worktree HEAD-je
 badge-et kap; a saját commit és WIP nélküli worktree-k csonkkal ágaznak le a

@@ -163,14 +163,13 @@ function hydrate() {
 /* A HEAD-chip a saját worktree ágát mutatja; több worktree-nél fölötte a
    worktree-pillek: ág, változások pöttye, ↑ahead. */
 /* A fejléc chipje (a saját worktree-é): worktree-ikon,
-   branch-ikon, az ág neve, commitolatlan változásnál üres karika (mint az ál-sor
-   pontja), és az ág távolságai (`distSegs`). */
+   branch-ikon, az ág neve és az ág távolságai (`distSegs`). A commitolatlan
+   változást a rögzített sáv WIP-sora mutatja. */
 function wtChipInner(w) {
   const linked = !w.main;
   return (linked ? icon(w.upstream && !w.ahead && !w.behind ? 'worktreeSynced' : 'worktree') : '')
     + (w.branch ? icon('branch') : '')   // ág nélkül: csak a HEAD és a hash
     + `<span class="chip-name">${esc(wtLabel(w))}</span>`
-    + (linked && w.dirty ? `<span class="ring" title="${w.dirty} commitolatlan változás"></span>` : '')
     + (w.branch ? distSegs(w.branch) : '');
 }
 
