@@ -181,7 +181,7 @@ button { font: inherit; color: inherit; }
   color: color-mix(in srgb, var(--lc) 70%, var(--fg-0));
   font-size: 12px; font-weight: 500; white-space: nowrap;
 }
-.head-chip .ic { width: 12px; height: 12px; }
+.head-chip .ic { width: 13px; height: 13px; }
 
 /* Ágválasztó: saját legördülő menü — a natív <select> listája a macOS kék
    menüjét hozná, ami kilóg az app nyelvéből. */
@@ -454,7 +454,7 @@ button { font: inherit; color: inherit; }
   font-size: 11px; font-weight: 500; line-height: 18px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
 }
-.badge .ic { width: 11px; height: 11px; stroke-width: 1.6; }
+.badge .ic { width: 12px; height: 12px; stroke-width: 1.6; }
 /* Ha nem fér ki, csak a név rövidül (`…`); az ikonok, az elválasztó és a
    távolság-szakaszok nem nyomódnak össze. */
 .badge > *, .head-chip > * { flex: none; }
