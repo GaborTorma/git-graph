@@ -104,7 +104,7 @@ const ICONS = {
   branch: '<circle cx="5" cy="3.5" r="1.5"/><circle cx="5" cy="12.5" r="1.5"/><circle cx="11" cy="5.5" r="1.5"/><path d="M5 5v6M11 7c0 2.5-3 2.5-6 4"/>',
   tag: '<path d="M2.5 2.5h5l6 6-5 5-6-6z"/><circle cx="5.5" cy="5.5" r="1"/>',
   cloud: '<path d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.3 7.6 2.5 2.5 0 0 0 4.5 12.5z"/>',
-  // teli felhő: az ágválasztó felhő-oszlopában
+  // teli felhő: az alapág (az origin/HEAD célja) — default ág csak remote-on van
   cloudFill: '<path fill="currentColor" d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.3 7.6 2.5 2.5 0 0 0 4.5 12.5z"/>',
   parent: '<circle cx="8" cy="5" r="2.25"/><path d="M8 7.25v6.25M5.5 11 8 13.5 10.5 11"/>',
   open: '<path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"/>',
@@ -1101,6 +1101,16 @@ let branchSel = new Set();
 
 /* Remote ref-e a név: valamelyik helyi ág upstreamje, vagy csak remote ág. */
 const remoteRefs = () => new Set(DATA.branches.flatMap(b => b.remote ? [b.name] : b.upstream ? [b.upstream] : []));
+/* Az ágválasztó színes ikonjai. Egy ág színe: ha egy worktree-ben ki van véve
+   (vagy leválasztott HEAD-del az app szerint az övé), a worktree színe, mint a
+   chipjén; különben a csúcsa sávjáé. Az upstream felhője a helyi ágáé; teli csak
+   az alapágé (default ág csak remote-on van). */
+const tinted = (name, color) => `<svg class="ic" style="color:${color}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
+function branchColor(b) {
+  const w = worktrees().find(x => (b.worktree && x.slug === b.worktree) || (!x.branch && x.appBranch === b.name));
+  return (w && wtColor(w)) || refColor(b.name);
+}
+const cloudIc = (ref, color) => tinted(ref === DATA.meta.base ? 'cloudFill' : 'cloud', color);
 /* Egy helyi ág refjei a menüben: maga, és — remote ágakkal — az élő upstreamje. */
 const blockRefs = (b, remote) => (remote && b.upstream && b.track !== 'gone' ? [b.name, b.upstream] : [b.name]);
 /* Egy worktree-hez tartozó ágak (`owner`). */
@@ -1116,15 +1126,17 @@ function selView() {
   for (const w of worktrees()) {
     const own = ownedBy(w);
     if (linkedWts().length && own.length > 1 && same(own.flatMap(b => blockRefs(b, remote)))) {
-      return [icon(w.main ? 'mainWorktree' : 'worktree'), w.main ? 'main' : w.name];
+      return [tinted(w.main ? 'mainWorktree' : 'worktree', wtColor(w) || 'var(--fg-2)'), w.main ? 'main' : w.name];
     }
   }
   const b = DATA.branches.find(x => !x.remote && (x.name === names[0] || x.upstream === names[0]));
   if (b && names.every(n => n === b.name || n === b.upstream)) {
-    return [(branchSel.has(b.name) ? icon('branch') : '') + (branchSel.has(b.upstream) ? icon('cloudFill') : ''),
+    const c = branchColor(b);
+    return [(branchSel.has(b.name) ? tinted('branch', c) : '') + (branchSel.has(b.upstream) ? cloudIc(b.upstream, c) : ''),
       branchSel.has(b.name) ? b.name : b.upstream];
   }
-  const first = icon(DATA.branches.some(x => !x.remote && x.name === names[0]) ? 'branch' : 'cloudFill');
+  const lb = DATA.branches.find(x => !x.remote && x.name === names[0]);
+  const first = lb ? tinted('branch', branchColor(lb)) : cloudIc(names[0], refColor(names[0]));
   return [first, names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`];
 }
 
@@ -1151,7 +1163,6 @@ function fillBranches() {
   const rank = b => (isHead(b) ? 0 : b.name === baseLocal ? 1 : 2);
   const sorted = list => [...list].sort((x, y) => rank(x) - rank(y));
   const synced = b => { const up = DATA.meta.tracks?.[b.name]?.up; return up && !up[0] && !up[1]; };
-  const laneIc = name => `<svg class="ic" style="color:${refColor(name)}" viewBox="0 0 16 16" aria-hidden="true">${ICONS.branch}</svg>`;
   // Egy sor: pipa (külön kattintható), ág-oszlop, felhő-oszlop, név, távolságok.
   const line = (refs, bIc, cIc, name, dists) => {
     const on = refs.every(r => branchSel.has(r));
@@ -1167,21 +1178,22 @@ function fillBranches() {
     const end = det ? `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`
       : distSegs(b.name);
     const refs = blockRefs(b, remote), up = refs[1];
+    const c = branchColor(b);
     const lines = up && synced(b)
-      ? line(refs, laneIc(b.name), icon('cloudFill'), name, end)
-      : line([b.name], laneIc(b.name), '', name, end)
-        + (up ? line([up], '', icon('cloudFill'), esc(up), distSegs(up)) : '');
+      ? line(refs, tinted('branch', c), cloudIc(up, c), name, end)
+      : line([b.name], tinted('branch', c), '', name, end)
+        + (up ? line([up], '', cloudIc(up, c), esc(up), distSegs(up)) : '');
     return blockBtn(refs, lines);
   };
   const blockBtn = (refs, lines) => `<button type="button" class="option blk" role="option" data-refs="${esc(refs.join(' '))}"`
     + ` data-key="${esc(refs[0])}" aria-selected="${refs.every(r => branchSel.has(r))}">${lines}</button>`;
   const header = w => {
-    const ic = icon(w.main ? 'mainWorktree' : 'worktree');
-    const name = esc(w.main ? 'main' : w.name);
     const lc = wtColor(w) || 'var(--accent)';
+    const ic = tinted(w.main ? 'mainWorktree' : 'worktree', lc);   // a worktree színe, mint a chipjén
+    const name = esc(w.main ? 'main' : w.name);
     const wip = w.dirty ? `<span class="wip" style="color:${lc}" title="nem commitolt változás"></span>` : '';
     const body = w.slug === own?.slug
-      ? `<span class="menu-wt-cur" style="--lc:${lc}" title="itt dolgozik az előtérben lévő session">${ic}${name}</span>${wip}`
+      ? `${ic}<span class="name menu-wt-cur" title="itt dolgozik az előtérben lévő session">${name}</span>${wip}`
       : `${ic}<span class="name">${name}</span>${wip}`;
     const refs = ownedBy(w).flatMap(b => blockRefs(b, remote));
     return refs.length
@@ -1209,7 +1221,7 @@ function fillBranches() {
   }
   for (const [r, list] of byRemote) {
     html += sep + `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
-      + list.map(b => blockBtn([b.name], line([b.name], '', icon('cloudFill'), esc(b.name.slice(r.length + 1)), distSegs(b.name)))).join('');
+      + list.map(b => blockBtn([b.name], line([b.name], '', cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), distSegs(b.name)))).join('');
   }
   branchPop.innerHTML = html;
   const [ics, label] = selView();
