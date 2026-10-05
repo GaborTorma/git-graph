@@ -84,15 +84,16 @@ A **SessionStart hook** a session indulásakor a repó Artifactját nézi:
   ilyenkor először ez a hook fut.
 
 **Worktree-k:** repónként egy Artifact van, a worktree-k közösen látják (a fő
-checkout slugján). A gráf fölött worktree-pillek (mappa, ág, változások
-pöttye, `↑` előrébb / `↓` hátrébb jár; az ikon köre kitöltve, ha szinkronban van
-az upstreamjével), minden worktree HEAD-je badge-et kap, és worktree-nként egy
-Uncommitted sor. A „saját” worktree (teli HEAD-badge, HEAD-chip, `H`) az
-előtérben lévő sessioné: a lap a Claude app naplójából és session-adataiból
-tudja, melyik session van épp elöl, és session-váltáskor prompt nélkül,
-~50 ms alatt átáll.
-Kézzel nem választható — a HEAD ott van, ahol a session dolgozik; a pillre
-kattintva a lista csak odaugrik. Ami nem a sajáté, halványabb (a sehol ki nem
+checkout slugján). A „saját” worktree az előtérben lévő sessioné: a lap a
+Claude app naplójából és session-adataiból tudja, melyik session van épp elöl,
+és session-váltáskor prompt nélkül, ~50 ms alatt átáll. Kézzel nem választható
+— a HEAD ott van, ahol a session dolgozik. A fejléc chipje a saját ágat mutatja
+a sávja színében; worktree-ben a worktree-jellel (mappa), commitolatlan
+változásnál üres karikával és `↑` előny / `↓` lemaradás számmal. A saját
+worktree Uncommitted sora a lista fölötti sávban ül, a többi worktree-é a lista
+elején (a legutóbb változott elöl), a worktree chipjével. Minden worktree HEAD-je
+badge-et kap; a saját commit és WIP nélküli worktree-k csonkkal ágaznak le a
+commitjukról, több csonk legyezőszerűen. Ami nem a sajáté, halványabb (a sehol ki nem
 vett ágak a fő checkouté). A
 0.12 előtti, worktree-nkénti Artifactokat a hook felismeri, és megkéri Claude-ot,
 hogy törölje őket, majd `git-graph --forget-artifact <URL>`-lel takarítsa a
@@ -220,8 +221,6 @@ Uncommitted soré élőben frissül. Egy fájlból legfeljebb 3000 sor látszik.
 A fájlok előtt a típusuk ikonja áll: a
 [Catppuccin VS Code-ikonjai](https://github.com/catppuccin/vscode-icons) (MIT),
 a lap színeire hangolva. Frissítés: `python3 scripts/file-icons.py`.
-A worktree-pillek ikonja a [GitLens](https://github.com/gitkraken/vscode-gitlens)
-`icon-worktree` rajza (MIT, © GitKraken / Eric Amodio).
 
 ## GitHub-linkek
 

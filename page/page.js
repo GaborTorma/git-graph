@@ -13,6 +13,7 @@ let DATA = { commits: [], edges: [], stats: {}, branches: [], avatars: {},
 const LANE_COLORS = ['#d97757', '#5b8def', '#4fa564', '#a07ad6', '#cf9a2c',
                      '#2f9c9a', '#d0628f', '#8a9a3a', '#6a7fd1', '#c4573a'];
 const ROW_H = 30, LANE_W = 14, X0 = 16, DOT_R = 4;
+const STUB_GAP = 11;   // több worktree-csonk pöttyei közti függőleges távolság
 // Friss commitok: a legújabbtól visszafelé, amíg a szomszédok közt ≤ 10 mp telt
 // el — és csak 5 percig. Egy újabb sorozat így magától leváltja az előzőt.
 const FRESH_GAP_MS = 10 * 1000, FRESH_FOR_MS = 5 * 60 * 1000;
@@ -97,7 +98,6 @@ const ICONS = {
   branch: '<circle cx="5" cy="3.5" r="1.5"/><circle cx="5" cy="12.5" r="1.5"/><circle cx="11" cy="5.5" r="1.5"/><path d="M5 5v6M11 7c0 2.5-3 2.5-6 4"/>',
   tag: '<path d="M2.5 2.5h5l6 6-5 5-6-6z"/><circle cx="5.5" cy="5.5" r="1"/>',
   cloud: '<path d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.3 7.6 2.5 2.5 0 0 0 4.5 12.5z"/>',
-  commit: '<path d="M4 4v8"/><path d="M4 7h4a3 3 0 0 1 3 3v1"/><circle cx="4" cy="3" r="1.4" fill="currentColor"/><circle cx="11" cy="12.6" r="1.4" fill="currentColor"/>',
   parent: '<circle cx="8" cy="5" r="2.25"/><path d="M8 7.25v6.25M5.5 11 8 13.5 10.5 11"/>',
   open: '<path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"/>',
   issue: '<circle cx="8" cy="8" r="5.75"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/>',
@@ -108,12 +108,11 @@ const ICONS = {
   check: '<path d="m3.5 8.5 3 3 6-7"/>',
   file: '<path d="M4 1.5h5l3.5 3.5v9.5H4z"/><path d="M9 1.5V5h3.5"/>',
   chev: '<path d="M6.5 4.5 10 8l-3.5 3.5"/>',
-  // a worktree-jel (GitLens icon-worktree, MIT, © GitKraken / Eric Amodio): telt rajz, a vékony
-  // vonalait körvonal (`.wt-ic`, page.css) vastagítja a többi ikonéhoz
-  worktree: '<path class="wt-ic" fill="currentColor" d="M11.83 6.2a3.5 3.5 0 0 1 0 6.93v2.2h-1v-2.2a3.5 3.5 0 0 1 0-6.93V.67h1V6.2Zm-.5.97a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/>'
-    + '<path class="wt-ic" fill="currentColor" d="M6.33 2c.54 0 1.12.67 1.34 1h2v1h-2c-.5 0-.88-.38-1.13-.7l-.2-.3H1.66v3H6l.67-.67c.2-.18.36-.26.66-.33h2.34v.3c-.44.17-.85.4-1.22.7H7.33l-.66.67-.17.2-.33.13h-4.5v6h6.4l.17.16c.4.36.86.64 1.36.84H1.33l-.66-.67V2.67L1.33 2h5ZM15.33 12.07v1.26l-.66.67h-1.6a4.68 4.68 0 0 0 2.26-1.93ZM14.67 3l.66.67v3.59A4.7 4.7 0 0 0 13 5.31V5h1.33V4H13V3h1.67Z"/>',
-  // ugyanez szinkronban (GitLens icon-worktree-synced): a kör kitöltve
-  get worktreeSynced() { return this.worktree + '<path class="wt-ic" fill="currentColor" d="M11.33 12.67a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>'; },
+  // a worktree-jel: mappa, benne egy kör (a kivett állapot) — saját rajz a készlet vonalvastagságával
+  worktree: '<path class="wt-ic" d="M3 13a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h2.5L7 4.5h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1z"/>'
+    + '<circle class="wt-ic" cx="8" cy="9" r="1.5" fill="currentColor"/>',
+  // a szinkron állapot külön jele egyelőre nincs: ugyanaz a rajz
+  get worktreeSynced() { return this.worktree; },
 };
 const icon = (name, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
 // Fájltípus-ikon: a git-graph a fájlhoz rendelt Catppuccin-ikon SVG-jét adja
@@ -160,50 +159,33 @@ function hydrate() {
 
 /* A HEAD-chip a saját worktree ágát mutatja; több worktree-nél fölötte a
    worktree-pillek: ág, változások pöttye, ↑ahead. */
+/* Egy worktree chipje (a fejlécben a sajátjáé, a WIP-sávban a többié): worktree-ikon,
+   branch-ikon, az ág neve, commitolatlan változásnál üres karika (mint az ál-sor
+   pontja), az előny. A fő checkoutnak csak ikon és név. */
+function wtChipInner(w) {
+  const linked = !w.main;
+  return (linked ? icon(w.upstream && !w.ahead && !w.behind ? 'worktreeSynced' : 'worktree') : '')
+    + (w.branch ? icon('branch') : '')   // ág nélkül: csak a HEAD és a hash
+    + `<span class="chip-name">${esc(wtLabel(w))}</span>`
+    + (linked && w.dirty ? `<span class="ring" title="${w.dirty} commitolatlan változás"></span>` : '')
+    + (linked && (w.ahead || w.behind) ? `<span class="wt-ahead">${w.ahead ? `↑${w.ahead}` : ''}`
+      + `${w.ahead && w.behind ? ' ' : ''}${w.behind ? `↓${w.behind}` : ''}</span>` : '');
+}
+const wtChip = w => `<span class="head-chip" style="--lc:${wtColor(w) || 'var(--accent)'}" `
+  + `title="${esc(`${w.main ? 'fő checkout' : 'worktree'}: ${w.path}`)}">${wtChipInner(w)}</span>`;
 function hydrateFocus() {
   const wts = worktrees(), own = focusWt();
   const chip = document.getElementById('headChip');
   // A fejléc chipje a saját ág gráfbeli színét viseli; worktree-ben a worktree-ikonnal,
   // az előnnyel és — ha van commitolatlan változás — üres karikával, mint az ál-sor pontja.
-  const linkedOwn = own && !own.main;
   chip.style.setProperty('--lc', (own && wtColor(own)) || 'var(--accent)');
-  chip.innerHTML = icon(own && !own.branch ? 'commit' : 'branch')
-    + (linkedOwn ? icon(own.upstream && !own.ahead && !own.behind ? 'worktreeSynced' : 'worktree') : '')
-    + `<span id="headName">${esc(own ? wtLabel(own) : DATA.meta.head || '')}</span>`
-    + (linkedOwn && own.dirty ? `<span class="ring" title="${own.dirty} commitolatlan változás"></span>` : '')
-    + (linkedOwn && (own.ahead || own.behind) ? `<span class="wt-ahead">${own.ahead ? `↑${own.ahead}` : ''}`
-      + `${own.ahead && own.behind ? ' ' : ''}${own.behind ? `↓${own.behind}` : ''}</span>` : '');
+  chip.innerHTML = own ? wtChipInner(own) : icon('branch') + esc(DATA.meta.head || '');
   chip.hidden = !(own || DATA.meta.head);
   chip.title = !own ? '' : (own.main ? 'fő checkout: ' : 'worktree: ') + own.path
     + (wts.length < 2 ? ''
       : focusAuto?.known ? '\naz előtérben lévő session itt dolgozik'
       : '\nnincs ismert session a repóban — a fő checkout');
   computeOwn();
-  // Csak a valódi worktree-k, a gráfbeli színükkel; kijelölés nélkül a fő
-  // checkout a saját. Az előny az upstreamhez, ennek híján az alapághoz mérve.
-  const linked = linkedWts();
-  const bar = document.getElementById('wtBar');
-  bar.hidden = !linked.length;
-  const short = b => String(b).replace(/^origin\//, '');
-  bar.innerHTML = !linked.length ? '' : '<span class="wt-lbl">Worktree-k</span>' + linked.map(w => {
-    // Szinkronban: van upstreamje, és se előrébb, se hátrébb nem jár — kitöltött kör az ikonon.
-    const synced = w.upstream && !w.ahead && !w.behind;
-    const tip = `Worktree: ${w.path}\nág: ${wtLabel(w)}`
-      + (w.dirty ? `\n${w.dirty} commitolatlan változás` : '')
-      + (w.ahead ? `\n${w.ahead} commit a(z) ${w.base} előtt` : '')
-      + (w.behind ? `\n${w.behind} commit a(z) ${w.base} mögött` : '')
-      + (synced ? `\nszinkronban: ${w.base}` : !w.upstream ? '\nnincs upstream' : '');
-    const color = wtColor(w);
-    return `<button type="button" class="wt-pill" data-wt="${esc(w.slug)}"`
-      + `${color ? ` style="--wt:${color}"` : ''} aria-pressed="${w === own}" title="${esc(tip)}">${icon(synced ? 'worktreeSynced' : 'worktree')}`
-      + `<span class="wt-name">${esc(w.name)}</span>`
-      + `<span class="wt-branch">${esc(wtLabel(w))}</span>`
-      + (w.dirty ? '<span class="wt-dirty" aria-label="commitolatlan változás"></span>' : '')
-      // A saját upstreamjéhez mérve elég a szám; az alapághoz mérve a neve is kell.
-      + (w.ahead || w.behind ? `<span class="wt-ahead">${w.ahead ? `↑${w.ahead}` : ''}`
-        + `${w.ahead && w.behind ? ' ' : ''}${w.behind ? `↓${w.behind}` : ''}`
-        + `${w.upstream ? '' : ' ' + esc(short(w.base))}</span>` : '') + '</button>';
-  }).join('');
 }
 
 /* Az avatarok (data URI, néhány KB) szerzőnként egyszer kerülnek a lapra, egy
@@ -233,8 +215,9 @@ function drawGraph() {
   drawPending();
   const rowIndexBySha = new Map(visible.map((c, i) => [c.sha, i]));
   // A sor közepe: a kétsoros sor (`.two`) magasabb.
-  const midBySha = new Map([...rowsEl.querySelectorAll('.row')]
-    .map(el => [el.dataset.sha, el.offsetTop + el.offsetHeight / 2]));
+  const listRows = [...rowsEl.querySelectorAll('.row')];
+  const midBySha = new Map(listRows.map(el => [el.dataset.sha, el.offsetTop + el.offsetHeight / 2]));
+  const heightBySha = new Map(listRows.map(el => [el.dataset.sha, el.offsetHeight]));
   for (const el of pendingEl.querySelectorAll('.row')) {
     midBySha.set(el.dataset.sha, el.offsetTop + el.offsetHeight / 2 - pendingEl.offsetHeight - WRAP_TOP);
   }
@@ -256,23 +239,37 @@ function drawGraph() {
     const color = tint(DATA.commits[e.fromRow],
       LANE_COLORS[(e.merge ? e.toLane : e.fromLane) % LANE_COLORS.length]);
     // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re. Görgetve a sajátja
-    // eltűnik (a HEAD-je a saját), a többié látszik — különben nem tudni, hová tart.
+    // eltűnik, ha nincs alatta más WIP-sor, vagy ha a HEAD-je már a sáv alá csúszott
+    // (`hideOwnEdge`); a többié látszik — különben nem tudni, hová tart.
     const from = DATA.commits[e.fromRow];
     const own = from.worktree === focusWt()?.slug ? ' own' : '';
     const dash = from.uncommitted ? ` class="pend-edge${own}" stroke-dasharray="3 3"` : '';
     out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
   }
-  // A worktree csonkja: vízszintes vonal a commitról a saját oszlopába, ott pötty.
+  // A worktree csonkja: vonal a commitról a saját oszlopába, ott pötty. Több csonk
+  // esetén a pöttyök a commit magassága körül, legyezőszerűen ágaznak le.
   visible.forEach((c, i) => {
-    for (const t of c.stubs || []) {
+    const stubs = c.stubs || [];
+    if (!stubs.length) return;
+    const y0 = rowY(i), x0 = laneX(c.lane), span = (heightBySha.get(c.sha) || ROW_H) - 8;
+    // a pöttyök közepe a commit magassága, köztük legfeljebb STUB_GAP (a sor magasságán belül)
+    const gap = Math.min(STUB_GAP, span / (stubs.length + 1));
+    const ys = stubs.map((t, k) => y0 + (k - (stubs.length - 1) / 2) * gap);
+    // a commit magasságától legtávolabbit rajzoljuk először: a közös szakaszon a közelebbi látszik
+    const order = stubs.map((t, k) => k).sort((p, q) => Math.abs(ys[q] - y0) - Math.abs(ys[p] - y0));
+    for (const k of order) {
+      const t = stubs[k], y = ys[k], x = laneX(t.lane), dy = y - y0;
       const color = t.worktree === focusWt()?.slug ? LANE_COLORS[t.lane % LANE_COLORS.length]
         : `color-mix(in srgb, ${LANE_COLORS[t.lane % LANE_COLORS.length]} ${FADE}%, var(--bg))`;
-      out += `<path d="M ${laneX(c.lane)} ${rowY(i)} H ${laneX(t.lane)}" stroke="${color}" stroke-width="2"/>`
-        + `<circle cx="${laneX(t.lane)}" cy="${rowY(i)}" r="${DOT_R}" fill="${color}" stroke="${color}" stroke-width="2"/>`;
+      // legyező: egyetlen sima ív a commit pöttyéből a csonk pöttyéig
+      const d = !dy ? `M ${x0} ${y0} H ${x}`
+        : `M ${x0} ${y0} C ${x0 + (x - x0) * 0.45} ${y0}, ${x0 + (x - x0) * 0.35} ${y}, ${x} ${y}`;
+      out += `<path d="${d}" fill="none" stroke="${color}" stroke-width="2"/>`
+        + `<circle cx="${x}" cy="${y}" r="${DOT_R}" fill="${color}" stroke="${color}" stroke-width="2"/>`;
     }
   });
   visible.forEach((c, i) => {
-    if (c.uncommitted) return;            // a pontja a #pending sávban van
+    if (c.uncommitted && c.worktree === focusWt()?.slug) return;   // a pontja a #pending sávban van
     const color = tint(c, LANE_COLORS[c.lane % LANE_COLORS.length]);
     const merge = c.parents.length > 1;
     // Az ál-sor pontja üres karika: a szaggatott vonal már jelzi, hogy nem
@@ -380,7 +377,7 @@ function sortRefs(refs) {
     .sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2]).map(x => x.r);
 }
 
-const REF_ICON = { head: 'branch', detached: 'commit', branch: 'branch', remote: 'cloud', tag: 'tag' };
+const REF_ICON = { head: 'branch', branch: 'branch', remote: 'cloud', tag: 'tag' };   // a leválasztott HEAD ikon nélkül
 function badges(c) {
   // A HEAD, az ág és a tag a commit sávjának színét kapja (`--lc`), mint a vonal;
   // a csak remote-os chip szürke marad.
@@ -403,23 +400,24 @@ function badges(c) {
     const remotes = multi
       ? r.remotes.map(o => `<span class="div"></span><span class="synced">${cloudOf(o.default)}${esc(o.name)}</span>`).join('')
       : '';
-    // Hozzáadott worktree-ben kivett ág: a branch-ikon után a worktree-jel, kitöltött
+    // Hozzáadott worktree-ben kivett ág: elöl a worktree-jel (a fontosabb), kitöltött
     // körrel, ha szinkronban van az upstreamjével — ez a felhőt is kiváltja.
     const linked = wt && !wt.main;
     const wtSynced = linked && wt.upstream && !wt.ahead && !wt.behind;
-    const synced = linked ? `<span class="synced lead">${icon(wtSynced ? 'worktreeSynced' : 'worktree')}</span>`
-      : r.remotes.length && !multi ? `<span class="synced lead">${cloud}</span>` : '';
+    const wtLead = linked ? `<span class="synced wt-lead">${icon(wtSynced ? 'worktreeSynced' : 'worktree')}</span>` : '';
+    const synced = !linked && r.remotes.length && !multi ? `<span class="synced lead">${cloud}</span>` : '';
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
     // A csak remote-os chipen a felhő jelzi a remote-ot: egy remote-nál az
     // `origin/` előtag nem kell, többnél a név mondja meg, melyiké.
     const name = r.kind === 'remote' && !multi ? r.name.replace(/^origin\//, '') : r.name;
     const lead = r.kind === 'remote' ? cloud
       : orphan ? icon('worktree')
-      : icon(REF_ICON[r.kind] || 'branch') + synced;
+      : wtLead + (REF_ICON[r.kind] ? icon(REF_ICON[r.kind]) : '') + synced;
     // A tooltip a saját buborék (`data-tip`), mint az avataré — a natív `title` késik.
-    // A worktree-csoport (HEAD-je, leválasztva az ága) a csonkja színét kapja.
-    const stub = (c.stubs || []).find(t => t.worktree === wtOfRef(r)?.slug);
-    const lc = r.kind === 'remote' ? '' : ` style="--lc:${stub ? LANE_COLORS[stub.lane % LANE_COLORS.length] : lane}"`;
+    // A hozzáadott worktree csoportja (HEAD-je, leválasztva az ága) a worktree színét
+    // kapja: a csonkjáét, a WIP-soráét, vagy a HEAD-jéét (`wtColor`) — mint a fejléc chipje.
+    const group = wtOfRef(r);
+    const lc = r.kind === 'remote' ? '' : ` style="--lc:${(group && wtColor(group)) || lane}"`;
     return `<span class="badge ref-${r.kind}${other}"${lc} data-tip="${esc(title)}" aria-label="${esc(title)}">`
       + `${lead}${esc(name)}${orphan ? `<span class="div"></span>${esc(wt.name)}` : ''}${remotes}</span>`;
   }).join('');
@@ -448,13 +446,17 @@ function rowHtml(c) {
   // a név hoverre (`data-tip`).
   const av = avatarClass.get(c.email);
   // idő · avatar · diff; a hash a lenyitott commit fejében (a keresés is megtalálja)
+  // Más worktree WIP-je: elöl a worktree chipje (a fő checkouté csak ág), a cím rövid.
+  const other = c.uncommitted && c.worktree !== focusWt()?.slug && worktrees().find(w => w.slug === c.worktree);
+  const lead = other ? wtChip(other) : '';
+  const subject = other ? `Uncommitted Changes (${st?.files.length ?? 0} fájl)` : c.subject;
   const meta = c.uncommitted ? '' : `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
     + `<span class="author ${av || 'ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
     + `${av ? '' : esc(initials(c.author))}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge',
     foreign(c) && 'foreign'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
-      <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>`
+      <span class="row-in">${lead}<span class="desc"><span class="subject"${color}>${linkify(subject)}</span>`
     + `${refs ? '<span class="br"></span>' : ''}${refs}</span>${meta}</span>
     </button>`;
 }
@@ -469,12 +471,21 @@ function render() {
     ?.dataset.path;               // blokkon állva a fájljára áll vissza
   let day = '', html = '';
   const today = dayKey(new Date());
-  renderPending(visible.filter(c => c.uncommitted));
+  // A saját worktree WIP-je a fix sávban; a többié a lista elején, az első nap
+  // fejléce fölött, a legutóbb változott elöl — a chipjükkel.
+  const ownSlug = focusWt()?.slug;
+  renderPending(visible.filter(c => c.uncommitted && c.worktree === ownSlug));
+  const others = visible.filter(c => c.uncommitted && c.worktree !== ownSlug)
+    .sort((a, b) => (b.changed || 0) - (a.changed || 0));
+  otherWip = others.length > 0;
+  html += others.map(rowHtml).join('');
   for (const c of visible) {
-    if (c.uncommitted) continue;          // a fix #pending sávban van
+    if (c.uncommitted) continue;          // fent: a sávban vagy a lista elején
     const key = dayKey(c.date);
     if (key !== day) {
-      const lead = !day && key === today ? ' lead' : '';
+      // A legfelső mai fejléc csak görgetve látszik — kivéve, ha más worktree WIP-sorai
+      // állnak fölötte: akkor helyet kap, és fent is látszik.
+      const lead = !day && key === today && !others.length ? ' lead' : '';
       html += `${day ? '</section>' : ''}<section class="day-group">`
         + `<div class="day${lead}"><span class="lbl">${dayLabel(key)}</span></div>`;
       day = key;
@@ -505,6 +516,18 @@ function renderPending(list) {
   pendingEl.hidden = !list.length;
   pendingEl.innerHTML = list.length
     ? '<svg class="pend-lane" aria-hidden="true"></svg>' + list.map(rowHtml).join('') : '';
+}
+/* Van-e a listában más worktree WIP-sora (a saját szaggatott vonala ilyenkor átfut rajtuk). */
+let otherWip = false;
+/* A saját WIP szaggatott vonala görgetve eltűnik, ha nincs alatta más WIP-sor, vagy ha
+   a HEAD-je már a lista teteje fölé csúszott (köztük commit van, a vonal nem vezet sehova). */
+function hideOwnEdge() {
+  const head = focusWt()?.head;
+  const row = head && rowsEl.querySelector(`.row[data-sha="${head}"]`);
+  const past = row && row.getBoundingClientRect().bottom <= scroller.getBoundingClientRect().top;
+  const hide = scroller.scrollTop > 0 && (!otherWip || Boolean(past));
+  scroller.classList.toggle('hide-own', hide);
+  pendingEl.classList.toggle('hide-own', hide);
 }
 function drawPending() {
   const lane = pendingEl.querySelector('.pend-lane');
@@ -545,7 +568,7 @@ function headHtml(c) {
     + miniBtn('open', `Szülő megnyitása: ${p.slice(0, 7)}`, `data-jump="${p}"`)).join('');
   const parentChip = c.parents.length ? `<span class="chip" title="Szülő${c.parents.length > 1 ? 'k' : ''}">`
     + `${icon('parent')}${parents}</span>` : '';
-  const commitChip = `<span class="chip">${icon('commit')}`
+  const commitChip = '<span class="chip">'
     + `<span class="hash plain">${c.short}</span>`
     + (c.pushed ? ghLink(commitUrl(c), icon('open'), 'mini', 'Commit megnyitása a GitHubon') : '')
     + miniBtn('copy', 'Hash másolása', `data-copy="${c.sha}"`) + '</span>';
@@ -900,8 +923,8 @@ function fitRows() {
   const tight = rows.filter(r => r.querySelector('.refs') && (!one || squeezed(r)));
   if (!one) for (const r of rows) if (!r.querySelector('.refs')) r.classList.add('two');
   for (const r of tight) r.classList.add('tight');
-  // Ha a badge-ek mellett nem fér el az idő · avatar · diff blokk, az egészben
-  // a harmadik sorba kerül (`.three`) — eleme nem marad el.
+  // Ha a badge-ek mellett nem fér el az idő · avatar · diff blokk, a badge-ek
+  // tördelődnek (`.three`): a blokk az utolsó sorukba, ha ott sincs hely, alá.
   const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };
   for (const r of tight.filter(crowded)) r.classList.replace('tight', 'three');
 }
@@ -962,12 +985,6 @@ function onListClick(e) {
   } else open(row.dataset.sha, true);
 }
 rowsEl.addEventListener('click', onListClick);
-/* Pill: a lista a worktree HEAD-jére ugrik. A „saját” nem változik — az a
-   session munkakönyvtára, nem választás. */
-document.getElementById('wtBar').addEventListener('click', e => {
-  const pill = e.target.closest('.wt-pill');
-  if (pill) selectCommit(visible.find(c => c.refs.some(r => r.worktree === pill.dataset.wt)));
-});
 pendingEl.addEventListener('click', onListClick);
 
 document.addEventListener('keydown', e => {
@@ -1331,6 +1348,7 @@ const versionEl = document.getElementById('version');
 function stackDays() {
   scroller.classList.toggle('scrolled', scroller.scrollTop > 0);
   pendingEl.classList.toggle('scrolled', scroller.scrollTop > 0);
+  hideOwnEdge();
   const days = [...rowsEl.querySelectorAll('.day')];
   const top = scroller.getBoundingClientRect().top, scrolled = scroller.scrollTop > 0;
   // Előbb minden mérés, aztán az írás: a görgetés minden képkockáján fut, a

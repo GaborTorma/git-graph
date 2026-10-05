@@ -128,7 +128,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 - **A `drawGraph()` a DOM-ból olvassa a sorok Y-pozícióját** (`offsetTop`), nem
   sorszám × magasságból: a napok fejléce (`.day`) és a kinyitott commit-panel
   az alattuk lévő sorokat lejjebb tolja. A pötty a sor közepére kerül
-  (`offsetTop + offsetHeight / 2`): a sor `ROW_H` magas, a kétsoros 52, a háromsoros (`.three`, badge-es) 71 px. A sor
+  (`offsetTop + offsetHeight / 2`): a sor `ROW_H` magas, a kétsoros 52, a tördelt badge-es (`.three`) legalább 71 px, a badge-ek számától függően magasabb. A sor
   elrendezése fix határokkal a szövegoszlop szélességétől függ (`fitRows`:
   480 alatt kétsoros `.two`, a sorban hash nincs, a lista nem szűkül 320
   alá); csak a badge-es sort méri (`.tight`), mert a badge-ek hossza soronként más. Ezért minden DOM-változás után újra kell hívni (nyitás,
@@ -173,7 +173,9 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   `worktree` mezővel, worktree-nkénti ál-sor), az állapotukat párhuzamosan gyűjti
   (`collect_worktrees`). A saját commit és WIP nélküli worktree HEAD-je (pl. egy trunk-
   commiton, vagy a session törlésekor leválasztva) csonkot kap (`worktree_stubs`:
-  a commit `stubs` listája, a következő oszlop), így az is elágazik. A leválasztott
+  a commit `stubs` listája, commitonként a sávok utáni első szabad oszloptól; a lap
+  legyezőszerűen rajzolja), így az is elágazik. A saját worktree WIP-je a fix
+  sávban, a többié a lista elején, a fájlok `mtime`-ja szerint (`last_change`). A leválasztott
   HEAD-ű worktree ágát a git nem jegyzi — a Claude app `git-worktrees.json`-ja
   igen (`app_worktree_branches`, a worktree `appBranch` mezője); név szerint
   nem azonosítunk. A 0.12 előtti `git-graph.<slug>.*` szakaszokat a hook

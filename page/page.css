@@ -299,39 +299,17 @@ button { font: inherit; color: inherit; }
 .menu-pop.end { left: auto; right: 0; min-width: 170px; }
 .menu-pop.up { top: auto; bottom: calc(100% + 6px); }
 
-/* ── Uncommitted Changes ── fix sáv a lista fölött: mindig látszik. A pontja
-   saját SVG-ben van, a szaggatott vonal innen fut le a HEAD-ig; görgetve a
-   vonal eltűnik, a sáv alatt halvány elválasztó jelenik meg. */
-/* Worktree-pillek (több worktree-nél): a saját kiemelve, kattintásra választható. */
-.wt-bar {
-  flex: none; display: flex; flex-wrap: wrap; gap: 6px;
-  padding: 8px 14px 8px 16px; border-bottom: 1px solid var(--border-soft); background: var(--bg);
-}
-.wt-bar[hidden] { display: none; }
-.wt-lbl { align-self: center; margin-right: 2px; font-size: 11.5px; color: var(--fg-3); }
-.wt-pill {
-  display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%;
-  height: 22px; padding: 0 8px; border: 0; border-radius: 11px; cursor: pointer;
-  background: var(--ctrl); box-shadow: inset 0 0 0 1px var(--ctrl-border);
-  color: var(--fg-2); font-size: 12px;
-}
-.wt-pill:hover { background: var(--bg-3); }
-/* A pill a worktree gráfbeli színét viseli (`--wt`, a sávjáé). */
-.wt-pill .ic { width: 12px; height: 12px; color: var(--wt, currentColor); }
-.wt-pill[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--wt, var(--accent)) 14%, var(--bg));
-  color: var(--wt, var(--accent)); box-shadow: inset 0 0 0 1px var(--wt, var(--accent)); font-weight: 600;
-}
-.wt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wt-branch { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .65; font-weight: 400; }
-.wt-dirty { flex: none; width: 6px; height: 6px; border-radius: 3px; background: var(--tag-fg); }
+/* ── Uncommitted Changes ── a saját worktree WIP-je fix sávban a lista fölött:
+   mindig látszik. A pontja saját SVG-ben van, a szaggatott vonal innen fut le a
+   HEAD-ig; görgetve a sáv alatt halvány elválasztó jelenik meg. A többi
+   worktree WIP-je a lista elején. */
 .wt-ahead { flex: none; font-variant-numeric: tabular-nums; opacity: .8; }
 .pending { flex: none; position: relative; background: var(--bg); z-index: 4; }
 .pending[hidden] { display: none; }
 .pend-lane { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
 .pending .row { position: relative; z-index: 2; }
 .pending.scrolled { box-shadow: 0 1px 0 var(--border-soft); }
-.pending.scrolled .pend-edge.own, .scroll.scrolled .pend-edge.own { display: none; }
+.pending.hide-own .pend-edge.own, .scroll.hide-own .pend-edge.own { display: none; }
 
 /* ── Lista ───────────────────────────────────────────────────────────────── */
 .scroll { flex: 1 1 auto; overflow: auto; padding: 0 0 12px; }
@@ -399,14 +377,15 @@ button { font: inherit; color: inherit; }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
 /* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra az idő, az avatar és
    a diff. Badge-es sornál (`.tight`): fent a tárgy, lent balra a
-   badge-ek, jobbra az idő · avatar · diff blokk — ha nem fér el mellettük,
-   egészben a harmadik sorba kerül (`.three`). */
+   badge-ek, jobbra az idő · avatar · diff blokk. Ha nem férnek el mellette
+   (`.three`), a badge-ek tördelődnek: ami nem fér ki, a következő sor elejére
+   csúszik, a blokk az utolsó sorukban jobbra zár, ha ott sincs hely, alá. */
 /* A plusz magasság alul kell (a kiemelés alja ne érjen a badge-hez / blokkhoz):
    a sor nő, a belső sáv ugyanennyi alsó paddinget kap, a tartalom helye marad. */
 .row.two, .row.tight { height: 52px; }
 .row:is(.two, .tight) .row-in { padding-bottom: 1px; }
-.row.three { height: 71px; }
-.row.three .row-in { padding-bottom: 2px; }
+.row.three { height: auto; min-height: 71px; }
+.row.three .row-in { padding: 4px 10px 5px; }
 .row.two .row-in { flex-direction: column; align-items: stretch; justify-content: center; gap: 3px; }
 .row.two .desc { flex: none; }
 .row.two .meta { justify-content: flex-end; }
@@ -417,9 +396,15 @@ button { font: inherit; color: inherit; }
 .row:is(.tight, .three) .subject { flex: 1 1 0; }
 .row:is(.tight, .three) .br { display: block; flex-basis: 100%; height: 0; }
 .row.tight .refs { flex: 1 1 0; overflow: hidden; }
-/* Háromsoros (`.three`): a badge-ek teljes sort kapnak, a blokk alattuk jobbra. */
-.row.three .refs { flex: 1 1 100%; overflow: hidden; }
-.row.three .meta { margin-left: auto; }
+/* Tördelt (`.three`): a badge-ek a sor elemei, a blokk utánuk jobbra zár. Rövid
+   címnél a badge-ek a cím sorának végén kezdődnek: a cím a saját
+   szélességét kapja, hosszú cím egész sort, kipontozva. */
+.row.three .row-in { column-gap: 5px; }
+.row.three .subject { flex: 0 0 auto; max-width: 100%; margin-right: 7px; }
+.row.three .br { display: none; }
+.row.three .refs { display: contents; }
+.row.three .badge { max-width: 100%; }
+.row.three .meta { margin-left: auto; padding-left: 7px; }
 .br { display: none; }
 .row.uncommitted .subject { font-style: italic; color: var(--fg-2); }
 .meta {
@@ -476,10 +461,9 @@ button { font: inherit; color: inherit; }
 /* A remote-on is ugyanott áll: felhő az ág neve után. */
 .badge .synced { display: inline-flex; align-items: center; gap: 3px; margin-left: 1px; opacity: .8; }
 .badge .synced.lead { margin-left: -2px; }   /* a branch-ikonhoz tapad */
+.badge .synced.wt-lead { margin: 0 -2px 0 0; }   /* a worktree-jel elöl, a branch-ikonhoz tapad */
 .badge .div { align-self: stretch; width: 1px; margin: 3px 1px; background: currentColor; opacity: .3; }
 .badge .ic.filled { fill: currentColor; }
-/* A GitLens worktree-jel telt, 1 px-es vonalú rajz: körvonal vastagítja a vonalas ikonokéhoz. */
-.ic .wt-ic { stroke: currentColor; stroke-width: .6px; stroke-linejoin: round; }
 .badge .synced:has(.wt-ic) { opacity: 1; }   /* a worktree-jel teljes erővel, a felhő visszafogott */
 /* Az ág, a HEAD és a tag a commit sávjának színét viseli (`--lc`, page.js).
    A szöveg a sávszín és az előtér keveréke: világos témában sötétebb,
