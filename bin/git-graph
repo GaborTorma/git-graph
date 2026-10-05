@@ -761,13 +761,16 @@ def change_signals() -> tuple[str, str]:
 
     A ref-jelben minden worktree HEAD-je és ága benne van (ágváltás ugyanarra a
     commitra is badge-változás, új vagy megszűnt worktree is változás); a
-    fájl-jel pontosan azt fedi, amit az Uncommitted sorok mutatnak (státusz +
-    `+/−`) — egy már módosított fájl újabb szerkesztését is.
+    fájl-jel pontosan azt fedi, amit a WIP-sorok mutatnak (státusz, `+/−`, és a
+    fájlok utolsó módosítása, ami a sor idejét és helyét adja) — egy már módosított
+    fájl újabb szerkesztését is.
     """
     worktrees = collect_worktrees()
     refs = git("for-each-ref", "--format=%(objectname) %(refname)") + "".join(
         f"{wt['path']} {wt['head']} {wt['branch']}\n" for wt in worktrees)
     files = "".join(f"{wt['path']}\n" + "\n".join(wt["status"]) + wt["numstat"]
+                    + str(last_change(wt["path"], [{"path": line[3:].strip().strip('"')}
+                                                   for line in wt["status"]]))
                     for wt in worktrees)
     return (hashlib.sha1(refs.encode()).hexdigest(),
             hashlib.sha1(files.encode()).hexdigest())
