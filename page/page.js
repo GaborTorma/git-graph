@@ -104,6 +104,8 @@ const ICONS = {
   branch: '<circle cx="5" cy="3.5" r="1.5"/><circle cx="5" cy="12.5" r="1.5"/><circle cx="11" cy="5.5" r="1.5"/><path d="M5 5v6M11 7c0 2.5-3 2.5-6 4"/>',
   tag: '<path d="M2.5 2.5h5l6 6-5 5-6-6z"/><circle cx="5.5" cy="5.5" r="1"/>',
   cloud: '<path d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.3 7.6 2.5 2.5 0 0 0 4.5 12.5z"/>',
+  // teli felhő: az ágválasztó felhő-oszlopában
+  cloudFill: '<path fill="currentColor" d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.3 7.6 2.5 2.5 0 0 0 4.5 12.5z"/>',
   parent: '<circle cx="8" cy="5" r="2.25"/><path d="M8 7.25v6.25M5.5 11 8 13.5 10.5 11"/>',
   open: '<path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"/>',
   issue: '<circle cx="8" cy="8" r="5.75"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/>',
@@ -1094,17 +1096,36 @@ document.addEventListener('keydown', e => {
 const branchBtn = document.getElementById('branchBtn');
 const branchPop = document.getElementById('branchPop');
 const branchLabel = document.getElementById('branchLabel');
+const branchIc = document.getElementById('branchIc');
 let branchSel = new Set();
 
 /* Remote ref-e a név: valamelyik helyi ág upstreamje, vagy csak remote ág. */
 const remoteRefs = () => new Set(DATA.branches.flatMap(b => b.remote ? [b.name] : b.upstream ? [b.upstream] : []));
-/* A gomb felirata: egy blokk (ág + upstreamje) az ág neve; több ref: az első + a többi száma. */
-function selLabel() {
-  if (!branchSel.size) return 'Minden ág';
+/* Egy helyi ág refjei a menüben: maga, és — remote ágakkal — az élő upstreamje. */
+const blockRefs = (b, remote) => (remote && b.upstream && b.track !== 'gone' ? [b.name, b.upstream] : [b.name]);
+/* Egy worktree-hez tartozó ágak (`owner`). */
+const ownedBy = w => DATA.branches.filter(b => !b.remote && b.owner === w.slug);
+/* A gomb ikonja és felirata a kijelölés szerint: minden ág; egy worktree összes ága
+   (ha több van) a worktree-vel; egy blokk (ág és/vagy upstream) a kijelölt sorai
+   ikonjával és az ág nevével; több ref: az első + a többi száma. */
+function selView() {
+  if (!branchSel.size) return [icon('allBranches'), 'Minden ág'];
+  const remote = document.getElementById('showRemotes')?.checked ?? true;
   const names = [...branchSel];
-  const b = DATA.branches.find(x => !x.remote && branchSel.has(x.name));
-  if (b && names.every(n => n === b.name || n === b.upstream)) return b.name;
-  return names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`;
+  const same = refs => refs.length === names.length && refs.every(r => branchSel.has(r));
+  for (const w of worktrees()) {
+    const own = ownedBy(w);
+    if (linkedWts().length && own.length > 1 && same(own.flatMap(b => blockRefs(b, remote)))) {
+      return [icon(w.main ? 'mainWorktree' : 'worktree'), w.main ? 'main' : w.name];
+    }
+  }
+  const b = DATA.branches.find(x => !x.remote && (x.name === names[0] || x.upstream === names[0]));
+  if (b && names.every(n => n === b.name || n === b.upstream)) {
+    return [(branchSel.has(b.name) ? icon('branch') : '') + (branchSel.has(b.upstream) ? icon('cloudFill') : ''),
+      branchSel.has(b.name) ? b.name : b.upstream];
+  }
+  const first = icon(DATA.branches.some(x => !x.remote && x.name === names[0]) ? 'branch' : 'cloudFill');
+  return [first, names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`];
 }
 
 /* Worktree-k esetén worktree-nként egy fejléc (a saját a fejléc chipjének
@@ -1113,8 +1134,9 @@ function selLabel() {
    remote ágak a végén. A helyi ág és az upstreamje egy blokk, egy opció: a sorra
    kattintva mindkettő kijelölődik; egy kipipált sor pipájára kattintva csak az a
    ref kerül ki (a ki nem pipáltéra kattintva bekerül). Ha egy helyen állnak, egy
-   sor a két ikonnal. Az ág- és a felhő-ikon külön oszlopban. HEAD worktree-nként,
-   DEFAULT az alapág helyi párja. Worktree nélkül csak az ágak. */
+   sor a két ikonnal. Az ág- és a felhő-ikon külön oszlopban. A worktree fejlécére
+   kattintva az összes ága kijelölődik. HEAD worktree-nként. Worktree nélkül csak
+   az ágak. */
 function fillBranches() {
   const remote = document.getElementById('showRemotes')?.checked ?? true;
   const valid = new Set([...DATA.branches.map(b => b.name), ...(remote ? remoteRefs() : [])]);
@@ -1129,7 +1151,7 @@ function fillBranches() {
   const rank = b => (isHead(b) ? 0 : b.name === baseLocal ? 1 : 2);
   const sorted = list => [...list].sort((x, y) => rank(x) - rank(y));
   const synced = b => { const up = DATA.meta.tracks?.[b.name]?.up; return up && !up[0] && !up[1]; };
-  const branchIc = name => `<svg class="ic" style="color:${refColor(name)}" viewBox="0 0 16 16" aria-hidden="true">${ICONS.branch}</svg>`;
+  const laneIc = name => `<svg class="ic" style="color:${refColor(name)}" viewBox="0 0 16 16" aria-hidden="true">${ICONS.branch}</svg>`;
   // Egy sor: pipa (külön kattintható), ág-oszlop, felhő-oszlop, név, távolságok.
   const line = (refs, bIc, cIc, name, dists) => {
     const on = refs.every(r => branchSel.has(r));
@@ -1141,16 +1163,14 @@ function fillBranches() {
   const block = b => {
     const det = detachedOf(b.name);
     const name = (det ? `<i>${esc(b.name)}</i>` : esc(b.name))
-      + (isHead(b) ? '<span class="cur">HEAD</span>' : '')
-      + (b.name === baseLocal ? '<span class="def">DEFAULT</span>' : '');
+      + (isHead(b) ? '<span class="cur">HEAD</span>' : '');
     const end = det ? `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`
       : distSegs(b.name);
-    const up = remote && b.upstream && b.track !== 'gone' ? b.upstream : '';
-    const refs = up ? [b.name, up] : [b.name];
+    const refs = blockRefs(b, remote), up = refs[1];
     const lines = up && synced(b)
-      ? line(refs, branchIc(b.name), icon('cloud'), name, end)
-      : line([b.name], branchIc(b.name), '', name, end)
-        + (up ? line([up], '', icon('cloud'), esc(up), distSegs(up)) : '');
+      ? line(refs, laneIc(b.name), icon('cloudFill'), name, end)
+      : line([b.name], laneIc(b.name), '', name, end)
+        + (up ? line([up], '', icon('cloudFill'), esc(up), distSegs(up)) : '');
     return blockBtn(refs, lines);
   };
   const blockBtn = (refs, lines) => `<button type="button" class="option blk" role="option" data-refs="${esc(refs.join(' '))}"`
@@ -1160,9 +1180,14 @@ function fillBranches() {
     const name = esc(w.main ? 'main' : w.name);
     const lc = wtColor(w) || 'var(--accent)';
     const wip = w.dirty ? `<span class="wip" style="color:${lc}" title="nem commitolt változás"></span>` : '';
-    return w.slug === own?.slug
-      ? `<div class="menu-wt"><span class="menu-wt-cur" style="--lc:${lc}" title="itt dolgozik az előtérben lévő session">${ic}${name}</span>${wip}</div>`
-      : `<div class="menu-wt">${ic}<span class="name">${name}</span>${wip}</div>`;
+    const body = w.slug === own?.slug
+      ? `<span class="menu-wt-cur" style="--lc:${lc}" title="itt dolgozik az előtérben lévő session">${ic}${name}</span>${wip}`
+      : `${ic}<span class="name">${name}</span>${wip}`;
+    const refs = ownedBy(w).flatMap(b => blockRefs(b, remote));
+    return refs.length
+      ? `<button type="button" class="option menu-wt" role="option" data-refs="${esc(refs.join(' '))}" data-key="wt:${esc(w.slug)}"`
+        + ` aria-selected="${refs.every(r => branchSel.has(r))}" title="a worktree összes ága">${body}</button>`
+      : `<div class="menu-wt">${body}</div>`;
   };
   const sep = '<div class="menu-sep"></div>';
   let html = `<button type="button" class="option blk" role="option" data-refs="" data-key="" aria-selected="${!branchSel.size}">`
@@ -1184,10 +1209,11 @@ function fillBranches() {
   }
   for (const [r, list] of byRemote) {
     html += sep + `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
-      + list.map(b => blockBtn([b.name], line([b.name], '', icon('cloud'), esc(b.name.slice(r.length + 1)), distSegs(b.name)))).join('');
+      + list.map(b => blockBtn([b.name], line([b.name], '', icon('cloudFill'), esc(b.name.slice(r.length + 1)), distSegs(b.name)))).join('');
   }
   branchPop.innerHTML = html;
-  const label = selLabel();
+  const [ics, label] = selView();
+  if (branchIc.innerHTML !== ics) branchIc.innerHTML = ics;
   if (branchLabel.textContent !== label) {
     branchLabel.textContent = label;
     fitChrome();                // a hosszabb ágnév más sorbontást hozhat

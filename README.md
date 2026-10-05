@@ -105,8 +105,9 @@ sajáté a fejléc chipjének színével), alatta az ágai — amelyikben utolj�
 véve, a worktree HEAD-reflogja szerint —, a gazdátlanok utánuk, a csak remote ágak a
 végén. A helyi ág és az upstreamje egy opció (ha egy helyen állnak, egy sor a két
 ikonnal): a sorra kattintva mindkettő kijelölődik, egy kipipált sor pipájára
-kattintva csak az kerül ki; ha semmi sem marad, újra minden ág látszik. HEAD
-worktree-nként, DEFAULT az alapág helyi párja; worktree nélkül csak az ágak. A
+kattintva csak az kerül ki; ha semmi sem marad, újra minden ág látszik. A worktree
+fejlécére kattintva az összes ága kijelölődik; a gomb ikonja és felirata a
+kijelölést követi. HEAD worktree-nként; worktree nélkül csak az ágak. A
 0.12 előtti, worktree-nkénti Artifactokat a hook felismeri, és megkéri Claude-ot,
 hogy törölje őket, majd `git-graph --forget-artifact <URL>`-lel takarítsa a
 kulcsaikat.

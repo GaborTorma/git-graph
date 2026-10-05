@@ -195,6 +195,8 @@ button { font: inherit; color: inherit; }
   color: var(--fg-2); font-size: 13px; cursor: pointer;
 }
 .select:hover { background: var(--bg-1); }
+.select-ic { display: inline-flex; gap: 4px; }
+.select-ic:empty { display: none; }
 .select-label { color: var(--fg-0); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .select .chev { width: 12px; height: 12px; margin-left: 10px; transition: transform .12s; }
 .select[aria-expanded="true"] .chev { transform: rotate(180deg); }
@@ -234,7 +236,7 @@ button { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 6px 10px 0 8px;
   font-size: 12.5px; font-weight: 500; color: var(--fg-0);
 }
-.menu-wt .ic { width: 14px; height: 14px; flex: none; color: var(--fg-2); }
+.menu-wt .ic { width: 14px; height: 14px; flex: none; color: var(--fg-2); stroke-width: 1.5; visibility: visible; }
 .menu-wt .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-wt .note { margin-left: -4px; font-weight: 400; font-style: italic; color: var(--fg-3); font-size: 11.5px; }
 .menu-wt-cur {
@@ -244,11 +246,17 @@ button { font: inherit; color: inherit; }
   color: color-mix(in srgb, var(--lc) 70%, var(--fg-0));
 }
 .menu-wt-cur .ic { color: inherit; width: 14px; height: 14px; }
+/* A WIP jele: üres karika, mint a gráfon a „Nem commitolt változások” pontja. */
 .menu-wt .wip {
-  width: 7px; height: 7px; margin-left: auto; flex: none; box-sizing: border-box;
-  border: 1.5px dashed currentColor; border-radius: 50%;
+  width: 9px; height: 9px; margin-left: auto; flex: none; box-sizing: border-box;
+  border: 2px solid currentColor; border-radius: 50%;
 }
-.option.blk { display: flex; flex-direction: column; align-items: stretch; height: auto; padding: 3px 0; }
+/* A worktree fejléce is opció: rákattintva az összes ága kijelölődik. */
+.option.menu-wt {
+  display: flex; height: auto; min-height: 26px; padding: 4px 10px 2px 8px; margin-top: 2px;
+  font-size: 12.5px; font-weight: 500;
+}
+.option.blk { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 3px 0; }
 .blk .ln {
   display: grid; grid-template-columns: 14px 14px 14px minmax(0, 1fr) auto; gap: 8px; align-items: center;
   height: 21px; padding: 0 10px 0 8px;
@@ -269,10 +277,7 @@ button { font: inherit; color: inherit; }
 .blk .dists .ic { width: 12px; height: 12px; color: inherit; }
 .blk .det { display: inline-flex; color: var(--fg-3); }
 .blk .det .ic { width: 13px; height: 13px; color: inherit; }
-.option .def {
-  margin-left: 6px; padding: 1px 6px; border-radius: 4px;
-  background: var(--bg-3); color: var(--fg-2); font-size: 10.5px; font-weight: 500;
-}
+
 
 .switch {
   display: inline-flex; align-items: center; gap: 8px;
