@@ -577,7 +577,54 @@ def collect_meta(commits: list[dict], worktrees: list[dict]) -> dict:
         "generated": git("log", "-1", "--pretty=format:%aI").strip(),
         "worktrees": [worktree_meta(wt) for wt in worktrees],
         "remotes": sorted(remotes()),     # több remote-nál a badge a nevüket is mutatja
+        "tracks": branch_tracks(),
     }
+
+
+def branch_tracks() -> dict[str, dict]:
+    """Ágankénti távolság (`ahead`, `behind`): `base` az alapághoz (amire az
+    `origin/HEAD` mutat; magán az alapágon nincs; a remote-only ágaknak is,
+    `origin/x` kulccsal), `up` a saját upstreamjéhez
+    (ha van, és nem tűnt el). Egyetlen `for-each-ref` (git 2.41+:
+    `%(ahead-behind:…)`); régebbi gitnél ágankénti `rev-list`."""
+    try:
+        base = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").strip()
+    except subprocess.CalledProcessError:
+        base = ""
+    fields = "%(refname:short)%00%(upstream:short)%00%(upstream:track,nobracket)"
+    try:
+        lines = git("for-each-ref", f"--format={fields}%00%(ahead-behind:{base or 'HEAD'})",
+                    "refs/heads").splitlines()
+        rich = True
+    except subprocess.CalledProcessError:
+        lines, rich = git("for-each-ref", f"--format={fields}", "refs/heads").splitlines(), False
+    out: dict[str, dict] = {}
+    for line in lines:
+        name, upstream, track, *rest = line.split("\0")
+        entry: dict = {}
+        if upstream and track != "gone":
+            ahead = re.search(r"ahead (\d+)", track)
+            behind = re.search(r"behind (\d+)", track)
+            entry["up"] = [int(ahead.group(1)) if ahead else 0, int(behind.group(1)) if behind else 0]
+        if base and base.split("/", 1)[-1] != name:
+            if rich and rest:
+                a, b = rest[0].split()
+            else:
+                b, a = git("rev-list", "--left-right", "--count", f"{base}...{name}").split()
+            entry["base"] = [int(a), int(b)]
+        out[name] = entry
+    # A csak remote-on élő ágaknak is (`origin/x`): a távolságuk az alapágtól.
+    if base:
+        try:
+            for line in git("for-each-ref", f"--format=%(refname:short)%00%(ahead-behind:{base})",
+                            "refs/remotes").splitlines():
+                name, counts = line.split("\0")
+                if name != base and not name.endswith("/HEAD") and name not in out:
+                    a, b = counts.split()
+                    out[name] = {"base": [int(a), int(b)]}
+        except (subprocess.CalledProcessError, ValueError):
+            pass                              # régi git: a remote-only chip szám nélkül marad
+    return out
 
 
 def numstat_new_path(path: str) -> str:

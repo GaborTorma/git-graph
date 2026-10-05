@@ -164,15 +164,26 @@ function hydrate() {
    worktree-pillek: ág, változások pöttye, ↑ahead. */
 /* A fejléc chipje (a saját worktree-é): worktree-ikon,
    branch-ikon, az ág neve, commitolatlan változásnál üres karika (mint az ál-sor
-   pontja), az előny. A fő checkoutnak csak ikon és név. */
+   pontja), és az ág távolságai (`distSegs`). */
 function wtChipInner(w) {
   const linked = !w.main;
   return (linked ? icon(w.upstream && !w.ahead && !w.behind ? 'worktreeSynced' : 'worktree') : '')
     + (w.branch ? icon('branch') : '')   // ág nélkül: csak a HEAD és a hash
     + `<span class="chip-name">${esc(wtLabel(w))}</span>`
     + (linked && w.dirty ? `<span class="ring" title="${w.dirty} commitolatlan változás"></span>` : '')
-    + (linked && (w.ahead || w.behind) ? `<span class="wt-ahead">${w.ahead ? `↑${w.ahead}` : ''}`
-      + `${w.ahead && w.behind ? ' ' : ''}${w.behind ? `↓${w.behind}` : ''}</span>` : '');
+    + (w.branch ? distSegs(w.branch) : '');
+}
+
+/* Az ág távolságai (`DATA.meta.tracks`, csak a nem nulla irány): `↑a ↓b` az
+   alapághoz (amire az origin/HEAD mutat) — ikon nélkül, a chip maga az ág —, és
+   `☁ ↑c ↓d` az upstreamjéhez, csak ha nem egy helyen állnak (különben a felhő a
+   branch-ikon után ül). Ami a chipből már kiderül, annak nem jár újabb ikon. */
+const arrows = ([a, b]) => [a && `↑${a}`, b && `↓${b}`].filter(Boolean).join(' ');
+function distSegs(name) {
+  const tr = DATA.meta.tracks?.[name] || {};
+  return [[tr.base, ''], [tr.up, icon('cloud')]]
+    .filter(([d]) => d && (d[0] || d[1]))
+    .map(([d, ic]) => `<span class="div"></span><span class="dist">${ic}${arrows(d)}</span>`).join('');
 }
 function hydrateFocus() {
   const wts = worktrees(), own = focusWt();
@@ -401,9 +412,9 @@ function wtBadge(w) {
   const lc = w.main ? LANE_COLORS[(head ? head.lane : 0) % LANE_COLORS.length] : wtColor(w) || LANE_COLORS[0];
   const tip = `${w.main ? 'fő checkout' : 'worktree'}: ${w.path}\n`
     + (w.branch ? `ág: ${w.branch}` : `ág nélkül, HEAD: ${String(w.head || '').slice(0, 7)}`);
-  const body = w.main ? `${icon('mainWorktree')}main`
+  const body = w.main ? `${icon('mainWorktree')}<span class="badge-name">main</span>`
     : `<span class="synced wt-lead">${icon('worktree')}</span>`
-      + (w.branch ? `${icon('branch')}${esc(w.branch)}` : esc(w.name));
+      + (w.branch ? `${icon('branch')}<span class="badge-name">${esc(w.branch)}</span>` : `<span class="badge-name">${esc(w.name)}</span>`);
   return `<span class="badge ref-branch" style="--lc:${lc}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${body}</span>`;
 }
 
@@ -449,7 +460,8 @@ function badges(c) {
     const group = wtOfRef(r);
     const lc = r.kind === 'remote' ? '' : ` style="--lc:${(group && wtColor(group)) || lane}"`;
     return `<span class="badge ref-${r.kind}${other}"${lc} data-tip="${esc(title)}" aria-label="${esc(title)}">`
-      + `${lead}${esc(name)}${orphan ? `<span class="div"></span>${esc(wt.name)}` : ''}${remotes}</span>`;
+      + `${lead}<span class="badge-name">${esc(name)}</span>${orphan ? `<span class="div"></span><span class="badge-name">${esc(wt.name)}</span>` : ''}`
+      + `${distSegs(r.kind === 'tag' || r.kind === 'detached' ? '' : r.name)}${remotes}</span>`;
   }).join('');
 }
 
