@@ -1109,6 +1109,7 @@ document.addEventListener('keydown', e => {
    upstream, csak remote ág); üres = minden ág. */
 const branchBtn = document.getElementById('branchBtn');
 const branchPop = document.getElementById('branchPop');
+const branchAll = document.getElementById('branchAll');
 const branchList = document.getElementById('branchList');
 const branchQuery = document.getElementById('branchQuery');
 const branchLabel = document.getElementById('branchLabel');
@@ -1245,9 +1246,10 @@ function fillBranches() {
       : `<div class="menu-wt" data-name="${name}">${body}</div>`;
   };
   const sep = '<div class="menu-sep"></div>';
-  let html = `<button type="button" class="option blk" role="option" data-refs="" data-key="" aria-selected="${!branchSel.size}">`
+  branchAll.innerHTML = `<button type="button" class="option blk" role="option" data-refs="" data-key="" aria-selected="${!branchSel.size}">`
     + `<span class="ln${branchSel.size ? '' : ' on'}"><span class="ckc">${icon('check', 'ic ck')}</span>`
     + `<span class="col">${icon('allBranches')}</span><span class="name">Minden ág</span></span></button>`;
+  let html = '';                  // a nyitó elválasztót a szűrő rejti
   if (multi) {
     const slugs = new Set(wts.map(w => w.slug));
     html += sep + wts.map(w => header(w) + sorted(local.filter(b => b.owner === w.slug)).map(block).join('')).join('');
@@ -1288,13 +1290,14 @@ function fillBranches() {
    látható csoport között. */
 function filterBranches() {
   const words = fold(branchQuery.value).split(/\s+/).filter(Boolean);
+  branchAll.hidden = words.length > 0;
   const items = [...branchList.children];
   let group = '';                 // az aktuális fejléc neve; elválasztó után nincs
   for (const el of items) {
     if (el.matches('.menu-wt, .menu-sep')) group = el.dataset.name || '';
     else if (el.matches('.blk')) {
       const text = fold(`${group} ${el.dataset.refs}`);
-      el.hidden = el.dataset.refs ? !words.every(w => text.includes(w)) : words.length > 0;
+      el.hidden = !words.every(w => text.includes(w));
     }
   }
   // Fejléc: a következő fejlécig vagy elválasztóig tartó blokkjai közül látszik-e egy.
@@ -1311,7 +1314,7 @@ function filterBranches() {
     if (el.matches('.menu-sep')) { el.hidden = true; sep = el; }
     else if (!el.hidden) { if (sep && seen) sep.hidden = false; sep = null; seen = true; }
   }
-  branchList.classList.toggle('empty', !seen);
+  branchList.classList.toggle('empty', !seen && words.length > 0);
 }
 branchQuery.addEventListener('input', filterBranches);
 
