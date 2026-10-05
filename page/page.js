@@ -227,7 +227,9 @@ function drawGraph() {
   svg.setAttribute('height', h);
   svg.setAttribute('viewBox', `0 0 ${graphW} ${h}`);
 
-  let out = '';
+  // Az egyenesek előbb, a sávváltó vonalak felül: az elágazás a commit pöttyénél
+  // is a saját színével indul, nem takarja el a sáv vonala.
+  let out = '', bends = '';
   for (const e of DATA.edges) {
     const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
     const b = rowIndexBySha.get(DATA.commits[e.toRow].sha);
@@ -244,8 +246,10 @@ function drawGraph() {
     const from = DATA.commits[e.fromRow];
     const own = from.worktree === focusWt()?.slug ? ' own' : '';
     const dash = from.uncommitted ? ` class="pend-edge${own}" stroke-dasharray="3 3"` : '';
-    out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
+    const path = `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
+    if (x1 === x2) out += path; else bends += path;
   }
+  out += bends;
   // A worktree csonkja: vonal a commitról a saját oszlopába, ott pötty. Több csonk
   // esetén a pöttyök a commit magassága körül, legyezőszerűen ágaznak le.
   visible.forEach((c, i) => {
@@ -286,12 +290,16 @@ function drawGraph() {
    commit alatt, ág-leágazásnál pedig közvetlenül a szülő fölött. */
 function edgePath(x1, y1, x2, y2, merge) {
   if (x1 === x2) return `M ${x1} ${y1} L ${x2} ${y2}`;
+  // Legyező: a vonal a commit pöttyéből függőlegesen indul (fel vagy le), és a
+  // worktree-csonk ívét elforgatva fordul a másik sávba egy soron belül.
   if (merge) {
     const bend = Math.min(y1 + ROW_H, y2);
-    return `M ${x1} ${y1} C ${x1} ${bend}, ${x2} ${y1}, ${x2} ${bend} L ${x2} ${y2}`;
+    const dy = bend - y1;
+    return `M ${x1} ${y1} C ${x1} ${y1 + dy * 0.45}, ${x2} ${y1 + dy * 0.35}, ${x2} ${bend} L ${x2} ${y2}`;
   }
   const bend = Math.max(y2 - ROW_H, y1);
-  return `M ${x1} ${y1} L ${x1} ${bend} C ${x1} ${y2}, ${x2} ${bend}, ${x2} ${y2}`;
+  const dy = bend - y2;
+  return `M ${x1} ${y1} L ${x1} ${bend} C ${x1} ${y2 + dy * 0.35}, ${x2} ${y2 + dy * 0.45}, ${x2} ${y2}`;
 }
 
 /* ── Dátum ── budapesti idő szerint, magyar formában. */
