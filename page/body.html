@@ -1,20 +1,27 @@
 <div class="chrome">
   <div class="repo">
     <span class="repo-name" id="repoName"></span>
-    <span class="head-chip" id="headChip" hidden>
+    <button type="button" class="head-chip" id="headChip" hidden>
       <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="3.5" r="1.5"/><circle cx="5" cy="12.5" r="1.5"/><circle cx="11" cy="5.5" r="1.5"/><path d="M5 5v6M11 7c0 2.5-3 2.5-6 4"/></svg>
       <span id="headName"></span>
-    </span>
+    </button>
   </div>
 
   <div class="filters">
   <div class="menu">
     <button type="button" class="select" id="branchBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Ág szűrése">
-      <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="3.5" r="1.5"/><circle cx="5" cy="12.5" r="1.5"/><circle cx="11" cy="5.5" r="1.5"/><path d="M5 5v6M11 7c0 2.5-3 2.5-6 4"/></svg>
+      <span class="select-ic" id="branchIc"></span>
       <span class="select-label" id="branchLabel">Minden ág</span>
       <svg class="ic chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5 8 10l3.5-3.5"/></svg>
     </button>
-    <div class="menu-pop" id="branchPop" role="listbox" aria-label="Ágak" hidden></div>
+    <div class="menu-pop branches" id="branchPop" role="listbox" aria-label="Ágak" hidden>
+      <label class="menu-search">
+        <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.25"/><path d="m10.2 10.2 3.3 3.3"/></svg>
+        <input type="search" id="branchQuery" placeholder="Ág szűrése" aria-label="Ágak szűrése név szerint" autocomplete="off" spellcheck="false">
+      </label>
+      <div class="menu-all" id="branchAll"></div>
+      <div class="menu-list" id="branchList"></div>
+    </div>
   </div>
 
   <label class="switch" title="Remote ágak"><input type="checkbox" id="showRemotes" checked aria-label="Remote ágak"><span class="track"></span><span class="sw-txt">Remote ágak</span><svg class="ic sw-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.3 7.6 2.5 2.5 0 0 0 4.5 12.5z"/></svg></label>
@@ -29,6 +36,7 @@
   </label>
   </div>
 </div>
+
 
 <div class="pending" id="pending" hidden></div>
 

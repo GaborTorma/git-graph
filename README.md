@@ -7,7 +7,13 @@ mintáját követi, a megjelenés a Claude appét: meleg paletta, Claude Light /
 kódszínek, napokra bontott egysoros lista. A soron kattintva lefelé nyílik a
 commit: szerző GitHub-avatarral, szülő(k), GitHub-link, fájlok és
 szintaxisszínezett diff. Ha a helyi ág és a remote-ja ugyanott áll, egy
-badge-ben látszanak (`main | origin`). A kereső (⌘F) az üzenetben, a
+badge-ben látszanak, egyetlen felhő-és-ág ikonnal (az alapágé teli). Az ág-badge végén a távolságai,
+csak a nem nulla irány: `↑a ↓b` az alapághoz (amire az `origin/HEAD` mutat —
+mennyit jött az ág, mennyit haladt közben a main), `☁ ↑c ↓d` a remote-társához
+(ha nem egy helyen állnak); a csak remote-os ág badge-én utolsóként `⑂ ↑e ↓f` a
+helyi párjához. Ha az alapág helyi párja (`main`) előrébb jár a remote-jánál, a
+`☁ ↑` piros (a `main`-en nem dolgozunk, ez anomália). Ha a badge nem fér ki, csak a név
+rövidül. A kereső (⌘F) az üzenetben, a
 szerzőben, a ref-nevekben és a hash elején keres, ékezettől függetlenül;
 minden szónak egyeznie kell. Escape vagy a mező × gombja törli; ha közben nyitva
 volt egy commit, a teljes listában az kerül legfelülre.
@@ -21,7 +27,6 @@ git-graph --published <URL>  # a session publikálása után: URL + hash a .git/
 git-graph --mcp              # MCP szerver a Claude appnak (az app indítja, nem kézzel)
 git-graph --artifacts        # az ismert repók Artifactjai (<repó>\t<URL>)
 git-graph --forget           # a repó git-graph nyomai törlése (az Artifactot nem törli)
-git-graph --forget-artifact <URL>  # egyetlen Artifact nyomai (egy megszűnt worktree-é)
 ```
 
 ## Telepítés
@@ -83,13 +88,33 @@ A **SessionStart hook** a session indulásakor a repó Artifactját nézi:
   csak kódfrissítéskor változik, az pedig csak új sessionnel lép életbe — és
   ilyenkor először ez a hook fut.
 
-**Worktree-k:** minden worktree saját Artifactot kap (saját slug, saját
-Uncommitted sor). A hook az `EnterWorktree` / `ExitWorktree` után is lefut
-(PostToolUse), így a session közben nyitott worktree is megkapja a magáét. A
-megszűnt worktree-k Artifactjait a hook felismeri (a `git worktree list`-ben
-már nincsenek), és megkéri Claude-ot, hogy törölje őket, majd
-`git-graph --forget-artifact <URL>`-lel takarítsa a kulcsaikat — a `/worktree-close`-nak
-ehhez nem kell tudnia a git-graph-ról.
+**Worktree-k:** repónként egy Artifact van, a worktree-k közösen látják (a fő
+checkout slugján). A „saját” worktree az előtérben lévő sessioné: a lap a
+Claude app naplójából és session-adataiból tudja, melyik session van épp elöl,
+és session-váltáskor prompt nélkül, ~50 ms alatt átáll. Kézzel nem választható
+— a HEAD ott van, ahol a session dolgozik. A fejléc chipje a saját ágat mutatja
+a sávja színében; worktree-ben a worktree-jellel (mappa) és az ág
+távolságaival. Rákattintva a lista a HEAD commitjához ugrik; ha az ágválasztó elrejti a HEAD-et, a chip
+halványabb, és a kattintás előbb minden ágra áll vissza. Az ágválasztóban választva a lista a
+kijelölés legfelső csúcsához ugrik. A saját worktree „Nem
+commitolt változások” sora a lista fölötti sávban ül (nem mai időnél a nappal),
+a többi worktree-é a listában, az ideje szerint, a worktree jelével és ágával. Minden worktree HEAD-je
+badge-et kap, elöl a worktree jelével (a fő checkouté az üres mappa, ha vannak worktree-k);
+leválasztott HEAD-nél az ág helyén lánc-ikon áll (`worktree-név | ⛓`, a fő checkouté `main | ⛓`,
+worktree nélkül `⛓ HEAD`; a fejléc chipjén a lánc és a rövid hash), utána a HEAD-commit távolsága
+az alapágtól, mint az ágaké; a saját commit és WIP nélküli worktree-k csonkkal ágaznak le a
+commitjukról, több csonk legyezőszerűen. Ami nem a sajáté, halványabb (a sehol ki nem
+vett ágak a fő checkouté). Az ágválasztó worktree-nként csoportosít: fejléc (a
+sajáté a fejléc chipjének színével), alatta az ágai — amelyikben utoljára ki volt
+véve, a worktree HEAD-reflogja szerint —, a gazdátlanok utánuk, a csak remote ágak a
+végén. A helyi ág és az upstreamje egy opció (ha egy helyen állnak, egy sor a közös
+felhő-és-ág ikonnal, különben egymás alatt az ág és a felhő): a sorra kattintva mindkettő kijelölődik, egy kipipált sor pipájára
+kattintva csak az kerül ki; ha semmi sem marad, újra minden ág látszik. A worktree
+fejlécére kattintva az összes ága kijelölődik; a gomb ikonja és felirata a
+kijelölést követi. HEAD worktree-nként; worktree nélkül csak az ágak. A menü
+tetején szűrő: ág- vagy worktree-név szerint szűkít (a worktree nevére az összes
+ága), a worktree-fejléc csak akkor marad, ha alatta
+legalább egy ág látszik; az Enter az első találatot választja.
 
 A hook némán kilép, ha a mappa nem git repó; headless (`-p`, SDK) sessionben nem
 kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
@@ -105,7 +130,7 @@ kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
 | `tests/` | füstteszt az MCP szerverre (stdlib `unittest`) |
 | `.claude-plugin/plugin.json` | a plugin manifestje — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace (egyetlen plugin: ez a repó) |
-| `hooks/hooks.json` | SessionStart és worktree-váltás (PostToolUse) hook: `git-graph --session-hook` (telepít + megnyittatja vagy publikáltatja a gráfot + az árva worktree-Artifactokat töröltet) |
+| `hooks/hooks.json` | SessionStart és worktree-váltás (PostToolUse) hook: `git-graph --session-hook` (telepít + megnyittatja vagy publikáltatja a gráfot + a régi worktree-Artifactokat töröltet) |
 | `skills/artifact/SKILL.md` | `/git-graph:artifact`: `git-graph --publish`, és publikálja vagy megnyitja az Artifactot |
 | `skills/remove/SKILL.md` | `/git-graph:remove`: az Artifactok törlése és a repók kitakarítása az eltávolítás előtt |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |
@@ -129,9 +154,11 @@ A projektmappába nem kerül semmi.
 Az Artifact **élő**, de sem adatot, sem kódot nem tárol: egy betöltő, amely a
 Claude appban megnyitva a lap kódját (`page_code`) és az adatot is a gépeden
 futó `git-graph --mcp`-ből kéri, az app **host-hídján** át
-(`callTool("host:git-graph", …)`): 2 mp-enként az olcsó `fingerprint` (refek, HEAD, munkakönyvtár — ~40 ms), és
-csak változáskor a teljes `graph_data` (150–300 ms). A lábléc kiírja a mért
-időket. Egy lenyitott fájl diffje a `file_diff` toolból jön.
+(`callTool("host:git-graph", …)`): mindig egy nyitva tartott `changes`-hívás
+vár, és a szerver akkor válaszol, ha a repó (refek, HEAD, munkakönyvtár) vagy az
+előtérben lévő session megváltozik — git-műveletnél ~50 ms, fájlszerkesztésnél
+legfeljebb ~2 s alatt —, és csak változáskor jön a teljes `graph_data`
+(150–300 ms). A lábléc kiírja a mért időket. Egy lenyitott fájl diffje a `file_diff` toolból jön.
 
 Megkötések (a platformé, mérve — [docs/artifact-findings.md](docs/artifact-findings.md)):
 
@@ -159,7 +186,6 @@ A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 | --- | --- |
 | `git-graph.artifact` | a közzétett oldal URL-je |
 | `git-graph.artifactHash` | a publikált lap hashe (változatlanra nem tölt fel) |
-| `git-graph.<slug>.artifact`, `….artifactHash` | ugyanez egy worktree-é — a worktree-k `.git/config`-ja közös |
 
 Kézi URL-megadás: `git-graph --set-artifact <url>`.
 
@@ -172,7 +198,7 @@ Kézi URL-megadás: `git-graph --set-artifact <url>`.
 | `←` | becsukja a commitot | nyitott diffet becsuk (blokkon is); bezárt fájlon vissza a commitra |
 | `⌘` / `Ctrl` + `↓` / `↑` | szülő / gyerek ugyanazon az ágon | |
 | `⇧⌘` / `⇧Ctrl` + `↓` / `↑` | merge-nél a beolvasztott ág (második szülő), visszafelé a merge | |
-| `H` | kijelölés a HEAD-en | |
+| `H` | kijelölés a saját worktree HEAD-jén | |
 | `⇧↑` / `⇧↓` | csak görget (három diff-sornyit), a kijelölés marad | ugyanígy — egy hosszú blokk olvasásához |
 | `Esc` | előbb a keresést üríti, aztán a nyitott commitot csukja | ugyanígy |
 | `⌘F` / `Ctrl+F` | kereső | |
@@ -181,17 +207,20 @@ Fájlon a `→` kinyitja a diffet, és rögtön az első módosított blokkra l�
 `···` elválasztóig tart); `↓` vagy `→` a következő blokkra, az utolsó után a következő fájlra, `↑`-ra visszafelé,
 `←`-re bezárja a fájlt. A görgő egy kattanása egy commitot lép.
 
-## Uncommitted Changes
+## Nem commitolt változások
 
-Ha a munkakönyvtárban van változás, a gráf tetején — a Git Graph mintájára —
-megjelenik egy **ál-sor**: `Uncommitted Changes (3 fájl)`, üres karikával,
-szaggatott vonallal a HEAD-re. A zárójelben az érintett fájlok száma — így a
-panel kinyitása nélkül is látszik. Rákattintva ugyanaz a részletek-panel nyílik, mint egy
-commitnál: fájlonkénti `+`/`−` a HEAD-hez képest, a követetlen fájlok pedig
-`új` jelöléssel (számok nélkül — a diff nem látja őket).
+Ha a munkakönyvtárban van változás, a Git Graph mintájára megjelenik egy
+**ál-sor**: *Nem commitolt változások*, üres karikával, szaggatott vonallal a
+HEAD-re. Worktree-nként egy, mindegyik a saját HEAD-jére kötve. A sor végén,
+mint a commitoknál: az idő (a fájlok utolsó módosítása), a gép git-felhasználója
+és a diff. A saját worktree-é a lista fölötti sávban ül; a többié a listában, az
+ideje szerinti helyen (sosem a HEAD-je alatt), elöl a worktree chipjével.
+Rákattintva ugyanaz a részletek-panel nyílik, mint egy commitnál: fájlonkénti
+`+`/`−` a HEAD-hez képest, a követetlen fájlok pedig `új` jelöléssel (számok
+nélkül — a diff nem látja őket).
 
-Nem commit, ezért a fejléc számlálójába nem számít bele, és a szűrők sem rejtik
-el. Élő módban magától megjelenik és tűnik el, ahogy szerkesztesz.
+Nem commit, ezért a fejléc számlálójába nem számít bele; ágszűrésnél csak annak
+a worktree-nek a sora látszik, amelyikben a szűrt ág van kivéve. Élő módban magától megjelenik és tűnik el, ahogy szerkesztesz.
 
 ## Fájl-diff
 

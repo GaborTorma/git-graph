@@ -36,7 +36,6 @@ git-graph --published <URL>  # a session publikálása után: URL + hash a .git/
 git-graph --mcp              # MCP szerver stdio-n — a Claude app indítja, nem kézzel
 git-graph --artifacts        # ismert repók Artifactjai (regiszter + a szülőmappák repói)
 git-graph --forget           # a repó git-graph nyomai + automatikus publikálás KI
-git-graph --forget-artifact <URL>   # egyetlen Artifact nyomai (megszűnt worktree)
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
 python3 bin/git-graph --dev-install   # a working tree az appban futó git-graph helyére (+dev), a lap élőben
 ```
@@ -58,7 +57,7 @@ függőség. Ezen túl kézzel: a `git-graph --mcp` `graph_data`-ja több repón
 (eltérő sávszámmal, merge-ekkel), és a lap az appban. Az élő lapé: `python3 bin/git-graph --dev-install`. Ez a working treet az
 appban futó szerver helyére teszi `+dev` verzióval; a szerver egy percen belül
 átvált, a lap újratölt, és az app minden git-graph lapja az új kódot mutatja.
-A hook 12 óráig nem másolja vissza a telepítettet (`dev_active`) — de ezt csak a már ezzel a kóddal telepített plugin hookja tudja; a 0.10.x hookja a következő session indulásakor visszaállítja. Utána a sessionből
+A hook 12 óráig nem másolja vissza a telepítettet (`dev_active`). Utána a sessionből
 publikált lapot kell nézni a Claude appban (az app MCP-naplója a host-híd
 hívásait nem mutatja). A hooké
 és a publikálásé: `--session-hook` kamu `HOME`-mal, `CLAUDE_PLUGIN_ROOT`-tal
@@ -119,9 +118,8 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 - **`<meta charset="utf-8">` a generált fájl legelső sora** — enélkül
   `file://`-ról latin-1-ként olvasódik.
 - **Repónév az `origin` remote-ból**, nem a mappanévből (a mappa eltérhet:
-  `auto-bpm` → `WristBPM`). Ez adja az Artifact címét is; worktree-ben a
-  mappa neve is mellé kerül (`Git Graph (git-graph · <mappa>)`). A cím a
-  publikált `<title>`-ből jön, a lap JS-e nem írja felül.
+  `auto-bpm` → `WristBPM`). Ez adja az Artifact címét is (`Git Graph (<repó>)`).
+  A cím a publikált `<title>`-ből jön, a lap JS-e nem írja felül.
 - **A beágyazott JSON lezárhatja a script blokkot**: egy commit-üzenetben tényleg
   előfordult `</script>` (varazskez repó) → a lap fele nyers JSON-ként ömlött ki.
   A `build()` ezért az `embed()`-en át ágyaz (`</` → `<\/`, U+2028/29 escape).
@@ -129,7 +127,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 - **A `drawGraph()` a DOM-ból olvassa a sorok Y-pozícióját** (`offsetTop`), nem
   sorszám × magasságból: a napok fejléce (`.day`) és a kinyitott commit-panel
   az alattuk lévő sorokat lejjebb tolja. A pötty a sor közepére kerül
-  (`offsetTop + offsetHeight / 2`): a sor `ROW_H` magas, a kétsoros 52, a háromsoros (`.three`, badge-es) 71 px. A sor
+  (`offsetTop + offsetHeight / 2`): a sor `ROW_H` magas, a kétsoros 52, a tördelt badge-es (`.three`) legalább 71 px, a badge-ek számától függően magasabb. A sor
   elrendezése fix határokkal a szövegoszlop szélességétől függ (`fitRows`:
   480 alatt kétsoros `.two`, a sorban hash nincs, a lista nem szűkül 320
   alá); csak a badge-es sort méri (`.tight`), mert a badge-ek hossza soronként más. Ezért minden DOM-változás után újra kell hívni (nyitás,
@@ -141,14 +139,23 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   belső sávra (`.row-in`) megy. Az SVG-t a sorok fölé emelni nem megoldás: a `.rows`
   (`z-index: 2`) saját rétegkontextust nyit, így a benne lévő `.details` sosem
   kerülhet a testvér `#lanes` fölé — a kinyitott panelen átlógnának a vonalak.
-- **Az `Uncommitted Changes` ál-sor a `commits` lista 0. eleme** (`sha`:
-  `*uncommitted`), a szülője a HEAD. Az `assign_lanes` magától kezeli, de az
-  `edges` **sorindexeket** használ — ezért az ál-sort a lane-kiosztás ELŐTT kell
-  beszúrni, a `meta` viszont még a valódi commitokból készül (különben a
-  „N commit látszik" hazudna).
+- **A „Nem commitolt változások” ál-sorok a `commits` lista elején** (worktree-nként
+  egy, `sha`: `*uncommitted:<worktree-slug>` — ebből tudja a `file_diff`, melyik
+  mappát diffelje; a slugnak élő worktree-é kell lennie), a szülőjük a worktree
+  HEAD-je. Az `assign_lanes` magától kezeli, de az `edges` **sorindexeket**
+  használ — ezért az ál-sorokat a lane-kiosztás ELŐTT kell beszúrni, a `meta`
+  viszont még a valódi commitokból készül (különben a „N commit látszik"
+  hazudna). A szerzőjük a worktree `user.name`-je, az idejük a fájlok `mtime`-ja.
+  A lapon a saját worktree-é a fix `#pending` sávban ül (a pontja Y-ja a sáv mért
+  soraiból jön, `drawPending`, negatív a lista tetejéhez képest); a többié a
+  listában, az ideje szerint a commitok közé sorolva, sosem a HEAD-je alá.
 - **Minden git-hívás `--no-optional-locks`**: a `git status` egyébként frissíti
-  az indexet, ahhoz `index.lock`-ot vesz, és a 2 mp-es pollozás így a Fejlesztő
-  saját git-parancsait akasztja meg (egy commit tényleg elhasalt rajta).
+  az indexet, ahhoz `index.lock`-ot vesz, és a gyakori állapotlekérés így a Fejlesztő
+  saját git-parancsait akasztja meg (egy commit tényleg elhasalt rajta). Ezért
+  nem használható a git `core.fsmonitor`-ja sem: csak az indexbe írva gyorsít (mérve, #29).
+- **A git a valódi binárisával fut** (`git_bin`, a `git --exec-path` mellől): az
+  app szűk PATH-tal indítja a szervert, a macOS `/usr/bin/git` pedig `xcrun`-shim,
+  hívásonként ~6 ms-mal lassabb.
 - **A `REPO` modulszintű globális**, a `git-graph --mcp` viszont hívásonként más repót
   szolgálhat ki (a lap slugja szerint): a `_REMOTES` cache-t minden váltásnál
   nullázni kell. A stdio-kiszolgálás soros, lock nem kell.
@@ -165,15 +172,61 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   kér publikálást. Némán kilép, ha a mappa nem repó: egy SessionStart hook
   minden sessionben lefut, zajt nem csinálhat. A repót mindig regisztrálja — a
   `git-graph --mcp` a lap slugjából a `repos.json`-ból találja meg.
-- **Worktree-nként saját Artifact, közös `.git/config`-ban**: a fő checkout
-  kulcsai `git-graph.*`, egy worktree-é `git-graph.<slug>.*` (`config_section`)
-  — közös kulcson a worktree-k egymás lapját publikálnák felül, oda-vissza.
-  `extensions.worktreeConfig`-ot szándékosan nem kapcsolunk be (a repó
-  beállítása lenne). A megszűnt worktree szakaszát a hook ismeri fel
-  (`orphan_artifacts`: nincs a `git worktree list`-ben), és törölteti az
-  Artifactot, majd `--forget-artifact` — a `/worktree-close` erről nem tud.
-  Az `EnterWorktree` session közben történik, ezért a hook PostToolUse-ként
-  is fut: a `cwd` ilyenkor már az új munkakönyvtár (docs).
+- **Repónként egy Artifact, a worktree-k közösen látják** (0.12 óta): minden
+  út a fő checkoutra képződik le (`main_checkout`) — slug, `git-graph.*`
+  kulcsok, cím. A `graph_data` minden worktree-t ad (`meta.worktrees`, HEAD-badge
+  `worktree` mezővel, worktree-nkénti ál-sor), az állapotukat párhuzamosan gyűjti
+  (`collect_worktrees`). A hozzáadott worktree-k a létrehozásuk sorrendjében
+  (`worktree_created`: az admin-mappa születési ideje; a git a név szerinti ábécét adná). A saját commit és WIP nélküli worktree HEAD-je (pl. egy trunk-
+  commiton, vagy a session törlésekor leválasztva) csonkot kap (`worktree_stubs`:
+  a commit `stubs` listája, commitonként a sávok utáni első szabad oszloptól; a lap
+  legyezőszerűen rajzolja), így az is elágazik. A saját worktree WIP-je a fix
+  sávban, a többié a listában, a fájlok `mtime`-ja szerint (`last_change`; az
+  ujjlenyomatban is). Az ágak távolságát (`branch_tracks`, a `meta.tracks`) egyetlen
+  `for-each-ref` adja: `base` az `origin/HEAD` céljához (`%(ahead-behind:…)`, git
+  2.41+, régebbin ágankénti `rev-list`), `up` az upstreamhez, a remote-only ágnak
+  `local` a helyi párjához; a forrás-ágat (reflog) szándékosan nem használjuk — az
+  ágak alja mindig az `origin/main`-en van. Az ágválasztó viszont a worktree-k
+  HEAD-reflogjából (`logs/HEAD`, `checkout: moving … to <ág>`) csoportosít: az ág
+  azé a worktree-é, ahol utoljára ki volt véve (`branch_owners`, a `branches`
+  `owner` mezője; csak fájlt olvas). Törölt worktree reflogja vele megy: az ága
+  gazdátlan. A `branches` a csak remote ágakat is adja (`remote: true`). A leválasztott
+  HEAD-ű worktree ágát a git nem jegyzi — a Claude app `git-worktrees.json`-ja
+  igen (`app_worktree_branches`, a worktree `appBranch` mezője); név szerint
+  nem azonosítunk. Az `EnterWorktree` után a hook PostToolUse-ként is
+  fut, de ugyanazon a repón belül nem nyit újra (sessionönként egyszer).
+- **A „saját” worktree az előtérben lévő sessioné** — mérve,
+  docs/artifact-findings.md: az app egy Artifactnak **egyetlen keretet** tart,
+  és azt mutatja minden sessionben; a link `#horgony`-a nem jut át, a host-híd
+  hívásából a session nem derül ki, session-váltásra nincs hook. A Claude app
+  viszont sessionönként JSON-t tart (`~/Library/Application Support/Claude/
+  claude-code-sessions/*/*/local_*.json`: `cwd` / `worktreePath`,
+  `lastFocusedAt`, `isArchived`): a repóban dolgozó, nem archivált sessionök
+  közül a legutóbb fókuszált van előtérben (`focused_worktree`, a
+  `changes` `focus` mezője). A `lastFocusedAt` 1–3 s késéssel íródik, ezért
+  a fókusz ideje az app naplójából jön (`~/Library/Logs/Claude/main.log`,
+  `setFocusedSession`, ~20 ms-mal a váltás után; `app_log_focus`, csak az új
+  sorokat olvassa, a forgatást kezeli). A lap erről nem kap eseményt (a keret
+  rejtés nélkül költözik, egyforma panelméretnél `resize` sincs). Ezért a lap
+  mindig egy `changes`-hívást tart nyitva (long-poll, `since` + `wait`,
+  `wait_changes`): a szerver külön szálon akkor válaszol, ha az app naplójában
+  session-váltás jelenik meg (`log_advance`, ~50 ms), vagy a repó állapota
+  (`repo_state`) eltér a `since` tokenben lévőtől — git-műveletnél egy
+  `stat`-előszűrő (`stamp_paths`) miatt ~50 ms-on belül, fájlszerkesztésnél a
+  2 s-onkénti teljes számításra —, legkésőbb 50 s után üresen. A `since`
+  (állapot-hash + naplókurzor) miatt a két hívás között jött változás sem vész
+  el. A szál explicit repóval dolgozik, a `REPO` globálist nem érinti. A `send`
+  ezért zárolt, a fókusz-gyorstárak `FOCUS_LOCK` alatt; a `restart` előbb a
+  várakozókat válaszoltatja (`WAKE`). A host a lap megszakítását (`signal`) nem
+  adja át a szervernek: az árva várakozót a határidő zárja, és `WAITERS_MAX`
+  fölött nem várunk. Rejtett keretben a hívás azonnal elbukik, és a lap
+  időzítői sem futnak: a lap a megjelenéskor (`wake`) hív újra. Sűrű kérdezés
+  tilos: a host ~20 gyors hívás után visszafogja a hívásokat. Belső fájlok, ismeretlen formánál nem
+  dönt; a több száz, nagy session-fájlt `stat`-tal figyeli, csak a
+  megváltozottat olvassa újra (`app_sessions`). Kézzel nem választható. Halványabb (`.foreign`), ami nem a
+  sajáté: worktree-ből nézve ami a HEAD-jéből nem érhető el; a fő checkoutból
+  nézve csak a worktree-k saját commitjai és WIP-je — a gazdátlan ágak a fő
+  checkouté (a git nem jegyzi fel, hol jöttek létre).
 - **A kimenet a repón KÍVÜL, `~/.git-graph/<slug>/`**: `artifact.html` az
   Artifact betöltője — innen publikál a session. Ne tedd konfigurálhatóvá. A projektmappába nem írunk.
 - **Az Artifact nem tárol adatot** — ez a lényeg, nem optimalizálás. Egy
@@ -199,8 +252,8 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   - A `git-graph --mcp` stdout-ján csak JSON-RPC mehet, ASCII-ban (a locale-tól
     függetlenül); napló, ha kell, stderr-re.
   - A toolok `readOnlyHint: true`-k — enélkül az app hívásonként megerősítést
-    kérhet. A `watchTool` pollozása ≥ ~30 s, ezért a lap `callTool`-lal kérdez
-    2 s-onként (olcsó `fingerprint`, változáskor `graph_data`).
+    kérhet. A `watchTool` pollozása ≥ ~30 s, ezért a lap `callTool`-lal hív
+    (nyitva tartott `changes`, változáskor `graph_data`).
   - Csak az appban megy (böngészőben `server_not_connected`), csak a
     tulajdonosnak. A lap nem `retryable` hibánál leáll, és kiírja a teendőt.
   - Új tool → a `PUBLISH_CAPS` tool-listájába is (különben `not_in_manifest`),
@@ -232,7 +285,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
     utolsóként. A lap fájljait a szerver induláskor egyszer olvassa be
     (`page_file`), így a futó verzió a saját kódját adja akkor is, ha a hook már
     újat másolt. A manifestből olvassa a futó szerver induláskor a verzióját (`RUNNING_VERSION`), a
-    `fingerprint` pedig a telepítettel együtt adja — a lábléc így jelzi, ha az
+    `changes` pedig a telepítettel együtt adja — a lábléc így jelzi, ha az
     app még a régi kódot futtatja.
   - **A futó szerver frissíti magát** (`watch_plugin` → `pull_update` →
     `restart`): ha a nyilvántartás más verziót mond, mint ami fut, a plugin
@@ -241,7 +294,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
     stdio-csöveken. Ezért puffereletlen a stdin-olvasás (`select` + `os.read`,
     saját sorpuffer): csak üres pufferrel indul újra, a csőben maradt kérést az
     új folyamat olvassa. A szerver nem tart állapotot a kézfogás után, a
-    `respond` így az újraindult folyamatban is válaszol. A lap a `fingerprint`
+    `respond` így az újraindult folyamatban is válaszol. A lap a `changes`
     verzióváltásán újratölt (`location.reload`), így az új `page_code` is megjön.
     Mérve kamu `HOME`-mal: 12/12 kérés megválaszolva a csere körül.
   - A leszerelést is ez a szál végzi (`watch_plugin`): az

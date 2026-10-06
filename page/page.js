@@ -13,6 +13,8 @@ let DATA = { commits: [], edges: [], stats: {}, branches: [], avatars: {},
 const LANE_COLORS = ['#d97757', '#5b8def', '#4fa564', '#a07ad6', '#cf9a2c',
                      '#2f9c9a', '#d0628f', '#8a9a3a', '#6a7fd1', '#c4573a'];
 const ROW_H = 30, LANE_W = 14, X0 = 16, DOT_R = 4;
+const EDGE_HUG = DOT_R + 1;   // a sávváltó vonal ennyit fut a commit sávjában, mielőtt elfordul
+const STUB_GAP = 11;   // több worktree-csonk pöttyei közti függőleges távolság
 // Friss commitok: a legújabbtól visszafelé, amíg a szomszédok közt ≤ 10 mp telt
 // el — és csak 5 percig. Egy újabb sorozat így magától leváltja az előzőt.
 const FRESH_GAP_MS = 10 * 1000, FRESH_FOR_MS = 5 * 60 * 1000;
@@ -23,17 +25,96 @@ const rowsEl = document.getElementById('rows');
 const svg = document.getElementById('lanes');
 const counter = document.getElementById('counter');
 const scroller = document.querySelector('.scroll');
+const headChip = document.getElementById('headChip');
 let expanded = null;      // a kinyitott commit sha-ja
 let visible = DATA.commits; // szűrés utáni lista
 
 let graphW = 72;
+
+/* ── A „saját” worktree ───────────────────────────────────────────────────
+   A worktree-k közös lapot látnak, és az app ezt az egy keretet mutatja
+   minden sessionben. Hogy épp melyik session van előtérben, azt a szerver
+   tudja (a Claude app naplójából és session-fájljaiból, `focus` a
+   `changes` válaszában): annak
+   a worktree-je a saját. Kézzel nem választható — a HEAD ott van, ahol a
+   session dolgozik, minden git-parancsa ott fut. */
+let focusAuto = null;        // { worktree, known } — a szervertől
+const worktrees = () => DATA.meta.worktrees || [];
+const linkedWts = () => worktrees().filter(w => !w.main);
+/* A remote ágak kapcsolója (alapból be): a távolságok, a badge-ek, az ágválasztó és a szűrés is ezt nézi. */
+const remotesOn = () => document.getElementById('showRemotes')?.checked ?? true;
+/* A saját worktree; a fő checkout, ha a session nem egy worktree-ben dolgozik. */
+function focusWt() {
+  const wts = worktrees();
+  return wts.find(w => w.slug === focusAuto?.worktree) || wts.find(w => w.main) || wts[0];
+}
+/* Ami nem a saját worktree-é, halványabb (`.foreign`). A git nem jegyzi fel,
+   hol hozták létre az ágat — a gazdátlan (sehol ki nem vett) ágak a fő
+   checkouté, mint a sávokban is:
+   - worktree-ből nézve: ami a saját HEAD-jéből nem érhető el (és nem a saját
+     ál-sora) — más ág, a fő checkout és más worktree-k WIP-je;
+   - a fő checkoutból nézve: csak a hozzáadott worktree-k saját commitjai (a
+     HEAD-jükből elérhető, a fő checkoutéból nem) és az ál-soraik. */
+let foreignSet = null;
+function computeOwn() {
+  const own = focusWt(), linked = linkedWts();
+  foreignSet = null;
+  if (!own || !linked.length) return;               // worktree nélkül nincs mit elválasztani
+  const reach = head => reachable(head ? [head] : []);
+  const mine = reach(own.head);
+  if (own.main) {
+    foreignSet = new Set();
+    for (const w of linked) for (const sha of reach(w.head)) if (!mine.has(sha)) foreignSet.add(sha);
+    for (const c of DATA.commits) if (c.uncommitted && c.worktree !== own.slug) foreignSet.add(c.sha);
+  } else {
+    foreignSet = new Set(DATA.commits.filter(c => !mine.has(c.sha) && c.worktree !== own.slug).map(c => c.sha));
+  }
+}
+const foreign = c => Boolean(foreignSet) && foreignSet.has(c.sha);
+/* A halvány pötty és vonal tömör, a háttérrel kevert szín — átlátszósággal
+   a pöttyön átütne az alatta futó vonal. */
+const FADE = 45;
+const fade = color => `color-mix(in srgb, ${color} ${FADE}%, var(--bg))`;
+const tint = (c, color) => foreign(c) ? fade(color) : color;
+const laneColor = lane => LANE_COLORS[lane % LANE_COLORS.length];
+/* Keresőtáblák az adatból (sha → commit, ref → csúcs-commit, worktree → csonk és
+   ál-sor): a DATA cseréjekor egyszer épülnek, a sor- és ágválasztó-rajzolás nem
+   pásztázza végig a commitokat. */
+let indexed = null, index = null;
+function idx() {
+  if (indexed !== DATA) {
+    indexed = DATA;
+    index = { bySha: new Map(), refTip: new Map(), stub: new Map(), wip: new Map() };
+    for (const c of DATA.commits) {
+      index.bySha.set(c.sha, c);
+      for (const r of c.refs) if (r.kind !== 'tag' && !index.refTip.has(r.name)) index.refTip.set(r.name, c);
+      for (const t of c.stubs || []) if (!index.stub.has(t.worktree)) index.stub.set(t.worktree, t);
+      if (c.worktree && !index.wip.has(c.worktree)) index.wip.set(c.worktree, c);
+    }
+  }
+  return index;
+}
+const commitBySha = sha => idx().bySha.get(sha);
+/* Saját commit és WIP nélküli worktree leágazó csonkja (`stubs`, a szervertől). */
+const stubOf = slug => idx().stub.get(slug);
+/* A worktree színe a gráfban: a csonkja, az ál-sora, vagy a HEAD-je sávjáé. */
+function wtColor(w) {
+  const c = stubOf(w.slug) || idx().wip.get(w.slug) || commitBySha(w.head);
+  return c ? laneColor(c.lane) : '';
+}
+/* Egy ref színe a gráfban: a csúcs-commitja sávjáé (az ágválasztó ikonjaihoz). */
+function refColor(name) {
+  const c = idx().refTip.get(name);
+  return c ? laneColor(c.lane) : 'var(--fg-3)';
+}
 
 /* ── Ikonok ── stroke-os, 16×16-os rácson; a CSS `.ic` színezi. */
 const ICONS = {
   branch: '<circle cx="5" cy="3.5" r="1.5"/><circle cx="5" cy="12.5" r="1.5"/><circle cx="11" cy="5.5" r="1.5"/><path d="M5 5v6M11 7c0 2.5-3 2.5-6 4"/>',
   tag: '<path d="M2.5 2.5h5l6 6-5 5-6-6z"/><circle cx="5.5" cy="5.5" r="1"/>',
   cloud: '<path d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.3 7.6 2.5 2.5 0 0 0 4.5 12.5z"/>',
-  commit: '<path d="M4 4v8"/><path d="M4 7h4a3 3 0 0 1 3 3v1"/><circle cx="4" cy="3" r="1.4" fill="currentColor"/><circle cx="11" cy="12.6" r="1.4" fill="currentColor"/>',
+  // teli felhő: az alapág (az origin/HEAD célja) — default ág csak remote-on van
+  cloudFill: '<path fill="currentColor" d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.3 7.6 2.5 2.5 0 0 0 4.5 12.5z"/>',
   parent: '<circle cx="8" cy="5" r="2.25"/><path d="M8 7.25v6.25M5.5 11 8 13.5 10.5 11"/>',
   open: '<path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"/>',
   issue: '<circle cx="8" cy="8" r="5.75"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/>',
@@ -44,10 +125,24 @@ const ICONS = {
   check: '<path d="m3.5 8.5 3 3 6-7"/>',
   file: '<path d="M4 1.5h5l3.5 3.5v9.5H4z"/><path d="M9 1.5V5h3.5"/>',
   chev: '<path d="M6.5 4.5 10 8l-3.5 3.5"/>',
+  // a worktree-jel: mappa, benne egy kör (a kivett állapot) — saját rajz a készlet vonalvastagságával
+  worktree: '<path class="wt-ic" d="M3 13a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h2.5L7 4.5h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1z"/>'
+    + '<circle class="wt-ic" cx="8" cy="9" r="1.5" fill="currentColor"/>',
+  // a fő checkout: ugyanaz a mappa, pötty nélkül — maga a repó, nem egy kivett másolat
+  mainWorktree: '<path class="wt-ic" d="M3 13a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h2.5L7 4.5h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1z"/>',
+  // ág és upstream egy helyen: felhő, az alsó vonala közepén csomópont, onnan ág két
+  // csomópontra; a teli változat (alapág) a csomópont körül kivágva. A Fejlesztő
+  // rajza (CorelDRAW), 16-os rácsra méretezve, a készlet 1,5-ös vonalával.
+  branchCloud: '<path d="M12.07 9.06c1.16-0.4 2-1.5 2-2.79 0-1.55-1.2-2.84-2.75-2.94-0.64-1.4-2.03-2.29-3.57-2.29-1.95 0-3.61 1.44-3.89 3.37-1.1 0.26-1.88 1.25-1.88 2.39 0 0.97 0.57 1.83 1.42 2.23"/><circle cx="7.73" cy="8.4" r="1.6"/><path d="M7.73 10.81l0 2.56m-3.73 0l7.47 0"/><circle cx="2.4" cy="13.37" r="1.6"/><circle cx="13.6" cy="13.37" r="1.6"/>',
+  branchCloudFill: '<path fill="currentColor" stroke="none" d="M12.07 9.06c1.16-0.4 2-1.5 2-2.79 0-1.55-1.2-2.84-2.75-2.94-0.64-1.4-2.03-2.29-3.57-2.29-1.95 0-3.61 1.44-3.89 3.37-1.1 0.26-1.88 1.25-1.88 2.39 0 0.97 0.57 1.83 1.42 2.22 0.06-2.35 1.98-4.23 4.34-4.23 2.38 0 4.3 1.91 4.34 4.28z"/><circle cx="7.73" cy="8.4" r="1.6"/><path d="M7.73 10.81l0 2.56m-3.73 0l7.47 0"/><circle cx="2.4" cy="13.37" r="1.6"/><circle cx="13.6" cy="13.37" r="1.6"/><path d="M12.07 9.06c1.16-0.4 2-1.5 2-2.79 0-1.55-1.2-2.84-2.75-2.94-0.64-1.4-2.03-2.29-3.57-2.29-1.95 0-3.61 1.44-3.89 3.37-1.1 0.26-1.88 1.25-1.88 2.39 0 0.97 0.57 1.83 1.42 2.22l0-0.7 0 0c0-2.4 1.94-4.34 4.34-4.34 2.4 0 4.34 1.94 4.34 4.34l0 0 0 0.75z"/>',
+  // minden ág: két sáv, egy-egy üres csomóponttal, mint a branch-ikonon
+  allBranches: '<path d="M5 2.5v6M5 11.5v2M11 2.5v2M11 7.5v6"/><circle cx="5" cy="10" r="1.5"/><circle cx="11" cy="6" r="1.5"/>',
+  // leválasztott HEAD az ágválasztóban: szétkapcsolt lánc
+  detached: '<path d="M6.5 9.5 4.8 11.2a2 2 0 0 1-2.8-2.8L3.7 6.7M9.5 6.5l1.7-1.7a2 2 0 0 1 2.8 2.8l-1.7 1.7M5.5 2.5V4M2.5 5.5H4M10.5 13.5V12M13.5 10.5H12"/>',
 };
 const icon = (name, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
 // Fájltípus-ikon: a git-graph a fájlhoz rendelt Catppuccin-ikon SVG-jét adja
-// (`fileIcons`, a színei a lap `--ic-*` tokenjei); régi szervernél az általános ikon.
+// (`fileIcons`, a színei a lap `--ic-*` tokenjei); ha a készlet hiányzik, az általános ikon.
 const fileIcon = f => {
   const svg = DATA.fileIcons?.[f.icon];
   return svg ? svg.replace('<svg', '<svg class="fic" aria-hidden="true"') : icon('file', 'ic fic');
@@ -74,12 +169,11 @@ function computeFresh() {
 /* Minden, ami a DATA-ból származik és adatcserekor újraszámolandó. */
 function hydrate() {
   computeFresh();
-  const laneCount = DATA.commits.reduce((m, c) => Math.max(m, c.lane), 0) + 1;
+  const laneCount = DATA.commits.reduce((m, c) => Math.max(m, c.lane, ...(c.stubs || []).map(t => t.lane)), 0) + 1;
   graphW = Math.max(32, X0 * 2 + (laneCount - 1) * LANE_W);
   document.documentElement.style.setProperty('--graph-w', graphW + 'px');
   document.getElementById('repoName').textContent = DATA.meta.repo;
-  document.getElementById('headName').textContent = DATA.meta.head;
-  document.getElementById('headChip').hidden = !DATA.meta.head;
+  hydrateFocus();
   const base = DATA.meta.repoUrl;
   document.getElementById('footLinks').innerHTML = base
     ? ghLink(`${base}/issues`, icon('issue'), 'mini', 'Issue-k a GitHubon')
@@ -87,6 +181,88 @@ function hydrate() {
       + ghLink(base, icon('github'), 'mini', 'A repó a GitHubon') : '';
   fitChrome();                // a repó- és ágnév hossza dönt a kompakt fejlécről
   hydrateAvatars();
+}
+
+/* A HEAD-chip a saját worktree ágát mutatja; több worktree-nél fölötte a
+   worktree-pillek: ág, változások pöttye, ↑ahead. */
+/* A fejléc chipje (a saját worktree-é): worktree-ikon,
+   branch-ikon, az ág neve és az ág távolságai (`distSegs`). A commitolatlan
+   változást a rögzített sáv WIP-sora mutatja. */
+function wtChipInner(w) {
+  const linked = !w.main;
+  // A fő checkout üres mappát kap, ha vannak worktree-k (megkülönböztetésül); a jel a
+  // commit-chiphez hasonlóan az ág-ikonhoz tapad.
+  const mark = linked ? 'worktree' : linkedWts().length ? 'mainWorktree' : '';
+  // A HEAD commit-chipjének (`badges`) ága: a vele egy helyen álló remote párjai.
+  const ref = w.branch && remotesOn()
+    ? mergedRefs(commitBySha(w.head)?.refs || []).find(x => x.name === w.branch) : null;
+  const pairs = ref?.remotes || [];
+  const multi = (DATA.meta.remotes || []).length > 1;
+  // Egy remote-nál a szinkronban lévő ág felhő-és-ág ikont kap (az alapágé teli); többnél
+  // remote-onként egy szakasz a nevével; ág nélkül lánc.
+  const branchIc = !w.branch ? 'detached' : pairs.length && !multi ? syncedIcon(ref) : 'branch';
+  // Leválasztott hozzáadott worktree: a neve is, mint a commit-chipen (név | lánc hash).
+  const wtName = linked && !w.branch ? `${icon(mark)}<span class="chip-name">${esc(w.name)}</span><span class="div"></span>` : '';
+  return (wtName || (mark ? `<span class="synced wt-lead">${icon(mark)}</span>` : '')) + icon(branchIc)
+    + `<span class="chip-name">${esc(w.branch || String(w.head || '').slice(0, 7))}</span>`
+    + distSegs(w.branch || '', wtTrack(w))
+    + (multi ? remoteSegs(pairs) : '');
+}
+
+/* A remote alapértelmezett ága (`origin/HEAD` célja): teli felhő; több remote-nál
+   remote-onként egy szakasz a nevével (`main | ☁ origin | ☁ upstream`); egy remote-nál
+   a vele egy helyen álló ág felhő-és-ág ikont kap (az alapágé teli). */
+const cloudOf = on => icon('cloud', on ? 'ic filled' : 'ic');
+const remoteSegs = pairs => pairs.map(o => `<span class="div"></span><span class="synced">${cloudOf(o.default)}${esc(o.name)}</span>`).join('');
+const syncedIcon = ref => ref.default ? 'branchCloudFill' : 'branchCloud';
+
+/* Az ág távolságai (`DATA.meta.tracks`, csak a nem nulla irány): `↑a ↓b` az
+   alapághoz (amire az origin/HEAD mutat) — ikon nélkül, a chip maga az ág —, és
+   `☁ ↑c ↓d` az upstreamjéhez, csak ha nem egy helyen állnak (különben a chip a
+   felhő-és-ág ikont kapja); a remote-only chipen utolsóként `⑂ ↑e ↓f` a helyi ágához.
+   Ami a chipből már kiderül, annak nem jár újabb ikon. */
+const arrows = ([a, b]) => [a && `↑${a}`, b && `↓${b}`].filter(Boolean).join(' ');
+/* A worktree távolságai: az ágáé, leválasztott HEAD-nél (nincs ágkulcs) a worktree adja a
+   HEAD-commit távolságát az alapágtól. */
+const wtTrack = w => (w?.branch ? DATA.meta.tracks?.[w.branch] : { base: w?.base }) || {};
+/* Ugyanez szövegesen, a tooltipbe (soronként egy viszony). */
+function distText(name, tr = DATA.meta.tracks?.[name] || {}) {
+  const base = (DATA.meta.base || 'main').replace(/^[^/]+\//, '');
+  const lines = [];
+  if (tr.base?.[0]) lines.push(`↑${tr.base[0]}: ennyi commit ${name ? 'az ágon' : 'a HEAD-ig'} a ${base} óta`);
+  if (tr.base?.[1]) lines.push(`↓${tr.base[1]}: ennyit haladt közben a ${base}`);
+  if (tr.up?.[0]) lines.push(`☁ ↑${tr.up[0]}: pusholatlan commit`);
+  if (tr.up?.[1]) lines.push(`☁ ↓${tr.up[1]}: a remote-on van, helyben nincs`);
+  if (tr.local?.[0]) lines.push(`⑂ ↑${tr.local[0]}: ennyivel jár a helyi ág előtt`);
+  if (tr.local?.[1]) lines.push(`⑂ ↓${tr.local[1]}: ennyivel van a helyi ág mögött`);
+  return lines.length ? `\n${lines.join('\n')}` : '';
+}
+function distSegs(name, tr = DATA.meta.tracks?.[name] || {}) {
+  // Remote ágak nélkül a remote-hoz mért szakaszok sem kellenek (☁ és a remote chip ⑂-je).
+  const remote = remotesOn();
+  // Az alapág helyi párján (pl. `main`) nem dolgozunk: ha előrébb jár a remote-jánál,
+  // az anomália (teszt vagy tévedés) — figyelmeztető szín és magyarázat.
+  const base = DATA.meta.base || '', local = base.slice(base.indexOf('/') + 1);
+  const odd = base && name === local && tr.up?.[0] > 0;
+  const warn = odd ? ` warn" data-tip="${esc(`A helyi ${name}-en ${tr.up[0]} pusholatlan commit van`)}` : '';
+  return [[tr.base, '', ''], [remote && tr.up, icon('cloud'), warn], [remote && tr.local, icon('branch'), '']]
+    .filter(([d]) => d && (d[0] || d[1]))
+    .map(([d, ic, cls]) => `<span class="div"></span><span class="dist${cls}">${ic}${arrows(d)}</span>`).join('');
+}
+function hydrateFocus() {
+  const wts = worktrees(), own = focusWt();
+  const chip = headChip;
+  // A fejléc chipje a saját ág gráfbeli színét viseli; worktree-ben a worktree-ikonnal,
+  // az előnnyel és — ha van commitolatlan változás — üres karikával, mint az ál-sor pontja.
+  chip.style.setProperty('--lc', (own && wtColor(own)) || 'var(--accent)');
+  chip.innerHTML = own ? wtChipInner(own) : icon('branch') + esc(DATA.meta.head || '');
+  chip.hidden = !(own || DATA.meta.head);
+  chip.title = !own ? '' : (own.main ? 'fő checkout: ' : 'worktree: ') + own.path
+    + (wts.length < 2 ? ''
+      : focusAuto?.known ? '\naz előtérben lévő session itt dolgozik'
+      : '\nnincs ismert session a repóban — a fő checkout')
+    + distText(own.branch || '', wtTrack(own));
+  computeOwn();
 }
 
 /* Az avatarok (data URI, néhány KB) szerzőnként egyszer kerülnek a lapra, egy
@@ -108,23 +284,29 @@ function laneX(l) { return X0 + l * LANE_W; }
 /* A sorok Y-pozíciója a DOM-ból jön, nem sorszám × magasság: a napok fejléce
    és a kinyitott commit-panel az alattuk lévő sorokat lejjebb tolja, és a
    pöttyöknek velük kell menniük — közben a vonal egyszerűen hosszabb lesz. */
-/* Az Uncommitted ál-sor a lista FÖLÖTT, a fix `#pending` sávban ül: a pontja
-   ott van, a szaggatott vonala innen, a lista teteje fölül (negatív Y, az
-   SVG túllóghat) fut le a HEAD-ig. */
-const PENDING_Y = -(4 + ROW_H / 2);   // 4: a .graph-wrap felső margója
+/* Az Uncommitted ál-sorok a lista FÖLÖTT, a fix `#pending` sávban ülnek: a
+   pontjuk ott van, a szaggatott vonaluk innen, a lista teteje fölül (negatív
+   Y, az SVG túllóghat) fut le a HEAD-ig. */
+const WRAP_TOP = 4;                   // a .graph-wrap felső margója
 function drawGraph() {
+  drawPending();
   const rowIndexBySha = new Map(visible.map((c, i) => [c.sha, i]));
   // A sor közepe: a kétsoros sor (`.two`) magasabb.
-  const midBySha = new Map([...rowsEl.querySelectorAll('.row')]
-    .map(el => [el.dataset.sha, el.offsetTop + el.offsetHeight / 2]));
-  const rowY = i => visible[i].uncommitted ? PENDING_Y
-    : midBySha.get(visible[i].sha) ?? i * ROW_H + ROW_H / 2;
+  const listRows = [...rowsEl.querySelectorAll('.row')];
+  const midBySha = new Map(listRows.map(el => [el.dataset.sha, el.offsetTop + el.offsetHeight / 2]));
+  const heightBySha = new Map(listRows.map(el => [el.dataset.sha, el.offsetHeight]));
+  for (const el of pendingEl.querySelectorAll('.row')) {
+    midBySha.set(el.dataset.sha, el.offsetTop + el.offsetHeight / 2 - pendingEl.offsetHeight - WRAP_TOP);
+  }
+  const rowY = i => midBySha.get(visible[i].sha) ?? i * ROW_H + ROW_H / 2;
   const h = Math.max(rowsEl.offsetHeight, visible.length * ROW_H);
   svg.setAttribute('width', graphW);
   svg.setAttribute('height', h);
   svg.setAttribute('viewBox', `0 0 ${graphW} ${h}`);
 
-  let out = '';
+  // Az egyenesek előbb, a sávváltó vonalak felül: az elágazás a commit pöttyénél
+  // is a saját színével indul, nem takarja el a sáv vonala.
+  let out = '', bends = '';
   for (const e of DATA.edges) {
     const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
     const b = rowIndexBySha.get(DATA.commits[e.toRow].sha);
@@ -133,14 +315,42 @@ function drawGraph() {
     const x2 = laneX(e.toLane),   y2 = rowY(b);
     // A vonal annak a sávnak a színét kapja, amelyikben a hossza nagy részén fut:
     // a merge-vonal rögtön a cél sávjába fordul, a leágazó csak a szülő fölött.
-    const color = LANE_COLORS[(e.merge ? e.toLane : e.fromLane) % LANE_COLORS.length];
-    // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re (görgetve rejtve).
-    const dash = DATA.commits[e.fromRow].uncommitted ? ' class="pend-edge" stroke-dasharray="3 3"' : '';
-    out += `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
+    const color = tint(DATA.commits[e.fromRow],
+      laneColor(e.merge ? e.toLane : e.fromLane));
+    // A munkakönyvtár még nem commit: szaggatva lóg a HEAD-re. Görgetve a sajátja
+    // eltűnik, ha nincs alatta más WIP-sor, vagy ha a HEAD-je már a sáv alá csúszott
+    // (`hideOwnEdge`); a többié látszik — különben nem tudni, hová tart.
+    const from = DATA.commits[e.fromRow];
+    const own = from.worktree === focusWt()?.slug ? ' own' : '';
+    const dash = from.uncommitted ? ` class="pend-edge${own}" stroke-dasharray="3 3"` : '';
+    const path = `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
+    if (x1 === x2) out += path; else bends += path;
   }
+  out += bends;
+  // A worktree csonkja: vonal a commitról a saját oszlopába, ott pötty. Több csonk
+  // esetén a pöttyök a commit magassága körül, legyezőszerűen ágaznak le.
   visible.forEach((c, i) => {
-    if (c.uncommitted) return;            // a pontja a #pending sávban van
-    const color = LANE_COLORS[c.lane % LANE_COLORS.length];
+    const stubs = c.stubs || [];
+    if (!stubs.length) return;
+    const y0 = rowY(i), x0 = laneX(c.lane), span = (heightBySha.get(c.sha) || ROW_H) - 8;
+    // a pöttyök közepe a commit magassága, köztük legfeljebb STUB_GAP (a sor magasságán belül)
+    const gap = Math.min(STUB_GAP, span / (stubs.length + 1));
+    const ys = stubs.map((t, k) => y0 + (k - (stubs.length - 1) / 2) * gap);
+    // a commit magasságától legtávolabbit rajzoljuk először: a közös szakaszon a közelebbi látszik
+    const order = stubs.map((t, k) => k).sort((p, q) => Math.abs(ys[q] - y0) - Math.abs(ys[p] - y0));
+    for (const k of order) {
+      const t = stubs[k], y = ys[k], x = laneX(t.lane), dy = y - y0;
+      const color = t.worktree === focusWt()?.slug ? laneColor(t.lane) : fade(laneColor(t.lane));
+      // legyező: egyetlen sima ív a commit pöttyéből a csonk pöttyéig
+      const d = !dy ? `M ${x0} ${y0} H ${x}`
+        : `M ${x0} ${y0} C ${x0 + (x - x0) * 0.45} ${y0}, ${x0 + (x - x0) * 0.35} ${y}, ${x} ${y}`;
+      out += `<path d="${d}" fill="none" stroke="${color}" stroke-width="2"/>`
+        + `<circle cx="${x}" cy="${y}" r="${DOT_R}" fill="${color}" stroke="${color}" stroke-width="2"/>`;
+    }
+  });
+  visible.forEach((c, i) => {
+    if (c.uncommitted && c.worktree === focusWt()?.slug) return;   // a pontja a #pending sávban van
+    const color = tint(c, laneColor(c.lane));
     const merge = c.parents.length > 1;
     // Az ál-sor pontja üres karika: a szaggatott vonal már jelzi, hogy nem
     // commit — a pöttyözött körvonal ezen a méreten csak elmosódna.
@@ -156,12 +366,16 @@ function drawGraph() {
    commit alatt, ág-leágazásnál pedig közvetlenül a szülő fölött. */
 function edgePath(x1, y1, x2, y2, merge) {
   if (x1 === x2) return `M ${x1} ${y1} L ${x2} ${y2}`;
+  // Legyező: a vonal a commit pöttyéből függőlegesen indul (fel vagy le), és a
+  // worktree-csonk ívét elforgatva fordul a másik sávba egy soron belül.
   if (merge) {
     const bend = Math.min(y1 + ROW_H, y2);
-    return `M ${x1} ${y1} C ${x1} ${bend}, ${x2} ${y1}, ${x2} ${bend} L ${x2} ${y2}`;
+    const s1 = Math.min(y1 + EDGE_HUG, bend), dy = bend - s1;
+    return `M ${x1} ${y1} L ${x1} ${s1} C ${x1} ${s1 + dy * 0.45}, ${x2} ${s1 + dy * 0.35}, ${x2} ${bend} L ${x2} ${y2}`;
   }
   const bend = Math.max(y2 - ROW_H, y1);
-  return `M ${x1} ${y1} L ${x1} ${bend} C ${x1} ${y2}, ${x2} ${bend}, ${x2} ${y2}`;
+  const s2 = Math.max(y2 - EDGE_HUG, bend), dy = bend - s2;
+  return `M ${x1} ${y1} L ${x1} ${bend} C ${x1} ${s2 + dy * 0.35}, ${x2} ${s2 + dy * 0.45}, ${x2} ${s2} L ${x2} ${y2}`;
 }
 
 /* ── Dátum ── budapesti idő szerint, magyar formában. */
@@ -175,6 +389,13 @@ const fmtTime = iso => { const p = fmtParts(iso, { hour: '2-digit', minute: '2-d
 const clock = () => { const p = fmtParts(new Date(),
   { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
   return `${p.hour}:${p.minute}:${p.second}`; };
+/* Az idő a napjával, ha nem mai (a rögzített sávnak nincs napfejléce): `tegnap 23:30`, `okt. 3. 23:30`. */
+function pinnedTime(iso) {
+  if (dayKey(iso) === dayKey(new Date())) return fmtTime(iso);
+  if (dayKey(iso) === dayKey(new Date(Date.now() - 864e5))) return `tegnap ${fmtTime(iso)}`;
+  const p = fmtParts(iso, { month: 'short', day: 'numeric' });
+  return `${p.month} ${p.day}. ${fmtTime(iso)}`;
+}
 const fmtDate = iso =>`${dayKey(iso).replaceAll('-', '.')}. ${fmtTime(iso)}`;
 function dayLabel(key) {
   const [y, m, d] = key.split('-').map(Number);
@@ -208,7 +429,7 @@ const commitUrl = c => `${DATA.meta.repoUrl}/commit/${c.sha}`;
 const fileUrl = (c, f) => commitUrl(c) + (f.anchor ? '#diff-' + f.anchor : '');
 
 /* Ha a helyi ág és a remote-ja ugyanazon a commiton áll, egy badge-ben
-   látszanak (`main | origin`); ha szétváltak, külön-külön. */
+   látszanak (az ág neve után felhő-ikon); ha szétváltak, külön-külön. */
 function mergedRefs(refs) {
   const names = new Set(refs.map(r => r.name));
   const used = new Set(), out = [];
@@ -219,19 +440,103 @@ function mergedRefs(refs) {
           && names.has(o.name) && o.name.slice(0, -r.name.length - 1).indexOf('/') < 0)
       : [];
     remotes.forEach(o => used.add(o.name));
-    out.push({ ...r, remotes: remotes.map(o => o.name.slice(0, -r.name.length - 1)) });
+    out.push({ ...r, default: r.default || remotes.some(o => o.default),
+      remotes: remotes.map(o => ({ name: o.name.slice(0, -r.name.length - 1), default: Boolean(o.default) })) });
   }
   return out;
 }
 
-const REF_ICON = { head: 'branch', detached: 'commit', branch: 'branch', remote: 'cloud', tag: 'tag' };
+/* A chipek sorrendje: a fő checkout HEAD-je, az ágak, a remote-ok, aztán a
+   hozzáadott worktree-k HEAD-je és leválasztott HEAD-nél az águk (egymás után), végül
+   a tag. */
+/* A hozzáadott worktree, amelyhez a chip tartozik: a HEAD-je, vagy leválasztott
+   HEAD-nél az az ág, amelyen a Claude app szerint a worktree állt (`appBranch`). */
+function wtOfRef(r) {
+  const linked = linkedWts();
+  return r.worktree ? linked.find(w => w.slug === r.worktree)
+    : r.kind === 'branch' ? linked.find(w => w.appBranch === r.name) : null;
+}
+function sortRefs(refs) {
+  const linked = linkedWts();
+  const rank = r => {
+    if (r.kind === 'tag') return [9, 0];
+    const w = wtOfRef(r);
+    if (w) return [3 + linked.indexOf(w) * 0.01, r.worktree ? 0 : 1];
+    return [{ head: 0, detached: 0, branch: 1, remote: 2 }[r.kind] ?? 2, 0];
+  };
+  return refs.map((r, i) => ({ r, k: [...rank(r), i] }))
+    .sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2]).map(x => x.r);
+}
+
+/* A WIP-sor eleji worktree-jel: sima (nem HEAD-) badge a worktree színével, vékony
+   körvonallal — az erős körvonal a HEAD-é, a HEAD pedig mindig commit. A fő checkout:
+   üres mappa és az ága; a többi: a worktree jele és neve | az ága. Ág nélkül (leválasztott
+   HEAD) mindkettő: jel, név (a fő checkouté „main”) | lánc. */
+function wtBadge(w) {
+  const lc = w.main ? laneColor(commitBySha(w.head)?.lane || 0) : wtColor(w) || LANE_COLORS[0];
+  const tip = `${w.main ? 'fő checkout' : 'worktree'}: ${w.path}\n`
+    + (w.branch ? `ág: ${w.branch}${distText(w.branch)}`
+      : `ág nélkül, HEAD: ${String(w.head || '').slice(0, 7)}${distText('', wtTrack(w))}`);
+  const branch = w.branch ? `${icon('branch')}<span class="badge-name">${esc(w.branch)}</span>${distSegs(w.branch)}` : '';
+  const body = w.main && branch ? `<span class="synced wt-lead">${icon('mainWorktree')}</span>${branch}`
+    : `${icon(w.main ? 'mainWorktree' : 'worktree')}<span class="badge-name">${esc(w.main ? 'main' : w.name)}</span>`
+      + `<span class="div"></span>${branch || icon('detached') + distSegs('', wtTrack(w))}`;
+  return `<span class="badge ref-branch" style="--lc:${lc}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${body}</span>`;
+}
+
+// A leválasztott HEAD-en az ág-ikon helyén lánc (az ág nélküliség jele), utána „HEAD”.
+const REF_ICON = { head: 'branch', branch: 'branch', remote: 'cloud', tag: 'tag', detached: 'detached' };
 function badges(c) {
-  return mergedRefs(c.refs).map(r => {
-    const title = (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name
-      + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o}/${r.name}`).join(', ') : '');
-    const remotes = r.remotes.map(o => `<span class="div"></span><span class="origin">${esc(o)}</span>`).join('');
-    return `<span class="badge ref-${r.kind}" title="${esc(title)}">${icon(REF_ICON[r.kind] || 'branch')}`
-      + `${esc(r.name)}${remotes}</span>`;
+  // A HEAD, az ág és a tag a commit sávjának színét kapja (`--lc`), mint a vonal; a
+  // remote chip is: ha van helyi ága, annak a színét (mint az ágválasztóban), különben
+  // a pöttyéét, amin áll.
+  const lane = laneColor(c.lane);
+  const showRemote = remotesOn();
+  return sortRefs(mergedRefs(c.refs)).filter(r => showRemote || r.kind !== 'remote').map(r => {
+    const wt = r.worktree && worktrees().find(w => w.slug === r.worktree);
+    const linked = wt && !wt.main;
+    // A fő checkout HEAD-je üres mappát kap elöl, ha vannak worktree-k (mint a fejléc chipje).
+    const mainLead = wt?.main && linkedWts().length > 0;
+    const dist = r.kind === 'tag' || r.kind === 'detached' ? '' : r.name;   // tagnek nincs
+    // Leválasztott HEAD: az ág helyett a worktree adja a HEAD-commit távolságát (a fő checkouté ref-mező nélkül jön).
+    const tr = r.kind === 'detached' ? wtTrack(wt || worktrees().find(w => w.main)) : undefined;
+    // Worktree leválasztott HEAD-je: ág nincs — a worktree jele és neve | lánc (az ág-ikon helyén) HEAD.
+    const orphan = r.kind === 'detached' && (linked || mainLead);
+    const title = (orphan ? `${wt.main ? 'main' : wt.name}: leválasztott HEAD (ág nélkül)`
+      : r.kind === 'detached' ? 'leválasztott HEAD (ág nélkül)'
+      : (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name)
+      + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o.name}/${r.name}`).join(', ') : '')
+      + (r.default ? '\na remote alapértelmezett ága' : '')
+      + (linked ? `\nworktree: ${wt.path}` : '')
+      + distText(dist, tr);
+    const multi = (DATA.meta.remotes || []).length > 1;
+    const remotes = multi && showRemote ? remoteSegs(r.remotes) : '';
+    // Worktree-ben kivett ág: elöl a worktree-jel (a fő checkouté csak, ha vannak worktree-k).
+    const wtIc = linked ? 'worktree' : mainLead ? 'mainWorktree' : '';
+    const wtLead = wtIc ? `<span class="synced wt-lead">${icon(wtIc)}</span>` : '';
+    // Egy remote-nál a helyi ág és a remote párja egy helyen: egyetlen felhő-és-ág ikon
+    // (az alapágé teli) a branch-ikon és a felhő helyett, a worktree-jel mögött is.
+    const synced = showRemote && r.remotes.length && !multi;
+    const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
+    // A csak remote-os chipen a felhő jelzi a remote-ot: egy remote-nál az
+    // `origin/` előtag nem kell, többnél a név mondja meg, melyiké.
+    const name = r.kind === 'remote' && !multi ? r.name.replace(/^origin\//, '') : r.name;
+    const lead = r.kind === 'remote' ? cloudOf(r.default)
+      : orphan ? (linked ? icon(wtIc) : wtLead)
+      : wtLead + (synced ? icon(syncedIcon(r))
+        : REF_ICON[r.kind] ? icon(REF_ICON[r.kind]) : '');
+    // A tooltip a saját buborék (`data-tip`), mint az avataré — a natív `title` késik.
+    // A hozzáadott worktree csoportja (HEAD-je, leválasztva az ága) a worktree színét
+    // kapja: a csonkjáét, a WIP-soráét, vagy a HEAD-jéét (`wtColor`) — mint a fejléc chipje.
+    const group = wtOfRef(r);
+    const pair = r.kind === 'remote' && DATA.branches.find(b => !b.remote && b.upstream === r.name);
+    const lc = ` style="--lc:${pair ? branchColor(pair) : (group && wtColor(group)) || lane}"`;
+    return `<span class="badge ref-${r.kind}${other}"${lc} data-tip="${esc(title)}" aria-label="${esc(title)}">`
+      // Leválasztott worktree: név | lánc HEAD; a fő checkouté név nélkül (mappa, lánc, HEAD), mint a fejlécen.
+      + (orphan ? lead + (linked ? `<span class="badge-name">${esc(wt.name)}</span><span class="div"></span>` : '')
+          + `${icon('detached')}<span class="badge-name">HEAD</span>`
+        : `${lead}<span class="badge-name">${esc(name)}</span>`)
+      + `${distSegs(dist, tr)}${remotes}</span>`;
   }).join('');
 }
 
@@ -250,20 +555,30 @@ const initials = name => String(name || '?').trim().split(/\s+/).slice(0, 2)
   .map(w => [...w][0] || '').join('').toUpperCase();
 
 function rowHtml(c) {
-  const color = fresh.has(c.sha) ? ` style="color:${LANE_COLORS[c.lane % LANE_COLORS.length]}"` : '';
-  const refs = c.refs.length ? `<span class="refs">${badges(c)}</span>` : '';
+  const color = fresh.has(c.sha) ? ` style="color:${laneColor(c.lane)}"` : '';
   const st = DATA.stats[c.sha];
-  const sum = st?.files.length ? diffTag(st.files.length, st.add, st.del) : '';
+  const sum = st ? diffTag(st.files.length, st.add, st.del) : '';   // üres commitnál is: 0 | 0 | 0
   // A szerző a soron csak arcként: avatar (`hydrateAvatars`), ha nincs, monogram;
   // a név hoverre (`data-tip`).
   const av = avatarClass.get(c.email);
   // idő · avatar · diff; a hash a lenyitott commit fejében (a keresés is megtalálja)
-  const meta = c.uncommitted ? '' : `<span class="meta"><span class="time">${fmtTime(c.date)}</span>`
+  // Más worktree WIP-je: elöl a worktree jele (`wtBadge`).
+  const other = c.uncommitted && c.worktree !== focusWt()?.slug && worktrees().find(w => w.slug === c.worktree);
+  // A WIP-badge a ref-badge-ek helyén ül: szűk sorban ugyanúgy a második sorba tördelődik;
+  // egysoros elrendezésben a CSS a cím elé teszi (`order`).
+  const refs = other ? `<span class="refs wip-lead">${wtBadge(other)}</span>`
+    : (() => { const b = badges(c); return b ? `<span class="refs">${b}</span>` : ''; })();
+  const subject = c.subject;
+  // A WIP-soron is: a fájlok utolsó módosítása, a gép git-felhasználója, a diff.
+  // A saját WIP a rögzített sávban ül, napfejléc nélkül: nem mai időnél a nap is kell.
+  const pinned = c.uncommitted && c.worktree === focusWt()?.slug;
+  const meta = `<span class="meta"><span class="time">${pinned ? pinnedTime(c.date) : fmtTime(c.date)}</span>`
     + `<span class="author ${av || 'ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
     + `${av ? '' : esc(initials(c.author))}</span>${sum}</span>`;
-  const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge'].filter(Boolean).join(' ');
+  const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge',
+    foreign(c) && 'foreign'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
-      <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(c.subject)}</span>`
+      <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(subject)}</span>`
     + `${refs ? '<span class="br"></span>' : ''}${refs}</span>${meta}</span>
     </button>`;
 }
@@ -278,20 +593,39 @@ function render() {
     ?.dataset.path;               // blokkon állva a fájljára áll vissza
   let day = '', html = '';
   const today = dayKey(new Date());
-  renderPending(visible.find(c => c.uncommitted));
+  // A saját worktree WIP-je a fix sávban; a többié a listában, a chipjükkel.
+  const ownSlug = focusWt()?.slug;
+  renderPending(visible.filter(c => c.uncommitted && c.worktree === ownSlug));
+  // A többi worktree WIP-je a commitok közé kerül, a fájlok utolsó módosítása
+  // szerint — de sosem a saját HEAD-je alá.
+  const at = c => {
+    const head = commitBySha(c.parents[0]);
+    return Math.max(Date.parse(c.date) || 0, head ? Date.parse(head.date) + 1 : 0);
+  };
+  const others = visible.filter(c => c.uncommitted && c.worktree !== ownSlug).sort((a, b) => at(b) - at(a));
+  otherWip = others.length > 0;
+  const list = [];
+  let k = 0;
   for (const c of visible) {
-    if (c.uncommitted) continue;          // a fix #pending sávban van
+    if (c.uncommitted) continue;
+    while (k < others.length && at(others[k]) >= Date.parse(c.date)) list.push(others[k++]);
+    list.push(c);
+  }
+  list.push(...others.slice(k));
+  for (const c of list) {
     const key = dayKey(c.date);
     if (key !== day) {
       const lead = !day && key === today ? ' lead' : '';
       html += `${day ? '</section>' : ''}<section class="day-group">`
-        + `<div class="day${lead}"><span class="lbl">${dayLabel(key)}</span></div>`;
+        + `<div class="day${lead}"><span class="lbl">${dayLabel(key)}<span class="cnt"></span></span></div>`;
       day = key;
     }
     html += rowHtml(c);
   }
   if (day) html += '</section>';
   rowsEl.innerHTML = html || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
+  // A saját HEAD-et az ágválasztó elrejti: a fejléc chipje halványabb (kattintásra minden ág).
+  headChip.classList.toggle('head-off', headFiltered());
   fitRows();
   drawGraph();
   const shown = visible.filter(c => !c.uncommitted).length;   // az ál-sor nem commit
@@ -300,22 +634,51 @@ function render() {
   if (expanded && visible.some(c => c.sha === expanded)) open(expanded); else expanded = null;
   stackDays();
   const back = keepPath && expanded
-    ? [...rowsEl.querySelectorAll('.details .file')].find(f => f.dataset.path === keepPath)
+    ? [...document.querySelectorAll('.details .file')].find(f => f.dataset.path === keepPath)
     : keepSha && document.querySelector(`.row[data-sha="${CSS.escape(keepSha)}"]`);
   back?.focus({ preventScroll: true });
 }
 
-/* Az Uncommitted ál-sor mindig látszik: a lista fölötti fix sávban, saját
-   üres karikával és a lista felé futó szaggatott csonkkal (görgetve rejtve). */
+/* Az Uncommitted ál-sorok (worktree-nként egy) mindig látszanak: a lista
+   fölötti fix sávban, saját üres karikával és a lista felé futó szaggatott
+   csonkkal; görgetve a többi worktree-é folytatódik a HEAD-ig. A karikák a sorok mért közepére kerülnek
+   (`drawPending`, a `drawGraph` hívja): a sor kétsoros is lehet. */
 const pendingEl = document.getElementById('pending');
-function renderPending(c) {
-  pendingEl.hidden = !c;
-  if (!c) { pendingEl.innerHTML = ''; return; }
-  const x = laneX(c.lane), color = LANE_COLORS[c.lane % LANE_COLORS.length];
-  pendingEl.innerHTML = `<svg class="pend-lane" width="${graphW}" height="${ROW_H}" aria-hidden="true">`
-    + `<path class="pend-edge" d="M ${x} ${ROW_H / 2 + DOT_R + 1} L ${x} ${ROW_H}" stroke="${color}" stroke-width="2" stroke-dasharray="3 3"/>`
-    + `<circle cx="${x}" cy="${ROW_H / 2}" r="${DOT_R + 1}" fill="var(--bg)" stroke="${color}" stroke-width="2"/></svg>`
-    + rowHtml(c);
+function renderPending(list) {
+  pendingEl.hidden = !list.length;
+  pendingEl.innerHTML = list.length
+    ? '<svg class="pend-lane" aria-hidden="true"></svg>' + list.map(rowHtml).join('') : '';
+}
+/* Van-e a listában más worktree WIP-sora (a saját szaggatott vonala ilyenkor átfut rajtuk). */
+let otherWip = false;
+/* A saját WIP szaggatott vonala görgetve eltűnik, ha nincs alatta más WIP-sor, vagy ha
+   a HEAD-je már a lista teteje fölé csúszott (köztük commit van, a vonal nem vezet sehova). */
+function hideOwnEdge() {
+  const head = focusWt()?.head;
+  const row = head && rowsEl.querySelector(`.row[data-sha="${head}"]`);
+  const past = row && row.getBoundingClientRect().bottom <= scroller.getBoundingClientRect().top;
+  const hide = scroller.scrollTop > 0 && (!otherWip || Boolean(past));
+  scroller.classList.toggle('hide-own', hide);
+  pendingEl.classList.toggle('hide-own', hide);
+}
+function drawPending() {
+  const lane = pendingEl.querySelector('.pend-lane');
+  if (!lane) return;
+  // A lista görgetősávja szűkíti a sorokat: a sáv ugyanennyivel beljebb zár, hogy
+  // az idő · avatar · diff oszlopban álljon a lista soraival.
+  pendingEl.style.paddingRight = `${scroller.offsetWidth - scroller.clientWidth}px`;
+  const h = pendingEl.offsetHeight;
+  lane.setAttribute('width', graphW);
+  lane.setAttribute('height', h);
+  lane.innerHTML = [...pendingEl.querySelectorAll('.row')].map(row => {
+    const c = commitBySha(row.dataset.sha);
+    if (!c) return '';
+    const x = laneX(c.lane), y = row.offsetTop + row.offsetHeight / 2;
+    const color = tint(c, laneColor(c.lane));
+    const own = c.worktree === focusWt()?.slug ? ' own' : '';
+    return `<path class="pend-edge${own}" d="M ${x} ${y + DOT_R + 1} L ${x} ${h}" stroke="${color}" stroke-width="2" stroke-dasharray="3 3"/>`
+      + `<circle cx="${x}" cy="${y}" r="${DOT_R + 1}" fill="var(--bg)" stroke="${color}" stroke-width="2"/>`;
+  }).join('');
 }
 
 /* ── Commit-részletek ────────────────────────────────────────────────────── */
@@ -332,29 +695,29 @@ function bars(f) {
 }
 
 function headHtml(c) {
+  if (c.uncommitted) return '';   // a WIP-nek nincs szerzője, dátuma; a szülője a HEAD, a gráf mutatja
   const avatar = avatarOf(c);
-  const who = c.uncommitted ? '<span class="name">Munkakönyvtár</span>'
-    : `${avatar ? `<img src="${esc(avatar)}" alt="${esc(c.author)}">` : ''}<span class="name">${esc(c.author)}</span>`
+  const who = `${avatar ? `<img src="${esc(avatar)}" alt="${esc(c.author)}">` : ''}<span class="name">${esc(c.author)}</span>`
       + `<span class="sep">·</span><span>${fmtDate(c.date)}</span>`;
   const parents = c.parents.map(p => `<button type="button" class="hash" data-jump="${p}" title="Ugrás a szülőre">${p.slice(0, 7)}</button>`
     + miniBtn('open', `Szülő megnyitása: ${p.slice(0, 7)}`, `data-jump="${p}"`)).join('');
   const parentChip = c.parents.length ? `<span class="chip" title="Szülő${c.parents.length > 1 ? 'k' : ''}">`
     + `${icon('parent')}${parents}</span>` : '';
-  const commitChip = c.uncommitted ? '' : `<span class="chip">${icon('commit')}`
+  const commitChip = '<span class="chip">'
     + `<span class="hash plain">${c.short}</span>`
     + (c.pushed ? ghLink(commitUrl(c), icon('open'), 'mini', 'Commit megnyitása a GitHubon') : '')
     + miniBtn('copy', 'Hash másolása', `data-copy="${c.sha}"`) + '</span>';
   return `<div class="d-head"><span class="who">${who}</span><span class="chips">${parentChip}${commitChip}</span></div>`;
 }
 
-function open(sha) {
+function open(sha, animate = false) {
   document.querySelectorAll('.details').forEach(d => d.remove());
   const row = document.querySelector(`.row[data-sha="${CSS.escape(sha)}"]`);
   if (!row) return;
   document.querySelectorAll('.row').forEach(r => r.setAttribute('aria-expanded', 'false'));
   row.setAttribute('aria-expanded', 'true');
 
-  const c = DATA.commits.find(x => x.sha === sha);
+  const c = commitBySha(sha);
   const st = DATA.stats[sha] || { files: [], add: 0, del: 0 };
 
   const el = document.createElement('div');
@@ -374,8 +737,9 @@ function open(sha) {
         ${c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : '<span></span>'}</div>
         <div class="diff" hidden></div>`).join('')}
     </div>`;
-  // Az ál-sor a fix sávban ül: a panelje a lista tetejére kerül, nem a sávba.
-  if (pendingEl.contains(row)) { rowsEl.prepend(el); scroller.scrollTop = 0; } else row.after(el);
+  // Az ál-sor a fix sávban ül: a panelje is ott, a saját sora alatt (több
+  // worktree WIP-je közül a megfelelő alatt), korlátozott magasságban.
+  row.after(el);
   fitWho();
   expanded = sha;
   // Újrarajzolás (élő adatcsere) után a korábban lenyitott fájlok nyitva maradnak.
@@ -383,6 +747,23 @@ function open(sha) {
     if (openFiles.has(sha + '\n' + f.dataset.path)) toggleFile(f, sha, true);
   });
   drawGraph();               // a panel alatti sorok lejjebb kerültek
+  if (animate) unfold(el);
+}
+
+/* Lenyílás: a panel magassága 0-ról nő. A gráf a sorok mért helyéből rajzol,
+   ezért az animáció alatt képkockánként újrarajzol (a vonal együtt nyúlik). */
+const UNFOLD_MS = 180;
+function unfold(el) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cs = getComputedStyle(el);
+  const anim = el.animate([
+    { height: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0 },
+    { height: `${el.offsetHeight}px`, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, opacity: 1 },
+  ], { duration: UNFOLD_MS, easing: 'cubic-bezier(.2, .7, .3, 1)' });
+  el.style.overflow = 'hidden';
+  let frame = requestAnimationFrame(function tick() { drawGraph(); frame = requestAnimationFrame(tick); });
+  const done = () => { cancelAnimationFrame(frame); el.style.overflow = ''; drawGraph(); };
+  anim.finished.then(done, done);
 }
 
 /* A vágólap az Artifact keretében tiltott lehet: akkor a régi `execCommand`. */
@@ -644,7 +1025,7 @@ onWidth(rowsEl, () => { fitRows(); fitWho(); }, drawGraph);
    hosszú név, keskeny panel): csak az avatar marad, a név tooltipben, és a
    dátum előtti pont sem kell. Avatar nélkül a név marad. */
 function fitWho() {
-  const who = rowsEl.querySelector('.details .who');
+  const who = document.querySelector('.details .who');
   const img = who?.querySelector('img');
   if (!img) return;
   who.classList.remove('face-only');
@@ -677,9 +1058,14 @@ function fitRows() {
   const tight = rows.filter(r => r.querySelector('.refs') && (!one || squeezed(r)));
   if (!one) for (const r of rows) if (!r.querySelector('.refs')) r.classList.add('two');
   for (const r of tight) r.classList.add('tight');
-  // Ha a badge-ek mellett nem fér el az idő · avatar · diff blokk, az egészben
-  // a harmadik sorba kerül (`.three`) — eleme nem marad el.
-  const crowded = r => { const f = r.querySelector('.refs'); return f.scrollWidth > f.clientWidth; };
+  // Ha a badge-ek mellett nem fér el az idő · avatar · diff blokk, a badge-ek
+  // tördelődnek (`.three`): a blokk az utolsó sorukba, ha ott sincs hely, alá.
+  // Zsúfolt: a badge-ek kilógnak, vagy egy badge neve már rövidülne (`…`) a blokk mellett.
+  const crowded = r => {
+    const f = r.querySelector('.refs');
+    return f.scrollWidth > f.clientWidth
+      || [...f.querySelectorAll('.badge-name')].some(n => n.scrollWidth > n.clientWidth + 1);
+  };
   for (const r of tight.filter(crowded)) r.classList.replace('tight', 'three');
 }
 
@@ -736,7 +1122,7 @@ function onListClick(e) {
     document.querySelectorAll('.details').forEach(d => d.remove());
     expanded = null;
     drawGraph();
-  } else open(row.dataset.sha);
+  } else open(row.dataset.sha, true);
 }
 rowsEl.addEventListener('click', onListClick);
 pendingEl.addEventListener('click', onListClick);
@@ -746,38 +1132,240 @@ document.addEventListener('keydown', e => {
 });
 
 /* ── Szűrők ──────────────────────────────────────────────────────────────── */
-/* Ágválasztó: saját listbox-menü. Az érték `''` = minden ág. */
+/* Ágválasztó: saját listbox-menü. A kijelölés ref-nevek halmaza (helyi ág,
+   upstream, csak remote ág); üres = minden ág. */
 const branchBtn = document.getElementById('branchBtn');
 const branchPop = document.getElementById('branchPop');
+const branchAll = document.getElementById('branchAll');
+const branchList = document.getElementById('branchList');
+const branchQuery = document.getElementById('branchQuery');
 const branchLabel = document.getElementById('branchLabel');
-let branchValue = '';
+const branchIc = document.getElementById('branchIc');
+let branchSel = new Set();
 
-/* `ahead 8, behind 3` → `↑8 ↓3` — a git felirata helyett rövid jel. */
-const trackText = t => String(t || '').replace(/ahead (\d+)/, '↑$1').replace(/behind (\d+)/, '↓$1')
-  .replace(/gone/, 'törölve').replace(/,\s*/, ' ');
+/* Remote ref-e a név: valamelyik helyi ág upstreamje, vagy csak remote ág. */
+const remoteRefs = () => new Set(DATA.branches.flatMap(b => b.remote ? [b.name] : b.upstream ? [b.upstream] : []));
+/* Az ágválasztó színes ikonjai. Egy ág színe: ha egy worktree-ben ki van véve
+   (vagy leválasztott HEAD-del az app szerint az övé), a worktree színe, mint a
+   chipjén; különben a csúcsa sávjáé. Az upstream felhője a helyi ágáé; teli csak
+   az alapágé (default ág csak remote-on van). */
+const tinted = (name, color) => `<svg class="ic" style="color:${color}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
+function branchColor(b) {
+  const w = worktrees().find(x => (b.worktree && x.slug === b.worktree) || (!x.branch && x.appBranch === b.name));
+  return (w && wtColor(w)) || refColor(b.name);
+}
+const cloudIc = (ref, color) => tinted(ref === DATA.meta.base ? 'cloudFill' : 'cloud', color);
+/* Ág és upstream együtt (egy helyen állnak, vagy mindkettő kijelölve): egy ikon. */
+const branchCloudIc = (ref, color) => tinted(ref === DATA.meta.base ? 'branchCloudFill' : 'branchCloud', color);
+/* Egy helyi ág refjei a menüben: maga, és — remote ágakkal — az élő upstreamje. */
+const blockRefs = (b, remote) => (remote && b.upstream && b.track !== 'gone' ? [b.name, b.upstream] : [b.name]);
+/* Egy worktree-hez tartozó ágak (`owner`). */
+const ownedBy = w => DATA.branches.filter(b => !b.remote && b.owner === w.slug);
+/* A gomb ikonja és felirata a kijelölés szerint: minden ág; egy worktree összes ága
+   (ha több van) a worktree-vel; egy blokk (ág és/vagy upstream) a kijelölt sorai
+   ikonjával és az ág nevével; több ref: az első + a többi száma. */
+function selView() {
+  if (!branchSel.size) return [icon('allBranches'), 'Minden ág'];
+  const remote = remotesOn();
+  const names = [...branchSel];
+  const same = refs => refs.length === names.length && refs.every(r => branchSel.has(r));
+  for (const w of worktrees()) {
+    const own = ownedBy(w);
+    if (linkedWts().length && own.length > 1 && same(own.flatMap(b => blockRefs(b, remote)))) {
+      return [tinted(w.main ? 'mainWorktree' : 'worktree', wtColor(w) || 'var(--fg-2)'), w.main ? 'main' : w.name];
+    }
+  }
+  const b = DATA.branches.find(x => !x.remote && (x.name === names[0] || x.upstream === names[0]));
+  if (b && names.every(n => n === b.name || n === b.upstream)) {
+    const c = branchColor(b);
+    const both = branchSel.has(b.name) && branchSel.has(b.upstream);
+    return [both ? branchCloudIc(b.upstream, c) : branchSel.has(b.name) ? tinted('branch', c) : cloudIc(b.upstream, c),
+      branchSel.has(b.name) ? b.name : b.upstream];
+  }
+  const lb = DATA.branches.find(x => !x.remote && x.name === names[0]);
+  const first = lb ? tinted('branch', branchColor(lb)) : cloudIc(names[0], refColor(names[0]));
+  return [first, names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`];
+}
 
-/* A kiválasztott ágat megtartjuk, ha az adatcsere után is létezik. */
+/* Worktree-k esetén worktree-nként egy fejléc (a saját a fejléc chipjének
+   színével), alatta az ágai: amelyikben utoljára ki volt véve (`owner`, a
+   worktree-k HEAD-reflogjából); a gazdátlanok utánuk, fejléc nélkül, a csak
+   remote ágak a végén. A helyi ág és az upstreamje egy blokk, egy opció: a sorra
+   kattintva mindkettő kijelölődik; egy kipipált sor pipájára kattintva csak az a
+   ref kerül ki (a ki nem pipáltéra kattintva bekerül). Ha egy helyen állnak, egy
+   sor a közös ikonnal (`branchCloud`); különben egymás alatt az ág és a felhő. A worktree fejlécére
+   kattintva az összes ága kijelölődik. HEAD worktree-nként. Worktree nélkül csak
+   az ágak. */
 function fillBranches() {
-  if (!DATA.branches.some(b => b.name === branchValue)) branchValue = '';
-  const opt = (value, name, extra = '') => `<button type="button" class="option" role="option" data-value="${esc(value)}"`
-    + ` aria-selected="${value === branchValue}">${icon('check')}<span class="name">${name}</span>${extra}</button>`;
-  branchPop.innerHTML = opt('', 'Minden ág') + (DATA.branches.length ? '<div class="menu-sep"></div>' : '')
-    + DATA.branches.map(b => opt(b.name, esc(b.name) + (b.current ? '<span class="cur">HEAD</span>' : ''),
-      b.track ? `<span class="track">${esc(trackText(b.track))}</span>` : '<span></span>')).join('');
-  const label = branchValue || 'Minden ág';
+  const remote = remotesOn();
+  const valid = new Set([...DATA.branches.map(b => b.name), ...(remote ? remoteRefs() : [])]);
+  for (const n of branchSel) if (!valid.has(n)) branchSel.delete(n);
+  const wts = worktrees(), multi = linkedWts().length > 0, own = focusWt();
+  const base = DATA.meta.base || '', baseLocal = base.slice(base.indexOf('/') + 1);
+  const local = DATA.branches.filter(b => !b.remote);
+  const detachedOf = name => wts.find(w => !w.branch && w.appBranch === name);
+  const isHead = b => Boolean(b.worktree) || Boolean(detachedOf(b.name))
+    || (b.worktree === undefined && b.current);
+  // HEAD elöl, aztán az alapág, a többi a git sorrendjében (név szerint).
+  const rank = b => (isHead(b) ? 0 : b.name === baseLocal ? 1 : 2);
+  const sorted = list => [...list].sort((x, y) => rank(x) - rank(y));
+  const synced = b => { const up = DATA.meta.tracks?.[b.name]?.up; return up && !up[0] && !up[1]; };
+  /* Egy sor: pipa (külön kattintható), egy ikon (ág, felhő, vagy a kettő együtt), név, és jobbra két
+     távolság-oszlop. A szélső (`c1`): az egysoros blokk távolsága, a két soros blokkban
+     a ↕ jel helye; előtte (`c2`) a két soros blokk soronkénti távolsága. Egy cella: a
+     nyíl elöl, a szám a cella végén — így a nyilak és a számvégek egy vonalban. */
+  const line = (refs, ic, name, c2, c1) => {
+    const on = refs.every(r => branchSel.has(r));
+    return `<span class="ln${on ? ' on' : ''}"><span class="ckc" data-refs="${esc(refs.join(' '))}"`
+      + ` title="${on ? 'kivesz' : 'hozzáad'}">${icon('check', 'ic ck')}</span>`
+      + `<span class="col">${ic}</span>`
+      + `<span class="name">${name}</span><span class="c2">${c2}</span><span class="c1">${c1}</span></span>`;
+  };
+  // Az alapághoz mért távolság egy cellában (a távolság-szöveg a tooltipben).
+  const cell = name => {
+    const [a, d] = DATA.meta.tracks?.[name]?.base || [0, 0];
+    if (!a && !d) return '';
+    const tip = esc(distText(name).trim());
+    return a && d ? `<span class="dc" title="${tip}">↑${a} ↓${d}</span>`
+      : `<span class="dc" title="${tip}"><span>${a ? '↑' : '↓'}</span><span>${a || d}</span></span>`;
+  };
+  // A helyi ág és az upstreamje közti távolság (`↕`): a két sor közé, jobbra. Az
+  // alapág helyi párjának előnye anomália (piros), mint a chipeken.
+  const pairGap = b => {
+    const [a, d] = DATA.meta.tracks?.[b.name]?.up || [0, 0];
+    const odd = b.name === baseLocal && a > 0;
+    const tip = [a && `↑${a}: a helyi ${b.name} ennyivel jár előrébb`, d && `↓${d}: a ${b.upstream} ennyivel jár előrébb`]
+      .filter(Boolean).join('\n');
+    // A jel a többi távolság ↑ és ↓ karaktere egymás fölött: a nyílhegyük ugyanaz.
+    return `<span class="dc gap${odd ? ' warn' : ''}" title="${esc(tip)}"><span class="ud" aria-hidden="true">`
+      + `<span>↑</span><span>↓</span></span><span>${a && d ? `${a}/${d}` : a || d}</span></span>`;
+  };
+  const block = b => {
+    const det = detachedOf(b.name);
+    const name = (det ? `<i>${esc(b.name)}</i>` : esc(b.name))
+      + (isHead(b) ? `<span class="cur" style="--lc:${branchColor(b)}">HEAD</span>` : '');
+    const refs = blockRefs(b, remote), up = refs[1];
+    const pair = up && !synced(b);
+    // A leválasztott HEAD jele a szélen, a worktree-fejléc WIP-karikájának oszlopában.
+    const end = det ? `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`
+      : cell(b.name);
+    const c = branchColor(b);
+    // Két sornál a soronkénti távolság a belső oszlopban, a szélen a kettejük közti ↕.
+    const lines = !pair
+      ? line(refs, up ? branchCloudIc(up, c) : tinted('branch', c), name, '', end)
+      : line([b.name], tinted('branch', c), name, end, '')
+        + line([up], cloudIc(up, c), esc(up), cell(up), '') + pairGap(b);
+    return blockBtn(refs, lines);
+  };
+  const blockBtn = (refs, lines) => `<button type="button" class="option blk" role="option" data-refs="${esc(refs.join(' '))}"`
+    + ` data-key="${esc(refs[0])}" aria-selected="${refs.every(r => branchSel.has(r))}">${lines}</button>`;
+  const header = w => {
+    const lc = wtColor(w) || 'var(--accent)';
+    const ic = tinted(w.main ? 'mainWorktree' : 'worktree', lc);   // a worktree színe, mint a chipjén
+    const name = esc(w.main ? 'main' : w.name);
+    const wip = w.dirty ? `<span class="wip" style="color:${lc}" title="nem commitolt változás"></span>` : '';
+    const cur = w.slug === own?.slug;
+    const body = `${ic}<span class="name${cur ? ' menu-wt-cur" title="itt dolgozik az előtérben lévő session' : ''}">${name}</span>${wip}`;
+    const refs = ownedBy(w).flatMap(b => blockRefs(b, remote));
+    return refs.length
+      ? `<button type="button" class="option menu-wt" role="option" data-refs="${esc(refs.join(' '))}" data-key="wt:${esc(w.slug)}"`
+        + ` aria-selected="${refs.every(r => branchSel.has(r))}" title="a worktree összes ága">${body}</button>`
+      : `<div class="menu-wt">${body}</div>`;
+  };
+  /* Egy csoport: fejléc (worktree, remote; a szűrő a nevét is nézi) és az ágai. A `sep`
+     csoport fölött vonal, ha előtte látszik egy csoport (CSS). */
+  const group = (name, inner, sep) => `<div class="menu-grp${sep ? ' sep' : ''}" data-name="${esc(name)}">${inner}</div>`;
+  branchAll.innerHTML = `<button type="button" class="option blk" role="option" data-refs="" data-key="" aria-selected="${!branchSel.size}">`
+    + `<span class="ln${branchSel.size ? '' : ' on'}"><span class="ckc">${icon('check', 'ic ck')}</span>`
+    + `<span class="col">${icon('allBranches')}</span><span class="name">Minden ág</span></span></button>`;
+  let html = '';
+  if (multi) {
+    const slugs = new Set(wts.map(w => w.slug));
+    html += wts.map(w => group(w.main ? 'main' : w.name,
+      header(w) + sorted(local.filter(b => b.owner === w.slug)).map(block).join(''))).join('');
+    const orphans = local.filter(b => !slugs.has(b.owner));
+    if (orphans.length) html += group('', sorted(orphans).map(block).join(''), true);
+  } else if (local.length) {
+    html += group('', sorted(local).map(block).join(''));
+  }
+  // Csak remote ágak, remote-onként egy fejléc.
+  const byRemote = new Map();
+  if (remote) for (const b of DATA.branches.filter(x => x.remote)) {
+    const r = b.name.slice(0, b.name.indexOf('/'));
+    byRemote.set(r, [...(byRemote.get(r) || []), b]);
+  }
+  for (const [r, list] of byRemote) {
+    html += group(r, `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
+      + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), '', cell(b.name)))).join(''), true);
+  }
+  branchList.innerHTML = html;
+  filterBranches();
+  // A két távolság-oszlop szélessége külön-külön a saját leghosszabb számához igazodik
+  // (1–4 jegy); a ↕ jel a szélső oszlophoz tartozik.
+  const longest = sel => Math.max(1, ...[...branchPop.querySelectorAll(sel)].map(e => e.textContent.length));
+  branchPop.style.setProperty('--c1-digits', longest('.c1 .dc > :last-child, .gap > :last-child'));
+  branchPop.style.setProperty('--c2-digits', longest('.c2 .dc > :last-child'));
+  const [ics, label] = selView();
+  if (branchIc.innerHTML !== ics) branchIc.innerHTML = ics;
   if (branchLabel.textContent !== label) {
     branchLabel.textContent = label;
     fitChrome();                // a hosszabb ágnév más sorbontást hozhat
   }
 }
 
+/* Az ágválasztó szűrője: minden szó (kis-nagybetű és ékezet nélkül) szerepeljen a
+   blokk refjeiben vagy a csoportja nevében (worktree, remote) — a worktree nevére
+   szűrve az összes ága látszik. A csoport (a fejlécével) csak akkor marad, ha legalább
+   egy ága látszik; a „Minden ág” szűrés közben rejtve. */
+function filterBranches() {
+  const words = queryWords(branchQuery.value);
+  branchAll.hidden = words.length > 0;
+  let any = false;
+  for (const grp of branchList.children) {
+    let shown = false;
+    for (const el of grp.querySelectorAll('.blk')) {
+      const text = fold(`${grp.dataset.name} ${el.dataset.refs}`);
+      el.hidden = !words.every(w => text.includes(w));
+      shown ||= !el.hidden;
+    }
+    grp.hidden = !shown;
+    any ||= shown;
+  }
+  branchList.classList.toggle('empty', !any && words.length > 0);
+}
+branchQuery.addEventListener('input', filterBranches);
+/* A mező billentyűi (a makeMenu kezelője előtt): Enter az első látható ágat
+   választja, Escape előbb a szűrőt üríti; Home/End a kurzort mozgatja. A nyilak, a
+   Tab és az üres mezőben az Escape a menüé. */
+branchQuery.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    branchList.querySelector('.blk:not([hidden])')?.click();
+  } else if (e.key === 'Escape' && branchQuery.value) {
+    e.stopPropagation();
+    branchQuery.value = '';
+    filterBranches();
+  } else if (e.key === 'Home' || e.key === 'End') e.stopPropagation();
+});
+
 /* Közös legördülő menü (ágválasztó, téma): nyíl-, Home/End-, Escape- és
    Tab-billentyű, kattintás kívülre csuk. `onPick` a választott opciót kapja. */
-function makeMenu(btn, pop, onPick) {
+function makeMenu(btn, pop, onPick, onOpen) {
+  // A menü a látható részen belül marad (`--room`, a CSS max-height-jában): ami nem fér
+  // ki, az görgethető. A lap nem görgethető, a kilógó rész különben elveszne.
+  const fit = () => {
+    if (pop.hidden) return;
+    const r = pop.getBoundingClientRect();
+    const room = pop.classList.contains('up') ? r.bottom : innerHeight - r.top;
+    pop.style.setProperty('--room', `${Math.max(120, room - 8)}px`);
+  };
+  addEventListener('resize', fit);
   const toggle = open => {
     pop.hidden = !open;
     btn.setAttribute('aria-expanded', String(open));
-    if (open) (pop.querySelector('[aria-selected="true"]') || pop.querySelector('.option'))?.focus();
+    fit();
+    if (open && onOpen) onOpen();     // a fókuszt is ő teszi a helyére
+    else if (open) (pop.querySelector('[aria-selected="true"]') || pop.querySelector('.option'))?.focus();
   };
   btn.addEventListener('click', () => toggle(pop.hidden));
   btn.addEventListener('keydown', e => {
@@ -791,11 +1379,15 @@ function makeMenu(btn, pop, onPick) {
     onPick(o);
   });
   pop.addEventListener('keydown', e => {
-    const items = [...pop.querySelectorAll('.option')];
+    const items = [...pop.querySelectorAll('.option')].filter(o => !o.hidden);
     const i = items.indexOf(document.activeElement);
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') && !items.length) {
+      e.preventDefault();             // szűrés után nincs látható opció
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
-      items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
+      const n = items.length, down = e.key === 'ArrowDown';
+      // A fókusz nincs opción (a szűrőmezőben van): lefelé az első, felfelé az utolsó.
+      items[i < 0 ? (down ? 0 : n - 1) : (i + (down ? 1 : n - 1)) % n].focus();
     } else if (e.key === 'Home' || e.key === 'End') {
       e.preventDefault();
       items[e.key === 'Home' ? 0 : items.length - 1].focus();
@@ -811,17 +1403,48 @@ function makeMenu(btn, pop, onPick) {
 }
 
 makeMenu(branchBtn, branchPop, o => {
-  branchValue = o.dataset.value;
+  branchSel = new Set(o.dataset.refs.split(' ').filter(Boolean));
   fillBranches();
   applyFilters();
+  // A választás után a lista a kijelölés legfelső sorához ugrik — a csúcsai és a worktree-jük
+  // listabeli WIP-sora közül —; „Minden ág”-nál a saját HEAD-hez.
+  if (!branchSel.size) { revealHead(); return; }
+  const shas = new Set(visible.filter(c => c.uncommitted || c.refs.some(r => branchSel.has(r.name))).map(c => c.sha));
+  revealSha([...rowsEl.querySelectorAll('.row')].find(r => shas.has(r.dataset.sha))?.dataset.sha);
+}, () => {
+  // Üres szűrővel nyílik; a teljes lista szélessége marad, szűréskor nem ugrik össze.
+  branchQuery.value = '';
+  filterBranches();
+  branchPop.style.minWidth = '';      // a természetes szélesség méréséhez
+  branchPop.style.minWidth = `${branchPop.offsetWidth}px`;
+  branchQuery.focus();
 });
+/* A pipára kattintás csak azt a sort veszi ki vagy teszi be, a menü nyitva marad
+   (a makeMenu kattintás-kezelője elé, rögzítő fázisban). */
+branchPop.addEventListener('click', e => {
+  const c = e.target.closest('.ckc[data-refs]');
+  if (!c) return;
+  e.stopPropagation();
+  const refs = c.dataset.refs.split(' ');
+  const on = refs.every(r => branchSel.has(r));
+  for (const r of refs) on ? branchSel.delete(r) : branchSel.add(r);
+  const key = c.closest('.option')?.dataset.key;
+  fillBranches();
+  applyFilters();
+  branchPop.querySelector(`.option[data-key="${CSS.escape(key || '')}"]`)?.focus();
+}, true);
 
-function ancestryOf(name) {
-  const tip = DATA.commits.find(c => c.refs.some(r => r.name === name &&
-    (r.kind === 'branch' || r.kind === 'head')));
-  if (!tip) return null;
-  const keep = new Set(), stack = [tip.sha];
-  const bySha = new Map(DATA.commits.map(c => [c.sha, c]));
+/* A kijelölt refek őseinek uniója (null, ha egyik csúcsa sincs a listában). */
+function ancestryOf(names) {
+  const tips = DATA.commits.filter(c => c.refs.some(r => names.has(r.name) && r.kind !== 'tag'));
+  return tips.length ? reachable(tips.map(c => c.sha)) : null;
+}
+/* A remote ágak nélkül: ami helyi ágból, HEAD-ből, tagből vagy WIP-ből elérhető. */
+const localReach = () => reachable(DATA.commits.filter(c => c.uncommitted
+  || c.refs.some(r => r.kind !== 'remote')).map(c => c.uncommitted ? c.parents[0] : c.sha));
+function reachable(tips) {
+  const keep = new Set(), stack = [...tips];
+  const { bySha } = idx();
   while (stack.length) {
     const sha = stack.pop();
     if (keep.has(sha)) continue;
@@ -836,40 +1459,75 @@ function ancestryOf(name) {
    hash eleje legyen. Kis- és nagybetű, ékezet nem számít. */
 const searchEl = document.getElementById('search');
 const fold = s => String(s).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+const queryWords = s => fold(s).split(/\s+/).filter(Boolean);
 function matches(c, words) {
   if (!words.length) return true;
   const hay = fold([c.subject, c.body, c.author, c.email, ...c.refs.map(r => r.name)].join('\n'));
   return words.every(w => hay.includes(w) || c.sha.startsWith(w));
 }
 
+/* Az ágszűrő által megtartott commitok (null: nincs ágszűrés) — a fejléc chipje ebből tudja,
+   hogy a saját HEAD kiesett-e. */
+let branchKeep = null;
 function applyFilters() {
-  const branch = branchValue;
-  const remotes = document.getElementById('showRemotes').checked;
+  const branch = branchSel.size ? branchSel : null;
+  const remotes = remotesOn();
   const refsOnly = document.getElementById('onlyRefs').checked;
-  const words = fold(searchEl.value).split(/\s+/).filter(Boolean);
+  const words = queryWords(searchEl.value);
   const keep = branch ? ancestryOf(branch) : null;
+  branchKeep = keep;
+  const local = remotes ? null : localReach();
 
   visible = DATA.commits.filter(c => {
-    if (c.uncommitted) return !words.length;   // állapot, nem commit: keresésnél nem kell
+    // Állapot, nem commit: keresésnél nem kell; ágszűrésnél csak annak a worktree-nek
+    // a WIP-je, amelyikben a szűrt ág van kivéve — leválasztott HEAD-nél az app szerinti
+    // ága (`appBranch`) —, nem elég, hogy a HEAD-je rajta van.
+    if (c.uncommitted) {
+      return !words.length && (!branch || worktrees().some(w => w.slug === c.worktree && branch.has(w.branch || w.appBranch)));
+    }
     if (keep && !keep.has(c.sha)) return false;
-    if (refsOnly && c.refs.length === 0) return false;
-    if (!remotes && c.refs.length && c.refs.every(r => r.kind === 'remote')) return false;
+    // Remote ágak nélkül a helyi történet minden commitja marad (csak a remote-badge
+    // tűnik el); ami csak remote ágból érhető el, az kimarad.
+    if (local && !local.has(c.sha)) return false;
+    if (refsOnly && !c.refs.some(r => remotes || r.kind !== 'remote')) return false;
     return matches(c, words);
   });
   render();
 }
-['showRemotes', 'onlyRefs'].forEach(id =>
-  document.getElementById(id).addEventListener('change', applyFilters));
+document.getElementById('onlyRefs').addEventListener('change', applyFilters);
+// A remote-kapcsoló a fejléc chipjét is érinti (a ☁ szakasz).
+document.getElementById('showRemotes').addEventListener('change', () => {
+  // Remote ágak nélkül a kijelölt remote refek is kiesnek (üresen: minden ág).
+  if (!remotesOn()) for (const r of remoteRefs()) branchSel.delete(r);
+  hydrateFocus(); fillBranches(); applyFilters();
+});
+/* Egy commit sorához ugrik a lista (a napfejléc alá); a sor, vagy null, ha szűrés miatt
+   nincs a listában. A `revealSha` rá is állítja a fókuszt. */
+function scrollToSha(sha) {
+  const row = sha && rowsEl.querySelector(`.row[data-sha="${CSS.escape(sha)}"]`);
+  if (!row) return null;
+  const top = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+  scroller.scrollTop = Math.max(0, Math.round(top - STEP_TOP));
+  return row;
+}
+const revealSha = sha => scrollToSha(sha)?.focus({ preventScroll: true });
+/* A fejléc chipjére kattintva a saját HEAD commitjához; ha az ágválasztó elrejti, előbb
+   minden ágra áll vissza. */
+const revealHead = () => revealSha(focusWt()?.head);
+const headFiltered = () => Boolean(branchKeep && !branchKeep.has(focusWt()?.head));
+headChip.addEventListener('click', () => {
+  if (headFiltered()) {
+    branchSel = new Set();
+    fillBranches();
+    applyFilters();
+  }
+  revealHead();
+});
 /* A keresés törlésekor (Escape, a mező ×-e vagy kitörölt szöveg) a szűrés
    megszűnik; ha van kinyitott commit, az a lista tetejére kerül (a napfejléc
    alá), hogy a visszajött sorok közt se vesszen el. */
 let lastQuery = '';
-function revealExpanded() {
-  const row = expanded && rowsEl.querySelector(`.row[data-sha="${CSS.escape(expanded)}"]`);
-  if (!row) return;
-  const top = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
-  scroller.scrollTop = Math.max(0, Math.round(top - STEP_TOP));
-}
+const revealExpanded = () => scrollToSha(expanded);
 searchEl.addEventListener('input', () => {
   const cleared = lastQuery && !searchEl.value;
   lastQuery = searchEl.value;
@@ -974,7 +1632,7 @@ function topVisible() {
 function relative(c, dir, other) {
   if (dir > 0) {                                    // lefelé: szülő
     const p = other ? c.parents[1] : c.parents[0];
-    return p && DATA.commits.find(x => x.sha === p);
+    return p && commitBySha(p);
   }
   return DATA.commits.find(x => other ? x.parents.slice(1).includes(c.sha) : x.parents[0] === c.sha);
 }
@@ -1015,13 +1673,16 @@ document.addEventListener('keydown', e => {
     handled = cur ? (selectCommit(visible[visible.indexOf(cur) + (k === 'ArrowDown' ? 1 : -1)]) || true)
                   : selectCommit(topVisible());
   } else if (k === 'ArrowRight' && cur) {                 // belép: kinyit, első fájl
-    if (expanded !== cur.sha) open(cur.sha);
-    const first = rowsEl.querySelector('.details .file');
+    if (expanded !== cur.sha) open(cur.sha, true);
+    const first = document.querySelector('.details .file');
     if (first) select(first); else select(rowOf(cur));
   } else if (k === 'ArrowLeft' && cur && expanded === cur.sha) {
     closeCommit();
   } else if ((k === 'h' || k === 'H') && !mod) {
-    handled = selectCommit(visible.find(c => c.refs.some(r => r.kind === 'head' || r.kind === 'detached')));
+    const isHead = r => r.kind === 'head' || r.kind === 'detached';
+    const own = focusWt()?.slug;
+    handled = selectCommit(visible.find(c => c.refs.some(r => isHead(r) && r.worktree === own))
+      || visible.find(c => c.refs.some(isHead)));
   } else {
     handled = false;
   }
@@ -1066,8 +1727,8 @@ function setTheme(mode) {
   themeBtn.title = `Téma: ${label.toLowerCase()}`;
   themePop.innerHTML = THEMES.map(([value, name, path]) =>
     `<button type="button" class="option with-icon" role="option" data-value="${value}" aria-selected="${value === mode}">`
-    + `<svg class="ic ti" viewBox="0 0 16 16" aria-hidden="true">${path}</svg>`
-    + `<span class="name">${name}</span>${icon('check')}</button>`).join('');
+    + `<svg class="ic" viewBox="0 0 16 16" aria-hidden="true">${path}</svg>`
+    + `<span class="name">${name}</span>${icon('check', 'ic ck')}</button>`).join('');
   try { localStorage.setItem(THEME_KEY, mode); } catch { /* privát ablak: nem baj */ }
 }
 makeMenu(themeBtn, themePop, o => setTheme(o.dataset.value));
@@ -1078,11 +1739,18 @@ fillBranches();
 render();
 
 /* ── Élő frissítés ───────────────────────────────────────────────────────
-   A forrás a gépen futó `git-graph --mcp` (a Claude app host-hídján át). Az olcsó
-   ujjlenyomatot pollozzuk, teljes adatot csak tényleges változásra kérünk: a
-   lap helyben rajzol újra, a nyitott panel, a szűrők és a görgetés megmaradnak.
-   A mért időket a lábléc élő-felirata tooltipben mutatja. */
-const POLL_MS = 2000;
+   A forrás a gépen futó `git-graph --mcp` (a Claude app host-hídján át). Egy
+   hívás mindig nyitva áll (`changes`): a szerver akkor válaszol, ha a repó
+   állapota vagy az előtérben lévő session megváltozott, különben 50 s után
+   üresen. Teljes adatot csak állapotváltozásra kérünk: a lap helyben rajzol
+   újra, a nyitott panel, a szűrők és a görgetés megmaradnak. A mért időket a
+   lábléc élő-felirata tooltipben mutatja. */
+const WAIT_S = 50;          // a nyitva tartott hívás leghosszabb várakozása (a host ~50 s-ig tartja, mérve)
+const SETTLE_MS = 250;      // megjelenés (session-váltás) után ennyit vár a kérdezéssel
+const IDLE_MS = 2000;       // azonnali, változás nélküli válasz után ennyit vár (túlterhelt szerver)
+const RETRY_MS = 400;       // átmeneti hiba után ennyi idővel csendben újra
+const QUIET_RETRIES = 3;    // ennyi átmeneti hibát nem ír ki
+const ARRIVAL_MS = 2000;    // ennyin belül a fókuszváltás az utolsó jelé (a tooltipben)
 const foot = document.getElementById('foot');
 const liveText = document.getElementById('liveText');
 const liveDot = document.getElementById('liveDot');
@@ -1092,15 +1760,33 @@ const versionEl = document.getElementById('version');
 function stackDays() {
   scroller.classList.toggle('scrolled', scroller.scrollTop > 0);
   pendingEl.classList.toggle('scrolled', scroller.scrollTop > 0);
+  hideOwnEdge();
   const days = [...rowsEl.querySelectorAll('.day')];
   const top = scroller.getBoundingClientRect().top, scrolled = scroller.scrollTop > 0;
   // Előbb minden mérés, aztán az írás: a görgetés minden képkockáján fut, a
   // váltakozó olvasás-írás napfejlécenként újratördelést kényszerítene.
   const ys = days.map(d => d.getBoundingClientRect().top), hs = days.map(d => d.offsetHeight);
+  // A napfejléc mellett: a nap hány sora van a fejléc fölött (`↑`, alá csúszva) és
+  // alatta (`↓`) — a kettő összege mindig a nap összes sora. Csak a nézetbe érő
+  // napokat méri; a többinél minden sor a fejléc alatt van.
+  const bottom = scroller.getBoundingClientRect().bottom;
+  const counts = days.map((d, i) => {
+    const rows = d.parentElement.getElementsByClassName('row');   // élő gyűjtemény: olcsó
+    let up = 0;
+    const group = d.parentElement.getBoundingClientRect();
+    if (group.bottom > top && group.top < bottom) {
+      const line = ys[i] + hs[i];
+      for (const r of rows) if (r.getBoundingClientRect().top < line - 0.5) up++;
+    }
+    const down = rows.length - up;
+    return [up && `↑${up}`, down && `↓${down}`].filter(Boolean).join(' ');
+  });
   days.forEach((d, i) => {
     d.classList.toggle('gone', i + 1 < days.length && ys[i + 1] - ys[i] <= hs[i] + 0.5);
     // Felül ragadva (`.stuck`) a vonal nem kell, csak a felirat.
     d.classList.toggle('stuck', scrolled && ys[i] - top <= 0.5);
+    const cnt = d.querySelector('.cnt'), text = counts[i] ? ` · ${counts[i]}` : '';
+    if (cnt && cnt.textContent !== text) cnt.textContent = text;
   });
 }
 scroller.addEventListener('scroll', stackDays, { passive: true });
@@ -1165,9 +1851,10 @@ scroller.addEventListener('wheel', e => {
 
 function mcpSource() {
   const mcp = CTX.mcp;
-  const call = (tool, args) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
-    { cache: false }).then(r => r.payload);
-  return { fingerprint: () => call('fingerprint'), data: () => call('graph_data'),
+  const call = (tool, args, signal) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
+    signal ? { cache: false, signal } : { cache: false }).then(r => r.payload);
+  return { changes: (since, wait, signal) => call('changes', { since, wait }, signal),
+           data: () => call('graph_data'),
            diff: (sha, path) => call('file_diff', { sha, path }) };
 }
 
@@ -1189,8 +1876,11 @@ function mcpProblem(e) {
     case 'server_not_connected':
       return 'A lap nem éri el a gépeden futó git-graph-ot. Élő adat csak a Claude appban, a saját '
         + 'gépeden jön — és ott is csak, ha az app configjában benne van (a git-graph plugin teszi be; utána az app újraindítása).';
-    case 'not_in_manifest': case 'cancelled':
+    case 'cancelled':
       return 'A git-graph szervert nem engedélyezted ehhez a laphoz — töltsd újra, és engedd meg.';
+    case 'not_in_manifest':
+      return 'A git-graph szervert nem engedélyezted ehhez a laphoz (töltsd újra, és engedd meg), '
+        + 'vagy a lap elavult: nyiss egy sessiont a repóban, a hook újrapublikálja.';
     case 'tool_error':
       return 'A git-graph hibát jelzett: ' + e.message;
     default:
@@ -1231,51 +1921,105 @@ new ResizeObserver(fitFoot).observe(document.getElementById('foot'));
 
 
 function startLive(src) {
-  let last = '';                            // a váz üres: az első kör adatot kér
+  let since = '', state = null;             // az utolsó válasz tokenje és állapota (az első kör adatot kér)
   let change = '';                          // az utolsó változás: mikor, mennyi idő alatt
+  let switched = '', arrival = null;        // az utolsó session-váltás: mi indította, mennyi idő alatt
   let version = null;                       // a szerver verziója, amikor a lap betöltött
+  let misses = 0, open = null, resume = null;   // a nyitott hívás megszakítója, a szünet rövidítője
   SRC = src;
-  async function poll() {
-    let wait = POLL_MS;
-    try {
-      const t0 = performance.now();
-      const f = await src.fingerprint();
-      const tf = performance.now() - t0;
-      // A szerver frissült és újraindult (`restart`): a lap kódja is az övé,
-      // újratöltve a betöltő az új `page_code`-ot kéri.
-      if (version && f.version && f.version !== version) { location.reload(); return; }
-      version = version || f.version;
-      const key = JSON.stringify(f);
-      if (key !== last) {
-        const t1 = performance.now();
-        DATA = await src.data();
-        const td = performance.now() - t1;
-        for (const [k, v] of diffCache) if (k.startsWith('*uncommitted\n')) v.stale = true;
-        const top = scroller.scrollTop;
-        hydrate();
-        fillBranches();
-        applyFilters();
-        scroller.scrollTop = top;
-        change = `\nutolsó változás ${clock()}: adat ${Math.round(td)} ms,`
-          + ` kirajzolva ${Math.round(performance.now() - t1)} ms alatt`;
-      }
-      last = key;
-      foot.className = 'foot on';
-      if (liveText.textContent) {             // az „élő” jelzés a pulzáló zöld pötty
-        liveText.textContent = '';
-        fitFoot();                            // a hibaüzenet helyén a verzió is elfér
-      }
-      liveDot.title = `Élő · frissítve ${clock()}\nujjlenyomat ${Math.round(tf)} ms` + change;
-      liveDot.setAttribute('aria-label', 'Élő');
-      showVersion(f);
-    } catch (e) {
-      notice(mcpProblem(e), true);
-      if (!e?.retryable) return;                // magától nem javul: nincs több kör
-      wait = Math.max(POLL_MS, e.retryAfterMs || 0) * 2;
-    }
-    setTimeout(poll, wait);                     // a következő kör az előző után
+  /* Rajzol-e most a lap: rejtett keretben a requestAnimationFrame nem fut. */
+  const rendering = () => new Promise(done => {
+    requestAnimationFrame(() => done(true));
+    setTimeout(() => done(false), 250);
+  });
+  /* Az új fókusz; true, ha a saját worktree megváltozott (a hívó rajzol újra). */
+  function setFocus(focus) {
+    const before = focusWt()?.slug;
+    focusAuto = focus ?? null;
+    if (focusWt()?.slug === before) return false;
+    const ago = arrival ? performance.now() - arrival.at : Infinity;
+    switched = `\nsession-váltás ${clock()}: `
+      + (ago < ARRIVAL_MS ? `${arrival.kind} után ${Math.round(ago)} ms` : 'a nyitott hívásra');
+    return true;
   }
-  poll();
+  /* Egy hívás → válasz → (változásnál adat) → a következő hívás, megállás nélkül. */
+  async function follow() {
+    for (;;) {
+      const ctl = new AbortController();
+      open = ctl;
+      let pause = 0;
+      try {
+        const t0 = performance.now();
+        const r = await src.changes(since, since ? WAIT_S : 0, ctl.signal);
+        // A szerver frissült és újraindult (`restart`): a lap kódja is az övé,
+        // újratöltve a betöltő az új `page_code`-ot kéri.
+        if (version && r.version && r.version !== version) { location.reload(); return; }
+        version = version || r.version;
+        const fresh = r.state !== state;
+        // A fókusz nem adatváltozás: a lap csak a kiemelést rajzolja újra.
+        const moved = setFocus(r.focus);
+        if (moved && !fresh) { hydrateFocus(); fillBranches(); render(); }
+        if (fresh) {
+          const t1 = performance.now();
+          DATA = await src.data();
+          const td = performance.now() - t1;
+          for (const [k, v] of diffCache) if (k.startsWith('*uncommitted')) v.stale = true;
+          const top = scroller.scrollTop;
+          hydrate();
+          fillBranches();
+          applyFilters();
+          scroller.scrollTop = top;
+          change = `\nutolsó változás ${clock()}: adat ${Math.round(td)} ms,`
+            + ` kirajzolva ${Math.round(performance.now() - t1)} ms alatt`;
+        }
+        // Azonnali, változás nélküli válasz (a szerver nem várhatott): nem pörgünk.
+        if (since && !fresh && !moved && performance.now() - t0 < SETTLE_MS) pause = IDLE_MS;
+        since = r.since;
+        state = r.state;
+        foot.className = 'foot on';
+        if (liveText.textContent) {             // az „élő” jelzés a pulzáló zöld pötty
+          liveText.textContent = '';
+          fitFoot();                            // a hibaüzenet helyén a verzió is elfér
+        }
+        liveDot.title = `Élő · frissítve ${clock()}` + change + switched;
+        liveDot.setAttribute('aria-label', 'Élő');
+        showVersion(r);
+        misses = 0;
+      } catch (e) {
+        if (ctl.signal.aborted) continue;       // `wake`: azonnal újra
+        // Rejtett keretben a host-híd a hívást azonnal elutasítja (mérve), és az
+        // időzítők sem futnak: ez nem hiba — a megjelenés (`wake`) hív újra.
+        if (e?.retryable && !(await rendering())) {
+          misses = 0;
+          pause = IDLE_MS;
+        } else if (e?.retryable && ++misses <= QUIET_RETRIES) {
+          pause = Math.max(RETRY_MS, e.retryAfterMs || 0);   // átmeneti hiba: csendben, gyorsan újra
+        } else {
+          notice(mcpProblem(e), true);
+          if (!e?.retryable) return;            // magától nem javul: nincs több kör
+          pause = Math.max(IDLE_MS, e.retryAfterMs || 0) * 2;
+        }
+      }
+      if (pause) await new Promise(done => { resume = done; setTimeout(done, pause); });
+      resume = null;
+    }
+  }
+  /* Session-váltáskor az app ezt az egy keretet átteszi a másik session
+     paneljébe. Ha közben más Artifact látszott, a keret rejtve volt, a rejtve
+     indított hívás elbukott, és a lap a szünetben áll: a megjelenés után —
+     az áthelyezést kivárva — azonnal hív (a kurzor miatt semmi nem veszett el).
+     Ha épp nyitott hívás fut, megszakítja; a szerver a sajátját a határidőig
+     tartja (a megszakítást nem kapja meg, mérve). */
+  let settle = 0;
+  function wake(kind, delay = SETTLE_MS) {
+    arrival = { kind, at: performance.now() };
+    clearTimeout(settle);
+    settle = setTimeout(() => (resume ? resume() : open?.abort()), delay);
+  }
+  /* Rejtve a rajzolás szünetel, megjelenéskor az IntersectionObserver jelez (mérve). */
+  new IntersectionObserver(es => { if (es[es.length - 1].isIntersecting) wake('megjelenés'); })
+    .observe(document.body);
+  follow();
 }
 
 notice('Kapcsolódás a gépeden futó git-graph-hoz…');

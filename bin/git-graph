@@ -45,6 +45,7 @@ import sys
 import threading
 import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 # A vizsgált repó gyökere — a `main()` állítja be a --repo / CWD alapján.
@@ -56,13 +57,28 @@ FS = "\x1f"
 RS = "\x1e"
 
 
-def git(*args: str) -> str:
+@functools.cache
+def git_bin() -> str:
+    """A valódi git bináris (`git --exec-path` mellől), különben a PATH-on lévő `git`.
+
+    macOS-en a `/usr/bin/git` csak shim (`xcrun`), hívásonként ~6 ms-mal lassabb
+    (mérve: 12 → 6 ms) — az app szűk PATH-tal indítja a szervert, így azt kapná.
+    """
+    try:
+        path = os.path.realpath(os.path.join(subprocess.run(
+            ["git", "--exec-path"], capture_output=True, text=True, check=True).stdout.strip(), "git"))
+    except (OSError, subprocess.CalledProcessError):
+        return "git"
+    return path if os.access(path, os.X_OK) else "git"
+
+
+def git(*args: str, repo: Path | None = None) -> str:
     # --no-optional-locks: a `git status` egyébként FRISSÍTI az indexet, ahhoz
     # pedig `index.lock`-ot vesz. A szerver kétmásodpercenként kérdez — ez a
     # Fejlesztő saját git-parancsait akasztaná meg („Unable to create
     # index.lock"). Olvasó eszköznek úgyis felesleges.
     return subprocess.run(
-        ["git", "--no-optional-locks", "-C", str(REPO), *args],
+        [git_bin(), "--no-optional-locks", "-C", str(repo or REPO), *args],
         capture_output=True, text=True, check=True,
     ).stdout
 
@@ -70,7 +86,7 @@ def git(*args: str) -> str:
 def resolve_repo(start: Path) -> Path:
     """A megadott könyvtárat tartalmazó git repó gyökere."""
     result = subprocess.run(
-        ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
+        [git_bin(), "-C", str(start), "rev-parse", "--show-toplevel"],
         capture_output=True, text=True,
     )
     if result.returncode != 0:
@@ -112,6 +128,9 @@ def collect_commits(limit: int | None) -> list[dict]:
     return commits
 
 
+REF_ORDER = {"head": 0, "detached": 0, "branch": 1, "remote": 2, "tag": 3}
+
+
 def parse_refs(decoration: str) -> list[dict]:
     """A `%D` dekoráció badge-ekké: HEAD, lokális ág, remote ág, tag."""
     refs: list[dict] = []
@@ -130,9 +149,8 @@ def parse_refs(decoration: str) -> list[dict]:
             refs.append({"kind": "remote", "name": item})
         else:
             refs.append({"kind": "branch", "name": item})
-    # A HEAD-badge menjen előre, utána tag, ág, végül remote — mint a Git Graphban.
-    order = {"head": 0, "detached": 0, "tag": 1, "branch": 2, "remote": 3}
-    refs.sort(key=lambda r: order.get(r["kind"], 9))
+    # A HEAD-badge megy előre, utána az ágak, a remote-ok, a tag mindig a végén.
+    refs.sort(key=lambda r: REF_ORDER.get(r["kind"], 9))
     return refs
 
 
@@ -184,25 +202,45 @@ def collect_stats(limit: int | None) -> dict[str, dict]:
 
 
 UNCOMMITTED = "*uncommitted"
+UNCOMMITTED_RE = re.compile(r"^\*uncommitted(?::([a-z0-9-]+))?$")
 
 
-def collect_uncommitted() -> tuple[dict, dict] | None:
-    """A munkakönyvtár változásai egy ál-commitként, a Git Graph mintájára.
-
-    A gráf tetejére kerül, szülője a HEAD — így szaggatott vonallal odalóg, és
-    a soron kattintva ugyanaz a részletek-panel nyílik, mint egy commitnál.
-    Változás nélkül nincs sor (`None`).
-    """
-    status = [line for line in git("status", "--porcelain").splitlines() if line.strip()]
-    if not status:
-        return None
+def user_config(root: Path, key: str) -> str:
+    """A worktree git-felhasználója (`user.name` / `user.email`) — a WIP-sor szerzője."""
     try:
-        head = git("rev-parse", "HEAD").strip()
+        return git("config", f"user.{key}", repo=root).strip()
     except subprocess.CalledProcessError:
-        return None                      # commit nélküli repó: nincs mihez kötni
+        return ""
 
+
+def last_change(root: Path, files: list[dict]) -> int:
+    """A commitolatlan fájlok legutóbbi módosítása (epoch s) — a git ezt nem tárolja,
+    a fájlrendszer igen; a törölt fájl kimarad. A lap ebben a sorrendben mutatja
+    a worktree-k WIP-sorait."""
+    latest = 0
+    for f in files:
+        try:
+            latest = max(latest, int((root / f["path"].rstrip("/")).stat().st_mtime))
+        except OSError:
+            pass
+    return latest
+
+
+def collect_uncommitted(wt: dict) -> tuple[dict, dict] | None:
+    """Egy worktree változásai egy ál-commitként, a Git Graph mintájára.
+
+    A gráf tetejére kerül, szülője a worktree HEAD-je — így szaggatott vonallal
+    odalóg, és a soron kattintva ugyanaz a részletek-panel nyílik, mint egy
+    commitnál. A sha-ja `*uncommitted:<worktree-slug>`: ebből tudja a
+    `file_diff`, melyik munkakönyvtárat diffelje. A szerzője a gép git-felhasználója
+    (a worktree configjából), az ideje a fájlok legutóbbi módosítása — a lap ez
+    alapján teszi a helyére. Változás nélkül nincs sor.
+    """
+    status = wt["status"]
+    if not status or not wt["head"]:     # commit nélküli repó: nincs mihez kötni
+        return None
     files, added, deleted = [], 0, 0
-    for line in git("diff", "--numstat", "HEAD").splitlines():
+    for line in wt["numstat"].splitlines():
         cols = line.split("\t")
         if len(cols) < 3:
             continue
@@ -221,31 +259,38 @@ def collect_uncommitted() -> tuple[dict, dict] | None:
             if path not in known:
                 files.append({"path": path, "add": 0, "del": 0, "bin": False, "new": True})
 
+    changed = last_change(wt["path"], files)
     commit = {
-        "sha": UNCOMMITTED,
+        "sha": f"{UNCOMMITTED}:{wt['slug']}",
         "short": "*",
-        "parents": [head],
-        "author": "*",
-        "date": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "parents": [wt["head"]],
+        "author": user_config(wt["path"], "name") or "*",
+        "email": user_config(wt["path"], "email"),
+        "date": datetime.datetime.fromtimestamp(changed or time.time()).astimezone()
+                .isoformat(timespec="seconds"),
         "refs": [],
-        # A fájlszám a soron is látszik — a részletek-panel kinyitása nélkül.
-        "subject": f"Uncommitted Changes ({len(files)} fájl)",
+        "subject": "Nem commitolt változások",
         "body": "",
         "uncommitted": True,
+        "worktree": wt["slug"],
+        "changed": changed,
     }
     return commit, {"files": files, "add": added, "del": deleted}
 
 
-def assign_lanes(commits: list[dict]) -> list[dict]:
+def assign_lanes(commits: list[dict], trunk: str | None = None) -> list[dict]:
     """Sávkiosztás: minden commit kap egy oszlopot, a szülők sávot foglalnak.
 
     A Git Graph logikája: egy commit abba a sávba ül, amelyik már rá vár
     (a gyereke foglalta le); ha nincs ilyen, az első szabad sávba. Az első
     szülő ugyanabban a sávban folytatódik, a további szülők (merge) új vagy
     már létező sávot kapnak.
+
+    A `trunk` (a fő checkout csúcsa) a 0. sávot kapja előre lefoglalva: a
+    worktree-k újabb commitjai így mindig elágaznak tőle, nem a fő vonalon ülnek.
     """
-    active: list[str | None] = []  # sávonként: melyik commitra vár
     index = {c["sha"]: i for i, c in enumerate(commits)}
+    active: list[str | None] = [trunk] if trunk in index else []  # sávonként: melyik commitra vár
 
     for commit in commits:
         sha = commit["sha"]
@@ -295,26 +340,118 @@ def assign_lanes(commits: list[dict]) -> list[dict]:
     return edges
 
 
-def is_linked_worktree() -> bool:
-    """A `REPO` egy hozzáadott worktree-e (nem a fő checkout)."""
-    own = git("rev-parse", "--path-format=absolute", "--git-dir").strip()
-    common = git("rev-parse", "--path-format=absolute", "--git-common-dir").strip()
-    return own != common
+def worktree_list(repo: Path | None = None) -> list[dict]:
+    """A repó élő worktree-jei (`git worktree list --porcelain`); az első a fő checkout.
 
-
-def config_section() -> str:
-    """A `REPO` kulcsainak szakasza: `git-graph`, worktree-ben `git-graph.<slug>`.
-
-    A worktree-k közös `.git/config`-ot látnak, a lapjuk viszont más (más
-    slug, más munkakönyvtár) — közös kulcson egymás Artifactját írnák felül.
+    A csupasz (bare) és a megszűnt (prunable) bejegyzés kimarad. `head` a
+    worktree HEAD-je (commit nélküli repóban None), `branch` a kivett ág
+    (leválasztott HEAD-nél nincs).
     """
-    return f"git-graph.{slug_for(REPO)}" if is_linked_worktree() else "git-graph"
+    out: list[dict] = []
+    cur: dict = {}
+    for line in git("worktree", "list", "--porcelain", repo=repo).splitlines() + [""]:
+        if not line:
+            if cur.get("path") and not cur.get("bare") and not cur.get("prunable"):
+                out.append(cur)
+            cur = {}
+            continue
+        key, _, value = line.partition(" ")
+        if key == "worktree":
+            cur = {"path": Path(value), "head": None, "branch": None}
+        elif key == "HEAD":
+            cur["head"] = value if value.strip("0") else None
+        elif key == "branch":
+            cur["branch"] = value[len("refs/heads/"):] if value.startswith("refs/heads/") else value
+        elif key in ("bare", "prunable"):
+            cur[key] = True
+    # A hozzáadott worktree-k a létrehozásuk sorrendjében (a git az admin-mappák
+    # olvasási sorrendjében adja, macOS-en ez a név szerinti ábécé).
+    return out[:1] + sorted(out[1:], key=worktree_created)
+
+
+def admin_dir(wt: dict) -> Path:
+    """A worktree git-mappája: a fő checkoutban a `.git`, a hozzáadottban az, amire
+    a `.git` fájlja mutat (`gitdir: …/.git/worktrees/<név>`). `OSError`, ha nincs."""
+    dot = wt["path"] / ".git"
+    return dot if dot.is_dir() else Path(dot.read_text(encoding="utf-8").partition("gitdir:")[2].strip())
+
+
+def app_branch(wt: dict) -> str | None:
+    """A leválasztott HEAD-ű hozzáadott worktree ága: a git nem jegyzi, a Claude app igen."""
+    if wt["branch"] or (wt["path"] / ".git").is_dir():
+        return None
+    return app_worktree_branches().get(str(wt["path"].resolve()))
+
+
+def worktree_created(wt: dict) -> float:
+    """A worktree létrehozásának ideje: az admin-mappája (`.git/worktrees/<név>`)
+    születési ideje; ahol ez nincs (Linux), a `ctime`-ja."""
+    try:
+        st = admin_dir(wt).stat()
+    except OSError:
+        return float("inf")
+    return getattr(st, "st_birthtime", st.st_ctime)
+
+
+def main_checkout(repo: Path) -> Path:
+    """A repó fő checkoutja — a worktree-k közös lapja ennek a slugján fut."""
+    worktrees = worktree_list(repo)
+    return worktrees[0]["path"] if worktrees else repo
+
+
+def collect_worktrees(repo: Path | None = None) -> list[dict]:
+    """A repó (alapból a `REPO`) worktree-jei állapottal: worktree-nként `git status` + `git diff --numstat`.
+
+    Párhuzamosan fut: 5 worktree-vel ~50 ms (sorban ~200 ms; nagy repón 330
+    ms / 680 ms — mérve, docs/artifact-findings.md). A közben megszűnt worktree
+    kimarad.
+    """
+    worktrees = worktree_list(repo)
+
+    def fill(wt: dict) -> None:
+        try:
+            wt["status"] = [line for line in git("status", "--porcelain", repo=wt["path"])
+                            .splitlines() if line.strip()]
+            wt["numstat"] = git("diff", "--numstat", "HEAD", repo=wt["path"]) if wt["head"] else ""
+        except subprocess.CalledProcessError:
+            wt["gone"] = True
+
+    with ThreadPoolExecutor(max_workers=max(1, min(8, len(worktrees)))) as pool:
+        list(pool.map(fill, worktrees))
+    worktrees = [wt for wt in worktrees if not wt.get("gone")]
+    for wt in worktrees:
+        wt["slug"] = slug_for(wt["path"])
+        wt["main"] = (wt["path"] / ".git").is_dir()     # a hozzáadott worktree-ben fájl
+    return worktrees
+
+
+def worktree_meta(wt: dict, base: str) -> dict:
+    """Egy worktree a lapnak: azonosító, mappa, ág, HEAD, változások száma (az ág
+    távolságait a `meta.tracks` adja). Leválasztott HEAD-nél a HEAD-commit távolsága az
+    alapágtól (`base`, mint az ágaké) — ágkulcs híján itt."""
+    meta = {"slug": wt["slug"], "name": wt["path"].name, "path": str(wt["path"]),
+            "branch": wt["branch"], "head": wt["head"], "main": wt["main"],
+            "dirty": len(wt["status"])}
+    if not wt["branch"] and not wt["main"]:
+        meta["appBranch"] = app_branch(wt)
+    if not wt["branch"] and base and wt["head"]:
+        try:
+            meta["base"] = ahead_behind(base, wt["head"])
+        except (subprocess.CalledProcessError, ValueError):
+            pass
+    return meta
+
+
+def ahead_behind(base: str, rev: str) -> list[int]:
+    """`[előny, lemaradás]`: a `rev` commitjai a `base`-en túl, és a `base`-é a `rev`-en túl."""
+    behind, ahead = git("rev-list", "--left-right", "--count", f"{base}...{rev}").split()
+    return [int(ahead), int(behind)]
 
 
 def config_get(key: str) -> str:
     """Érték a repó lokális git configjából (hiányzó kulcsnál üres sztring)."""
     try:
-        return git("config", "--local", "--get", f"{config_section()}.{key}").strip()
+        return git("config", "--local", "--get", f"git-graph.{key}").strip()
     except subprocess.CalledProcessError:
         return ""
 
@@ -325,7 +462,7 @@ def remember_artifact(url: str, digest: str | None = None) -> None:
     A hash alapján a publikálás kihagyja a változatlan lapot. A `.git/config`
     sosem commitolódik, és repónként külön tárol — pont, ami ide kell.
     """
-    section = config_section()
+    section = "git-graph"
     git("config", "--local", f"{section}.artifact", url)
     if digest:
         git("config", "--local", f"{section}.artifactHash", digest)
@@ -336,19 +473,6 @@ def remember_artifact(url: str, digest: str | None = None) -> None:
             pass
 
 
-def artifact_entries() -> dict[str, str]:
-    """A repó minden Artifactja — a fő checkouté és a worktree-ké: szakasz → URL."""
-    try:
-        out = git("config", "--local", "--get-regexp", r"^git-graph\.(.+\.)?artifact$")
-    except subprocess.CalledProcessError:
-        return {}
-    entries = {}
-    for line in out.splitlines():
-        key, _, url = line.partition(" ")
-        entries[key.rsplit(".", 1)[0]] = url.strip()
-    return entries
-
-
 def worktree_paths() -> list[Path]:
     """A repó worktree-jei; az első a fő checkout."""
     return [Path(line[len("worktree "):])
@@ -356,20 +480,8 @@ def worktree_paths() -> list[Path]:
             if line.startswith("worktree ")]
 
 
-def orphan_artifacts() -> dict[str, str]:
-    """Megszűnt worktree-k Artifactjai: szakasz → URL."""
-    live = {f"git-graph.{slug_for(path)}" for path in worktree_paths()}
-    return {section: url for section, url in artifact_entries().items()
-            if section != "git-graph" and section not in live}
-
-
-def section_slug(section: str) -> str:
-    """A szakasz slugja — a fő checkouté az útvonalából."""
-    return section.split(".", 1)[1] if "." in section else slug_for(worktree_paths()[0])
-
-
-def collect_branches() -> list[dict]:
-    """Ágak upstreammel és ahead/behind számokkal."""
+def collect_branches(worktrees: list[dict]) -> list[dict]:
+    """Ágak upstreammel, ahead/behind számokkal, és hogy melyik worktree-ben vannak kivéve."""
     fmt = FS.join(
         [
             "%(refname:short)",
@@ -381,6 +493,8 @@ def collect_branches() -> list[dict]:
     )
     out = git("for-each-ref", f"--format={fmt}", "refs/heads")
     head = git("rev-parse", "--abbrev-ref", "HEAD").strip()
+    checked_out = {wt["branch"]: wt["slug"] for wt in worktrees if wt["branch"]}
+    owners = branch_owners(worktrees)
     branches = []
     for line in out.splitlines():
         if not line.strip():
@@ -394,9 +508,45 @@ def collect_branches() -> list[dict]:
                 "track": track.strip("[]"),
                 "date": date,
                 "current": name == head,
+                "worktree": checked_out.get(name),
+                "owner": owners.get(name),
             }
         )
+    # A csak remote-on élő ágak (aminek nincs helyi párja) is választhatók.
+    paired = {b["upstream"] for b in branches if b["upstream"]}
+    for line in git("for-each-ref", "--format=%(refname:short)" + FS + "%(objectname:short)"
+                    + FS + "%(committerdate:short)", "refs/remotes").splitlines():
+        name, sha, date = (line.split(FS) + [""] * 3)[:3]
+        if name and not name.endswith("/HEAD") and "/" in name and name not in paired:
+            branches.append({"name": name, "sha": sha, "date": date, "remote": True})
     return branches
+
+
+def branch_owners(worktrees: list[dict]) -> dict[str, str]:
+    """Ág → a worktree slugja, amelyikben utoljára ki volt véve.
+
+    A git nem jegyzi, hol jött létre egy ág, de minden worktree HEAD-reflogja
+    (`logs/HEAD`) igen, mikor váltott rá (`checkout: moving from A to B`). A
+    most kivett ág azé, ahol ki van véve; a leválasztott HEAD-ű worktree-é az
+    ág, amit a Claude app jegyez neki (`appBranch`). A törölt worktree reflogja
+    vele megy, és a lejárt bejegyzés is kiesik: az ilyen ág gazdátlan (nincs a
+    kimenetben). Csak fájlt olvas, git-hívás nincs.
+    """
+    best: dict[str, tuple[float, str]] = {}
+    pattern = re.compile(r"> (\d+) [+-]\d{4}\tcheckout: moving from \S+ to (\S+)$")
+    for wt in worktrees:
+        claim = wt["branch"] or app_branch(wt)
+        if claim:
+            best[claim] = (float("inf"), wt["slug"])
+        try:
+            lines = (admin_dir(wt) / "logs" / "HEAD").read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            m = pattern.search(line)
+            if m and float(m[1]) > best.get(m[2], (-1.0, ""))[0]:
+                best[m[2]] = (float(m[1]), wt["slug"])
+    return {name: slug for name, (_, slug) in best.items()}
 
 
 def repo_name() -> str:
@@ -418,9 +568,8 @@ def repo_name() -> str:
 
 
 def page_title(name: str) -> str:
-    """A lap és az Artifact neve. „Git Graph” elöl; a repó (worktree-ben a
-    mappájával) zárójelben, mert repónként és worktree-nként külön Artifact
-    van — azonos nevekkel a választóban nem lennének megkülönböztethetők."""
+    """A lap és az Artifact neve. „Git Graph” elöl, a repó zárójelben — repónként
+    egy Artifact van, a worktree-k közösen látják."""
     return f"Git Graph ({name})"
 
 
@@ -438,20 +587,74 @@ def repo_url() -> str:
     return f"https://github.com/{m[1]}/{m[2]}" if m else ""
 
 
-def collect_meta(commits: list[dict]) -> dict:
-    status = git("status", "--porcelain").strip()
+def collect_meta(commits: list[dict], worktrees: list[dict]) -> dict:
+    base = default_base()
     return {
         "repo": repo_name(),
         "repoUrl": repo_url(),
         "head": git("rev-parse", "--abbrev-ref", "HEAD").strip(),
         "totalCommits": int(git("rev-list", "--all", "--count").strip()),
         "shown": len(commits),
-        "dirty": len([line for line in status.splitlines() if line.strip()]),
+        "dirty": len(worktrees[0]["status"]) if worktrees else 0,
         "generated": git("log", "-1", "--pretty=format:%aI").strip(),
-        "worktrees": [
-            line.split()[0] for line in git("worktree", "list").splitlines() if line.strip()
-        ],
+        "worktrees": [worktree_meta(wt, base) for wt in worktrees],
+        "remotes": sorted(remotes()),     # több remote-nál a badge a nevüket is mutatja
+        "tracks": branch_tracks(base),
+        "base": base,                     # az alapág (origin/HEAD célja) — a helyi párján nem dolgozunk
     }
+
+
+def default_base() -> str:
+    """Az alapág: amire az `origin/HEAD` mutat (pl. `origin/main`); üres, ha nincs."""
+    try:
+        return git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").strip()
+    except subprocess.CalledProcessError:
+        return ""
+
+
+def branch_tracks(base: str) -> dict[str, dict]:
+    """Ágankénti távolság (`ahead`, `behind`): `base` az alapághoz (amire az
+    `origin/HEAD` mutat; magán az alapágon nincs; a remote-only ágaknak is,
+    `origin/x` kulccsal; ha van helyi párja, `local` a helyi ághoz), `up` a saját upstreamjéhez
+    (ha van, és nem tűnt el). Egyetlen `for-each-ref` (git 2.41+:
+    `%(ahead-behind:…)`); régebbi gitnél ágankénti `rev-list`. A `base` a `default_base()`."""
+    fields = "%(refname:short)%00%(upstream:short)%00%(upstream:track,nobracket)"
+    try:
+        lines = git("for-each-ref", f"--format={fields}%00%(ahead-behind:{base or 'HEAD'})",
+                    "refs/heads").splitlines()
+        rich = True
+    except subprocess.CalledProcessError:
+        lines, rich = git("for-each-ref", f"--format={fields}", "refs/heads").splitlines(), False
+    out: dict[str, dict] = {}
+    locals_: dict[str, list[int]] = {}             # upstream neve → távolsága a helyi ágtól
+    for line in lines:
+        name, upstream, track, *rest = line.split("\0")
+        entry: dict = {}
+        if upstream and track != "gone":
+            ahead = re.search(r"ahead (\d+)", track)
+            behind = re.search(r"behind (\d+)", track)
+            entry["up"] = [int(ahead.group(1)) if ahead else 0, int(behind.group(1)) if behind else 0]
+            locals_[upstream] = entry["up"][::-1]     # a remote chipjén: a helyi ághoz mérve
+        if base and base.split("/", 1)[-1] != name:
+            entry["base"] = ([int(n) for n in rest[0].split()] if rich and rest
+                             else ahead_behind(base, name))
+        out[name] = entry
+    # A csak remote-on élő ágaknak is (`origin/x`): a távolságuk az alapágtól.
+    if base:
+        try:
+            for line in git("for-each-ref", f"--format=%(refname:short)%00%(ahead-behind:{base})",
+                            "refs/remotes").splitlines():
+                name, counts = line.split("\0")
+                if name.endswith("/HEAD") or name in out:
+                    continue
+                a, b = counts.split()
+                # Az alapág remote-jának nincs base-szakasza (önmaga), de a helyi párjához mérve igen.
+                out[name] = {} if name == base else {"base": [int(a), int(b)]}
+                if name in locals_:
+                    out[name]["local"] = locals_[name]
+        except (subprocess.CalledProcessError, ValueError):
+            pass                              # régi git: a remote-only chip szám nélkül marad
+    return out
 
 
 def numstat_new_path(path: str) -> str:
@@ -479,45 +682,191 @@ def mark_pushed(commits: list[dict], stats: dict[str, dict]) -> None:
             f["anchor"] = hashlib.sha256(numstat_new_path(f["path"]).encode()).hexdigest()
 
 
+def mark_worktree_heads(commits: list[dict], worktrees: list[dict]) -> None:
+    """Minden worktree HEAD-je badge-et kap (`head`, illetve `detached`), a worktree slugjával.
+
+    A `%D` dekoráció csak a `REPO` (a fő checkout) HEAD-jét ismeri — a
+    worktree-k közös lapján mindegyiké kell, a lap ebből jelöli a sajátját.
+    """
+    by_sha = {c["sha"]: c for c in commits}
+    for c in commits:
+        c["refs"] = [dict(r, kind="branch") if r["kind"] == "head" else r
+                     for r in c["refs"] if r["kind"] != "detached"]
+    for wt in worktrees:
+        c = by_sha.get(wt["head"] or "")
+        if c is None:
+            continue                       # a limiten kívül
+        ref = next((r for r in c["refs"] if r["kind"] == "branch" and r["name"] == wt["branch"]), None)
+        if ref:
+            ref.update(kind="head", worktree=wt["slug"])
+        else:
+            c["refs"].insert(0, {"kind": "detached", "name": "HEAD", "worktree": wt["slug"]})
+    for c in commits:
+        c["refs"].sort(key=lambda r: REF_ORDER.get(r["kind"], 9))
+
+
+def worktree_lanes_last(commits: list[dict], edges: list[dict], worktrees: list[dict]) -> None:
+    """A hozzáadott worktree-k oszlopai a fő checkout ágai mögé kerülnek — de csak
+    a worktree-k elágazási pontja fölött.
+
+    Az oszlopok cseréje (permutáció) a rajzot nem rontja el. Az elágazás alatt
+    viszont az oszlopot már más ág (pl. egy régi, beolvasztott ág) használja:
+    ott az eredeti sorrend marad, különben az a vonal is hátrébb csúszna, és egy
+    oszlop (szín) kimaradna. A határon átnyúló vonal a következő commitja
+    fölött fordul be az eredeti oszlopába.
+    """
+    by_sha = {c["sha"]: c for c in commits}
+    row_of = {c["sha"]: i for i, c in enumerate(commits)}
+    cols: list[int] = []
+    boundary = 0                              # az első sor, ahol már az eredeti oszlopok élnek
+    for wt in worktrees:
+        if wt["main"]:
+            continue
+        for key in (f"{UNCOMMITTED}:{wt['slug']}", wt["head"] or ""):
+            c = by_sha.get(key)
+            if not c or c["lane"] == 0:
+                continue
+            if c["lane"] not in cols:
+                cols.append(c["lane"])
+            # Az elágazási pont: az első szülő-lánc első commitja, ami már nem ebben az oszlopban ül.
+            lane = c["lane"]
+            while c is not None and c["lane"] == lane and c["parents"]:
+                c = by_sha.get(c["parents"][0])
+            boundary = max(boundary, row_of[c["sha"]] if c is not None else len(commits))
+    if not cols:
+        return
+    count = max(c["lane"] for c in commits) + 1
+    order = [lane for lane in range(count) if lane not in cols] + cols
+    new = {old: i for i, old in enumerate(order)}
+    lane_at = lambda row, lane: new[lane] if row < boundary else lane  # noqa: E731
+    for row, c in enumerate(commits):
+        c["lane"] = lane_at(row, c["lane"])
+    for e in edges:
+        e["fromLane"] = lane_at(e["fromRow"], e["fromLane"])
+        e["toLane"] = lane_at(e["toRow"], e["toLane"])
+
+
+def worktree_stubs(commits: list[dict], edges: list[dict], worktrees: list[dict]) -> None:
+    """Saját commit és WIP nélküli worktree HEAD-je: leágazó csonk a commitjáról.
+
+    Ha a worktree HEAD-je egy más által is használt commiton áll (a trunkon,
+    egy továbbmenő ág közepén, vagy ahol másik HEAD is van — pl. a session
+    törlésekor leválasztott worktree), a worktree nem ágazna el. A commit
+    `stubs` listát kap: a sávok utáni első szabad oszloptól, commitonként újra
+    kezdve; a lap vonallal és pöttyel rajzolja, a HEAD-badge ennek a színét kapja.
+    """
+    row_of = {c["sha"]: i for i, c in enumerate(commits)}
+    has_child = {(e["toRow"], e["fromLane"]) for e in edges if not e["merge"]}
+    heads: dict[str, int] = {}
+    for wt in worktrees:
+        heads[wt["head"] or ""] = heads.get(wt["head"] or "", 0) + 1
+    lanes = max((c["lane"] for c in commits), default=-1) + 1
+    for wt in worktrees:
+        row = row_of.get(wt["head"] or "")
+        if wt["main"] or row is None or f"{UNCOMMITTED}:{wt['slug']}" in row_of:
+            continue
+        c = commits[row]
+        own = c["lane"] != 0 and (row, c["lane"]) not in has_child and heads[wt["head"]] == 1
+        if not own:
+            # Commitonként a következő szabad oszloptól: a csonk a soron belül marad,
+            # más sorok csonkjaival nem ütközik — a gráf nem szélesedik feleslegesen.
+            stubs = c.setdefault("stubs", [])
+            stubs.append({"lane": lanes + len(stubs), "worktree": wt["slug"]})
+
+
+def fold_remote_heads(commits: list[dict]) -> None:
+    """A `<remote>/HEAD` nem külön badge: csak mutató a remote alapértelmezett ágára.
+
+    A célja (pl. `origin/main`) `default` jelet kap, a lap a tooltipben mondja
+    ki; maga a mutató kikerül — ahol a cél látszik, ott ismétlés lenne.
+    """
+    targets = set()
+    for remote in remotes():
+        try:
+            targets.add(git("symbolic-ref", "--short", f"refs/remotes/{remote}/HEAD").strip())
+        except subprocess.CalledProcessError:
+            pass
+    for c in commits:
+        c["refs"] = [r for r in c["refs"]
+                     if not (r["kind"] == "remote" and r["name"].endswith("/HEAD"))]
+        for r in c["refs"]:
+            if r["kind"] == "remote" and r["name"] in targets:
+                r["default"] = True
+
+
 def collect_payload(limit: int | None) -> dict:
     """A lap teljes adatcsomagja — a `git-graph --mcp` graph_data toolja adja."""
     commits = collect_commits(limit)
     if not commits:
         return {}
     stats = collect_stats(limit)
-    meta = collect_meta(commits)          # még a valódi commitokból: `shown`
+    worktrees = collect_worktrees()
+    meta = collect_meta(commits, worktrees)   # még a valódi commitokból: `shown`
     if meta["repoUrl"]:
         mark_pushed(commits, stats)
+    mark_worktree_heads(commits, worktrees)
+    fold_remote_heads(commits)
 
-    pending = collect_uncommitted()
-    if pending:
-        commit, churn = pending
-        commits.insert(0, commit)         # a gráf tetejére, a HEAD fölé
-        stats[commit["sha"]] = churn
+    # Worktree-nként egy ál-sor, a gráf tetejére, a HEAD-jük fölé — a lane-kiosztás
+    # előtt, mert az élek sorindexeket használnak.
+    trunk = None
+    for wt in reversed(worktrees):
+        pending = collect_uncommitted(wt)
+        if pending:
+            commit, churn = pending
+            commits.insert(0, commit)
+            stats[commit["sha"]] = churn
+        if wt["main"]:                    # a fő checkout csúcsa: az ál-sora, vagy a HEAD-je
+            trunk = commit["sha"] if pending else wt["head"]
 
+    edges = assign_lanes(commits, trunk)
+    worktree_lanes_last(commits, edges, worktrees)
+    worktree_stubs(commits, edges, worktrees)
     return {
         "commits": commits,
-        "edges": assign_lanes(commits),
+        "edges": edges,
         "stats": stats,
-        "branches": collect_branches(),
+        "branches": collect_branches(worktrees),
         "meta": meta,
         "avatars": avatars_for(commits, meta["repoUrl"]),
         "fileIcons": attach_icons(stats),
     }
 
 
-def change_signals() -> tuple[str, str]:
-    """(ref-jel, fájl-jel) — a `git-graph --mcp` fingerprint toolja ebből válaszol.
+def repo_state(repo: Path) -> str:
+    """A repó állapotának hashe — ha változik, a lap újrakéri a `graph_data`-t.
 
-    A ref-jelben a HEAD neve is benne van (ágváltás ugyanarra a commitra is
-    badge-változás); a fájl-jel pontosan azt fedi, amit az Uncommitted sor
-    mutat (státusz + `+/−`) — egy már módosított fájl újabb szerkesztését is.
+    Benne minden ref és worktree-nként a HEAD és az ág (ágváltás ugyanarra a
+    commitra is badge-változás, új vagy megszűnt worktree is változás), a
+    státusz és a commitolatlan fájlok legutóbbi módosítása ns-ban — ez jelzi egy
+    már módosított fájl újabb szerkesztését is, a `diff --numstat` nélkül —, és a
+    megtalált avatarok száma. A `for-each-ref` és a worktree-k `status`-a
+    párhuzamosan fut: ~15 ms egy kis repón (sorban, numstattal ~50 ms volt).
     """
-    refs = (git("for-each-ref", "--format=%(objectname) %(refname)")
-            + git("rev-parse", "HEAD", "--abbrev-ref", "HEAD"))
-    files = git("status", "--porcelain") + git("diff", "--numstat", "HEAD")
-    return (hashlib.sha1(refs.encode()).hexdigest(),
-            hashlib.sha1(files.encode()).hexdigest())
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        refs = pool.submit(git, "for-each-ref", "--format=%(objectname) %(refname)", repo=repo)
+        worktrees = worktree_list(repo)
+
+        def status(wt: dict) -> list[str] | None:
+            try:
+                return [line for line in git("status", "--porcelain", repo=wt["path"]).splitlines()
+                        if line.strip()]
+            except subprocess.CalledProcessError:
+                return None                         # közben megszűnt
+
+        parts = [refs.result(), str(avatar_signal())]
+        for wt, lines in zip(worktrees, pool.map(status, worktrees)):
+            if lines is None:
+                continue
+            newest = 0
+            for line in lines:
+                try:
+                    newest = max(newest, (wt["path"] / line[3:].strip().strip('"').rstrip("/"))
+                                 .stat().st_mtime_ns)
+                except OSError:
+                    pass
+            parts.append(f"{wt['path']} {wt['head']} {wt['branch']}\n" + "\n".join(lines) + f"\n{newest}")
+    return hashlib.sha1("\0".join(parts).encode()).hexdigest()
 
 
 # ── GitHub-avatarok ─────────────────────────────────────────────────────────
@@ -545,7 +894,7 @@ _AVATAR_MEMO: tuple[int, dict] | None = None   # (mtime_ns, tartalom) — a fáj
 
 
 def avatar_cache() -> dict:
-    """A gyorstár (másolat). A `fingerprint` 2 mp-enként kérdezi, a fájl
+    """A gyorstár (másolat). Az állapot (`repo_state`) 2 s-onként kérdezi, a fájl
     pedig a képekkel nagy: csak akkor olvassuk újra, ha módosult."""
     global _AVATAR_MEMO
     try:
@@ -778,10 +1127,10 @@ def parse_diff(raw: str) -> dict:
     return {"hunks": hunks, "binary": binary, "truncated": truncated}
 
 
-def untracked_diff(path: str) -> dict:
+def untracked_diff(root: Path, path: str) -> dict:
     """Követetlen fájl: a git nem diffeli, minden sora hozzáadott."""
     try:
-        text = (REPO / path).read_bytes()[:2_000_000].decode("utf-8")
+        text = (root / path).read_bytes()[:2_000_000].decode("utf-8")
     except UnicodeDecodeError:
         return {"hunks": [], "binary": True, "truncated": False}
     lines = text.splitlines()
@@ -792,21 +1141,28 @@ def untracked_diff(path: str) -> dict:
 
 
 def file_diff(sha: str, path: str) -> dict:
-    """Egy fájl diffje a commitban (vagy az Uncommitted ál-sorban: a HEAD-hez képest).
+    """Egy fájl diffje a commitban (vagy egy Uncommitted ál-sorban: a worktree HEAD-jéhez képest).
 
     A `sha` és a `path` a lapról jön: a sha csak hex lehet (különben `--opció`-ként
-    futna), a fájlt pedig csak akkor olvassuk közvetlenül, ha a git követetlennek
-    mondja — így a loopback szerveren át nem olvasható ki tetszőleges fájl.
+    futna), az ál-soré `*uncommitted:<slug>`, és a slug csak egy élő worktree-é
+    lehet; a fájlt pedig csak akkor olvassuk közvetlenül, ha a git követetlennek
+    mondja — így a lapon át nem olvasható ki tetszőleges fájl.
     """
     old, new = numstat_old_path(path), numstat_new_path(path)
-    if sha == UNCOMMITTED:
-        raw = git("diff", "--no-color", "--no-ext-diff", "-M", "HEAD", "--", old, new)
+    pending = UNCOMMITTED_RE.match(sha)
+    if pending:
+        slug = pending[1]
+        root = next((wt["path"] for wt in worktree_list()
+                     if slug in (None, slug_for(wt["path"]))), None)
+        if root is None:
+            raise ValueError(f"nincs ilyen worktree: {slug}")
+        raw = git("diff", "--no-color", "--no-ext-diff", "-M", "HEAD", "--", old, new, repo=root)
         if not raw.strip() and path.endswith("/"):      # a status így mutat egy új mappát
             return {"hunks": [], "binary": False, "truncated": False,
                     "note": "követetlen mappa — a fájljai a git add után látszanak"}
         if not raw.strip() and path in git("ls-files", "--others", "--exclude-standard",
-                                           "--", path).splitlines():
-            return untracked_diff(path)
+                                           "--", path, repo=root).splitlines():
+            return untracked_diff(root, path)
     elif SHA_RE.match(sha):
         raw = git("show", "--format=", "--no-color", "--no-ext-diff", "-M",
                   "--diff-merges=first-parent", sha, "--", old, new)
@@ -1000,6 +1356,253 @@ def shown_in_session(session_id: str, slug: str) -> bool:
     return seen
 
 
+# ── Melyik session van előtérben ───────────────────────────────────────────
+#
+# A worktree-k közös lapot látnak, az app pedig egy Artifactnak egyetlen
+# keretet tart, és azt mutatja minden sessionben — a lap maga nem tudhatja,
+# melyik sessionben látszik éppen; a host-híd hívásából sem derül ki (mérve,
+# docs/artifact-findings.md). A Claude app viszont sessionönként JSON-t tart
+# (`claude-code-sessions/<fiók>/<szervezet>/local_<id>.json`) a
+# munkakönyvtárral és a `lastFocusedAt` időbélyeggel: a repóban dolgozó
+# sessionök közül a legutóbb fókuszált van előtérben. Belső fájl — ismeretlen
+# formánál nem dönt (a fő checkout a saját).
+#
+# A `lastFocusedAt` 1–3 s késéssel kerül a fájlba, az app naplója
+# (`~/Library/Logs/Claude/main.log`) viszont a váltás után ~20 ms-mal már
+# tartalmazza (`setFocusedSession: sessionId=local_<id>`, mérve,
+# docs/artifact-findings.md). A fókusz idejét ezért a naplóból vesszük, ha
+# ott van; a fájlból csak a munkakönyvtár és az archiváltság jön.
+
+APP_SESSIONS = (Path.home() / "Library" / "Application Support" / "Claude"
+                / "claude-code-sessions")
+_APP_SESSIONS: dict[str, tuple[float, dict | None]] = {}   # fájl → (mtime, {id, cwd, focused, archived})
+APP_LOG = Path.home() / "Library" / "Logs" / "Claude" / "main.log"
+APP_LOG_TAIL = 2 << 20          # induláskor ennyit olvasunk vissza a napló végéből
+FOCUS_LINE = re.compile(rb"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) \[info\] \[CCD\] "
+                        rb"LocalSessions\.setFocusedSession: sessionId=(local_[0-9a-f-]+)", re.M)
+_APP_LOG: dict = {"ino": None, "pos": 0, "seq": 0, "focus": {}}   # focus: id → (idő, sorszám)
+FOCUS_LOCK = threading.Lock()
+
+
+def app_sessions() -> list[dict]:
+    """A Claude app desktop-sessionjei: munkakönyvtár és utolsó fókusz.
+
+    A fájlok nagyok (több száz, egyenként akár ~800 KB), a fókuszt pedig minden
+    `changes`-válasz kéri: mindet `stat`-oljuk (< 1 ms), de csak a megváltozottat
+    olvassuk újra — váltáskor ez egyetlen fájl.
+    """
+    out, live = [], set()
+    for path in APP_SESSIONS.glob("*/*/local_*.json"):
+        key = str(path)
+        live.add(key)
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
+        cached = _APP_SESSIONS.get(key)
+        if cached is None or cached[0] != mtime:
+            info = None
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                cwd = data.get("worktreePath") or data.get("cwd")
+                focused = data.get("lastFocusedAt")
+                if isinstance(cwd, str) and isinstance(focused, (int, float)):
+                    info = {"id": path.stem, "cwd": cwd, "focused": focused / 1000,
+                            "archived": bool(data.get("isArchived"))}
+            except (OSError, ValueError, AttributeError):
+                pass
+            cached = _APP_SESSIONS[key] = (mtime, info)
+        if cached[1]:
+            out.append(cached[1])
+    for key in set(_APP_SESSIONS) - live:
+        del _APP_SESSIONS[key]
+    return out
+
+
+def app_log_focus() -> dict:
+    """Session-azonosító → a legutóbbi fókusz (idő, sorszám) az app naplójából.
+
+    Csak az új sorokat olvassa; a napló forgatását (új inode, rövidebb fájl)
+    az elejéről kezdi. A napló másodpercre kerekít: a fókusz a másodperc
+    végére kerül (a fájl ms-os értéke ugyanarra a váltásra így sosem előzi),
+    az egy másodpercen belüli váltások sorrendjét a sorszám dönti el.
+    """
+    state = _APP_LOG
+    try:
+        st = APP_LOG.stat()
+    except OSError:
+        return state["focus"]
+    if st.st_ino != state["ino"] or st.st_size < state["pos"]:
+        first = state["ino"] is None
+        state.update(ino=st.st_ino, pos=max(0, st.st_size - APP_LOG_TAIL) if first else 0)
+    state["pos"] = max(state["pos"], st.st_size - APP_LOG_TAIL)
+    if st.st_size == state["pos"]:
+        return state["focus"]
+    try:
+        with APP_LOG.open("rb") as f:
+            f.seek(state["pos"])
+            chunk = f.read(st.st_size - state["pos"])
+    except OSError:
+        return state["focus"]
+    end = chunk.rfind(b"\n") + 1                  # a félbe írt sor a következő körre marad
+    state["pos"] += end
+    for m in FOCUS_LINE.finditer(chunk, 0, end):
+        try:
+            at = time.mktime(time.strptime(m.group(1).decode(), "%Y-%m-%d %H:%M:%S")) + 0.999
+        except ValueError:
+            continue
+        state["seq"] += 1
+        state["focus"][m.group(2).decode()] = (at, state["seq"])
+    return state["focus"]
+
+
+APP_WORKTREES = Path.home() / "Library" / "Application Support" / "Claude" / "git-worktrees.json"
+_APP_WORKTREES: dict = {"mtime": None, "branches": {}}
+
+
+def app_worktree_branches() -> dict[str, str]:
+    """Az app által létrehozott worktree-k ága, a mappájuk szerint (`git-worktrees.json`).
+
+    A session törlésekor az app leválasztja a worktree HEAD-jét; az ágat a git
+    ezután semmivel nem köti a worktree-hez, az app nyilvántartása igen. Belső
+    fájl: ismeretlen formánál üres.
+    """
+    try:
+        mtime = APP_WORKTREES.stat().st_mtime
+    except OSError:
+        return {}
+    if mtime != _APP_WORKTREES["mtime"]:
+        branches = {}
+        try:
+            entries = json.loads(APP_WORKTREES.read_text(encoding="utf-8")).get("worktrees") or {}
+            for entry in entries.values():
+                path, branch = entry.get("path"), entry.get("branch")
+                if isinstance(path, str) and isinstance(branch, str) and branch:
+                    branches[str(Path(path).resolve())] = branch
+        except (OSError, ValueError, AttributeError):
+            branches = {}
+        _APP_WORKTREES.update(mtime=mtime, branches=branches)
+    return _APP_WORKTREES["branches"]
+
+
+def worktree_of(cwd: str, roots: list[tuple[Path, str]]) -> str | None:
+    """A munkakönyvtárat tartalmazó worktree slugja (a legmélyebb, ha egymásba
+    ágyazottak). `roots`: a worktree-k feloldott útja és slugja, hívásonként egyszer."""
+    path = Path(cwd).resolve()                    # a git a valódi utat adja (/var → /private/var)
+    hits = [(root, slug) for root, slug in roots if root == path or root in path.parents]
+    return max(hits, key=lambda hit: len(hit[0].parts))[1] if hits else None
+
+
+def focused_worktree(worktrees: list[dict]) -> dict:
+    """A repó előtérben lévő sessionjének worktree-je (`worktree`: slug, vagy None).
+
+    `known`: van-e a repóban dolgozó session; ha nincs, a lap a fő checkoutot
+    tekinti sajátnak.
+    """
+    with FOCUS_LOCK:                          # a várakozó hívás szála is számolja
+        logged, sessions = dict(app_log_focus()), app_sessions()
+    roots = [(wt["path"].resolve(), slug_for(wt["path"])) for wt in worktrees]
+    best = None
+    for session in sessions:
+        if session["archived"]:
+            continue
+        slug = worktree_of(session["cwd"], roots)
+        at = max((session["focused"], 0), logged.get(session["id"], (0, 0)))
+        if slug and (best is None or at > best[0]):
+            best = (at, slug)
+    return {"worktree": best[1] if best else None, "known": best is not None}
+
+
+WAIT_MAX = 50.0               # s — a host válasz-időkorlátja alatt (mérve)
+STATE_EVERY = 2.0             # s — a teljes állapot (`repo_state`) legalább ennyi időnként
+WAITERS_MAX = 32              # ennél több nyitott hívásnál nem várunk (árva hívások ellen)
+WAKE = threading.Event()      # újraindulás előtt: a várakozó hívások azonnal válaszolnak
+_WAITERS = {"n": 0}           # nyitott várakozó hívások (a `restart` kivárja őket)
+_WAITERS_LOCK = threading.Lock()
+
+
+def log_advance(ino: int, pos: int) -> tuple[int, int, bool]:
+    """Az app naplója az (inode, pozíció) kurzortól: az új kurzor, és volt-e közben
+    session-váltás. Ismeretlen kurzornál (`-1`) a napló végéről indul, jelzés nélkül;
+    forgatásnál (új inode) jelez. Saját fájlolvasás, megosztott állapot nélkül."""
+    try:
+        st = APP_LOG.stat()
+    except OSError:
+        return ino, pos, False
+    if st.st_ino != ino or st.st_size < pos:
+        return st.st_ino, st.st_size, ino != -1
+    if st.st_size == pos:
+        return ino, pos, False
+    try:
+        with APP_LOG.open("rb") as f:
+            f.seek(pos)
+            chunk = f.read(st.st_size - pos)
+    except OSError:
+        return ino, pos, False
+    end = chunk.rfind(b"\n") + 1
+    return ino, pos + end, bool(FOCUS_LINE.search(chunk, 0, end))
+
+
+def stamp_paths(repo: Path) -> list[Path]:
+    """Az olcsó előszűrő fájljai: worktree-nként a HEAD, az index és a HEAD reflogja,
+    közösen a packed-refs, a FETCH_HEAD és a ref-mappák (egy ref írása átnevezés,
+    a mappa mtime-ja változik). A fájlszerkesztést nem fogja: arra a teljes állapot."""
+    common = repo / ".git"
+    if not common.is_dir():
+        common = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir", repo=repo).strip())
+    admins = [common, *sorted((common / "worktrees").glob("*"))]
+    refs = [common / "refs" / "heads", common / "refs" / "tags",
+            *sorted((common / "refs" / "remotes").glob("*"))]
+    return [*(a / name for a in admins for name in ("HEAD", "index", "logs/HEAD")),
+            common / "packed-refs", common / "FETCH_HEAD", *refs]
+
+
+def file_stamp(paths: list[Path]) -> tuple[int, ...]:
+    """A fájlok mtime-ja (ns; a hiányzóé 0) — 10 fájlra ~0,03 ms (mérve)."""
+    out = []
+    for path in paths:
+        try:
+            out.append(path.stat().st_mtime_ns)
+        except OSError:
+            out.append(0)
+    return tuple(out)
+
+
+def wait_changes(repo: Path, since: str, wait: float) -> dict:
+    """A `changes` tool: vár, amíg a repó állapota eltér a `since`-étől, vagy az app
+    naplójában session-váltás jelenik meg — legfeljebb `wait` s-ig (`WAIT_MAX`).
+
+    A `since` az előző válasz átlátszatlan tokenje: állapot-hash és naplókurzor
+    (`<hash>.<inode>:<pozíció>`); üresen azonnal válaszol. A két hívás között
+    jött változás sem vész el. Várakozás közben 50 ms-onként a naplót és az
+    olcsó stat-jelet nézi (git-művelet ~50 ms-on belül), a teljes állapotot
+    (`repo_state`, ~15 ms) a stat-jel változásakor és `STATE_EVERY`-nként — a
+    fájlszerkesztés így legfeljebb ~2 s alatt jön. Külön szálon fut, explicit
+    repóval: a `REPO` globálist nem használja.
+    """
+    old, _, cursor = since.partition(".")
+    try:
+        ino, pos = (int(x) for x in cursor.split(":"))
+    except ValueError:
+        ino = pos = -1
+    ino, pos, switched = log_advance(ino, pos)
+    state = repo_state(repo)
+    paths = stamp_paths(repo)
+    stamp, full_at = file_stamp(paths), time.monotonic() + STATE_EVERY
+    deadline = time.monotonic() + max(0.0, min(wait, WAIT_MAX))
+    while not switched and state == old and not WAKE.is_set() and time.monotonic() < deadline:
+        time.sleep(0.05)
+        ino, pos, switched = log_advance(ino, pos)
+        now = file_stamp(paths)
+        if now != stamp or time.monotonic() >= full_at:
+            stamp, full_at = now, time.monotonic() + STATE_EVERY
+            state = repo_state(repo)
+    # A verziók is itt: egy frissítés utáni, még újra nem indított app a láblécben látszik.
+    return {"since": f"{state}.{ino}:{pos}", "state": state,
+            "focus": focused_worktree(worktree_list(repo)),
+            "version": RUNNING_VERSION, "installed": installed_version()}
+
+
 def registered_repos() -> dict:
     try:
         data = json.loads(REPOS.read_text(encoding="utf-8"))
@@ -1028,19 +1631,26 @@ def list_artifacts() -> list[tuple[Path, str]]:
         REPO = repo
         try:
             main = worktree_paths()[0]
-            urls = artifact_entries().values()
+            url = config_get("artifact")
         except subprocess.CalledProcessError:
             continue                             # eltűnt vagy sérült repó
-        for url in urls:
+        if url:
             found.setdefault(url, main)
     return [(repo, url) for url, repo in found.items()]
 
 
-def drop_section(section: str) -> None:
-    """Egy Artifact nyoma: a config-szakasza, a helyi lapjai és a regiszterbejegyzése."""
-    slug = section_slug(section)
+def forget(repo: Path) -> None:
+    """A repó minden git-graph nyoma: a config-szakasza, a helyi lapja és a
+    regiszterbejegyzése.
+
+    Az automatikus publikálást is kikapcsolja — különben a következő session
+    hookja új Artifactot kérne.
+    """
+    global REPO
+    REPO = repo
+    slug = slug_for(repo)
     try:
-        git("config", "--local", "--remove-section", section)
+        git("config", "--local", "--remove-section", "git-graph")
     except subprocess.CalledProcessError:
         pass
     shutil.rmtree(STATE_DIR / slug, ignore_errors=True)
@@ -1048,28 +1658,8 @@ def drop_section(section: str) -> None:
     if data.pop(slug, None) is not None:
         REPOS.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
                          encoding="utf-8")
-
-
-def forget(repo: Path) -> None:
-    """A repó minden git-graph nyoma — a worktree-ké is: kulcsok, helyi lapok, regiszter.
-
-    Az automatikus publikálást is kikapcsolja — különben a következő session
-    hookja új Artifactot kérne.
-    """
-    global REPO
-    REPO = repo
-    for section in {"git-graph", *artifact_entries()}:
-        drop_section(section)
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     NO_AUTO_PUBLISH.touch()
-
-
-def forget_artifact(url: str) -> bool:
-    """Egyetlen Artifact nyoma (egy megszűnt worktree-é); False, ha nem ismert."""
-    sections = [section for section, known in artifact_entries().items() if known == url]
-    for section in sections:
-        drop_section(section)
-    return bool(sections)
 
 
 # ── Publikálás ──────────────────────────────────────────────────────────────
@@ -1081,7 +1671,7 @@ def artifact_path(repo: Path) -> Path:
 
 # A lap ezen át éri el a gépen futó git-graph --mcp-t (enélkül use("mcp") null).
 PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
-                                     "tools": ["fingerprint", "graph_data", "file_diff",
+                                     "tools": ["changes", "graph_data", "file_diff",
                                                "page_code"]}]}}
 
 
@@ -1097,10 +1687,7 @@ def prepare_publish() -> dict | None:
     így csak sablon- (kód-) vagy repónév-változáskor kell újra feltölteni.
     None, ha van már Artifact, és a lap hashe egyezik.
     """
-    # Worktree-ben a mappa neve is a címbe kerül: a fő checkout és a worktree-k
-    # Artifactjai különben azonos néven állnának a választóban.
-    name = f"{repo_name()} · {REPO.name}" if is_linked_worktree() else repo_name()
-    html_page = build(page_title(name), register(REPO))
+    html_page = build(page_title(repo_name()), register(REPO))
     url = config_get("artifact")
     if url and page_digest(html_page) == config_get("artifactHash"):
         return None
@@ -1149,16 +1736,21 @@ def mark_published(url: str) -> None:
 MCP_NAME = "git-graph"        # a Claude app configjában ez a kulcs → a lapon host:git-graph
 _REPO_ARG = {"type": "object", "required": ["repo"], "properties": {
     "repo": {"type": "string", "description": "a repó slugja (~/.git-graph/repos.json)"}}}
+_CHANGES_ARG = {"type": "object", "required": ["repo"], "properties": {
+    **_REPO_ARG["properties"],
+    "since": {"type": "string", "description": "az előző válasz since tokenje (üresen azonnal válaszol)"},
+    "wait": {"type": "number", "description": "legfeljebb ennyi s-ig vár változásra (max. 50)"}}}
 MCP_TOOLS = [
-    {"name": "fingerprint", "inputSchema": _REPO_ARG, "annotations": {"readOnlyHint": True},
-     "description": "Olcsó ujjlenyomat a repó állapotáról (refek, HEAD, munkakönyvtár) — "
-                    "ha változott, kérd a graph_data-t."},
+    {"name": "changes", "inputSchema": _CHANGES_ARG, "annotations": {"readOnlyHint": True},
+     "description": "Vár, amíg a repó állapota (refek, worktree-k HEAD-je és munkakönyvtára) "
+                    "vagy az előtérben lévő session eltér a since-étől; az állapot hashét, "
+                    "a fókuszt és az új since-et adja — ha a state változott, kérd a graph_data-t."},
     {"name": "graph_data", "inputSchema": _REPO_ARG, "annotations": {"readOnlyHint": True},
      "description": "A commit-gráf teljes adata: commitok, élek, fájlstatisztika, ágak, meta."},
     {"name": "file_diff", "annotations": {"readOnlyHint": True},
      "inputSchema": {"type": "object", "required": ["repo", "sha", "path"], "properties": {
          **_REPO_ARG["properties"],
-         "sha": {"type": "string", "description": "commit sha, vagy *uncommitted"},
+         "sha": {"type": "string", "description": "commit sha, vagy *uncommitted:<worktree-slug>"},
          "path": {"type": "string", "description": "a fájl útja, ahogy a graph_data adja"}}},
      "description": "Egy fájl diffje egy commitban, hunkokra és sorokra bontva."},
     {"name": "page_code", "annotations": {"readOnlyHint": True},
@@ -1169,25 +1761,42 @@ MCP_TOOLS = [
 ]
 
 
+def tool_text(value: object, error: bool = False) -> dict:
+    """Egy tool-hívás eredménye: JSON, a hiba sima szöveg (`isError`)."""
+    body = value if error else json.dumps(value)
+    return {"content": [{"type": "text", "text": body}], "isError": error}
+
+
+def slug_repo(args: dict) -> Path | dict:
+    """A hívás repója (a fő checkout, a regiszter szerint) a lap slugjából, vagy a hiba-eredmény."""
+    repo = repo_for_slug(str(args.get("repo", "")))
+    if repo is None:
+        return tool_text(f"ismeretlen repó: {args.get('repo')!r} — nyiss benne egy Claude sessiont (a git-graph hookja regisztrálja)", True)
+    if not repo.is_dir():
+        return tool_text(f"A(z) {repo} mappa nem létezik — a repót áthelyezték vagy törölték.", True)
+    return repo
+
+
+def changes_tool(args: dict, wait: float) -> dict:
+    """A `changes` eredménye — a várakozó szálon."""
+    repo = slug_repo(args)
+    if isinstance(repo, dict):
+        return repo
+    try:
+        return tool_text(wait_changes(repo, str(args.get("since") or ""), wait))
+    except subprocess.CalledProcessError as exc:
+        return tool_text(short_error(exc), True)
+
+
 def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
     """Egy tool-hívás eredménye (MCP `tools/call`). A hiba is eredmény: `isError`."""
     global REPO, _REMOTES
-
-    def text(value: object, error: bool = False) -> dict:
-        body = value if error else json.dumps(value)       # a hiba sima szöveg
-        return {"content": [{"type": "text", "text": body}], "isError": error}
-
-    repo = repo_for_slug(str(args.get("repo", "")))
-    if repo is None:
-        return text(f"ismeretlen repó: {args.get('repo')!r} — nyiss benne egy Claude sessiont (a git-graph hookja regisztrálja)", True)
+    text = tool_text
+    repo = slug_repo(args)
+    if isinstance(repo, dict):
+        return repo
     REPO, _REMOTES = repo, None
     try:
-        if name == "fingerprint":
-            refs, files = change_signals()
-            # A verziók is ide kerülnek: a lap 2 mp-enként kérdezi, így egy
-            # frissítés utáni, még újra nem indított app a láblécben azonnal látszik.
-            return text({"refs": refs, "files": files, "avatars": avatar_signal(),
-                         "version": RUNNING_VERSION, "installed": installed_version()})
         if name == "graph_data":
             return text(collect_payload(limit))
         if name == "file_diff":
@@ -1195,22 +1804,34 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
         if name == "page_code":
             mismatch = page_api_mismatch(args.get("api"))
             return text(mismatch, True) if mismatch else text(page_code())
-    except (subprocess.CalledProcessError, OSError, ValueError) as exc:
-        return text(f"git-hiba ({repo}): {exc}", True)
+    except subprocess.CalledProcessError as exc:
+        return text(short_error(exc), True)
+    except (OSError, ValueError) as exc:
+        return text(f"hiba: {exc}", True)
     return text(f"ismeretlen tool: {name}", True)
+
+
+def short_error(exc: subprocess.CalledProcessError) -> str:
+    """Egy git-hiba a lap láblécének: a parancs és a git első hibasora — a Python-kivétel
+    teljes argumentumlistája helyett, ami a láblécet több sorba tördelte."""
+    cmd = [str(a) for a in exc.cmd] if isinstance(exc.cmd, (list, tuple)) else [str(exc.cmd)]
+    if "-C" in cmd:                       # git --no-optional-locks -C <repó> <alparancs> …
+        cmd = cmd[cmd.index("-C") + 2:]
+    reason = next((line.strip() for line in (exc.stderr or "").splitlines() if line.strip()),
+                  f"kilépési kód {exc.returncode}")
+    return f"git {cmd[0] if cmd else ''}: {reason}"
 
 
 def mcp_serve(limit: int | None) -> int:
     """MCP szerver stdio-n — a Claude app indítja a configjából (a plugin hookja írja be).
 
-    Az Artifact vékony lapja a Claude app host-hídján át ezt hívja: az olcsó
-    `fingerprint`-et sűrűn, a `graph_data`-t csak változáskor. Stdlib JSON-RPC
+    Az Artifact vékony lapja a Claude app host-hídján át ezt hívja: egy nyitva
+    tartott `changes`-t, a `graph_data`-t csak változáskor. Stdlib JSON-RPC
     2.0, soronként egy üzenet; a stdout-ra csak protokoll mehet. Mindkét tool
     read-only-nak jelölt: így az app nem kér hívásonként megerősítést. Közben
     figyeli, eltávolították-e vagy frissítették-e a plugint (`watch_plugin`).
     """
     out = sys.stdout.buffer
-    repair_page()
     # A lap fájljai most: a futó verzió kódja, nem amit a hook később másol.
     for name in PAGE_FILES:
         try:
@@ -1219,9 +1840,12 @@ def mcp_serve(limit: int | None) -> int:
             log(f"git-graph: a lap fájlja hiányzik: {exc}")
     threading.Thread(target=watch_plugin, daemon=True).start()
 
+    lock = threading.Lock()                # a várakozó hívások saját szálról válaszolnak
+
     def send(message: dict) -> None:
-        out.write(json.dumps(message).encode() + b"\n")   # ASCII: nem függ a locale-tól
-        out.flush()
+        with lock:
+            out.write(json.dumps(message).encode() + b"\n")   # ASCII: nem függ a locale-tól
+            out.flush()
 
     # Puffereletlen olvasás, saját sorpufferrel: újraindulni (`restart`) csak
     # akkor szabad, ha nincs beolvasott, de feldolgozatlan bemenet — a csőben
@@ -1264,6 +1888,25 @@ def respond(raw: bytes, send, limit: int | None) -> None:
         result = {}
     elif method == "tools/list":
         result = {"tools": MCP_TOOLS}
+    elif method == "tools/call" and params.get("name") == "changes":
+        # Változásig vár: külön szálon, hogy közben a többi kérés is kiszolgálódjon.
+        args = params.get("arguments") or {}
+        with _WAITERS_LOCK:
+            _WAITERS["n"] += 1
+            crowded = _WAITERS["n"] > WAITERS_MAX
+
+        def waiter() -> None:
+            try:
+                wait = 0.0 if crowded else float(args.get("wait") or 0)
+                body = changes_tool(args, wait)
+            except Exception as exc:           # a szerver éljen tovább
+                body = tool_text(f"hiba: {exc}", True)
+            send({"jsonrpc": "2.0", "id": mid, "result": body})
+            with _WAITERS_LOCK:
+                _WAITERS["n"] -= 1
+
+        threading.Thread(target=waiter, daemon=True).start()
+        return
     elif method == "tools/call":
         try:
             result = mcp_tool(params.get("name", ""), params.get("arguments") or {}, limit)
@@ -1279,6 +1922,10 @@ def respond(raw: bytes, send, limit: int | None) -> None:
 def restart() -> None:
     """A frissült stabil másolat futtatása ugyanebben a folyamatban (stdio marad)."""
     log(f"git-graph: frissült ({RUNNING_VERSION} → {stable_version()}) — újraindulás")
+    WAKE.set()                                 # a nyitott várakozó hívások most válaszolnak
+    deadline = time.monotonic() + 1
+    while _WAITERS["n"] and time.monotonic() < deadline:
+        time.sleep(0.02)
     sys.stdout.flush()
     python = sys.executable or SYSTEM_PYTHON
     os.execv(python, [python, str(STABLE), *sys.argv[1:]])
@@ -1469,23 +2116,6 @@ def pull_update() -> bool:
     return stable_version() not in (None, RUNNING_VERSION)
 
 
-def repair_page() -> None:
-    """A stabil másolat lapfájljainak pótlása a plugin mappájából, ha hiányoznak.
-
-    A 0.10.x-es szerver önfrissítéskor csak a scriptet és a manifestet másolta:
-    az utána induló új verzió itt találja a lapot. Csak a stabil példány pótol,
-    és csak a saját verziójából.
-    """
-    if Path(__file__).resolve() != STABLE.resolve():
-        return
-    if all((PAGE_DIR / name).exists() for name in PAGE_FILES):
-        return
-    entry = installed_entry() or {}
-    path = entry.get("installPath")
-    if entry.get("version") == RUNNING_VERSION and isinstance(path, str):
-        install_copy(Path(path))
-
-
 def install_app_mcp() -> bool:
     """A git-graph MCP a Claude app configjában; True, ha most került be / változott."""
     if not APP_CONFIG.parent.is_dir():   # nincs Claude app ezen a gépen
@@ -1576,15 +2206,16 @@ def watch_plugin() -> None:
 
 
 def session_hook() -> int:
-    """Claude Code hook: a gépi rész, és a repó (worktree) Artifactja.
+    """Claude Code hook: a gépi rész és a repó közös Artifactja.
 
     SessionStartként és az `EnterWorktree` / `ExitWorktree` utáni
-    PostToolUse-ként fut — a `cwd` ilyenkor már az új munkakönyvtár. Ha
-    nincs Artifact, vagy a lapja elavult, a sessiont kéri meg, hogy
-    publikálja: a lap csak kódfrissítéskor változik, az pedig csak új
-    sessionnel lép életbe — és ilyenkor először ez a hook fut. Különben a
-    meglévőt nyittatja meg — de egy sessionben csak egyszer (`shown_in_session`).
-    A megszűnt worktree-k Artifactjainak törlését is kéri. Headless (`-p`, SDK) sessionben nem kér publikálást: ott nincs, aki
+    PostToolUse-ként fut — a `cwd` ilyenkor már az új munkakönyvtár. A repó
+    minden worktree-je a fő checkout lapját látja. Ha nincs Artifact, vagy a
+    lapja elavult, a sessiont kéri meg, hogy publikálja: a lap csak
+    kódfrissítéskor változik, az pedig csak új sessionnel lép életbe — és
+    ilyenkor először ez a hook fut. Különben a meglévőt nyittatja meg — de egy
+    sessionben csak egyszer (`shown_in_session`; worktree-váltás ugyanazon a
+    repón belül nem nyit újra). Headless (`-p`, SDK) sessionben nem kér publikálást: ott nincs, aki
     a gráfot nézné.
     """
     global REPO
@@ -1592,21 +2223,20 @@ def session_hook() -> int:
         payload = json.load(sys.stdin)
     except Exception:
         payload = {}
+    event = payload.get("hook_event_name") or "SessionStart"
+    start = Path(payload.get("cwd") or Path.cwd())
     try:
         notice = ensure_installed()
     except Exception as exc:                       # a telepítés hibája ne vigye el a sessiont
         log(f"git-graph: telepítési hiba: {type(exc).__name__}: {exc}")
         notice = None
-    start = Path(payload.get("cwd") or Path.cwd())
-    event = payload.get("hook_event_name") or "SessionStart"
     try:
-        REPO = resolve_repo(start)
-    except SystemExit:
+        REPO = main_checkout(resolve_repo(start))
+    except (SystemExit, subprocess.CalledProcessError):
         return emit_context(notice, event=event)   # nem repó: nincs mit mutatni
     slug = register(REPO)                          # a git-graph --mcp a lap slugjából ebből találja meg
     url = config_get("artifact")
     headless = os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk")
-    cleanup = None if headless else orphan_request()
     job = None if headless or NO_AUTO_PUBLISH.exists() else prepare_publish()
     seen = (shown_in_session(payload["session_id"], slug)
             if payload.get("session_id") and not headless else False)
@@ -1623,20 +2253,7 @@ def session_hook() -> int:
                    "róla üzenetet.")
     else:
         context = None                             # nincs Artifact, nem kérünk, vagy már nyitva van
-    return emit_context(context, cleanup, notice, event=event)
-
-
-def orphan_request() -> str | None:
-    """A megszűnt worktree-k Artifactjainak törlése — a modellnek szóló kérés, ha van mit."""
-    orphans = orphan_artifacts()
-    if not orphans:
-        return None
-    urls = ", ".join(orphans.values())
-    return (f"Megszűnt worktree-k git-graph Artifactjai maradtak: {urls}. Mindegyikre: "
-            "1) Artifact, action: \"delete\", url: az URL; 2) Bash: git-graph "
-            f"{shlex.quote(str(REPO))} --forget-artifact <URL> — akkor is, ha a törlés "
-            "nem sikerült vagy a Fejlesztő nem engedte (különben minden session újra "
-            "kérné). Ne írj róla üzenetet, csak ha valami nem sikerült.")
+    return emit_context(context, notice, event=event)
 
 
 def emit_context(*parts: str | None, event: str = "SessionStart") -> int:
@@ -1668,9 +2285,6 @@ def main() -> int:
                     help="a repó git-graph nyomainak törlése (.git/config kulcsok, "
                          "helyi lap, regiszter) és az automatikus publikálás "
                          "kikapcsolása — az Artifactot nem törli")
-    ap.add_argument("--forget-artifact", metavar="URL", default=None, dest="forget_artifact",
-                    help="egyetlen Artifact nyomainak törlése (egy megszűnt worktree-é; "
-                         "a hook kéri, miután az Artifactot törölte)")
     ap.add_argument("--publish", action="store_true",
                     help="az Artifact vékony lapjának kiírása, és a publikálás lépései "
                          "a sessionnek (változatlan lapnál: naprakész) — a /git-graph:artifact "
@@ -1687,7 +2301,7 @@ def main() -> int:
     ap.add_argument("--session-hook", action="store_true", dest="session_hook",
                     help="Claude Code hook (SessionStart, és PostToolUse a worktree-"
                          "váltásra): telepítés, a repó Artifactjának megnyitása vagy "
-                         "publikálása, árva Artifactok törlése (stdin: a hook JSON-ja)")
+                         "publikálása (stdin: a hook JSON-ja)")
     args = ap.parse_args()
 
     global REPO
@@ -1707,19 +2321,14 @@ def main() -> int:
         return 0
 
     if args.forget:
-        repo = resolve_repo(Path(args.repo).expanduser().resolve())
+        repo = main_checkout(resolve_repo(Path(args.repo).expanduser().resolve()))
         forget(repo)
         print(f"✓ {repo}: a git-graph nyomai törölve; automatikus publikálás KI "
               f"({NO_AUTO_PUBLISH})")
         return 0
 
-    REPO = resolve_repo(Path(args.repo).expanduser().resolve())
-
-    if args.forget_artifact:
-        known = forget_artifact(args.forget_artifact)
-        print(f"✓ {args.forget_artifact}: " + ("a git-graph nyomai törölve" if known
-                                               else "nem ismert ebben a repóban"))
-        return 0
+    # Bármelyik worktree-ből: a repó közös lapja a fő checkouté.
+    REPO = main_checkout(resolve_repo(Path(args.repo).expanduser().resolve()))
 
     if args.set_artifact or args.published:
         url = args.set_artifact or args.published

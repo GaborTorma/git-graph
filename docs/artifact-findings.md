@@ -288,6 +288,235 @@ A CSP HTTP-headerben jön (`<meta>` nincs). A lényeges része:
 `connect-src 'self' <Google Fonts>`. A külső `fetch` tehát továbbra is tiltott,
 de az MCP-ből kapott szöveg futtatható.
 
+## Közös Artifact a worktree-knek (mérve, 2026-10-04, Claude Code 2.1.286, contract 0.2.67)
+
+Kérdés: kiváltható-e a worktree-nkénti Artifact egy repónként közös lappal,
+amely a „saját” worktree-t a link `#horgony`-ából tudja, és mennyibe kerül a
+worktree-nkénti WIP-adat a 2 s-os pollozásban.
+
+### `#horgony` az `Artifact open`-nel — NEM jut át
+
+Eldobható próbalap `db` capabilityvel: minden betöltésnél, `hashchange`-nél és
+a `location.hash` 500 ms-os pollozásakor sort írt a `db`-be (betöltés-azonosító,
+`hash`), a session `ArtifactData`-val olvasta vissza.
+
+| Lépés | Eredmény |
+| --- | --- |
+| publish (a panel magától megnyitja) | 1 betöltés, `hash: ""` |
+| `open …#wt-alpha` a nyitott lapra | se betöltés, se `hashchange`, se hash-eltérés |
+| másik Artifact `open`, majd `open …#wt-beta` | ugyanaz: a próbalap kerete megmaradt, nem töltött újra |
+| Artifact panel bezárva (`close_pane`), `open …#wt-delta`, `show_pane`, `open …#wt-epsilon` | ugyanaz: a keret a panel bezárását is túléli |
+| újrapublikálás (kontroll) | új betöltés, `hash: ""` — a naplózás működik, a reload horgony nélküli |
+| `open …#wt-zeta` a reload után | semmi |
+
+Az `open` válasza és a panel nézetének URL-je (`preview_list`:
+`artifact_view`) is horgony nélkül adja vissza a címet — az eszköz a horgonyt
+eldobja. Böngészőben a link bejelentkezést kért, ott nem mértem (a `host:` híd
+amúgy is csak az appban él).
+
+### A szerver sem tudja, melyik session lapja hív
+
+A `git-graph --mcp` példányok **app-szintűek**: 2 db, `cwd: /`, az app
+indulásakor (00:38) indultak, a 06:30-as session nem kapott újat. A host-híd
+hívásából tehát a session (és a munkakönyvtára) nem derül ki. A
+`comments.sendToClaude` viszont továbbra is a lapot mutató sessionhöz megy
+(lásd fent) — a platform tudja, a lap nem.
+
+### Session-váltás: hook nincs, a panel láthatósága mérhető
+
+Ideiglenes, naplózó hook a git-graph repó `.claude/settings.local.json`-jában
+(`SessionStart`, `UserPromptSubmit`, `CwdChanged`, `Notification`,
+`ConfigChange`, `InstructionsLoaded`, `FileChanged`, `Stop`, `SessionEnd`). A
+hookok a már futó sessionökben is azonnal életbe léptek.
+
+- **Session-váltás a UI-ban: semmi nem sül el** (oda, vissza, oda — írás
+  nélkül). A dokumentáció 33 eseménye között sincs fókusz- vagy
+  láthatóság-esemény.
+- **`UserPromptSubmit`** a promptoló sessionből jön, `session_id`-val és
+  `cwd`-vel — a prompt pillanatában az a session van előtérben.
+- **`CwdChanged`** egy Bash `cd`-re elsült (`old_cwd`, `new_cwd`); a Bash
+  eszköz cwd-visszaállítására nem.
+
+A lap a saját panelje elrejtését érzékeli — a próbalapon, session-váltáskor:
+
+| Jel | Elrejtve |
+| --- | --- |
+| `document.visibilityState` / `hidden` | változatlan (`visible`) |
+| `innerWidth` / `innerHeight` | változatlan |
+| `IntersectionObserver` a `body`-n | **`false`**, visszaváltáskor `true` |
+
+~~Következmény: ha egy prompt pillanatában a repó lapjai közül pontosan egy
+látszik, az a promptoló session panelje.~~ **Megdőlt (lent):** a próbalap a
+másik sessionben nem volt nyitva — ugyanazt az Artifactot mutató sessionök
+egy keretet látnak.
+
+### Egy Artifact = egy keret, minden sessionben
+
+Ideiglenes naplózás a `git-graph --mcp`-ben (a teljes `tools/call` üzenet) és
+a lapon (betöltésenként véletlen `load`, `innerWidth`/`innerHeight`,
+`document.hasFocus()`), három session között váltva, amelyek mind a repó
+lapját mutatták:
+
+| Idő | `load` | Méret | Session |
+| --- | --- | --- | --- |
+| 13:38:44 | `7182wi` | 606 × 1471 | ez a session |
+| 13:39:19 | `7182wi` | 912 × 1471 | Graph test-2 |
+| 13:39:29 | `7182wi` | 914 × 1471 | Új teszt 3 |
+| 13:39:40 | `7182wi` | 606 × 1471 | vissza |
+
+- **Egyetlen keret** (ugyanaz a `load`) vándorol a sessionök panelje között;
+  nem töltődik újra, láthatósága nem változik. Panelenkénti azonosító így
+  értelmetlen.
+- **A host semmit nem küld a hívással** (se `_meta`, se session) — csak a tool
+  nevét és argumentumait.
+- A keret **mérete** sessionönként más (a panelek szélessége), de ez törékeny
+  (azonos szélesség, ablak-átméretezés).
+- Az `Artifact open` a lekérdezést (`?…`) is levágja, mint a horgonyt.
+- A platform a `window.name`-ben tartja a bootstrapját (`{"hot":…,"usable":…}`);
+  a `location.reload()`-ot a `window.name`, a horgony (`replaceState`), a
+  `sessionStorage` és a `history.state` is túléli, egy újraépült keret viszont
+  friss `window.name`-mel indul; a `sessionStorage` a keretek között közös.
+
+### Az előtérben lévő session: a Claude app session-fájljai
+
+A Claude app sessionönként JSON-t tart:
+`~/Library/Application Support/Claude/claude-code-sessions/<fiók>/<szervezet>/local_<id>.json`
+— benne `cwd`, `worktreePath`, `cliSessionId` (a hookok `session_id`-ja),
+`isArchived` és **`lastFocusedAt`** (ms). A fenti váltások időpontjai
+másodpercre egyeztek a `lastFocusedAt` értékekkel (13:39:18 / 13:39:28 /
+13:39:39). A repóban dolgozó, nem archivált sessionök közül a legnagyobb
+`lastFocusedAt` az előtérben lévő.
+
+253 fájl, egyenként akár ~770 KB: mindet beolvasni ~520 ms, `stat`-tal
+< 1 ms — a szerver csak a megváltozott fájlt olvassa újra (váltáskor egyet,
+~5 ms). Belső fájl: a formátuma változhat, ismeretlennél nem dönt.
+
+Mellékesen: az app `Session Storage` leveldb-jében a `cmdk-navigation-history`
+is a legutóbb megnyitott sessiont tartja elöl — de nyers leveldb-naplóból,
+tömörítés után olvashatatlan; a JSON a stabilabb.
+
+### Gyorsabban: az app naplója
+
+A `lastFocusedAt` **1–3 s késéssel** kerül a fájlba (az app kötegelve írja:
+gyors egymás utáni váltásnál a köztes session fájlja +2,9 s-mal frissült). Erre
+épült egy méret alapú tipp (a panelek más szélesek), de rossz worktree-re is
+átváltott, mielőtt a fájl kijavította — kivezetve.
+
+Az app naplója (`~/Library/Logs/Claude/main.log`) minden váltáskor ír:
+
+```
+2026-10-04 14:52:06 [info] [CCD] LocalSessions.setFocusedSession: sessionId=null
+2026-10-04 14:52:06 [info] [CCD] LocalSessions.setFocusedSession: sessionId=local_834e9f2a-…
+```
+
+Mérve (10 váltás, 20 ms-onként figyelve): a sor a fájlba később kerülő
+`lastFocusedAt`-hoz képest **+1…+20 ms**-mal már a naplóban van. Az azonosító
+a session-fájl neve (`local_<id>.json`), abból jön a munkakönyvtár. A napló
+másodpercre kerekít, ~10 MB-onként forog (`main.log` → `main1.log`, új inode);
+a szerver csak az új sorokat olvassa (< 0,1 ms), induláskor a végéből 2 MB-ot
+(~13 ms). Belső napló: ha a sor eltűnik, a session-fájl marad a forrás.
+
+### A keret a váltás alatt: rejtve
+
+Eseménynaplóval a lapon (`resize`, láthatóság, fókusz, IntersectionObserver,
+rAF-kimaradás), egyforma és eltérő méretű panelek között váltogatva:
+
+- Egyforma méretnél **nincs `resize`**, de a keret a váltás alatt nem látszik:
+  a `requestAnimationFrame` 0,5–11 s-ig nem fut (amíg a session nem
+  rajzolódott be), megjelenéskor az IntersectionObserver `0 → 1`-et jelez.
+  `visibilitychange`, `focus` / `blur`, `pageshow` nem jön.
+- A `server_unavailable` hibák mind a rejtett szakaszba estek: a host-híd a
+  rejtett keretnek nem válaszol. A lap ezért hibánál megnézi, rajzol-e (egy
+  rAF 250 ms-on belül); ha nem, csendben vár, és a megjelenéskor kérdez.
+
+Ez a rejtett szakasz akkor volt, amikor a két session között egy **másik
+Artifact** (a régi, worktree-nkénti lap) látszott. Ugyanazon Artifact sessionjei
+között a keret **rejtés nélkül költözik**: se IntersectionObserver, se
+rAF-kimaradás, csak `resize` — egyforma panelméretnél semmi.
+
+### Nyitva tartott hívás és a host korlátja
+
+- A host egy `callTool`-t legalább 50 s-ig nyitva tart (mérve: a `wait`
+  határidejére, 50 013 ms után is `ok`); a `wait` felső határa ezért 50 s.
+- A lap ezért egy `fingerprint`-hívást (`wait`, `cursor`) nyitva tart, a szerver
+  a naplóban megjelenő váltásra ~50 ms-on belül válaszol, az új fókusszal.
+- **`rate_limited`**: váltásonként 2 s-ig 250 ms-onként kérdezve gyors
+  váltogatásnál ~20 hívás után a host visszafogta a hívásokat (`durationMs: 0`).
+  Váltásonként egy hívással (a válasz hozza a fókuszt) másodpercenkénti
+  váltogatás mellett sem jött elő.
+
+### A leválasztott worktree ága: a Claude app nyilvántartása
+
+A session törlésekor az app a worktree-t megtartja, a HEAD-jét leválasztja
+(a reflogban egyetlen, üzenet nélküli bejegyzés), az ágat is megtartja. A git
+ezután semmivel nem köti az ágat a worktree-hez: az ágnak nincs reflogja, a
+worktree configjában nincs nyoma. Az app viszont nyilvántartja:
+`~/Library/Application Support/Claude/git-worktrees.json` →
+`worktrees.<név>` = `{path, branch, sourceBranch, leasedBy, …}` (`leasedBy:
+null`: nincs hozzá session). A worktree admin-mappájában egy üres
+`claude-desktop-worktree` jelzőfájl is van.
+
+### WIP-költség worktree-nként
+
+Eldobható klónokon, `--no-optional-locks`-szal, egy kör = `for-each-ref` +
+`worktree list` + worktree-nként `status --porcelain`, `diff --numstat HEAD`,
+`rev-parse HEAD --abbrev-ref HEAD` (25 kör mediánja):
+
+| Worktree-k | git-graph (~60 fájl) | 10 582 fájlos repó |
+| --- | --- | --- |
+| 1 | 56 ms | 148 ms |
+| 3 | 127 ms | 412 ms |
+| 5 | 202 ms | 678 ms |
+| 5, szálanként párhuzamosan | 53 ms | 326 ms |
+
+A nagy repón a `status --porcelain` 87 ms, ebből ~60 ms a követetlen fájlok
+keresése (`--untracked-files=no`: 26 ms); a `diff --numstat HEAD` 26 ms.
+
+**Buktató**: friss worktree-ben (vagy klónban) az index stat-adatai még nem
+frissültek, és a `--no-optional-locks` miatt a pollozás sosem írja vissza —
+így minden kör újrahasheli a fájlokat: ugyanaz a mérés **~450 ms**
+worktree-nként, amíg egy zároló git-parancs (bármelyik `git status` a
+Fejlesztőtől) nem frissíti az indexet.
+
+Következmény: a horgonyos „saját worktree” nem járható; a WIP-adat
+párhuzamosan gyűjtve 5 worktree-vel is belefér a 2 s-os pollozásba.
+
+### Egy nyitott hívás: long-poll (mérve, 2026-10-06, contract 0.2.67)
+
+A 2 s-os pollozás és a külön fókusz-hívás egyetlen `changes` long-pollá vált
+(#29). Előtte műszerezett dev-példánnyal mérve (a szerver minden hívást
+naplózott, a lap a következő hívásban visszaküldte az előző eredményét és az
+eseményeit):
+
+- **Keret-költözés ugyanazon Artifact sessionjei között** (4 váltás): a nyitott
+  hívás túléli, a válasz mindig megérkezik.
+- **Rejtett keret** (közben másik Artifact; 10 s, 24 s, 122 s): ami a rejtés
+  pillanatában válaszolt, megérkezett. Rejtve indított hívás **1–186 ms alatt
+  `server_unavailable`**, a szerverig el sem jut; az időzítők sem futnak (rAF
+  24–122 s-ig állt, egy 1 s-os `setTimeout` csak megjelenéskor lőtt). A régi
+  kurzorral újrahívva azonnal a helyes állapot jön.
+- **Megszakítás** (`callTool` `signal`): a lapon pontos (`cancelled`, 3001 ms-nál
+  3000-es abortra), de a szerver **nem kap** `notifications/cancelled`-et — a
+  várakozó a határidejéig fut. Lap-újratöltés sem zárja le a nyitott hívást.
+- **Párhuzamosság**: nyitott várakozók mellett a rövid hívások kiszolgálódnak; egy
+  szerverfolyamat az app összes git-graph lapját szolgálja (három repó lapja
+  várt egyszerre).
+
+Az állapot költsége (`repo_state`, az app PATH-jával): git-graph (3 worktree)
+52 → 17 ms, Music 48 → 14 ms, 10 582 fájlos repó 139 → 94 ms — a valódi git
+bináris (a `/usr/bin/git` `xcrun`-shim, 12 → 6 ms/hívás), a párhuzamos
+`for-each-ref` és `status`, és a `diff --numstat` elhagyása (a ns-os mtime is
+jelzi egy módosított fájl újabb szerkesztését) hozta. A nagy repón a maradék a
+követetlen fájlok keresése (`status` 90 ms, `-uno`-val 24 ms). A git
+`core.fsmonitor`-ja ezt 27 ms-ra vinné, de csak úgy, ha az indexbe írja a
+token-jét (írás nélkül 154 ms) — az `index.lock` miatt ez nem járható. Egy
+`stat`-előszűrő (10 fájl: worktree-nként `HEAD`, `index`, `logs/HEAD`, a
+`packed-refs` és a ref-mappák) 0,025 ms.
+
+Harnessben a lapon mérve (adatlekéréssel és rajzolással): ág létrehozása /
+törlése ~0,4 s, új fájl / szerkesztés / törlés 0,8–2,2 s; üresjáratban 6 s alatt
+egy hívás sem zárult le.
+
 ## Implementációs tanulságok (a generátorból)
 
 - **CSS osztálynév-ütközés**: a táblázat-fejléc `.head` szabálya ráült a

@@ -46,13 +46,8 @@ try {
       : e && e.code === 'server_not_connected' ? 'A lap nem éri el a gépeden futó git-graph-ot. '
         + 'Élő adat csak a Claude appban, a saját gépeden jön — és ott is csak, ha az app '
         + 'configjában benne van (a git-graph plugin teszi be; utána az app újraindítása).'
-      : e && e.code === 'cancelled'
+      : e && (e.code === 'cancelled' || e.code === 'not_in_manifest')
         ? 'A git-graph szervert nem engedélyezted ehhez a laphoz — töltsd újra, és engedd meg.'
-      // A régi szervernek nincs `page_code` toolja: az app ezt `not_in_manifest`-tel
-      // jelzi (mérve), nem a szerver „ismeretlen tool" hibájával.
-      : e && e.code === 'not_in_manifest' || /ismeretlen tool/.test(msg)
-        ? 'A gépeden futó git-graph régebbi, mint ez a lap — indítsd újra a Claude appot. '
-          + '(Ha az engedélyt elutasítottad: töltsd újra a lapot, és engedd meg.)'
       : 'A git-graph lap nem tölthető be: ' + (msg || (e && e.code) || e);
   }
 })();
