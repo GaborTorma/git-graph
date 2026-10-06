@@ -1221,13 +1221,14 @@ function fillBranches() {
       + `<span class="col">${ic}</span>`
       + `<span class="name">${name}</span><span class="c2">${c2}</span><span class="c1">${c1}</span></span>`;
   };
-  // Az alapághoz mért távolság egy cellában (a távolság-szöveg a tooltipben).
+  // Az alapághoz mért távolság irányonként egy cellában (a távolság-szöveg a
+  // tooltipben): `[↑, ↓]`. Az egysoros blokkban a ↑ a belső oszlopba, a ↓ a szélsőbe
+  // kerül — így a ↑ a két soros blokkok soronkénti távolságával áll egy vonalban.
   const cell = name => {
     const [a, d] = DATA.meta.tracks?.[name]?.base || [0, 0];
-    if (!a && !d) return '';
     const tip = esc(distText(name).trim());
-    return a && d ? `<span class="dc" title="${tip}">↑${a} ↓${d}</span>`
-      : `<span class="dc" title="${tip}"><span>${a ? '↑' : '↓'}</span><span>${a || d}</span></span>`;
+    const one = (arrow, n) => `<span class="dc" title="${tip}"><span>${arrow}</span><span>${n}</span></span>`;
+    return [a ? one('↑', a) : '', d ? one('↓', d) : ''];
   };
   // A helyi ág és az upstreamje közti távolság (`↕`): a két sor közé, jobbra. Az
   // alapág helyi párjának előnye anomália (piros), mint a chipeken.
@@ -1247,14 +1248,14 @@ function fillBranches() {
     const refs = blockRefs(b, remote), up = refs[1];
     const pair = up && !synced(b);
     // A leválasztott HEAD jele a szélen, a worktree-fejléc WIP-karikájának oszlopában.
-    const end = det ? `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`
-      : cell(b.name);
+    const detIc = det && `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`;
+    const [ca, cd] = cell(b.name);
     const c = branchColor(b);
     // Két sornál a soronkénti távolság a belső oszlopban, a szélen a kettejük közti ↕.
     const lines = !pair
-      ? line(refs, up ? branchCloudIc(up, c) : tinted('branch', c), name, '', end)
-      : line([b.name], tinted('branch', c), name, end, '')
-        + line([up], cloudIc(up, c), esc(up), cell(up), '') + pairGap(b);
+      ? line(refs, up ? branchCloudIc(up, c) : tinted('branch', c), name, detIc ? '' : ca, detIc || cd)
+      : line([b.name], tinted('branch', c), name, detIc || ca + cd, '')
+        + line([up], cloudIc(up, c), esc(up), cell(up).join(''), '') + pairGap(b);
     return blockBtn(refs, lines);
   };
   const blockBtn = (refs, lines) => `<button type="button" class="option blk" role="option" data-refs="${esc(refs.join(' '))}"`
@@ -1296,7 +1297,7 @@ function fillBranches() {
   }
   for (const [r, list] of byRemote) {
     html += group(r, `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
-      + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), '', cell(b.name)))).join(''), true);
+      + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), ...cell(b.name)))).join(''), true);
   }
   branchList.innerHTML = html;
   filterBranches();

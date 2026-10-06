@@ -289,7 +289,7 @@ button { font: inherit; color: inherit; }
 .blk .c1, .blk .gap { --digits: var(--c1-digits); }
 .blk .c2 { --digits: var(--c2-digits); }
 .blk .c1 { display: flex; justify-content: flex-end; font-size: 11px; min-width: calc(var(--digits, 2) * 1ch + 11px); }
-.blk .c2 { display: flex; justify-content: flex-end; }
+.blk .c2 { display: flex; justify-content: flex-end; gap: 6px; }
 .blk .ln {
   display: grid; grid-template-columns: 14px 14px minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
   height: 20px; padding: 0 10px 0 8px;
