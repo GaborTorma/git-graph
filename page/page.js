@@ -191,9 +191,17 @@ function wtChipInner(w) {
   const linked = !w.main;
   // A fő checkout üres mappát kap, ha vannak worktree-k (megkülönböztetésül).
   return (linked ? icon('worktree') : linkedWts().length ? icon('mainWorktree') : '')
-    + icon(w.branch ? 'branch' : 'detached')   // ág nélkül: lánc az ág-ikon, a hash az ág helyén
+    + headBranchIcon(w)
     + `<span class="chip-name">${esc(w.branch || String(w.head || '').slice(0, 7))}</span>`
     + (w.branch ? distSegs(w.branch) : distSegs('', headTrack(w)));
+}
+/* Az ág ikonja ugyanaz, mint a HEAD commit-chipjén (`badges`): egy remote-nál, ha a
+   remote párja ugyanott áll, a felhő-és-ág ikon (az alapágé teli); ág nélkül a lánc. */
+function headBranchIcon(w) {
+  if (!w.branch) return icon('detached');
+  const r = remotesOn() && (DATA.meta.remotes || []).length <= 1
+    && mergedRefs(commitBySha(w.head)?.refs || []).find(x => x.name === w.branch);
+  return icon(r?.remotes.length ? (r.default ? 'branchCloudFill' : 'branchCloud') : 'branch');
 }
 
 /* Az ág távolságai (`DATA.meta.tracks`, csak a nem nulla irány): `↑a ↓b` az
