@@ -95,7 +95,9 @@ Claude app naplójából és session-adataiból tudja, melyik session van épp e
 és session-váltáskor prompt nélkül, ~50 ms alatt átáll. Kézzel nem választható
 — a HEAD ott van, ahol a session dolgozik. A fejléc chipje a saját ágat mutatja
 a sávja színében; worktree-ben a worktree-jellel (mappa) és az ág
-távolságaival. Rákattintva a lista a HEAD commitjához ugrik. A saját worktree „Nem
+távolságaival. Rákattintva a lista a HEAD commitjához ugrik; ha az ágválasztó elrejti a HEAD-et, a chip
+halványabb, és a kattintás előbb minden ágra áll vissza. Az ágválasztóban választva a lista a
+kijelölés legfelső csúcsához ugrik. A saját worktree „Nem
 commitolt változások” sora a lista fölötti sávban ül (nem mai időnél a nappal),
 a többi worktree-é a listában, az ideje szerint, a worktree jelével és ágával. Minden worktree HEAD-je
 badge-et kap, elöl a worktree jelével (a fő checkouté az üres mappa, ha vannak worktree-k);

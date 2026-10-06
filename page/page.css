@@ -183,6 +183,7 @@ button { font: inherit; color: inherit; }
 .head-chip .ic { width: 13px; height: 13px; }
 .head-chip { border: 0; font-family: inherit; cursor: pointer; }   /* gomb: a lista a HEAD-hez ugrik */
 .head-chip[hidden] { display: none; }
+.head-chip.head-off { opacity: .5; }   /* az ágválasztó elrejti a HEAD-et */
 .head-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Ágválasztó: saját legördülő menü — a natív <select> listája a macOS kék

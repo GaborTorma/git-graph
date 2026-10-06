@@ -624,6 +624,8 @@ function render() {
   }
   if (day) html += '</section>';
   rowsEl.innerHTML = html || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
+  // A saját HEAD-et az ágválasztó elrejti: a fejléc chipje halványabb (kattintásra minden ág).
+  document.getElementById('headChip').classList.toggle('head-off', headFiltered());
   fitRows();
   drawGraph();
   const shown = visible.filter(c => !c.uncommitted).length;   // az ál-sor nem commit
@@ -1462,12 +1464,16 @@ function matches(c, words) {
   return words.every(w => hay.includes(w) || c.sha.startsWith(w));
 }
 
+/* Az ágszűrő által megtartott commitok (null: nincs ágszűrés) — a fejléc chipje ebből tudja,
+   hogy a saját HEAD kiesett-e. */
+let branchKeep = null;
 function applyFilters() {
   const branch = branchSel.size ? branchSel : null;
   const remotes = remotesOn();
   const refsOnly = document.getElementById('onlyRefs').checked;
   const words = queryWords(searchEl.value);
   const keep = branch ? ancestryOf(branch) : null;
+  branchKeep = keep;
   const local = remotes ? null : localReach();
 
   visible = DATA.commits.filter(c => {
@@ -1504,9 +1510,18 @@ function revealSha(sha) {
   scroller.scrollTop = Math.max(0, Math.round(top - STEP_TOP));
   row.focus({ preventScroll: true });
 }
-/* A fejléc chipjére kattintva a saját HEAD commitjához. */
+/* A fejléc chipjére kattintva a saját HEAD commitjához; ha az ágválasztó elrejti, előbb
+   minden ágra áll vissza. */
 const revealHead = () => revealSha(focusWt()?.head);
-document.getElementById('headChip').addEventListener('click', revealHead);
+const headFiltered = () => Boolean(branchKeep && !branchKeep.has(focusWt()?.head));
+document.getElementById('headChip').addEventListener('click', () => {
+  if (headFiltered()) {
+    branchSel = new Set();
+    fillBranches();
+    applyFilters();
+  }
+  revealHead();
+});
 function revealExpanded() {
   const row = expanded && rowsEl.querySelector(`.row[data-sha="${CSS.escape(expanded)}"]`);
   if (!row) return;
