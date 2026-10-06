@@ -189,19 +189,23 @@ function hydrate() {
    változást a rögzített sáv WIP-sora mutatja. */
 function wtChipInner(w) {
   const linked = !w.main;
-  // A fő checkout üres mappát kap, ha vannak worktree-k (megkülönböztetésül).
-  return (linked ? icon('worktree') : linkedWts().length ? icon('mainWorktree') : '')
-    + headBranchIcon(w)
-    + `<span class="chip-name">${esc(w.branch || String(w.head || '').slice(0, 7))}</span>`
-    + (w.branch ? distSegs(w.branch) : distSegs('', headTrack(w)));
-}
-/* Az ág ikonja ugyanaz, mint a HEAD commit-chipjén (`badges`): egy remote-nál, ha a
-   remote párja ugyanott áll, a felhő-és-ág ikon (az alapágé teli); ág nélkül a lánc. */
-function headBranchIcon(w) {
-  if (!w.branch) return icon('detached');
-  const r = remotesOn() && (DATA.meta.remotes || []).length <= 1
+  // A fő checkout üres mappát kap, ha vannak worktree-k (megkülönböztetésül); a jel a
+  // commit-chiphez hasonlóan az ág-ikonhoz tapad.
+  const mark = linked ? 'worktree' : linkedWts().length ? 'mainWorktree' : '';
+  // A HEAD commit-chipjének (`badges`) ága: a vele egy helyen álló remote párjai.
+  const ref = w.branch && remotesOn()
     ? mergedRefs(commitBySha(w.head)?.refs || []).find(x => x.name === w.branch) : null;
-  return icon(r?.remotes.length ? (r.default ? 'branchCloudFill' : 'branchCloud') : 'branch');
+  const pairs = ref?.remotes || [];
+  const multi = (DATA.meta.remotes || []).length > 1;
+  // Egy remote-nál a szinkronban lévő ág felhő-és-ág ikont kap (az alapágé teli); többnél
+  // remote-onként egy szakasz a nevével; ág nélkül lánc.
+  const branchIc = !w.branch ? 'detached'
+    : pairs.length && !multi ? (ref.default ? 'branchCloudFill' : 'branchCloud') : 'branch';
+  const cloudOf = on => icon('cloud', on ? 'ic filled' : 'ic');
+  return (mark ? `<span class="synced wt-lead">${icon(mark)}</span>` : '') + icon(branchIc)
+    + `<span class="chip-name">${esc(w.branch || String(w.head || '').slice(0, 7))}</span>`
+    + (w.branch ? distSegs(w.branch) : distSegs('', headTrack(w)))
+    + (multi ? pairs.map(o => `<span class="div"></span><span class="synced">${cloudOf(o.default)}${esc(o.name)}</span>`).join('') : '');
 }
 
 /* Az ág távolságai (`DATA.meta.tracks`, csak a nem nulla irány): `↑a ↓b` az

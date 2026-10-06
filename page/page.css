@@ -538,16 +538,16 @@ button { font: inherit; color: inherit; }
 .refs.wip-lead .badge { max-width: 100%; }
 .badge > .badge-name, .head-chip > .chip-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* A remote-on is ugyanott áll: felhő az ág neve után. */
-.badge .synced { display: inline-flex; align-items: center; gap: 3px; margin-left: 1px; opacity: .8; }
-.badge .synced.wt-lead { margin: 0 -2px 0 0; }   /* a worktree-jel elöl, a branch-ikonhoz tapad */
+.badge .synced, .head-chip .synced { display: inline-flex; align-items: center; gap: 3px; margin-left: 1px; opacity: .8; }
+.badge .synced.wt-lead, .head-chip .synced.wt-lead { margin: 0 -2px 0 0; }   /* a worktree-jel elöl, a branch-ikonhoz tapad */
 .badge .div { align-self: stretch; width: 1px; margin: 3px 1px; background: currentColor; opacity: .3; }
-.badge .ic.filled { fill: currentColor; }
+.badge .ic.filled, .head-chip .ic.filled { fill: currentColor; }
 /* Az ág távolsága (alapág / upstream): ikon és nyilak, egy szakaszban. */
 .badge .dist, .head-chip .dist { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
 /* Az alapág helyi párja előrébb jár a remote-jánál: anomália. */
 .badge .dist.warn, .head-chip .dist.warn { color: var(--del); font-weight: 600; }
 .head-chip .div { align-self: stretch; width: 1px; margin: 3px 2px; background: currentColor; opacity: .3; }
-.badge .synced:has(.wt-ic) { opacity: 1; }   /* a worktree-jel teljes erővel, a felhő visszafogott */
+.badge .synced:has(.wt-ic), .head-chip .synced:has(.wt-ic) { opacity: 1; }   /* a worktree-jel teljes erővel, a felhő visszafogott */
 /* Az ág, a HEAD és a tag a commit sávjának színét viseli (`--lc`, page.js).
    A szöveg a sávszín és az előtér keveréke: világos témában sötétebb,
    sötétben világosabb — a vonalnak szánt színek szövegként gyengék lennének. */
