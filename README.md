@@ -47,8 +47,8 @@ A pluginnak nincs telepítési eseménye, ezért a gépi részt az **első sessi
 hookja** állítja be — és minden verzióváltáskor frissíti (idempotens, csak
 változáskor ír):
 
-- `~/.git-graph/bin/git-graph` — a script stabil másolata. A plugin útvonala
-  verziónként más, az app ezt futtatja.
+- `~/.git-graph/bin/git-graph` — a kód stabil másolata (a `git_graph` csomag
+  egyetlen futtatható zipben). A plugin útvonala verziónként más, az app ezt futtatja.
 - `~/Library/Application Support/Claude/claude_desktop_config.json` → `git-graph`
   MCP szerver (előtte mentés). Az app csak induláskor olvassa: ilyenkor a
   session szól, hogy **egyszer újra kell indítani**.
@@ -125,9 +125,10 @@ kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
 
 | Útvonal | Mi |
 | --- | --- |
-| `bin/git-graph` | maga a script: adatgyűjtés + MCP szerver + telepítés |
+| `bin/git-graph` | a `git-graph` parancs: a `git_graph` csomag belépője |
+| `git_graph/` | a Python-oldal modulokra bontva: adatgyűjtés, diff, MCP szerver, publikálás, hook, telepítés |
 | `page/` | a lap: az Artifact betöltője (`loader.html`) és az élő kód (HTML, CSS, JS), amit a szerver ad |
-| `tests/` | füstteszt az MCP szerverre (stdlib `unittest`) |
+| `tests/` | modulonkénti tesztek és füstteszt az MCP szerverre (stdlib `unittest`) |
 | `.claude-plugin/plugin.json` | a plugin manifestje — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace (egyetlen plugin: ez a repó) |
 | `hooks/hooks.json` | SessionStart és worktree-váltás (PostToolUse) hook: `git-graph --session-hook` (telepít + megnyittatja vagy publikáltatja a gráfot + a régi worktree-Artifactokat töröltet) |
