@@ -193,7 +193,7 @@ function wtChipInner(w) {
   return (linked ? icon('worktree') : linkedWts().length ? icon('mainWorktree') : '')
     + icon(w.branch ? 'branch' : 'detached')   // ág nélkül: lánc az ág-ikon, a hash az ág helyén
     + `<span class="chip-name">${esc(w.branch || String(w.head || '').slice(0, 7))}</span>`
-    + (w.branch ? distSegs(w.branch) : '');
+    + (w.branch ? distSegs(w.branch) : distSegs('', headTrack(w)));
 }
 
 /* Az ág távolságai (`DATA.meta.tracks`, csak a nem nulla irány): `↑a ↓b` az
@@ -202,12 +202,13 @@ function wtChipInner(w) {
    felhő-és-ág ikont kapja); a remote-only chipen utolsóként `⑂ ↑e ↓f` a helyi ágához.
    Ami a chipből már kiderül, annak nem jár újabb ikon. */
 const arrows = ([a, b]) => [a && `↑${a}`, b && `↓${b}`].filter(Boolean).join(' ');
+/* Leválasztott HEAD-nél nincs ágkulcs: a worktree adja a HEAD-commit távolságát az alapágtól. */
+const headTrack = w => ({ base: w?.base });
 /* Ugyanez szövegesen, a tooltipbe (soronként egy viszony). */
-function distText(name) {
-  const tr = DATA.meta.tracks?.[name] || {};
+function distText(name, tr = DATA.meta.tracks?.[name] || {}) {
   const base = (DATA.meta.base || 'main').replace(/^[^/]+\//, '');
   const lines = [];
-  if (tr.base?.[0]) lines.push(`↑${tr.base[0]}: ennyi commit az ágon a ${base} óta`);
+  if (tr.base?.[0]) lines.push(`↑${tr.base[0]}: ennyi commit ${name ? 'az ágon' : 'a HEAD-ig'} a ${base} óta`);
   if (tr.base?.[1]) lines.push(`↓${tr.base[1]}: ennyit haladt közben a ${base}`);
   if (tr.up?.[0]) lines.push(`☁ ↑${tr.up[0]}: pusholatlan commit`);
   if (tr.up?.[1]) lines.push(`☁ ↓${tr.up[1]}: a remote-on van, helyben nincs`);
@@ -215,8 +216,7 @@ function distText(name) {
   if (tr.local?.[1]) lines.push(`⑂ ↓${tr.local[1]}: ennyivel van a helyi ág mögött`);
   return lines.length ? `\n${lines.join('\n')}` : '';
 }
-function distSegs(name) {
-  const tr = DATA.meta.tracks?.[name] || {};
+function distSegs(name, tr = DATA.meta.tracks?.[name] || {}) {
   // Remote ágak nélkül a remote-hoz mért szakaszok sem kellenek (☁ és a remote chip ⑂-je).
   const remote = remotesOn();
   // Az alapág helyi párján (pl. `main`) nem dolgozunk: ha előrébb jár a remote-jánál,
@@ -240,7 +240,7 @@ function hydrateFocus() {
     + (wts.length < 2 ? ''
       : focusAuto?.known ? '\naz előtérben lévő session itt dolgozik'
       : '\nnincs ismert session a repóban — a fő checkout')
-    + (own.branch ? distText(own.branch) : '');
+    + (own.branch ? distText(own.branch) : distText('', headTrack(own)));
   computeOwn();
 }
 
@@ -454,11 +454,12 @@ function sortRefs(refs) {
 function wtBadge(w) {
   const lc = w.main ? laneColor(commitBySha(w.head)?.lane || 0) : wtColor(w) || LANE_COLORS[0];
   const tip = `${w.main ? 'fő checkout' : 'worktree'}: ${w.path}\n`
-    + (w.branch ? `ág: ${w.branch}${distText(w.branch)}` : `ág nélkül, HEAD: ${String(w.head || '').slice(0, 7)}`);
+    + (w.branch ? `ág: ${w.branch}${distText(w.branch)}`
+      : `ág nélkül, HEAD: ${String(w.head || '').slice(0, 7)}${distText('', headTrack(w))}`);
   const branch = w.branch ? `${icon('branch')}<span class="badge-name">${esc(w.branch)}</span>${distSegs(w.branch)}` : '';
   const body = w.main && branch ? `<span class="synced wt-lead">${icon('mainWorktree')}</span>${branch}`
     : `${icon(w.main ? 'mainWorktree' : 'worktree')}<span class="badge-name">${esc(w.main ? 'main' : w.name)}</span>`
-      + `<span class="div"></span>${branch || icon('detached')}`;
+      + `<span class="div"></span>${branch || icon('detached') + distSegs('', headTrack(w))}`;
   return `<span class="badge ref-branch" style="--lc:${lc}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${body}</span>`;
 }
 
@@ -475,15 +476,18 @@ function badges(c) {
     const linked = wt && !wt.main;
     // A fő checkout HEAD-je üres mappát kap elöl, ha vannak worktree-k (mint a fejléc chipje).
     const mainLead = wt?.main && linkedWts().length > 0;
-    const dist = r.kind === 'tag' || r.kind === 'detached' ? '' : r.name;   // tagnek, leválasztott HEAD-nek nincs
-    // Worktree leválasztott HEAD-je: ág nincs — a worktree jele és neve | lánc (az ág-ikon helyén).
+    const dist = r.kind === 'tag' || r.kind === 'detached' ? '' : r.name;   // tagnek nincs
+    // Leválasztott HEAD: az ág helyett a worktree adja a HEAD-commit távolságát (a fő checkouté ref-mező nélkül jön).
+    const tr = r.kind === 'detached' ? headTrack(wt || worktrees().find(w => w.main)) : undefined;
+    // Worktree leválasztott HEAD-je: ág nincs — a worktree jele és neve | lánc (az ág-ikon helyén) HEAD.
     const orphan = r.kind === 'detached' && (linked || mainLead);
     const title = (orphan ? `${wt.main ? 'main' : wt.name}: leválasztott HEAD (ág nélkül)`
+      : r.kind === 'detached' ? 'leválasztott HEAD (ág nélkül)'
       : (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name)
       + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o.name}/${r.name}`).join(', ') : '')
       + (r.default ? '\na remote alapértelmezett ága' : '')
       + (linked ? `\nworktree: ${wt.path}` : '')
-      + distText(dist);
+      + distText(dist, tr);
     // A remote alapértelmezett ága (`origin/HEAD` célja): teli felhő. Több
     // remote-nál remote-onként egy szakasz a nevével: `main | ☁ origin | ☁ upstream`.
     const cloudOf = on => icon('cloud', on ? 'ic filled' : 'ic');
@@ -515,8 +519,8 @@ function badges(c) {
     const lc = ` style="--lc:${pair ? branchColor(pair) : (group && wtColor(group)) || lane}"`;
     return `<span class="badge ref-${r.kind}${other}"${lc} data-tip="${esc(title)}" aria-label="${esc(title)}">`
       + `${lead}<span class="badge-name">${esc(orphan ? (linked ? wt.name : 'main') : name)}</span>`
-      + `${orphan ? `<span class="div"></span>${icon('detached')}` : ''}`
-      + `${distSegs(dist)}${remotes}</span>`;
+      + `${orphan ? `<span class="div"></span>${icon('detached')}<span class="badge-name">HEAD</span>` : ''}`
+      + `${distSegs(dist, tr)}${remotes}</span>`;
   }).join('');
 }
 

@@ -410,14 +410,21 @@ def collect_worktrees() -> list[dict]:
     return worktrees
 
 
-def worktree_meta(wt: dict) -> dict:
+def worktree_meta(wt: dict, base: str) -> dict:
     """Egy worktree a lapnak: azonosító, mappa, ág, HEAD, változások száma (az ág
-    távolságait a `meta.tracks` adja)."""
+    távolságait a `meta.tracks` adja). Leválasztott HEAD-nél a HEAD-commit távolsága az
+    alapágtól (`base`, mint az ágaké) — ágkulcs híján itt."""
     meta = {"slug": wt["slug"], "name": wt["path"].name, "path": str(wt["path"]),
             "branch": wt["branch"], "head": wt["head"], "main": wt["main"],
             "dirty": len(wt["status"])}
     if not wt["branch"] and not wt["main"]:
         meta["appBranch"] = app_branch(wt)
+    if not wt["branch"] and base and wt["head"]:
+        try:
+            a, b = git("rev-list", "--left-right", "--count", f"{base}...{wt['head']}").split()
+            meta["base"] = [int(b), int(a)]
+        except (subprocess.CalledProcessError, ValueError):
+            pass
     return meta
 
 
@@ -589,6 +596,7 @@ def repo_url() -> str:
 
 
 def collect_meta(commits: list[dict], worktrees: list[dict]) -> dict:
+    base = default_base()
     return {
         "repo": repo_name(),
         "repoUrl": repo_url(),
@@ -597,10 +605,10 @@ def collect_meta(commits: list[dict], worktrees: list[dict]) -> dict:
         "shown": len(commits),
         "dirty": len(worktrees[0]["status"]) if worktrees else 0,
         "generated": git("log", "-1", "--pretty=format:%aI").strip(),
-        "worktrees": [worktree_meta(wt) for wt in worktrees],
+        "worktrees": [worktree_meta(wt, base) for wt in worktrees],
         "remotes": sorted(remotes()),     # több remote-nál a badge a nevüket is mutatja
         "tracks": branch_tracks(),
-        "base": default_base(),           # az alapág (origin/HEAD célja) — a helyi párján nem dolgozunk
+        "base": base,                     # az alapág (origin/HEAD célja) — a helyi párján nem dolgozunk
     }
 
 
