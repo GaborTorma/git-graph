@@ -1890,7 +1890,7 @@ function startLive(src) {
     if (focusWt()?.slug === before) return false;
     const since = arrival && performance.now() - arrival.at;
     switched = `\nsession-váltás ${clock()}: ` + (how
-      || (since < ARRIVAL_MS ? `${arrival.kind} után ${Math.round(since)} ms` : 'a rendes körben'));
+      || (arrival && since < ARRIVAL_MS ? `${arrival.kind} után ${Math.round(since)} ms` : 'a rendes körben'));
     return true;
   }
   async function poll() {
