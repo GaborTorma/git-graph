@@ -450,15 +450,16 @@ function sortRefs(refs) {
 
 /* A WIP-sor eleji worktree-jel: sima (nem HEAD-) badge a worktree színével, vékony
    körvonallal — az erős körvonal a HEAD-é, a HEAD pedig mindig commit. A fő checkout:
-   üres mappa és az ága; a többi: a worktree jele és neve | az ága (ha van). */
+   üres mappa és az ága; a többi: a worktree jele és neve | az ága. Ág nélkül (leválasztott
+   HEAD) mindkettő: jel, név (a fő checkouté „main”) | lánc. */
 function wtBadge(w) {
   const lc = w.main ? laneColor(commitBySha(w.head)?.lane || 0) : wtColor(w) || LANE_COLORS[0];
   const tip = `${w.main ? 'fő checkout' : 'worktree'}: ${w.path}\n`
     + (w.branch ? `ág: ${w.branch}${distText(w.branch)}` : `ág nélkül, HEAD: ${String(w.head || '').slice(0, 7)}`);
   const branch = w.branch ? `${icon('branch')}<span class="badge-name">${esc(w.branch)}</span>${distSegs(w.branch)}` : '';
-  const body = w.main
-    ? `<span class="synced wt-lead">${icon('mainWorktree')}</span>${branch || '<span class="badge-name">HEAD</span>'}`
-    : `${icon('worktree')}<span class="badge-name">${esc(w.name)}</span>${branch ? `<span class="div"></span>${branch}` : ''}`;
+  const body = w.main && branch ? `<span class="synced wt-lead">${icon('mainWorktree')}</span>${branch}`
+    : `${icon(w.main ? 'mainWorktree' : 'worktree')}<span class="badge-name">${esc(w.main ? 'main' : w.name)}</span>`
+      + `<span class="div"></span>${branch || icon('detached')}`;
   return `<span class="badge ref-branch" style="--lc:${lc}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${body}</span>`;
 }
 
@@ -472,10 +473,12 @@ function badges(c) {
   return sortRefs(mergedRefs(c.refs)).filter(r => showRemote || r.kind !== 'remote').map(r => {
     const wt = r.worktree && worktrees().find(w => w.slug === r.worktree);
     const linked = wt && !wt.main;
+    // A fő checkout HEAD-je üres mappát kap elöl, ha vannak worktree-k (mint a fejléc chipje).
+    const mainLead = wt?.main && linkedWts().length > 0;
     const dist = r.kind === 'tag' || r.kind === 'detached' ? '' : r.name;   // tagnek, leválasztott HEAD-nek nincs
-    // Hozzáadott worktree leválasztott HEAD-je: ág nincs — worktree-ikon, HEAD, a worktree neve.
-    const orphan = r.kind === 'detached' && linked;
-    const title = (orphan ? `${wt.name}: leválasztott HEAD (ág nélkül)`
+    // Worktree leválasztott HEAD-je: ág nincs — a worktree jele és neve | lánc (az ág-ikon helyén).
+    const orphan = r.kind === 'detached' && (linked || mainLead);
+    const title = (orphan ? `${wt.main ? 'main' : wt.name}: leválasztott HEAD (ág nélkül)`
       : (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name)
       + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o.name}/${r.name}`).join(', ') : '')
       + (r.default ? '\na remote alapértelmezett ága' : '')
@@ -490,19 +493,20 @@ function badges(c) {
     const remotes = multi && showRemote
       ? r.remotes.map(o => `<span class="div"></span><span class="synced">${cloudOf(o.default)}${esc(o.name)}</span>`).join('')
       : '';
-    // Hozzáadott worktree-ben kivett ág: elöl a worktree-jel (a fontosabb) — ez a felhőt is kiváltja.
-    const wtLead = linked ? `<span class="synced wt-lead">${icon('worktree')}</span>` : '';
+    // Worktree-ben kivett ág: elöl a worktree-jel (a fő checkouté csak, ha vannak worktree-k).
+    const wtLead = linked || mainLead
+      ? `<span class="synced wt-lead">${icon(linked ? 'worktree' : 'mainWorktree')}</span>` : '';
     // Egy remote-nál a helyi ág és a remote párja egy helyen: egyetlen felhő-és-ág ikon
-    // (az alapágé teli) a branch-ikon és a felhő helyett.
-    const synced = !linked && showRemote && r.remotes.length && !multi;
+    // (az alapágé teli) a branch-ikon és a felhő helyett, a worktree-jel mögött is.
+    const synced = showRemote && r.remotes.length && !multi;
     const other = r.worktree && r.worktree !== focusWt()?.slug ? ' other' : '';
     // A csak remote-os chipen a felhő jelzi a remote-ot: egy remote-nál az
     // `origin/` előtag nem kell, többnél a név mondja meg, melyiké.
     const name = r.kind === 'remote' && !multi ? r.name.replace(/^origin\//, '') : r.name;
     const lead = r.kind === 'remote' ? cloud
-      : orphan ? icon('worktree')
-      : synced ? icon(r.default ? 'branchCloudFill' : 'branchCloud')
-      : wtLead + (REF_ICON[r.kind] ? icon(REF_ICON[r.kind]) : '');
+      : orphan ? icon(linked ? 'worktree' : 'mainWorktree')
+      : wtLead + (synced ? icon(r.default ? 'branchCloudFill' : 'branchCloud')
+        : REF_ICON[r.kind] ? icon(REF_ICON[r.kind]) : '');
     // A tooltip a saját buborék (`data-tip`), mint az avataré — a natív `title` késik.
     // A hozzáadott worktree csoportja (HEAD-je, leválasztva az ága) a worktree színét
     // kapja: a csonkjáét, a WIP-soráét, vagy a HEAD-jéét (`wtColor`) — mint a fejléc chipje.
@@ -510,7 +514,8 @@ function badges(c) {
     const pair = r.kind === 'remote' && DATA.branches.find(b => !b.remote && b.upstream === r.name);
     const lc = ` style="--lc:${pair ? branchColor(pair) : (group && wtColor(group)) || lane}"`;
     return `<span class="badge ref-${r.kind}${other}"${lc} data-tip="${esc(title)}" aria-label="${esc(title)}">`
-      + `${lead}<span class="badge-name">${esc(name)}</span>${orphan ? `<span class="div"></span><span class="badge-name">${esc(wt.name)}</span>` : ''}`
+      + `${lead}<span class="badge-name">${esc(orphan ? (linked ? wt.name : 'main') : name)}</span>`
+      + `${orphan ? `<span class="div"></span>${icon('detached')}` : ''}`
       + `${distSegs(dist)}${remotes}</span>`;
   }).join('');
 }
