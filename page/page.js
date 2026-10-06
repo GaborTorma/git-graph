@@ -1493,6 +1493,20 @@ document.getElementById('showRemotes').addEventListener('change', () => {
    megszűnik; ha van kinyitott commit, az a lista tetejére kerül (a napfejléc
    alá), hogy a visszajött sorok közt se vesszen el. */
 let lastQuery = '';
+/* A fejléc chipjére kattintva a lista a saját HEAD commitjához ugrik (a napfejléc alá). */
+function revealHead() {
+  const sha = focusWt()?.head;
+  const row = sha && rowsEl.querySelector(`.row[data-sha="${CSS.escape(sha)}"]`);
+  if (!row) return;               // szűrés miatt nincs a listában
+  const top = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+  scroller.scrollTop = Math.max(0, Math.round(top - STEP_TOP));
+  row.focus({ preventScroll: true });
+}
+const headChipEl = document.getElementById('headChip');
+headChipEl.addEventListener('click', revealHead);
+headChipEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); revealHead(); }
+});
 function revealExpanded() {
   const row = expanded && rowsEl.querySelector(`.row[data-sha="${CSS.escape(expanded)}"]`);
   if (!row) return;

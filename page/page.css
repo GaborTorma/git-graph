@@ -181,6 +181,8 @@ button { font: inherit; color: inherit; }
   font-size: 12px; font-weight: 600; white-space: nowrap;
 }
 .head-chip .ic { width: 13px; height: 13px; }
+.head-chip { cursor: pointer; }
+.head-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Ágválasztó: saját legördülő menü — a natív <select> listája a macOS kék
    menüjét hozná, ami kilóg az app nyelvéből. */
