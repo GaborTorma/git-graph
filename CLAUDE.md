@@ -64,8 +64,8 @@ hívásait nem mutatja). A hooké
 és `CLAUDE_CODE_ENTRYPOINT`-tal, eldobható klónon (a `--published` a
 `.git/config`-ba ír); a hook kimenete a publikálás lépéseit vagy a megnyitást
 kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
-`HOME`-mal, a modult betöltve, a `launchctl`-t rögzítőre cserélve — a régi
-agent labelje közös a valódival, ahhoz a próba ne nyúljon.
+`HOME`-mal, a modult betöltve — az app configja és a `~/.git-graph` is a
+`HOME` alól jön, a valódihoz így a próba nem nyúl.
 
 - **Check**: `syntax=/usr/bin/python3 -m py_compile bin/git-graph && node --check page/page.js && claude plugin validate . --strict` · `lint=uvx ruff@0.16.10 check && pnpm dlx @biomejs/biome@2.5.15 lint` · `test=/usr/bin/python3 -m unittest discover -s tests`
 
