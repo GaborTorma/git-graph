@@ -481,6 +481,42 @@ Fejlesztőtől) nem frissíti az indexet.
 Következmény: a horgonyos „saját worktree” nem járható; a WIP-adat
 párhuzamosan gyűjtve 5 worktree-vel is belefér a 2 s-os pollozásba.
 
+### Egy nyitott hívás: long-poll (mérve, 2026-10-06, contract 0.2.67)
+
+A 2 s-os pollozás és a külön fókusz-hívás egyetlen `changes` long-pollá vált
+(#29). Előtte műszerezett dev-példánnyal mérve (a szerver minden hívást
+naplózott, a lap a következő hívásban visszaküldte az előző eredményét és az
+eseményeit):
+
+- **Keret-költözés ugyanazon Artifact sessionjei között** (4 váltás): a nyitott
+  hívás túléli, a válasz mindig megérkezik.
+- **Rejtett keret** (közben másik Artifact; 10 s, 24 s, 122 s): ami a rejtés
+  pillanatában válaszolt, megérkezett. Rejtve indított hívás **1–186 ms alatt
+  `server_unavailable`**, a szerverig el sem jut; az időzítők sem futnak (rAF
+  24–122 s-ig állt, egy 1 s-os `setTimeout` csak megjelenéskor lőtt). A régi
+  kurzorral újrahívva azonnal a helyes állapot jön.
+- **Megszakítás** (`callTool` `signal`): a lapon pontos (`cancelled`, 3001 ms-nál
+  3000-es abortra), de a szerver **nem kap** `notifications/cancelled`-et — a
+  várakozó a határidejéig fut. Lap-újratöltés sem zárja le a nyitott hívást.
+- **Párhuzamosság**: nyitott várakozók mellett a rövid hívások kiszolgálódnak; egy
+  szerverfolyamat az app összes git-graph lapját szolgálja (három repó lapja
+  várt egyszerre).
+
+Az állapot költsége (`repo_state`, az app PATH-jával): git-graph (3 worktree)
+52 → 17 ms, Music 48 → 14 ms, 10 582 fájlos repó 139 → 94 ms — a valódi git
+bináris (a `/usr/bin/git` `xcrun`-shim, 12 → 6 ms/hívás), a párhuzamos
+`for-each-ref` és `status`, és a `diff --numstat` elhagyása (a ns-os mtime is
+jelzi egy módosított fájl újabb szerkesztését) hozta. A nagy repón a maradék a
+követetlen fájlok keresése (`status` 90 ms, `-uno`-val 24 ms). A git
+`core.fsmonitor`-ja ezt 27 ms-ra vinné, de csak úgy, ha az indexbe írja a
+token-jét (írás nélkül 154 ms) — az `index.lock` miatt ez nem járható. Egy
+`stat`-előszűrő (10 fájl: worktree-nként `HEAD`, `index`, `logs/HEAD`, a
+`packed-refs` és a ref-mappák) 0,025 ms.
+
+Harnessben a lapon mérve (adatlekéréssel és rajzolással): ág létrehozása /
+törlése ~0,4 s, új fájl / szerkesztés / törlés 0,8–2,2 s; üresjáratban 6 s alatt
+egy hívás sem zárult le.
+
 ## Implementációs tanulságok (a generátorból)
 
 - **CSS osztálynév-ütközés**: a táblázat-fejléc `.head` szabálya ráült a

@@ -151,8 +151,12 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   soraiból jön, `drawPending`, negatív a lista tetejéhez képest); a többié a
   listában, az ideje szerint a commitok közé sorolva, sosem a HEAD-je alá.
 - **Minden git-hívás `--no-optional-locks`**: a `git status` egyébként frissíti
-  az indexet, ahhoz `index.lock`-ot vesz, és a 2 mp-es pollozás így a Fejlesztő
-  saját git-parancsait akasztja meg (egy commit tényleg elhasalt rajta).
+  az indexet, ahhoz `index.lock`-ot vesz, és a gyakori állapotlekérés így a Fejlesztő
+  saját git-parancsait akasztja meg (egy commit tényleg elhasalt rajta). Ezért
+  nem használható a git `core.fsmonitor`-ja sem: csak az indexbe írva gyorsít (mérve, #29).
+- **A git a valódi binárisával fut** (`git_bin`, a `git --exec-path` mellől): az
+  app szűk PATH-tal indítja a szervert, a macOS `/usr/bin/git` pedig `xcrun`-shim,
+  hívásonként ~6 ms-mal lassabb.
 - **A `REPO` modulszintű globális**, a `git-graph --mcp` viszont hívásonként más repót
   szolgálhat ki (a lap slugja szerint): a `_REMOTES` cache-t minden váltásnál
   nullázni kell. A stdio-kiszolgálás soros, lock nem kell.
@@ -203,16 +207,25 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   claude-code-sessions/*/*/local_*.json`: `cwd` / `worktreePath`,
   `lastFocusedAt`, `isArchived`): a repóban dolgozó, nem archivált sessionök
   közül a legutóbb fókuszált van előtérben (`focused_worktree`, a
-  `fingerprint` `focus` mezője). A `lastFocusedAt` 1–3 s késéssel íródik, ezért
+  `changes` `focus` mezője). A `lastFocusedAt` 1–3 s késéssel íródik, ezért
   a fókusz ideje az app naplójából jön (`~/Library/Logs/Claude/main.log`,
   `setFocusedSession`, ~20 ms-mal a váltás után; `app_log_focus`, csak az új
   sorokat olvassa, a forgatást kezeli). A lap erről nem kap eseményt (a keret
-  rejtés nélkül költözik, egyforma panelméretnél `resize` sincs), ezért egy
-  `fingerprint`-hívást nyitva tart (`wait` + `cursor`, `wait_focus`): a szerver
-  külön szálon, a naplóban megjelenő váltásra válaszol, az új fókusszal együtt.
-  A `send` ezért zárolt, a fókusz-gyorstárak `FOCUS_LOCK` alatt; a `restart`
-  előbb a várakozókat válaszoltatja. Sűrű kérdezés tilos: a host ~20 gyors
-  hívás után `rate_limited`-del fog vissza. Belső fájlok, ismeretlen formánál nem
+  rejtés nélkül költözik, egyforma panelméretnél `resize` sincs). Ezért a lap
+  mindig egy `changes`-hívást tart nyitva (long-poll, `since` + `wait`,
+  `wait_changes`): a szerver külön szálon akkor válaszol, ha az app naplójában
+  session-váltás jelenik meg (`log_advance`, ~50 ms), vagy a repó állapota
+  (`repo_state`) eltér a `since` tokenben lévőtől — git-műveletnél egy
+  `stat`-előszűrő (`stamp_paths`) miatt ~50 ms-on belül, fájlszerkesztésnél a
+  2 s-onkénti teljes számításra —, legkésőbb 50 s után üresen. A `since`
+  (állapot-hash + naplókurzor) miatt a két hívás között jött változás sem vész
+  el. A szál explicit repóval dolgozik, a `REPO` globálist nem érinti. A `send`
+  ezért zárolt, a fókusz-gyorstárak `FOCUS_LOCK` alatt; a `restart` előbb a
+  várakozókat válaszoltatja (`WAKE`). A host a lap megszakítását (`signal`) nem
+  adja át a szervernek: az árva várakozót a határidő zárja, és `WAITERS_MAX`
+  fölött nem várunk. Rejtett keretben a hívás azonnal elbukik, és a lap
+  időzítői sem futnak: a lap a megjelenéskor (`wake`) hív újra. Sűrű kérdezés
+  tilos: a host ~20 gyors hívás után visszafogja a hívásokat. Belső fájlok, ismeretlen formánál nem
   dönt; a több száz, nagy session-fájlt `stat`-tal figyeli, csak a
   megváltozottat olvassa újra (`app_sessions`). Kézzel nem választható. Halványabb (`.foreign`), ami nem a
   sajáté: worktree-ből nézve ami a HEAD-jéből nem érhető el; a fő checkoutból
@@ -243,8 +256,8 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   - A `git-graph --mcp` stdout-ján csak JSON-RPC mehet, ASCII-ban (a locale-tól
     függetlenül); napló, ha kell, stderr-re.
   - A toolok `readOnlyHint: true`-k — enélkül az app hívásonként megerősítést
-    kérhet. A `watchTool` pollozása ≥ ~30 s, ezért a lap `callTool`-lal kérdez
-    2 s-onként (olcsó `fingerprint`, változáskor `graph_data`).
+    kérhet. A `watchTool` pollozása ≥ ~30 s, ezért a lap `callTool`-lal hív
+    (nyitva tartott `changes`, változáskor `graph_data`).
   - Csak az appban megy (böngészőben `server_not_connected`), csak a
     tulajdonosnak. A lap nem `retryable` hibánál leáll, és kiírja a teendőt.
   - Új tool → a `PUBLISH_CAPS` tool-listájába is (különben `not_in_manifest`),
@@ -276,7 +289,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
     utolsóként. A lap fájljait a szerver induláskor egyszer olvassa be
     (`page_file`), így a futó verzió a saját kódját adja akkor is, ha a hook már
     újat másolt. A manifestből olvassa a futó szerver induláskor a verzióját (`RUNNING_VERSION`), a
-    `fingerprint` pedig a telepítettel együtt adja — a lábléc így jelzi, ha az
+    `changes` pedig a telepítettel együtt adja — a lábléc így jelzi, ha az
     app még a régi kódot futtatja.
   - **A futó szerver frissíti magát** (`watch_plugin` → `pull_update` →
     `restart`): ha a nyilvántartás más verziót mond, mint ami fut, a plugin
@@ -285,7 +298,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
     stdio-csöveken. Ezért puffereletlen a stdin-olvasás (`select` + `os.read`,
     saját sorpuffer): csak üres pufferrel indul újra, a csőben maradt kérést az
     új folyamat olvassa. A szerver nem tart állapotot a kézfogás után, a
-    `respond` így az újraindult folyamatban is válaszol. A lap a `fingerprint`
+    `respond` így az újraindult folyamatban is válaszol. A lap a `changes`
     verzióváltásán újratölt (`location.reload`), így az új `page_code` is megjön.
     Mérve kamu `HOME`-mal: 12/12 kérés megválaszolva a csere körül.
   - A leszerelést is ez a szál végzi (`watch_plugin`): az

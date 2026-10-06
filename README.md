@@ -158,10 +158,11 @@ A projektmappába nem kerül semmi.
 Az Artifact **élő**, de sem adatot, sem kódot nem tárol: egy betöltő, amely a
 Claude appban megnyitva a lap kódját (`page_code`) és az adatot is a gépeden
 futó `git-graph --mcp`-ből kéri, az app **host-hídján** át
-(`callTool("host:git-graph", …)`): 2 mp-enként az olcsó `fingerprint` (refek, HEAD, munkakönyvtár — ~40 ms), és
-csak változáskor a teljes `graph_data` (150–300 ms). Mellette egy nyitva
-tartott `fingerprint`-hívás (`wait`) a session-váltásra vár. A lábléc kiírja a
-mért időket. Egy lenyitott fájl diffje a `file_diff` toolból jön.
+(`callTool("host:git-graph", …)`): mindig egy nyitva tartott `changes`-hívás
+vár, és a szerver akkor válaszol, ha a repó (refek, HEAD, munkakönyvtár) vagy az
+előtérben lévő session megváltozik — git-műveletnél ~50 ms, fájlszerkesztésnél
+legfeljebb ~2 s alatt —, és csak változáskor jön a teljes `graph_data`
+(150–300 ms). A lábléc kiírja a mért időket. Egy lenyitott fájl diffje a `file_diff` toolból jön.
 
 Megkötések (a platformé, mérve — [docs/artifact-findings.md](docs/artifact-findings.md)):
 
