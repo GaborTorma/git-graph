@@ -526,14 +526,15 @@ def branch_owners(worktrees: list[dict]) -> dict[str, str]:
     """Ág → a worktree slugja, amelyikben utoljára ki volt véve.
 
     A git nem jegyzi, hol jött létre egy ág, de minden worktree HEAD-reflogja
-    (`logs/HEAD`) igen, mikor váltott rá (`checkout: moving from A to B`). A
+    (`logs/HEAD`) igen, mikor váltott rá vagy róla (`checkout: moving from A to
+    B`: az A-n is ott állt addig — a `worktree add -b` nem ír checkout-sort). A
     most kivett ág azé, ahol ki van véve; a leválasztott HEAD-ű worktree-é az
     ág, amit a Claude app jegyez neki (`appBranch`). A törölt worktree reflogja
     vele megy, és a lejárt bejegyzés is kiesik: az ilyen ág gazdátlan (nincs a
     kimenetben). Csak fájlt olvas, git-hívás nincs.
     """
     best: dict[str, tuple[float, str]] = {}
-    pattern = re.compile(r"> (\d+) [+-]\d{4}\tcheckout: moving from \S+ to (\S+)$")
+    pattern = re.compile(r"> (\d+) [+-]\d{4}\tcheckout: moving from (\S+) to (\S+)$")
     for wt in worktrees:
         claim = wt["branch"] or app_branch(wt)
         if claim:
@@ -544,8 +545,11 @@ def branch_owners(worktrees: list[dict]) -> dict[str, str]:
             continue
         for line in lines:
             m = pattern.search(line)
-            if m and float(m[1]) > best.get(m[2], (-1.0, ""))[0]:
-                best[m[2]] = (float(m[1]), wt["slug"])
+            if not m:
+                continue
+            for name in (m[2], m[3]):
+                if float(m[1]) > best.get(name, (-1.0, ""))[0]:
+                    best[name] = (float(m[1]), wt["slug"])
     return {name: slug for name, (_, slug) in best.items()}
 
 
