@@ -99,7 +99,8 @@ távolságaival. A saját worktree „Nem
 commitolt változások” sora a lista fölötti sávban ül (nem mai időnél a nappal),
 a többi worktree-é a listában, az ideje szerint, a worktree jelével és ágával. Minden worktree HEAD-je
 badge-et kap, elöl a worktree jelével (a fő checkouté az üres mappa, ha vannak worktree-k);
-leválasztott HEAD-nél az ág helyén lánc-ikon áll (`worktree-név | ⛓`, a fő checkouté `main | ⛓`); a saját commit és WIP nélküli worktree-k csonkkal ágaznak le a
+leválasztott HEAD-nél az ág helyén lánc-ikon áll (`worktree-név | ⛓`, a fő checkouté `main | ⛓`,
+worktree nélkül `⛓ HEAD`; a fejléc chipjén a lánc és a rövid hash); a saját commit és WIP nélküli worktree-k csonkkal ágaznak le a
 commitjukról, több csonk legyezőszerűen. Ami nem a sajáté, halványabb (a sehol ki nem
 vett ágak a fő checkouté). Az ágválasztó worktree-nként csoportosít: fejléc (a
 sajáté a fejléc chipjének színével), alatta az ágai — amelyikben utoljára ki volt

@@ -106,7 +106,6 @@ function refColor(name) {
   const c = idx().refTip.get(name);
   return c ? laneColor(c.lane) : 'var(--fg-3)';
 }
-const wtLabel = w => w.branch || `HEAD ${String(w.head || '').slice(0, 7)}`;
 
 /* ── Ikonok ── stroke-os, 16×16-os rácson; a CSS `.ic` színezi. */
 const ICONS = {
@@ -192,8 +191,8 @@ function wtChipInner(w) {
   const linked = !w.main;
   // A fő checkout üres mappát kap, ha vannak worktree-k (megkülönböztetésül).
   return (linked ? icon('worktree') : linkedWts().length ? icon('mainWorktree') : '')
-    + (w.branch ? icon('branch') : '')   // ág nélkül: csak a HEAD és a hash
-    + `<span class="chip-name">${esc(wtLabel(w))}</span>`
+    + icon(w.branch ? 'branch' : 'detached')   // ág nélkül: lánc az ág-ikon, a hash az ág helyén
+    + `<span class="chip-name">${esc(w.branch || String(w.head || '').slice(0, 7))}</span>`
     + (w.branch ? distSegs(w.branch) : '');
 }
 
@@ -463,7 +462,8 @@ function wtBadge(w) {
   return `<span class="badge ref-branch" style="--lc:${lc}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${body}</span>`;
 }
 
-const REF_ICON = { head: 'branch', branch: 'branch', remote: 'cloud', tag: 'tag' };   // a leválasztott HEAD ikon nélkül
+// A leválasztott HEAD-en az ág-ikon helyén lánc (az ág nélküliség jele), utána „HEAD”.
+const REF_ICON = { head: 'branch', branch: 'branch', remote: 'cloud', tag: 'tag', detached: 'detached' };
 function badges(c) {
   // A HEAD, az ág és a tag a commit sávjának színét kapja (`--lc`), mint a vonal; a
   // remote chip is: ha van helyi ága, annak a színét (mint az ágválasztóban), különben
