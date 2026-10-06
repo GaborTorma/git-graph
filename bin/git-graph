@@ -57,13 +57,28 @@ FS = "\x1f"
 RS = "\x1e"
 
 
+@functools.cache
+def git_bin() -> str:
+    """A valódi git bináris (`git --exec-path` mellől), különben a PATH-on lévő `git`.
+
+    macOS-en a `/usr/bin/git` csak shim (`xcrun`), hívásonként ~6 ms-mal lassabb
+    (mérve: 12 → 6 ms) — az app szűk PATH-tal indítja a szervert, így azt kapná.
+    """
+    try:
+        path = os.path.realpath(os.path.join(subprocess.run(
+            ["git", "--exec-path"], capture_output=True, text=True, check=True).stdout.strip(), "git"))
+    except (OSError, subprocess.CalledProcessError):
+        return "git"
+    return path if os.access(path, os.X_OK) else "git"
+
+
 def git(*args: str, repo: Path | None = None) -> str:
     # --no-optional-locks: a `git status` egyébként FRISSÍTI az indexet, ahhoz
     # pedig `index.lock`-ot vesz. A szerver kétmásodpercenként kérdez — ez a
     # Fejlesztő saját git-parancsait akasztaná meg („Unable to create
     # index.lock"). Olvasó eszköznek úgyis felesleges.
     return subprocess.run(
-        ["git", "--no-optional-locks", "-C", str(repo or REPO), *args],
+        [git_bin(), "--no-optional-locks", "-C", str(repo or REPO), *args],
         capture_output=True, text=True, check=True,
     ).stdout
 
@@ -71,7 +86,7 @@ def git(*args: str, repo: Path | None = None) -> str:
 def resolve_repo(start: Path) -> Path:
     """A megadott könyvtárat tartalmazó git repó gyökere."""
     result = subprocess.run(
-        ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
+        [git_bin(), "-C", str(start), "rev-parse", "--show-toplevel"],
         capture_output=True, text=True,
     )
     if result.returncode != 0:
@@ -384,14 +399,14 @@ def main_checkout(repo: Path) -> Path:
     return worktrees[0]["path"] if worktrees else repo
 
 
-def collect_worktrees() -> list[dict]:
-    """A `REPO` worktree-jei állapottal: worktree-nként `git status` + `git diff --numstat`.
+def collect_worktrees(repo: Path | None = None) -> list[dict]:
+    """A repó (alapból a `REPO`) worktree-jei állapottal: worktree-nként `git status` + `git diff --numstat`.
 
     Párhuzamosan fut: 5 worktree-vel ~50 ms (sorban ~200 ms; nagy repón 330
     ms / 680 ms — mérve, docs/artifact-findings.md). A közben megszűnt worktree
     kimarad.
     """
-    worktrees = worktree_list()
+    worktrees = worktree_list(repo)
 
     def fill(wt: dict) -> None:
         try:
