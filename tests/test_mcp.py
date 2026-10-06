@@ -113,7 +113,7 @@ class McpServerTest(unittest.TestCase):
             self.assertIn("edges", data)
             self.assertIn("avatars", data)
             self.assertTrue(all("email" in c for c in data["commits"] if not c.get("uncommitted")))
-            self.assertIn("refs", client.call("fingerprint", repo=SLUG))
+            self.assertIn("state", client.call("fingerprint", repo=SLUG))
             icons = {f.get("icon") for st in data["stats"].values() for f in st["files"]}
             self.assertTrue(icons - {None} and icons - {None} <= set(data["fileIcons"]))
 
@@ -397,6 +397,29 @@ class McpServerTest(unittest.TestCase):
         os.utime(self.home / "a.txt", (1000, 1000))
         files = [{"path": "a.txt"}, {"path": "torolt.txt"}]
         self.assertEqual(module.last_change(self.home, files), 1000)
+
+    def test_repo_state(self) -> None:
+        """Az állapot-hash: egy már módosított fájl újabb szerkesztése, új fájl és ágváltás is változás."""
+        repo = self.home.resolve() / "state"
+        repo.mkdir()
+        git = lambda *a: subprocess.run(["git", "-c", "user.name=T", "-c", "user.email=t@x.hu", *a],  # noqa: E731
+                                        cwd=repo, check=True, capture_output=True)
+        git("init", "-q", "-b", "main")
+        (repo / "a.txt").write_text("1", encoding="utf-8")
+        git("add", "a.txt")
+        git("commit", "-q", "-m", "init")
+        module = load_module(self.home)
+        states = [module.repo_state(repo)]
+        (repo / "a.txt").write_text("2", encoding="utf-8")
+        states.append(module.repo_state(repo))
+        os.utime(repo / "a.txt", ns=(1, time.time_ns() + 10**9))     # ugyanaz a státusz, újabb mtime
+        states.append(module.repo_state(repo))
+        (repo / "b.txt").write_text("x", encoding="utf-8")
+        states.append(module.repo_state(repo))
+        git("switch", "-q", "-c", "feat")
+        states.append(module.repo_state(repo))
+        self.assertEqual(len(set(states)), len(states))
+        self.assertEqual(module.repo_state(repo), states[-1])
 
     def test_app_worktree_branches(self) -> None:
         """A leválasztott worktree ága a Claude app nyilvántartásából, a mappa szerint."""
