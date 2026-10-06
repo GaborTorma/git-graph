@@ -353,7 +353,7 @@ class McpServerTest(unittest.TestCase):
         git("commit", "-q", "--allow-empty", "-m", "anomália")           # a helyi main előreszalad
         module = load_module(self.home)
         module.REPO = repo
-        tracks = module.branch_tracks()
+        tracks = module.branch_tracks(module.default_base())
         self.assertEqual(module.default_base(), "origin/main")
         self.assertEqual(tracks["feat"], {"up": [1, 0], "base": [2, 0]})
         self.assertEqual(tracks["main"], {"up": [1, 0]})              # az alapágnak nincs base-szakasza

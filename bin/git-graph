@@ -421,11 +421,16 @@ def worktree_meta(wt: dict, base: str) -> dict:
         meta["appBranch"] = app_branch(wt)
     if not wt["branch"] and base and wt["head"]:
         try:
-            a, b = git("rev-list", "--left-right", "--count", f"{base}...{wt['head']}").split()
-            meta["base"] = [int(b), int(a)]
+            meta["base"] = ahead_behind(base, wt["head"])
         except (subprocess.CalledProcessError, ValueError):
             pass
     return meta
+
+
+def ahead_behind(base: str, rev: str) -> list[int]:
+    """`[előny, lemaradás]`: a `rev` commitjai a `base`-en túl, és a `base`-é a `rev`-en túl."""
+    behind, ahead = git("rev-list", "--left-right", "--count", f"{base}...{rev}").split()
+    return [int(ahead), int(behind)]
 
 
 def config_get(key: str) -> str:
@@ -607,7 +612,7 @@ def collect_meta(commits: list[dict], worktrees: list[dict]) -> dict:
         "generated": git("log", "-1", "--pretty=format:%aI").strip(),
         "worktrees": [worktree_meta(wt, base) for wt in worktrees],
         "remotes": sorted(remotes()),     # több remote-nál a badge a nevüket is mutatja
-        "tracks": branch_tracks(),
+        "tracks": branch_tracks(base),
         "base": base,                     # az alapág (origin/HEAD célja) — a helyi párján nem dolgozunk
     }
 
@@ -620,13 +625,12 @@ def default_base() -> str:
         return ""
 
 
-def branch_tracks() -> dict[str, dict]:
+def branch_tracks(base: str) -> dict[str, dict]:
     """Ágankénti távolság (`ahead`, `behind`): `base` az alapághoz (amire az
     `origin/HEAD` mutat; magán az alapágon nincs; a remote-only ágaknak is,
     `origin/x` kulccsal; ha van helyi párja, `local` a helyi ághoz), `up` a saját upstreamjéhez
     (ha van, és nem tűnt el). Egyetlen `for-each-ref` (git 2.41+:
-    `%(ahead-behind:…)`); régebbi gitnél ágankénti `rev-list`."""
-    base = default_base()
+    `%(ahead-behind:…)`); régebbi gitnél ágankénti `rev-list`. A `base` a `default_base()`."""
     fields = "%(refname:short)%00%(upstream:short)%00%(upstream:track,nobracket)"
     try:
         lines = git("for-each-ref", f"--format={fields}%00%(ahead-behind:{base or 'HEAD'})",
@@ -645,11 +649,8 @@ def branch_tracks() -> dict[str, dict]:
             entry["up"] = [int(ahead.group(1)) if ahead else 0, int(behind.group(1)) if behind else 0]
             locals_[upstream] = entry["up"][::-1]     # a remote chipjén: a helyi ághoz mérve
         if base and base.split("/", 1)[-1] != name:
-            if rich and rest:
-                a, b = rest[0].split()
-            else:
-                b, a = git("rev-list", "--left-right", "--count", f"{base}...{name}").split()
-            entry["base"] = [int(a), int(b)]
+            entry["base"] = ([int(n) for n in rest[0].split()] if rich and rest
+                             else ahead_behind(base, name))
         out[name] = entry
     # A csak remote-on élő ágaknak is (`origin/x`): a távolságuk az alapágtól.
     if base:

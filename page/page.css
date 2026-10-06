@@ -179,9 +179,9 @@ button { font: inherit; color: inherit; }
   height: 20px; padding: 0 7px; border-radius: 6px;
   background: var(--lc); color: #ffffff;   /* teli, mint a saját HEAD commit-chipje */
   font-size: 12px; font-weight: 600; white-space: nowrap;
+  border: 0; font-family: inherit; cursor: pointer;   /* gomb: a lista a HEAD-hez ugrik */
 }
 .head-chip .ic { width: 13px; height: 13px; }
-.head-chip { border: 0; font-family: inherit; cursor: pointer; }   /* gomb: a lista a HEAD-hez ugrik */
 .head-chip[hidden] { display: none; }
 .head-chip.head-off { opacity: .5; }   /* az ágválasztó elrejti a HEAD-et */
 .head-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -541,16 +541,16 @@ button { font: inherit; color: inherit; }
 .refs.wip-lead .badge { max-width: 100%; }
 .badge > .badge-name, .head-chip > .chip-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* A remote-on is ugyanott áll: felhő az ág neve után. */
-.badge .synced, .head-chip .synced { display: inline-flex; align-items: center; gap: 3px; margin-left: 1px; opacity: .8; }
-.badge .synced.wt-lead, .head-chip .synced.wt-lead { margin: 0 -2px 0 0; }   /* a worktree-jel elöl, a branch-ikonhoz tapad */
-.badge .div { align-self: stretch; width: 1px; margin: 3px 1px; background: currentColor; opacity: .3; }
-.badge .ic.filled, .head-chip .ic.filled { fill: currentColor; }
+:is(.badge, .head-chip) .synced { display: inline-flex; align-items: center; gap: 3px; margin-left: 1px; opacity: .8; }
+:is(.badge, .head-chip) .synced.wt-lead { margin: 0 -2px 0 0; }   /* a worktree-jel elöl, a branch-ikonhoz tapad */
+:is(.badge, .head-chip) .div { align-self: stretch; width: 1px; margin: 3px 1px; background: currentColor; opacity: .3; }
+:is(.badge, .head-chip) .ic.filled { fill: currentColor; }
 /* Az ág távolsága (alapág / upstream): ikon és nyilak, egy szakaszban. */
-.badge .dist, .head-chip .dist { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
+:is(.badge, .head-chip) .dist { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
 /* Az alapág helyi párja előrébb jár a remote-jánál: anomália. */
-.badge .dist.warn, .head-chip .dist.warn { color: var(--del); font-weight: 600; }
-.head-chip .div { align-self: stretch; width: 1px; margin: 3px 2px; background: currentColor; opacity: .3; }
-.badge .synced:has(.wt-ic), .head-chip .synced:has(.wt-ic) { opacity: 1; }   /* a worktree-jel teljes erővel, a felhő visszafogott */
+:is(.badge, .head-chip) .dist.warn { color: var(--del); font-weight: 600; }
+.head-chip .div { margin: 3px 2px; }
+:is(.badge, .head-chip) .synced:has(.wt-ic) { opacity: 1; }   /* a worktree-jel teljes erővel, a felhő visszafogott */
 /* Az ág, a HEAD és a tag a commit sávjának színét viseli (`--lc`, page.js).
    A szöveg a sávszín és az előtér keveréke: világos témában sötétebb,
    sötétben világosabb — a vonalnak szánt színek szövegként gyengék lennének. */
