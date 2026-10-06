@@ -177,9 +177,8 @@ button { font: inherit; color: inherit; }
 .head-chip {
   display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; overflow: hidden;
   height: 20px; padding: 0 7px; border-radius: 6px;
-  background: color-mix(in srgb, var(--lc) 14%, var(--bg));
-  color: color-mix(in srgb, var(--lc) 70%, var(--fg-0));
-  font-size: 12px; font-weight: 500; white-space: nowrap;
+  background: var(--lc); color: #ffffff;   /* teli, mint a saját HEAD commit-chipje */
+  font-size: 12px; font-weight: 600; white-space: nowrap;
 }
 .head-chip .ic { width: 13px; height: 13px; }
 
