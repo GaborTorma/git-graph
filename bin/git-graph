@@ -1541,54 +1541,94 @@ def focused_worktree(worktrees: list[dict]) -> dict:
     return {"worktree": best[1] if best else None, "known": best is not None}
 
 
-FOCUS_WAIT_MAX = 50.0          # s — a host válasz-időkorlátja alatt (mérve)
+WAIT_MAX = 50.0               # s — a host válasz-időkorlátja alatt (mérve)
+STATE_EVERY = 2.0             # s — a teljes állapot (`repo_state`) legalább ennyi időnként
+WAITERS_MAX = 32              # ennél több nyitott hívásnál nem várunk (árva hívások ellen)
 WAKE = threading.Event()      # újraindulás előtt: a várakozó hívások azonnal válaszolnak
-_WAITING = {"n": 0}            # nyitott várakozó hívások (a `restart` kivárja őket)
-_WAITING_LOCK = threading.Lock()
+_WAITERS = {"n": 0}           # nyitott várakozó hívások (a `restart` kivárja őket)
+_WAITERS_LOCK = threading.Lock()
 
 
-def wait_focus(cursor: str, timeout: float) -> dict:
-    """Vár, amíg az app naplójában új session-váltás jelenik meg (legfeljebb `timeout` s-ig).
+def log_advance(ino: int, pos: int) -> tuple[int, int, bool]:
+    """Az app naplója az (inode, pozíció) kurzortól: az új kurzor, és volt-e közben
+    session-váltás. Ismeretlen kurzornál (`-1`) a napló végéről indul, jelzés nélkül;
+    forgatásnál (új inode) jelez. Saját fájlolvasás, megosztott állapot nélkül."""
+    try:
+        st = APP_LOG.stat()
+    except OSError:
+        return ino, pos, False
+    if st.st_ino != ino or st.st_size < pos:
+        return st.st_ino, st.st_size, ino != -1
+    if st.st_size == pos:
+        return ino, pos, False
+    try:
+        with APP_LOG.open("rb") as f:
+            f.seek(pos)
+            chunk = f.read(st.st_size - pos)
+    except OSError:
+        return ino, pos, False
+    end = chunk.rfind(b"\n") + 1
+    return ino, pos + end, bool(FOCUS_LINE.search(chunk, 0, end))
 
-    A lap ezzel tart nyitva egy hívást: ugyanazon Artifact sessionjei között a
-    keret rejtés nélkül költözik, egyforma panelméretnél semmilyen eseményt
-    nem kap (mérve). A `cursor` (inode:pozíció) az előző válaszé — ami a két
-    hívás között jött, az sem vész el. Üres vagy idegen cursornál azonnal
-    visszatér a mostanival. Saját fájlolvasás, megosztott állapot nélkül: a
-    hívás külön szálon fut, a többi kérés közben is kiszolgálódik.
+
+def stamp_paths(repo: Path) -> list[Path]:
+    """Az olcsó előszűrő fájljai: worktree-nként a HEAD, az index és a HEAD reflogja,
+    közösen a packed-refs, a FETCH_HEAD és a ref-mappák (egy ref írása átnevezés,
+    a mappa mtime-ja változik). A fájlszerkesztést nem fogja: arra a teljes állapot."""
+    common = repo / ".git"
+    if not common.is_dir():
+        common = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir", repo=repo).strip())
+    admins = [common, *sorted((common / "worktrees").glob("*"))]
+    refs = [common / "refs" / "heads", common / "refs" / "tags",
+            *sorted((common / "refs" / "remotes").glob("*"))]
+    return [*(a / name for a in admins for name in ("HEAD", "index", "logs/HEAD")),
+            common / "packed-refs", common / "FETCH_HEAD", *refs]
+
+
+def file_stamp(paths: list[Path]) -> tuple[int, ...]:
+    """A fájlok mtime-ja (ns; a hiányzóé 0) — 10 fájlra ~0,03 ms (mérve)."""
+    out = []
+    for path in paths:
+        try:
+            out.append(path.stat().st_mtime_ns)
+        except OSError:
+            out.append(0)
+    return tuple(out)
+
+
+def wait_changes(repo: Path, since: str, wait: float) -> dict:
+    """A `changes` tool: vár, amíg a repó állapota eltér a `since`-étől, vagy az app
+    naplójában session-váltás jelenik meg — legfeljebb `wait` s-ig (`WAIT_MAX`).
+
+    A `since` az előző válasz átlátszatlan tokenje: állapot-hash és naplókurzor
+    (`<hash>.<inode>:<pozíció>`); üresen azonnal válaszol. A két hívás között
+    jött változás sem vész el. Várakozás közben 50 ms-onként a naplót és az
+    olcsó stat-jelet nézi (git-művelet ~50 ms-on belül), a teljes állapotot
+    (`repo_state`, ~15 ms) a stat-jel változásakor és `STATE_EVERY`-nként — a
+    fájlszerkesztés így legfeljebb ~2 s alatt jön. Külön szálon fut, explicit
+    repóval: a `REPO` globálist nem használja.
     """
+    old, _, cursor = since.partition(".")
     try:
         ino, pos = (int(x) for x in cursor.split(":"))
     except ValueError:
         ino = pos = -1
-    deadline = time.monotonic() + max(0.0, min(timeout, FOCUS_WAIT_MAX))
-    while True:
-        try:
-            st = APP_LOG.stat()
-        except OSError:
-            st = None
-        if st and (st.st_ino != ino or st.st_size < pos):
-            # Első hívás vagy forgatás: innen figyelünk; forgatáskor jelzünk is.
-            switched = ino != -1
-            ino, pos = st.st_ino, st.st_size
-            if switched:
-                return {"switched": True, "cursor": f"{ino}:{pos}"}
-            if cursor == "":
-                return {"switched": False, "cursor": f"{ino}:{pos}"}
-        elif st and st.st_size > pos:
-            try:
-                with APP_LOG.open("rb") as f:
-                    f.seek(pos)
-                    chunk = f.read(st.st_size - pos)
-            except OSError:
-                chunk = b""
-            end = chunk.rfind(b"\n") + 1
-            pos += end
-            if FOCUS_LINE.search(chunk, 0, end):
-                return {"switched": True, "cursor": f"{ino}:{pos}"}
-        if WAKE.is_set() or time.monotonic() >= deadline:
-            return {"switched": False, "cursor": f"{ino}:{pos}"}
+    ino, pos, switched = log_advance(ino, pos)
+    state = repo_state(repo)
+    paths = stamp_paths(repo)
+    stamp, full_at = file_stamp(paths), time.monotonic() + STATE_EVERY
+    deadline = time.monotonic() + max(0.0, min(wait, WAIT_MAX))
+    while not switched and state == old and not WAKE.is_set() and time.monotonic() < deadline:
         time.sleep(0.05)
+        ino, pos, switched = log_advance(ino, pos)
+        now = file_stamp(paths)
+        if now != stamp or time.monotonic() >= full_at:
+            stamp, full_at = now, time.monotonic() + STATE_EVERY
+            state = repo_state(repo)
+    # A verziók is itt: egy frissítés utáni, még újra nem indított app a láblécben látszik.
+    return {"since": f"{state}.{ino}:{pos}", "state": state,
+            "focus": focused_worktree(worktree_list(repo)),
+            "version": RUNNING_VERSION, "installed": installed_version()}
 
 
 def registered_repos() -> dict:
@@ -1672,7 +1712,7 @@ def artifact_path(repo: Path) -> Path:
 
 # A lap ezen át éri el a gépen futó git-graph --mcp-t (enélkül use("mcp") null).
 PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
-                                     "tools": ["fingerprint", "graph_data", "file_diff",
+                                     "tools": ["changes", "graph_data", "file_diff",
                                                "page_code"]}]}}
 
 
@@ -1737,16 +1777,20 @@ def mark_published(url: str) -> None:
 MCP_NAME = "git-graph"        # a Claude app configjában ez a kulcs → a lapon host:git-graph
 _REPO_ARG = {"type": "object", "required": ["repo"], "properties": {
     "repo": {"type": "string", "description": "a repó slugja (~/.git-graph/repos.json)"}}}
-_FINGERPRINT_ARG = {"type": "object", "required": ["repo"], "properties": {
+_CHANGES_ARG = {"type": "object", "required": ["repo"], "properties": {
     **_REPO_ARG["properties"],
-    "wait": {"type": "number", "description": "csak várakozás: legfeljebb ennyi s-ig vár "
-             "a következő session-váltásra (az app naplójából), és csak {switched, cursor}-t ad"},
-    "cursor": {"type": "string", "description": "az előző várakozó válasz cursorja"}}}
+    "since": {"type": "string", "description": "az előző válasz since tokenje (üresen azonnal válaszol)"},
+    "wait": {"type": "number", "description": "legfeljebb ennyi s-ig vár változásra (max. 50)"}}}
+# A `fingerprint` a `changes` régi neve: a régi manifestű lap ezen hív, amíg a hook újra
+# nem publikáltatja (egy kiadásig).
+CHANGES_TOOLS = ("changes", "fingerprint")
 MCP_TOOLS = [
-    {"name": "fingerprint", "inputSchema": _FINGERPRINT_ARG, "annotations": {"readOnlyHint": True},
-     "description": "Olcsó ujjlenyomat a repó állapotáról (refek, worktree-k HEAD-je és "
-                    "munkakönyvtára) — ha változott, kérd a graph_data-t. Az előtérben "
-                    "lévő session worktree-jét is adja (focus)."},
+    *({"name": name, "inputSchema": _CHANGES_ARG, "annotations": {"readOnlyHint": True},
+       "description": "Vár, amíg a repó állapota (refek, worktree-k HEAD-je és munkakönyvtára) "
+                      "vagy az előtérben lévő session eltér a since-étől; az állapot hashét, "
+                      "a fókuszt és az új since-et adja — ha a state változott, kérd a graph_data-t."
+                      + ("" if name == "changes" else " (A changes régi neve.)")}
+      for name in CHANGES_TOOLS),
     {"name": "graph_data", "inputSchema": _REPO_ARG, "annotations": {"readOnlyHint": True},
      "description": "A commit-gráf teljes adata: commitok, élek, fájlstatisztika, ágak, meta."},
     {"name": "file_diff", "annotations": {"readOnlyHint": True},
@@ -1763,34 +1807,48 @@ MCP_TOOLS = [
 ]
 
 
+def tool_text(value: object, error: bool = False) -> dict:
+    """Egy tool-hívás eredménye: JSON, a hiba sima szöveg (`isError`)."""
+    body = value if error else json.dumps(value)
+    return {"content": [{"type": "text", "text": body}], "isError": error}
+
+
+def slug_repo(args: dict) -> Path | dict:
+    """A hívás repója (a fő checkout) a lap slugjából, vagy a hiba-eredmény."""
+    repo = repo_for_slug(str(args.get("repo", "")))
+    if repo is None:
+        return tool_text(f"ismeretlen repó: {args.get('repo')!r} — nyiss benne egy Claude sessiont (a git-graph hookja regisztrálja)", True)
+    if not repo.is_dir():
+        # A 0.12 előtti, worktree-nkénti lap a worktree megszűnése után is pollozott.
+        return tool_text(f"A(z) {repo.name} mappa megszűnt — ez a lap elavult, zárd be. "
+                         "A repó közös lapját a hook nyitja meg.", True)
+    try:
+        # A régi, worktree-nkénti lap is a közös adatot kapja.
+        return main_checkout(repo)
+    except subprocess.CalledProcessError as exc:
+        return tool_text(short_error(exc), True)
+
+
+def changes_tool(args: dict, wait: float) -> dict:
+    """A `changes` (régi nevén `fingerprint`) eredménye — a várakozó szálon."""
+    repo = slug_repo(args)
+    if isinstance(repo, dict):
+        return repo
+    try:
+        return tool_text(wait_changes(repo, str(args.get("since") or ""), wait))
+    except subprocess.CalledProcessError as exc:
+        return tool_text(short_error(exc), True)
+
+
 def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
     """Egy tool-hívás eredménye (MCP `tools/call`). A hiba is eredmény: `isError`."""
     global REPO, _REMOTES
-
-    def text(value: object, error: bool = False) -> dict:
-        body = value if error else json.dumps(value)       # a hiba sima szöveg
-        return {"content": [{"type": "text", "text": body}], "isError": error}
-
-    repo = repo_for_slug(str(args.get("repo", "")))
-    if repo is None:
-        return text(f"ismeretlen repó: {args.get('repo')!r} — nyiss benne egy Claude sessiont (a git-graph hookja regisztrálja)", True)
-    if not repo.is_dir():
-        # A 0.12 előtti, worktree-nkénti lap a worktree megszűnése után is pollozott.
-        return text(f"A(z) {repo.name} mappa megszűnt — ez a lap elavult, zárd be. "
-                    "A repó közös lapját a hook nyitja meg.", True)
+    text = tool_text
+    repo = slug_repo(args)
+    if isinstance(repo, dict):
+        return repo
+    REPO, _REMOTES = repo, None
     try:
-        # A régi, worktree-nkénti lap is a közös adatot kapja.
-        REPO, _REMOTES = main_checkout(repo), None
-    except subprocess.CalledProcessError as exc:
-        return text(short_error(exc), True)
-    try:
-        if name == "fingerprint":
-            # A verziók is ide kerülnek: a lap 2 mp-enként kérdezi, így egy
-            # frissítés utáni, még újra nem indított app a láblécben azonnal látszik.
-            result = {"state": repo_state(REPO),
-                      "version": RUNNING_VERSION, "installed": installed_version()}
-            result["focus"] = focused_worktree(worktree_list())
-            return text(result)
         if name == "graph_data":
             return text(collect_payload(limit))
         if name == "file_diff":
@@ -1883,25 +1941,23 @@ def respond(raw: bytes, send, limit: int | None) -> None:
         result = {}
     elif method == "tools/list":
         result = {"tools": MCP_TOOLS}
-    elif method == "tools/call" and params.get("name") == "fingerprint" \
-            and "wait" in (params.get("arguments") or {}):
-        args = params["arguments"]
+    elif method == "tools/call" and params.get("name") in CHANGES_TOOLS:
+        # Változásig vár: külön szálon, hogy közben a többi kérés is kiszolgálódjon.
+        args = params.get("arguments") or {}
+        with _WAITERS_LOCK:
+            _WAITERS["n"] += 1
+            crowded = _WAITERS["n"] > WAITERS_MAX
 
         def waiter() -> None:
             try:
-                value = wait_focus(str(args.get("cursor", "")), float(args.get("wait") or 0))
-                repo = repo_for_slug(str(args.get("repo", "")))
-                if value["switched"] and repo and repo.is_dir():
-                    value["focus"] = focused_worktree(worktree_list(repo))   # nem kell külön ujjlenyomat
-                body = {"content": [{"type": "text", "text": json.dumps(value)}], "isError": False}
+                wait = 0.0 if crowded else float(args.get("wait") or 0)
+                body = changes_tool(args, wait)
             except Exception as exc:           # a szerver éljen tovább
-                body = {"content": [{"type": "text", "text": f"hiba: {exc}"}], "isError": True}
+                body = tool_text(f"hiba: {exc}", True)
             send({"jsonrpc": "2.0", "id": mid, "result": body})
-            with _WAITING_LOCK:
-                _WAITING["n"] -= 1
+            with _WAITERS_LOCK:
+                _WAITERS["n"] -= 1
 
-        with _WAITING_LOCK:
-            _WAITING["n"] += 1
         threading.Thread(target=waiter, daemon=True).start()
         return
     elif method == "tools/call":
@@ -1921,7 +1977,7 @@ def restart() -> None:
     log(f"git-graph: frissült ({RUNNING_VERSION} → {stable_version()}) — újraindulás")
     WAKE.set()                                 # a nyitott várakozó hívások most válaszolnak
     deadline = time.monotonic() + 1
-    while _WAITING["n"] and time.monotonic() < deadline:
+    while _WAITERS["n"] and time.monotonic() < deadline:
         time.sleep(0.02)
     sys.stdout.flush()
     python = sys.executable or SYSTEM_PYTHON

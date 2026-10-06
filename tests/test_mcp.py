@@ -98,7 +98,7 @@ class McpServerTest(unittest.TestCase):
             init = client.request("initialize", {"protocolVersion": "2025-06-18"})["result"]
             self.assertEqual(init["serverInfo"]["name"], "git-graph")
             tools = {t["name"]: t for t in client.request("tools/list")["result"]["tools"]}
-            self.assertEqual(set(tools), {"fingerprint", "graph_data", "file_diff", "page_code"})
+            self.assertEqual(set(tools), {"changes", "fingerprint", "graph_data", "file_diff", "page_code"})
             self.assertTrue(all(t["annotations"]["readOnlyHint"] for t in tools.values()))
 
             code = client.call("page_code", repo=SLUG, api=1)
@@ -113,7 +113,9 @@ class McpServerTest(unittest.TestCase):
             self.assertIn("edges", data)
             self.assertIn("avatars", data)
             self.assertTrue(all("email" in c for c in data["commits"] if not c.get("uncommitted")))
-            self.assertIn("state", client.call("fingerprint", repo=SLUG))
+            changes = client.call("changes", repo=SLUG)
+            self.assertTrue({"state", "since", "focus", "version"} <= set(changes))
+            self.assertEqual(client.call("fingerprint", repo=SLUG)["state"], changes["state"])  # régi név
             icons = {f.get("icon") for st in data["stats"].values() for f in st["files"]}
             self.assertTrue(icons - {None} and icons - {None} <= set(data["fileIcons"]))
 
@@ -312,11 +314,19 @@ class McpServerTest(unittest.TestCase):
         focus(tail="\n")
         self.assertEqual(module.focused_worktree(wts)["worktree"], module.slug_for(extra))
 
-        # A nyitva tartott hívás: a cursor óta jött váltásra azonnal, különben a határidőre válaszol.
-        cursor = module.wait_focus("", 5)["cursor"]
-        self.assertEqual(module.wait_focus(cursor, 0.1), {"switched": False, "cursor": cursor})
+        # A nyitva tartott hívás: üres since-re azonnal; a since óta jött session-váltásra és
+        # repóváltozásra a határidő előtt, különben a határidőre válaszol.
+        since = module.wait_changes(main, "", 5)["since"]
+        self.assertEqual(module.wait_changes(main, since, 0.1)["since"], since)
         focus("local_a")
-        self.assertTrue(module.wait_focus(cursor, 5)["switched"])
+        t0 = time.monotonic()
+        after = module.wait_changes(main, since, 5)
+        self.assertNotEqual(after["since"], since)
+        self.assertEqual(after["state"], since.partition(".")[0])           # csak a fókusz
+        (main / "uj.txt").write_text("x", encoding="utf-8")
+        changed = module.wait_changes(main, after["since"], 5)
+        self.assertNotEqual(changed["state"], after["state"])
+        self.assertLess(time.monotonic() - t0, 4)
 
     def test_worktree_stubs(self) -> None:
         """Saját commit és WIP nélküli worktree HEAD-je csonkot kap; a saját ág csúcsa nem."""
