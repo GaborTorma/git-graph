@@ -1406,9 +1406,11 @@ makeMenu(branchBtn, branchPop, o => {
   branchSel = new Set(o.dataset.refs.split(' ').filter(Boolean));
   fillBranches();
   applyFilters();
-  // A választás után a lista a kijelölés legfelső csúcsához ugrik; „Minden ág”-nál a saját HEAD-hez.
-  if (!branchSel.size) revealHead();
-  else revealSha(visible.find(c => !c.uncommitted && c.refs.some(r => branchSel.has(r.name)))?.sha);
+  // A választás után a lista a kijelölés legfelső sorához ugrik — a csúcsai és a worktree-jük
+  // listabeli WIP-sora közül —; „Minden ág”-nál a saját HEAD-hez.
+  if (!branchSel.size) { revealHead(); return; }
+  const shas = new Set(visible.filter(c => c.uncommitted || c.refs.some(r => branchSel.has(r.name))).map(c => c.sha));
+  revealSha([...rowsEl.querySelectorAll('.row')].find(r => shas.has(r.dataset.sha))?.dataset.sha);
 }, () => {
   // Üres szűrővel nyílik; a teljes lista szélessége marad, szűréskor nem ugrik össze.
   branchQuery.value = '';
@@ -1478,9 +1480,10 @@ function applyFilters() {
 
   visible = DATA.commits.filter(c => {
     // Állapot, nem commit: keresésnél nem kell; ágszűrésnél csak annak a worktree-nek
-    // a WIP-je, amelyikben a szűrt ág van kivéve (nem elég, hogy a HEAD-je rajta van).
+    // a WIP-je, amelyikben a szűrt ág van kivéve — leválasztott HEAD-nél az app szerinti
+    // ága (`appBranch`) —, nem elég, hogy a HEAD-je rajta van.
     if (c.uncommitted) {
-      return !words.length && (!branch || worktrees().some(w => w.slug === c.worktree && branch.has(w.branch)));
+      return !words.length && (!branch || worktrees().some(w => w.slug === c.worktree && branch.has(w.branch || w.appBranch)));
     }
     if (keep && !keep.has(c.sha)) return false;
     // Remote ágak nélkül a helyi történet minden commitja marad (csak a remote-badge
