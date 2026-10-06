@@ -35,7 +35,7 @@ let graphW = 72;
    A worktree-k közös lapot látnak, és az app ezt az egy keretet mutatja
    minden sessionben. Hogy épp melyik session van előtérben, azt a szerver
    tudja (a Claude app naplójából és session-fájljaiból, `focus` a
-   fingerprintben): annak
+   `changes` válaszában): annak
    a worktree-je a saját. Kézzel nem választható — a HEAD ott van, ahol a
    session dolgozik, minden git-parancsa ott fut. */
 let focusAuto = null;        // { worktree, known } — a szervertől
@@ -1739,16 +1739,18 @@ fillBranches();
 render();
 
 /* ── Élő frissítés ───────────────────────────────────────────────────────
-   A forrás a gépen futó `git-graph --mcp` (a Claude app host-hídján át). Az olcsó
-   ujjlenyomatot pollozzuk, teljes adatot csak tényleges változásra kérünk: a
-   lap helyben rajzol újra, a nyitott panel, a szűrők és a görgetés megmaradnak.
-   A mért időket a lábléc élő-felirata tooltipben mutatja. */
-const POLL_MS = 2000;
-const SETTLE_MS = 250;      // méretváltás (session-váltás) után ennyit vár a kérdezéssel
+   A forrás a gépen futó `git-graph --mcp` (a Claude app host-hídján át). Egy
+   hívás mindig nyitva áll (`changes`): a szerver akkor válaszol, ha a repó
+   állapota vagy az előtérben lévő session megváltozott, különben 50 s után
+   üresen. Teljes adatot csak állapotváltozásra kérünk: a lap helyben rajzol
+   újra, a nyitott panel, a szűrők és a görgetés megmaradnak. A mért időket a
+   lábléc élő-felirata tooltipben mutatja. */
+const WAIT_S = 50;          // a nyitva tartott hívás leghosszabb várakozása (a host ~50 s-ig tartja, mérve)
+const SETTLE_MS = 250;      // megjelenés (session-váltás) után ennyit vár a kérdezéssel
+const IDLE_MS = 2000;       // azonnali, változás nélküli válasz után ennyit vár (túlterhelt szerver)
 const RETRY_MS = 400;       // átmeneti hiba után ennyi idővel csendben újra
 const QUIET_RETRIES = 3;    // ennyi átmeneti hibát nem ír ki
 const ARRIVAL_MS = 2000;    // ennyin belül a fókuszváltás az utolsó jelé (a tooltipben)
-const FOCUS_WAIT_S = 50;    // a nyitva tartott hívás leghosszabb várakozása
 const foot = document.getElementById('foot');
 const liveText = document.getElementById('liveText');
 const liveDot = document.getElementById('liveDot');
@@ -1849,10 +1851,15 @@ scroller.addEventListener('wheel', e => {
 
 function mcpSource() {
   const mcp = CTX.mcp;
-  const call = (tool, args) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
-    { cache: false }).then(r => r.payload);
-  return { fingerprint: () => call('fingerprint'),
-           waitFocus: cursor => call('fingerprint', { wait: FOCUS_WAIT_S, cursor }),
+  const call = (tool, args, signal) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
+    signal ? { cache: false, signal } : { cache: false }).then(r => r.payload);
+  // A régi manifestű lap (amíg a hook újra nem publikáltatja) a `changes` régi nevén hív.
+  let changes = 'changes';
+  return { changes: (since, wait, signal) => call(changes, { since, wait }, signal).catch(e => {
+             if (e?.code !== 'not_in_manifest' || changes !== 'changes') throw e;
+             changes = 'fingerprint';
+             return call(changes, { since, wait }, signal);
+           }),
            data: () => call('graph_data'),
            diff: (sha, path) => call('file_diff', { sha, path }) };
 }
@@ -1917,11 +1924,11 @@ new ResizeObserver(fitFoot).observe(document.getElementById('foot'));
 
 
 function startLive(src) {
-  let last = '';                            // a váz üres: az első kör adatot kér
+  let since = '', state = null;             // az utolsó válasz tokenje és állapota (az első kör adatot kér)
   let change = '';                          // az utolsó változás: mikor, mennyi idő alatt
   let switched = '', arrival = null;        // az utolsó session-váltás: mi indította, mennyi idő alatt
   let version = null;                       // a szerver verziója, amikor a lap betöltött
-  let timer = 0, busy = false, again = false, misses = 0;
+  let misses = 0, open = null, resume = null;   // a nyitott hívás megszakítója, a szünet rövidítője
   SRC = src;
   /* Rajzol-e most a lap: rejtett keretben a requestAnimationFrame nem fut. */
   const rendering = () => new Promise(done => {
@@ -1929,114 +1936,93 @@ function startLive(src) {
     setTimeout(() => done(false), 250);
   });
   /* Az új fókusz; true, ha a saját worktree megváltozott (a hívó rajzol újra). */
-  function setFocus(focus, how) {
+  function setFocus(focus) {
     const before = focusWt()?.slug;
     focusAuto = focus ?? null;
     if (focusWt()?.slug === before) return false;
-    const since = arrival ? performance.now() - arrival.at : Infinity;
-    switched = `\nsession-váltás ${clock()}: ` + (how
-      || (since < ARRIVAL_MS ? `${arrival.kind} után ${Math.round(since)} ms` : 'a rendes körben'));
+    const ago = arrival ? performance.now() - arrival.at : Infinity;
+    switched = `\nsession-váltás ${clock()}: `
+      + (ago < ARRIVAL_MS ? `${arrival.kind} után ${Math.round(ago)} ms` : 'a nyitott hívásra');
     return true;
   }
-  async function poll() {
-    clearTimeout(timer);
-    if (busy) { again = true; return; }       // fut egy kör: utána azonnal még egy
-    busy = true;
-    let wait = POLL_MS;
-    try {
-      const t0 = performance.now();
-      const f = await src.fingerprint();
-      const tf = performance.now() - t0;
-      // A szerver frissült és újraindult (`restart`): a lap kódja is az övé,
-      // újratöltve a betöltő az új `page_code`-ot kéri.
-      if (version && f.version && f.version !== version) { location.reload(); return; }
-      version = version || f.version;
-      // A fókusz nem adatváltozás: a lap csak a kiemelést rajzolja újra.
-      const { focus, ...state } = f;
-      const key = JSON.stringify(state);
-      if (setFocus(focus) && key === last) { hydrateFocus(); fillBranches(); render(); }
-      if (key !== last) {
-        const t1 = performance.now();
-        DATA = await src.data();
-        const td = performance.now() - t1;
-        for (const [k, v] of diffCache) if (k.startsWith('*uncommitted')) v.stale = true;
-        const top = scroller.scrollTop;
-        hydrate();
-        fillBranches();
-        applyFilters();
-        scroller.scrollTop = top;
-        change = `\nutolsó változás ${clock()}: adat ${Math.round(td)} ms,`
-          + ` kirajzolva ${Math.round(performance.now() - t1)} ms alatt`;
-      }
-      last = key;
-      foot.className = 'foot on';
-      if (liveText.textContent) {             // az „élő” jelzés a pulzáló zöld pötty
-        liveText.textContent = '';
-        fitFoot();                            // a hibaüzenet helyén a verzió is elfér
-      }
-      liveDot.title = `Élő · frissítve ${clock()}\nujjlenyomat ${Math.round(tf)} ms` + change + switched;
-      liveDot.setAttribute('aria-label', 'Élő');
-      showVersion(f);
-      misses = 0;
-    } catch (e) {
-      // Session-váltás közben a keret nem látszik, és a host-híd nem válaszol
-      // (mérve): ez nem hiba — a megjelenés (`arrive`) után kérdezünk újra.
-      if (e?.retryable && !(await rendering())) {
-        busy = false;
+  /* Egy hívás → válasz → (változásnál adat) → a következő hívás, megállás nélkül. */
+  async function follow() {
+    for (;;) {
+      const ctl = new AbortController();
+      open = ctl;
+      let pause = 0;
+      try {
+        const t0 = performance.now();
+        const r = await src.changes(since, since ? WAIT_S : 0, ctl.signal);
+        // A szerver frissült és újraindult (`restart`): a lap kódja is az övé,
+        // újratöltve a betöltő az új `page_code`-ot kéri.
+        if (version && r.version && r.version !== version) { location.reload(); return; }
+        version = version || r.version;
+        const fresh = r.state !== state;
+        // A fókusz nem adatváltozás: a lap csak a kiemelést rajzolja újra.
+        const moved = setFocus(r.focus);
+        if (moved && !fresh) { hydrateFocus(); fillBranches(); render(); }
+        if (fresh) {
+          const t1 = performance.now();
+          DATA = await src.data();
+          const td = performance.now() - t1;
+          for (const [k, v] of diffCache) if (k.startsWith('*uncommitted')) v.stale = true;
+          const top = scroller.scrollTop;
+          hydrate();
+          fillBranches();
+          applyFilters();
+          scroller.scrollTop = top;
+          change = `\nutolsó változás ${clock()}: adat ${Math.round(td)} ms,`
+            + ` kirajzolva ${Math.round(performance.now() - t1)} ms alatt`;
+        }
+        // Azonnali, változás nélküli válasz (a szerver nem várhatott): nem pörgünk.
+        if (since && !fresh && !moved && performance.now() - t0 < SETTLE_MS) pause = IDLE_MS;
+        since = r.since;
+        state = r.state;
+        foot.className = 'foot on';
+        if (liveText.textContent) {             // az „élő” jelzés a pulzáló zöld pötty
+          liveText.textContent = '';
+          fitFoot();                            // a hibaüzenet helyén a verzió is elfér
+        }
+        liveDot.title = `Élő · frissítve ${clock()}` + change + switched;
+        liveDot.setAttribute('aria-label', 'Élő');
+        showVersion(r);
         misses = 0;
-        timer = setTimeout(poll, POLL_MS);
-        return;
+      } catch (e) {
+        if (ctl.signal.aborted) continue;       // `wake`: azonnal újra
+        // Rejtett keretben a host-híd a hívást azonnal elutasítja (mérve), és az
+        // időzítők sem futnak: ez nem hiba — a megjelenés (`wake`) hív újra.
+        if (e?.retryable && !(await rendering())) {
+          misses = 0;
+          pause = IDLE_MS;
+        } else if (e?.retryable && ++misses <= QUIET_RETRIES) {
+          pause = Math.max(RETRY_MS, e.retryAfterMs || 0);   // átmeneti hiba: csendben, gyorsan újra
+        } else {
+          notice(mcpProblem(e), true);
+          if (!e?.retryable) return;            // magától nem javul: nincs több kör
+          pause = Math.max(IDLE_MS, e.retryAfterMs || 0) * 2;
+        }
       }
-      // Az átmeneti hiba elsőre nem hiba: csendben, gyorsan újra.
-      if (e?.retryable && ++misses <= QUIET_RETRIES) {
-        busy = false;
-        timer = setTimeout(poll, Math.max(RETRY_MS, e.retryAfterMs || 0));
-        return;
-      }
-      notice(mcpProblem(e), true);
-      if (!e?.retryable) { busy = false; return; }   // magától nem javul: nincs több kör
-      wait = Math.max(POLL_MS, e.retryAfterMs || 0) * 2;
+      if (pause) await new Promise(done => { resume = done; setTimeout(done, pause); });
+      resume = null;
     }
-    busy = false;
-    if (again) { again = false; wait = 0; }
-    timer = setTimeout(poll, wait);             // a következő kör az előző után
   }
   /* Session-váltáskor az app ezt az egy keretet átteszi a másik session
-     paneljébe. Ha közben más Artifact látszott, a keret rejtve volt: a
-     megjelenése után egyszer kérdezünk — a rövid várakozás az áthelyezést
-     várja ki, közben a host-híd nem válaszol. Sűrű kérdezés nem kell, a host
-     rövid idő alatt ~20 hívás után visszafogja (`rate_limited`, mérve). */
+     paneljébe. Ha közben más Artifact látszott, a keret rejtve volt, a rejtve
+     indított hívás elbukott, és a lap a szünetben áll: a megjelenés után —
+     az áthelyezést kivárva — azonnal hív (a kurzor miatt semmi nem veszett el).
+     Ha épp nyitott hívás fut, megszakítja; a szerver a sajátját a határidőig
+     tartja (a megszakítást nem kapja meg, mérve). */
   let settle = 0;
-  function arrive(kind, delay = SETTLE_MS) {    // az áthelyezés végét kivárva
+  function wake(kind, delay = SETTLE_MS) {
     arrival = { kind, at: performance.now() };
     clearTimeout(settle);
-    settle = setTimeout(poll, delay);
+    settle = setTimeout(() => (resume ? resume() : open?.abort()), delay);
   }
   /* Rejtve a rajzolás szünetel, megjelenéskor az IntersectionObserver jelez (mérve). */
-  new IntersectionObserver(es => { if (es[es.length - 1].isIntersecting) arrive('megjelenés'); })
+  new IntersectionObserver(es => { if (es[es.length - 1].isIntersecting) wake('megjelenés'); })
     .observe(document.body);
-  /* Ugyanazon Artifact sessionjei között a keret rejtés nélkül költözik, és
-     egyforma panelméretnél semmilyen eseményt nem kap (mérve). Ezért a lap
-     egy hívást nyitva tart: a szerver akkor válaszol, amikor az app
-     naplójában session-váltás jelenik meg, és a válasz az új fókuszt is
-     hozza — váltásonként egyetlen hívás. */
-  (async function watchFocus() {
-    let cursor = '';
-    for (;;) {
-      try {
-        const r = await src.waitFocus(cursor);
-        if (typeof r?.cursor !== 'string') return;   // régi szerver: csak a rendes kör marad
-        if (r.switched && 'focus' in r) {
-          if (last && setFocus(r.focus, 'várakozó hívás')) { hydrateFocus(); fillBranches(); render(); }
-        } else if (r.switched) arrive('session-váltás', 0);
-        cursor = r.cursor;
-      } catch (e) {
-        const pause = e?.retryable ? Math.max(1000, e.retryAfterMs || 0) : 10000;
-        await new Promise(done => setTimeout(done, pause));
-      }
-    }
-  })();
-  poll();
+  follow();
 }
 
 notice('Kapcsolódás a gépeden futó git-graph-hoz…');
