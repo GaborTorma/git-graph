@@ -145,23 +145,6 @@ class McpServerTest(unittest.TestCase):
             self.assertTrue((self.home / ".git-graph" / "page" / name).is_file(), name)
         self.check_server(stable)
 
-    def test_stable_copy_without_page(self) -> None:
-        """Régi szerver frissítette a stabil másolatot lapfájlok nélkül: az új pótolja."""
-        state = self.home / ".git-graph"
-        stable = state / "bin" / "git-graph"
-        stable.parent.mkdir()
-        stable.write_bytes(SCRIPT.read_bytes())
-        (state / ".claude-plugin").mkdir()
-        manifest = ROOT / ".claude-plugin" / "plugin.json"
-        (state / ".claude-plugin" / "plugin.json").write_bytes(manifest.read_bytes())
-        version = json.loads(manifest.read_text(encoding="utf-8"))["version"]
-        plugins = self.home / ".claude" / "plugins"
-        plugins.mkdir(parents=True)
-        (plugins / "installed_plugins.json").write_text(json.dumps({"version": 2, "plugins": {
-            "git-graph@git-graph": [{"version": version, "installPath": str(ROOT)}]}}), encoding="utf-8")
-        self.check_server(stable)
-        self.assertTrue((state / "page" / "page.js").is_file())
-
     def test_dev_install(self) -> None:
         """A fejlesztői példány `+dev` verzióval kerül a stabil helyre, és nem frissít vissza."""
         module = load_module(self.home)
@@ -440,8 +423,8 @@ class McpServerTest(unittest.TestCase):
             "wt": {"path": str(folder), "branch": "claude/wt"}, "rossz": {"path": 1}}}), encoding="utf-8")
         self.assertEqual(module.app_worktree_branches(), {str(folder.resolve()): "claude/wt"})
 
-    def test_vanished_worktree(self) -> None:
-        """A régi, worktree-nkénti lap a mappája megszűnése után rövid üzenetet kap."""
+    def test_vanished_repo(self) -> None:
+        """A regiszterben lévő, de eltűnt repó: rövid hiba, nem nyers git-kivétel."""
         state = self.home / ".git-graph"
         (state / "repos.json").write_text(json.dumps({SLUG: str(self.home / "nincs")}), encoding="utf-8")
         client = McpClient(SCRIPT, self.home)
@@ -449,7 +432,7 @@ class McpServerTest(unittest.TestCase):
             result = client.request("tools/call", {"name": "changes",
                                                    "arguments": {"repo": SLUG}})["result"]
             self.assertTrue(result["isError"])
-            self.assertIn("megszűnt", result["content"][0]["text"])
+            self.assertIn("nem létezik", result["content"][0]["text"])
             self.assertNotIn("\n", result["content"][0]["text"])
         finally:
             client.close()

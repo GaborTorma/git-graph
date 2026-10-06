@@ -473,39 +473,11 @@ def remember_artifact(url: str, digest: str | None = None) -> None:
             pass
 
 
-def artifact_entries() -> dict[str, str]:
-    """A repó minden Artifactja: szakasz → URL. A `git-graph` a közös lap; a
-    `git-graph.<slug>` szakaszok a 0.12 előtti, worktree-nkénti lapoké."""
-    try:
-        out = git("config", "--local", "--get-regexp", r"^git-graph\.(.+\.)?artifact$")
-    except subprocess.CalledProcessError:
-        return {}
-    entries = {}
-    for line in out.splitlines():
-        key, _, url = line.partition(" ")
-        entries[key.rsplit(".", 1)[0]] = url.strip()
-    return entries
-
-
 def worktree_paths() -> list[Path]:
     """A repó worktree-jei; az első a fő checkout."""
     return [Path(line[len("worktree "):])
             for line in git("worktree", "list", "--porcelain").splitlines()
             if line.startswith("worktree ")]
-
-
-def legacy_artifacts() -> dict[str, str]:
-    """A régi, worktree-nkénti Artifactok (0.12 előtt): szakasz → URL.
-
-    Azóta a worktree-k közös lapot látnak — a sajátjuk fölösleges, törlendő.
-    """
-    return {section: url for section, url in artifact_entries().items()
-            if section != "git-graph"}
-
-
-def section_slug(section: str) -> str:
-    """A szakasz slugja — a fő checkouté az útvonalából."""
-    return section.split(".", 1)[1] if "." in section else slug_for(worktree_paths()[0])
 
 
 def collect_branches(worktrees: list[dict]) -> list[dict]:
@@ -1659,19 +1631,26 @@ def list_artifacts() -> list[tuple[Path, str]]:
         REPO = repo
         try:
             main = worktree_paths()[0]
-            urls = artifact_entries().values()
+            url = config_get("artifact")
         except subprocess.CalledProcessError:
             continue                             # eltűnt vagy sérült repó
-        for url in urls:
+        if url:
             found.setdefault(url, main)
     return [(repo, url) for url, repo in found.items()]
 
 
-def drop_section(section: str) -> None:
-    """Egy Artifact nyoma: a config-szakasza, a helyi lapjai és a regiszterbejegyzése."""
-    slug = section_slug(section)
+def forget(repo: Path) -> None:
+    """A repó minden git-graph nyoma: a config-szakasza, a helyi lapja és a
+    regiszterbejegyzése.
+
+    Az automatikus publikálást is kikapcsolja — különben a következő session
+    hookja új Artifactot kérne.
+    """
+    global REPO
+    REPO = repo
+    slug = slug_for(repo)
     try:
-        git("config", "--local", "--remove-section", section)
+        git("config", "--local", "--remove-section", "git-graph")
     except subprocess.CalledProcessError:
         pass
     shutil.rmtree(STATE_DIR / slug, ignore_errors=True)
@@ -1679,28 +1658,8 @@ def drop_section(section: str) -> None:
     if data.pop(slug, None) is not None:
         REPOS.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
                          encoding="utf-8")
-
-
-def forget(repo: Path) -> None:
-    """A repó minden git-graph nyoma — a worktree-ké is: kulcsok, helyi lapok, regiszter.
-
-    Az automatikus publikálást is kikapcsolja — különben a következő session
-    hookja új Artifactot kérne.
-    """
-    global REPO
-    REPO = repo
-    for section in {"git-graph", *artifact_entries()}:
-        drop_section(section)
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     NO_AUTO_PUBLISH.touch()
-
-
-def forget_artifact(url: str) -> bool:
-    """Egyetlen Artifact nyoma (egy megszűnt worktree-é); False, ha nem ismert."""
-    sections = [section for section, known in artifact_entries().items() if known == url]
-    for section in sections:
-        drop_section(section)
-    return bool(sections)
 
 
 # ── Publikálás ──────────────────────────────────────────────────────────────
@@ -1809,19 +1768,13 @@ def tool_text(value: object, error: bool = False) -> dict:
 
 
 def slug_repo(args: dict) -> Path | dict:
-    """A hívás repója (a fő checkout) a lap slugjából, vagy a hiba-eredmény."""
+    """A hívás repója (a fő checkout, a regiszter szerint) a lap slugjából, vagy a hiba-eredmény."""
     repo = repo_for_slug(str(args.get("repo", "")))
     if repo is None:
         return tool_text(f"ismeretlen repó: {args.get('repo')!r} — nyiss benne egy Claude sessiont (a git-graph hookja regisztrálja)", True)
     if not repo.is_dir():
-        # A 0.12 előtti, worktree-nkénti lap a worktree megszűnése után is pollozott.
-        return tool_text(f"A(z) {repo.name} mappa megszűnt — ez a lap elavult, zárd be. "
-                         "A repó közös lapját a hook nyitja meg.", True)
-    try:
-        # A régi, worktree-nkénti lap is a közös adatot kapja.
-        return main_checkout(repo)
-    except subprocess.CalledProcessError as exc:
-        return tool_text(short_error(exc), True)
+        return tool_text(f"A(z) {repo} mappa nem létezik — a repót áthelyezték vagy törölték.", True)
+    return repo
 
 
 def changes_tool(args: dict, wait: float) -> dict:
@@ -1879,7 +1832,6 @@ def mcp_serve(limit: int | None) -> int:
     figyeli, eltávolították-e vagy frissítették-e a plugint (`watch_plugin`).
     """
     out = sys.stdout.buffer
-    repair_page()
     # A lap fájljai most: a futó verzió kódja, nem amit a hook később másol.
     for name in PAGE_FILES:
         try:
@@ -2164,23 +2116,6 @@ def pull_update() -> bool:
     return stable_version() not in (None, RUNNING_VERSION)
 
 
-def repair_page() -> None:
-    """A stabil másolat lapfájljainak pótlása a plugin mappájából, ha hiányoznak.
-
-    A 0.10.x-es szerver önfrissítéskor csak a scriptet és a manifestet másolta:
-    az utána induló új verzió itt találja a lapot. Csak a stabil példány pótol,
-    és csak a saját verziójából.
-    """
-    if Path(__file__).resolve() != STABLE.resolve():
-        return
-    if all((PAGE_DIR / name).exists() for name in PAGE_FILES):
-        return
-    entry = installed_entry() or {}
-    path = entry.get("installPath")
-    if entry.get("version") == RUNNING_VERSION and isinstance(path, str):
-        install_copy(Path(path))
-
-
 def install_app_mcp() -> bool:
     """A git-graph MCP a Claude app configjában; True, ha most került be / változott."""
     if not APP_CONFIG.parent.is_dir():   # nincs Claude app ezen a gépen
@@ -2280,8 +2215,7 @@ def session_hook() -> int:
     kódfrissítéskor változik, az pedig csak új sessionnel lép életbe — és
     ilyenkor először ez a hook fut. Különben a meglévőt nyittatja meg — de egy
     sessionben csak egyszer (`shown_in_session`; worktree-váltás ugyanazon a
-    repón belül nem nyit újra). A régi, worktree-nkénti Artifactok törlését is
-    kéri. Headless (`-p`, SDK) sessionben nem kér publikálást: ott nincs, aki
+    repón belül nem nyit újra). Headless (`-p`, SDK) sessionben nem kér publikálást: ott nincs, aki
     a gráfot nézné.
     """
     global REPO
@@ -2303,7 +2237,6 @@ def session_hook() -> int:
     slug = register(REPO)                          # a git-graph --mcp a lap slugjából ebből találja meg
     url = config_get("artifact")
     headless = os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk")
-    cleanup = None if headless else legacy_request()
     job = None if headless or NO_AUTO_PUBLISH.exists() else prepare_publish()
     seen = (shown_in_session(payload["session_id"], slug)
             if payload.get("session_id") and not headless else False)
@@ -2320,21 +2253,7 @@ def session_hook() -> int:
                    "róla üzenetet.")
     else:
         context = None                             # nincs Artifact, nem kérünk, vagy már nyitva van
-    return emit_context(context, cleanup, notice, event=event)
-
-
-def legacy_request() -> str | None:
-    """A régi, worktree-nkénti Artifactok törlése — a modellnek szóló kérés, ha van mit."""
-    legacy = legacy_artifacts()
-    if not legacy:
-        return None
-    urls = ", ".join(legacy.values())
-    return ("A git-graph mostantól repónként egy közös Artifactot használ, a worktree-k "
-            f"régi, saját Artifactjai fölöslegesek: {urls}. Mindegyikre: "
-            "1) Artifact, action: \"delete\", url: az URL; 2) Bash: git-graph "
-            f"{shlex.quote(str(REPO))} --forget-artifact <URL> — akkor is, ha a törlés "
-            "nem sikerült vagy a Fejlesztő nem engedte (különben minden session újra "
-            "kérné). Ne írj róla üzenetet, csak ha valami nem sikerült.")
+    return emit_context(context, notice, event=event)
 
 
 def emit_context(*parts: str | None, event: str = "SessionStart") -> int:
@@ -2366,9 +2285,6 @@ def main() -> int:
                     help="a repó git-graph nyomainak törlése (.git/config kulcsok, "
                          "helyi lap, regiszter) és az automatikus publikálás "
                          "kikapcsolása — az Artifactot nem törli")
-    ap.add_argument("--forget-artifact", metavar="URL", default=None, dest="forget_artifact",
-                    help="egyetlen Artifact nyomainak törlése (egy régi, worktree-nkénti "
-                         "lapé; a hook kéri, miután az Artifactot törölte)")
     ap.add_argument("--publish", action="store_true",
                     help="az Artifact vékony lapjának kiírása, és a publikálás lépései "
                          "a sessionnek (változatlan lapnál: naprakész) — a /git-graph:artifact "
@@ -2385,7 +2301,7 @@ def main() -> int:
     ap.add_argument("--session-hook", action="store_true", dest="session_hook",
                     help="Claude Code hook (SessionStart, és PostToolUse a worktree-"
                          "váltásra): telepítés, a repó Artifactjának megnyitása vagy "
-                         "publikálása, a régi worktree-lapok törlése (stdin: a hook JSON-ja)")
+                         "publikálása (stdin: a hook JSON-ja)")
     args = ap.parse_args()
 
     global REPO
@@ -2413,12 +2329,6 @@ def main() -> int:
 
     # Bármelyik worktree-ből: a repó közös lapja a fő checkouté.
     REPO = main_checkout(resolve_repo(Path(args.repo).expanduser().resolve()))
-
-    if args.forget_artifact:
-        known = forget_artifact(args.forget_artifact)
-        print(f"✓ {args.forget_artifact}: " + ("a git-graph nyomai törölve" if known
-                                               else "nem ismert ebben a repóban"))
-        return 0
 
     if args.set_artifact or args.published:
         url = args.set_artifact or args.published

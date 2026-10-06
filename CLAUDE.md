@@ -36,7 +36,6 @@ git-graph --published <URL>  # a session publikálása után: URL + hash a .git/
 git-graph --mcp              # MCP szerver stdio-n — a Claude app indítja, nem kézzel
 git-graph --artifacts        # ismert repók Artifactjai (regiszter + a szülőmappák repói)
 git-graph --forget           # a repó git-graph nyomai + automatikus publikálás KI
-git-graph --forget-artifact <URL>   # egyetlen Artifact nyomai (régi, worktree-nkénti lap)
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
 python3 bin/git-graph --dev-install   # a working tree az appban futó git-graph helyére (+dev), a lap élőben
 ```
@@ -58,7 +57,7 @@ függőség. Ezen túl kézzel: a `git-graph --mcp` `graph_data`-ja több repón
 (eltérő sávszámmal, merge-ekkel), és a lap az appban. Az élő lapé: `python3 bin/git-graph --dev-install`. Ez a working treet az
 appban futó szerver helyére teszi `+dev` verzióval; a szerver egy percen belül
 átvált, a lap újratölt, és az app minden git-graph lapja az új kódot mutatja.
-A hook 12 óráig nem másolja vissza a telepítettet (`dev_active`) — de ezt csak a már ezzel a kóddal telepített plugin hookja tudja; a 0.10.x hookja a következő session indulásakor visszaállítja. Utána a sessionből
+A hook 12 óráig nem másolja vissza a telepítettet (`dev_active`). Utána a sessionből
 publikált lapot kell nézni a Claude appban (az app MCP-naplója a host-híd
 hívásait nem mutatja). A hooké
 és a publikálásé: `--session-hook` kamu `HOME`-mal, `CLAUDE_PLUGIN_ROOT`-tal
@@ -194,10 +193,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
   gazdátlan. A `branches` a csak remote ágakat is adja (`remote: true`). A leválasztott
   HEAD-ű worktree ágát a git nem jegyzi — a Claude app `git-worktrees.json`-ja
   igen (`app_worktree_branches`, a worktree `appBranch` mezője); név szerint
-  nem azonosítunk. A 0.12 előtti `git-graph.<slug>.*` szakaszokat a hook
-  ismeri fel (`legacy_artifacts`), és törölteti az Artifactot, majd
-  `--forget-artifact`. A régi lap a mappája megszűnése után rövid hibát kap,
-  nem nyers git-kivételt. Az `EnterWorktree` után a hook PostToolUse-ként is
+  nem azonosítunk. Az `EnterWorktree` után a hook PostToolUse-ként is
   fut, de ugyanazon a repón belül nem nyit újra (sessionönként egyszer).
 - **A „saját” worktree az előtérben lévő sessioné** — mérve,
   docs/artifact-findings.md: az app egy Artifactnak **egyetlen keretet** tart,

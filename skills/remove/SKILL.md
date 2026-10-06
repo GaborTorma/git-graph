@@ -12,8 +12,7 @@ az URL-jük. Ez a skill ezt takarítja el — a plugin eltávolítása előtt.
 
 ### 1. Lista
 
-Futtasd: `git-graph --artifacts`. Soronként `<repó>\t<URL>`; egy repó több sorban is
-szerepelhet (a közös lap és a 0.12 előtti, worktree-nkénti lapok). Ha üres, mondd meg,
+Futtasd: `git-graph --artifacts`. Soronként `<repó>\t<URL>`, repónként egy. Ha üres, mondd meg,
 hogy nincs mit törölni, és ugorj az 5. lépésre.
 
 ### 2. Megerősítés
@@ -28,14 +27,11 @@ Soronként:
 
 1. `Artifact`, `action: "delete"`, `url`: a sor URL-je. A platform minden
    törlést külön jóváhagyat — ez rendben van.
-2. Ha a törlés sikerült, vagy az Artifact már nem létezik:
-   `git-graph <repó> --forget-artifact <URL>`. Ha a Fejlesztő elutasította vagy más
-   hiba jött: hagyd ki (a kulcsai maradnak), és menj tovább.
-
-Végül minden repóra, amelynek **minden** sora törlődött: `git-graph --forget <repó>`.
-Ez a repó (és worktree-jei) maradék `git-graph.*` kulcsait, helyi lapjait és
-regiszterbejegyzését törli, és kikapcsolja az automatikus publikálást — a
-session hookja így nem kér új Artifactot.
+2. Ha a törlés sikerült, vagy az Artifact már nem létezik: `git-graph --forget <repó>`.
+   Ez a repó `git-graph.*` kulcsait, helyi lapját és regiszterbejegyzését törli, és
+   kikapcsolja az automatikus publikálást — a session hookja így nem kér új
+   Artifactot. Ha a Fejlesztő elutasította vagy más hiba jött: hagyd ki (a kulcsai
+   maradnak), és menj tovább.
 
 ### 4. Ellenőrzés
 

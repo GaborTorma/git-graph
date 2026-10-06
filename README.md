@@ -27,7 +27,6 @@ git-graph --published <URL>  # a session publikálása után: URL + hash a .git/
 git-graph --mcp              # MCP szerver a Claude appnak (az app indítja, nem kézzel)
 git-graph --artifacts        # az ismert repók Artifactjai (<repó>\t<URL>)
 git-graph --forget           # a repó git-graph nyomai törlése (az Artifactot nem törli)
-git-graph --forget-artifact <URL>  # egyetlen Artifact nyomai (egy régi, worktree-nkénti lapé)
 ```
 
 ## Telepítés
@@ -115,10 +114,7 @@ fejlécére kattintva az összes ága kijelölődik; a gomb ikonja és felirata 
 kijelölést követi. HEAD worktree-nként; worktree nélkül csak az ágak. A menü
 tetején szűrő: ág- vagy worktree-név szerint szűkít (a worktree nevére az összes
 ága), a worktree-fejléc csak akkor marad, ha alatta
-legalább egy ág látszik; az Enter az első találatot választja. A
-0.12 előtti, worktree-nkénti Artifactokat a hook felismeri, és megkéri Claude-ot,
-hogy törölje őket, majd `git-graph --forget-artifact <URL>`-lel takarítsa a
-kulcsaikat.
+legalább egy ág látszik; az Enter az első találatot választja.
 
 A hook némán kilép, ha a mappa nem git repó; headless (`-p`, SDK) sessionben nem
 kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
@@ -190,7 +186,6 @@ A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 | --- | --- |
 | `git-graph.artifact` | a közzétett oldal URL-je |
 | `git-graph.artifactHash` | a publikált lap hashe (változatlanra nem tölt fel) |
-| `git-graph.<slug>.artifact`, `….artifactHash` | a 0.12 előtti, worktree-nkénti lapé — a hook törölteti |
 
 Kézi URL-megadás: `git-graph --set-artifact <url>`.
 

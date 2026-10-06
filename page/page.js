@@ -142,7 +142,7 @@ const ICONS = {
 };
 const icon = (name, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
 // Fájltípus-ikon: a git-graph a fájlhoz rendelt Catppuccin-ikon SVG-jét adja
-// (`fileIcons`, a színei a lap `--ic-*` tokenjei); régi szervernél az általános ikon.
+// (`fileIcons`, a színei a lap `--ic-*` tokenjei); ha a készlet hiányzik, az általános ikon.
 const fileIcon = f => {
   const svg = DATA.fileIcons?.[f.icon];
   return svg ? svg.replace('<svg', '<svg class="fic" aria-hidden="true"') : icon('file', 'ic fic');
@@ -1876,8 +1876,11 @@ function mcpProblem(e) {
     case 'server_not_connected':
       return 'A lap nem éri el a gépeden futó git-graph-ot. Élő adat csak a Claude appban, a saját '
         + 'gépeden jön — és ott is csak, ha az app configjában benne van (a git-graph plugin teszi be; utána az app újraindítása).';
-    case 'not_in_manifest': case 'cancelled':
+    case 'cancelled':
       return 'A git-graph szervert nem engedélyezted ehhez a laphoz — töltsd újra, és engedd meg.';
+    case 'not_in_manifest':
+      return 'A git-graph szervert nem engedélyezted ehhez a laphoz (töltsd újra, és engedd meg), '
+        + 'vagy a lap elavult: nyiss egy sessiont a repóban, a hook újrapublikálja.';
     case 'tool_error':
       return 'A git-graph hibát jelzett: ' + e.message;
     default:
