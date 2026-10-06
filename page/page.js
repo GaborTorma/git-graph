@@ -1404,6 +1404,9 @@ makeMenu(branchBtn, branchPop, o => {
   branchSel = new Set(o.dataset.refs.split(' ').filter(Boolean));
   fillBranches();
   applyFilters();
+  // A választás után a lista a kijelölés legfelső csúcsához ugrik; „Minden ág”-nál a saját HEAD-hez.
+  if (!branchSel.size) revealHead();
+  else revealSha(visible.find(c => !c.uncommitted && c.refs.some(r => branchSel.has(r.name)))?.sha);
 }, () => {
   // Üres szűrővel nyílik; a teljes lista szélessége marad, szűréskor nem ugrik össze.
   branchQuery.value = '';
@@ -1493,15 +1496,16 @@ document.getElementById('showRemotes').addEventListener('change', () => {
    megszűnik; ha van kinyitott commit, az a lista tetejére kerül (a napfejléc
    alá), hogy a visszajött sorok közt se vesszen el. */
 let lastQuery = '';
-/* A fejléc chipjére kattintva a lista a saját HEAD commitjához ugrik (a napfejléc alá). */
-function revealHead() {
-  const sha = focusWt()?.head;
+/* Egy commit sorához ugrik a lista (a napfejléc alá), és rá áll a fókusz. */
+function revealSha(sha) {
   const row = sha && rowsEl.querySelector(`.row[data-sha="${CSS.escape(sha)}"]`);
   if (!row) return;               // szűrés miatt nincs a listában
   const top = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
   scroller.scrollTop = Math.max(0, Math.round(top - STEP_TOP));
   row.focus({ preventScroll: true });
 }
+/* A fejléc chipjére kattintva a saját HEAD commitjához. */
+const revealHead = () => revealSha(focusWt()?.head);
 document.getElementById('headChip').addEventListener('click', revealHead);
 function revealExpanded() {
   const row = expanded && rowsEl.querySelector(`.row[data-sha="${CSS.escape(expanded)}"]`);
