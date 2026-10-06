@@ -9,10 +9,11 @@ Használat és felépítés: [README.md](README.md).
 
 | Útvonal | Mi ez |
 | --- | --- |
-| `bin/git-graph` | a Python-oldal egyetlen fájlban: git-adatgyűjtés + MCP szerver a Claude appnak (`--mcp`, benne a leszerelés figyelése; a `page_code` tool a `page/` fájljait adja) + a publikálás lépései a sessionnek (`--publish`, `--published`) + SessionStart hook (`--session-hook`), benne a plugin gépi telepítése |
+| `bin/git-graph` | a `git-graph` parancs: a `git_graph` csomag vékony belépője (a hook és a Bash eszköz ezt futtatja) |
+| `git_graph/` | a Python-oldal: `gitio` (git-hívások, `REPO`), `graph` (a `graph_data` csomagja), `diff`, `avatars`, `page` (betöltő, `page_code`, ikonok), `registry` (slug, `repos.json`, sessionök), `claude_app` (az app session-fókusza), `watch` (a `changes` long-pollja), `publish`, `mcp` (`--mcp`), `install` (stabil másolat, frissítés, leszerelés), `hook` (`--session-hook`), `cli`, `state` (`~/.git-graph`, atomi írás) |
 | `page/` | a lap: `loader.html` (az Artifact betöltője, `build()`), `head.html`, `page.css`, `body.html`, `page.js` (a `page_code` adja), `file-icons.json` (fájltípus-ikonok, generált) |
 | `scripts/file-icons.py` | a `page/file-icons.json` előállítása a Catppuccin VS Code ikonjaiból (MIT, verzióra rögzítve) — kézzel, frissítéskor |
-| `tests/test_mcp.py` | füstteszt: `git-graph --mcp` stdio-n kamu `HOME`-mal, a working tree-ből és a stabil másolatból |
+| `tests/` | modulonként egy `test_<modul>.py`, kamu `HOME`-mal (`helpers.py`: a csomag friss betöltése, eldobható repók, MCP-kliens); `test_mcp.py` a füstteszt: `git-graph --mcp` stdio-n a working tree-ből, a stabil másolatból és a 0.12-es belépőből |
 | `ruff.toml`, `biome.json` | lint: Python (3.9-célverzióval) és a `page/` JS / CSS / HTML-je |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
@@ -49,10 +50,12 @@ pedig újratölt.
 A `git-graph` a Claude Bash eszközének parancsa (a plugin `bin/`-je), terminálos
 link és pillanatkép nincs; parancs nélkül a súgót írja ki.
 
-Nincs build — stdlib script és statikus lapfájlok. A **Check** lintel (ruff,
-Biome), és lefuttatja a füsttesztet: az MCP-t stdio-n kézfogással, `tools/list`-tel
-és a toolok hívásával (`/usr/bin/python3`-mal, ahogy az app indítja), a stabil
-másolatból is. A lintereket a `uvx` / `pnpm dlx` hozza, a repóba nem kerül
+Nincs build — stdlib csomag és statikus lapfájlok (a stabil másolat zipjét a
+telepítés rakja össze). A **Check** lintel (ruff, Biome), és lefuttatja a
+teszteket (`/usr/bin/python3`-mal, ahogy az app indítja): modulonként, és a
+füsttesztet — az MCP-t stdio-n kézfogással, `tools/list`-tel és a toolok
+hívásával, a stabil másolatból is. A hook, a publikálás és a telepítés is
+tesztelt, kamu `HOME`-mal. A lintereket a `uvx` / `pnpm dlx` hozza, a repóba nem kerül
 függőség. Ezen túl kézzel: a `git-graph --mcp` `graph_data`-ja több repón
 (eltérő sávszámmal, merge-ekkel), és a lap az appban. Az élő lapé: `python3 bin/git-graph --dev-install`. Ez a working treet az
 appban futó szerver helyére teszi `+dev` verzióval; a szerver egy percen belül
@@ -67,7 +70,7 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
 `HOME`-mal, a modult betöltve, a `launchctl`-t rögzítőre cserélve — a régi
 agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 
-- **Check**: `syntax=/usr/bin/python3 -m py_compile bin/git-graph && node --check page/page.js && claude plugin validate . --strict` · `lint=uvx ruff@0.16.10 check && pnpm dlx @biomejs/biome@2.5.15 lint` · `test=/usr/bin/python3 -m unittest discover -s tests`
+- **Check**: `syntax=/usr/bin/python3 -m py_compile bin/git-graph git_graph/*.py && node --check page/page.js && claude plugin validate . --strict` · `lint=uvx ruff@0.16.10 check && pnpm dlx @biomejs/biome@2.5.15 lint` · `test=/usr/bin/python3 -m unittest discover -s tests`
 
 ## Konvenciók
 
@@ -156,11 +159,15 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
 - **A git a valódi binárisával fut** (`git_bin`, a `git --exec-path` mellől): az
   app szűk PATH-tal indítja a szervert, a macOS `/usr/bin/git` pedig `xcrun`-shim,
   hívásonként ~6 ms-mal lassabb.
-- **A `REPO` modulszintű globális**, a `git-graph --mcp` viszont hívásonként más repót
-  szolgálhat ki (a lap slugja szerint): a `_REMOTES` cache-t minden váltásnál
-  nullázni kell. A stdio-kiszolgálás soros, lock nem kell.
+- **A `REPO` a `gitio` modulszintű globálisa**, a `git-graph --mcp` viszont hívásonként más repót
+  szolgálhat ki (a lap slugja szerint): váltani csak `set_repo`-val (az a `_REMOTES`
+  cache-t is nullázza), olvasni `gitio.REPO`-ként — egy `from .gitio import REPO`
+  a betöltéskori értéket tartaná meg. A stdio-kiszolgálás soros, lock nem kell.
 - **Az app a `git-graph --mcp`-t `/usr/bin/python3`-mal indítja** (a homebrew-s
-  Python eltűnhet egy frissítéssel) — a script maradjon 3.9-kompatibilis.
+  Python eltűnhet egy frissítéssel) — a kód maradjon 3.9-kompatibilis.
+- **A csomag minden modulja induláskor betöltődik** (a `cli` mindet importálja):
+  a stabil zip a futó szerver alatt cserélődhet, egy későbbi import már az új
+  zipből olvasna. Függvényen belüli import a csomagból nem lehet.
 - **A hook publikáltat vagy megnyittat.** Ha a repónak nincs Artifactja, vagy a
   lap hashe eltér a `git-graph.artifactHash`-től, a publikálás lépéseit adja a
   sessionnek (`publish_steps`); különben a meglévőt nyittatja meg — sessionönként
@@ -273,15 +280,19 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
     PATH-ján van, és egy `Bash(git-graph:*)` engedély lefedi.
 - **Plugin: nincs install/update/uninstall esemény** (docs). Ezért:
   - A gépi részt a SessionStart hook állítja be (`ensure_installed`), csak ha a
-    script a `CLAUDE_PLUGIN_ROOT` alatt fut — egy kézi `--session-hook` nem
+    kód gyökere (`ROOT`) a `CLAUDE_PLUGIN_ROOT` — egy kézi `--session-hook` nem
     telepít. Minden lépés idempotens, csak változáskor ír; a hook stdout-ja a
     hook-JSON-é, napló csak stderr-re (`log`).
   - A `CLAUDE_PLUGIN_ROOT` verziónként más (`…/cache/git-graph/git-graph/<verzió>/`),
     ezért az app a **stabil másolatot** futtatja
     (`~/.git-graph/bin/git-graph`) — symlinket nem, mert a régi verzió mappája
-    eltűnhet.
+    eltűnhet. A másolat a `git_graph` csomag egyetlen futtatható zipben
+    (`stable_bundle`; `python3 <zip>` stdlibből fut): egy fájl, így atomi
+    cserével kerül a helyére, egy épp induló szerver sosem lát félig új
+    csomagot. Tömörítés és időbélyeg nélkül, hogy változatlan forrásból
+    bájtra ugyanaz legyen. A `ROOT` a zipből a `~/.git-graph`.
     A másolat mellé a lap fájljai (`~/.git-graph/page/`) és a manifest is kerül
-    (`~/.git-graph/.claude-plugin/plugin.json`) — ebben a sorrendben, a script
+    (`~/.git-graph/.claude-plugin/plugin.json`) — ebben a sorrendben, a zip
     utolsóként. A lap fájljait a szerver induláskor egyszer olvassa be
     (`page_file`), így a futó verzió a saját kódját adja akkor is, ha a hook már
     újat másolt. A manifestből olvassa a futó szerver induláskor a verzióját (`RUNNING_VERSION`), a
@@ -289,7 +300,7 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
     app még a régi kódot futtatja.
   - **A futó szerver frissíti magát** (`watch_plugin` → `pull_update` →
     `restart`): ha a nyilvántartás más verziót mond, mint ami fut, a plugin
-    `installPath`-jából átmásolja a scriptet, a lap fájljait és a manifestet (vagy a hook már
+    `installPath`-jából átmásolja a csomagot, a lap fájljait és a manifestet (vagy a hook már
     lecserélte), majd két kérés között `os.execv`-vel újraindul ugyanazokon a
     stdio-csöveken. Ezért puffereletlen a stdin-olvasás (`select` + `os.read`,
     saját sorpuffer): csak üres pufferrel indul újra, a csőben maradt kérést az
@@ -301,12 +312,17 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
     `installed_plugins.json`-ban (Claude Code belső fájl, `version: 2`) keresi a
     `git-graph@…` kulcsot. Ismeretlen formátumnál nem dönt, és csak két
     egymást követő hiány után szerel le (frissítés közbeni pillanat). Csak a
-    stabil példányban fut — a working tree-ből indított `git-graph --mcp` nem szerel
-    le. Több példány fut (az app és minden Code-session indít egyet), a
+    stabil példányban fut (`sys.argv[0]` a `STABLE`) — a working tree-ből indított
+    `git-graph --mcp` nem szerel le. Több példány fut (az app és minden Code-session indít egyet), a
     leszerelés idempotens. Ha az app nem fut, a következő indulásáig vár.
   - A `bin/` csak a Claude **Bash eszközének** PATH-ja, a hooké nem: a hook a
     `${CLAUDE_PLUGIN_ROOT}/bin/git-graph`-ot hívja. Terminálos parancs nincs.
   - Bump nélkül a `claude plugin update` nem hoz le semmit (a `plugin.json`
     `version`-je dönt).
+  - **Átmenet a 0.12.x-ről**: a futó régi szerver frissítéskor csak a
+    `bin/git-graph`-ot másolja a stabil helyre — az már a vékony belépő. Ezért a
+    belépő, ha nincs mellette `git_graph/`, a telepített plugin `installPath`-jából
+    tölti be a csomagot; a következő hook a zipet teszi a helyére
+    (`test_legacy_stable_entry`). Ha már nem fut 0.12.x sehol, törölhető.
 
 Részletes platform-tanulságok (CSP, capabilities, MCP): `docs/artifact-findings.md`.
