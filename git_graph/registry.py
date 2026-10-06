@@ -83,6 +83,7 @@ def shown_in_session(session_id: str, slug: str) -> bool:
         log(f"git-graph: a session-napló nem írható: {exc}")
     return seen
 
+
 def registered_repos() -> dict:
     try:
         data = json.loads(REPOS.read_text(encoding="utf-8"))

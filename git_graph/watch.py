@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .avatars import avatar_signal
-from .claude_app import APP_LOG, FOCUS_LINE, focused_worktree
+from .claude_app import focused_worktree, log_advance
 from .gitio import git, worktree_list
 from .install import RUNNING_VERSION, installed_version
 
@@ -53,28 +53,6 @@ def repo_state(repo: Path) -> str:
 WAIT_MAX = 50.0               # s — a host válasz-időkorlátja alatt (mérve)
 STATE_EVERY = 2.0             # s — a teljes állapot (`repo_state`) legalább ennyi időnként
 WAKE = threading.Event()      # újraindulás előtt: a várakozó hívások azonnal válaszolnak
-
-
-def log_advance(ino: int, pos: int) -> tuple[int, int, bool]:
-    """Az app naplója az (inode, pozíció) kurzortól: az új kurzor, és volt-e közben
-    session-váltás. Ismeretlen kurzornál (`-1`) a napló végéről indul, jelzés nélkül;
-    forgatásnál (új inode) jelez. Saját fájlolvasás, megosztott állapot nélkül."""
-    try:
-        st = APP_LOG.stat()
-    except OSError:
-        return ino, pos, False
-    if st.st_ino != ino or st.st_size < pos:
-        return st.st_ino, st.st_size, ino != -1
-    if st.st_size == pos:
-        return ino, pos, False
-    try:
-        with APP_LOG.open("rb") as f:
-            f.seek(pos)
-            chunk = f.read(st.st_size - pos)
-    except OSError:
-        return ino, pos, False
-    end = chunk.rfind(b"\n") + 1
-    return ino, pos + end, bool(FOCUS_LINE.search(chunk, 0, end))
 
 
 def stamp_paths(repo: Path) -> list[Path]:

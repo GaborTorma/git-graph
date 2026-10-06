@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "bin" / "git-graph"
@@ -41,14 +42,14 @@ def load(home: Path):
         del sys.modules[name]
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
-    old = os.environ.get("HOME")
-    os.environ["HOME"] = str(home)
-    try:
+    with mock.patch.dict(os.environ, {"HOME": str(home)}):
         importlib.import_module("git_graph.cli")           # minden modult behúz
-        return sys.modules["git_graph"]
-    finally:
-        if old is not None:
-            os.environ["HOME"] = old
+    return sys.modules["git_graph"]
+
+
+def focus_line(session: str, second: int = 0) -> str:
+    """Egy session-váltás sora az app naplójában (`claude_app.FOCUS_LINE`)."""
+    return f"2001-01-01 00:00:{second:02d} [info] [CCD] LocalSessions.setFocusedSession: sessionId={session}\n"
 
 
 class HomeTestCase(unittest.TestCase):
@@ -59,10 +60,20 @@ class HomeTestCase(unittest.TestCase):
         self.home = Path(self.tmp.name).resolve()       # a git a valódi utat adja (/var → /private/var)
         self.state = self.home / ".git-graph"
         self.state.mkdir()
-        (self.state / "repos.json").write_text(json.dumps({SLUG: str(ROOT)}), encoding="utf-8")
+        self.set_repos({SLUG: str(ROOT)})
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
+
+    def set_repos(self, repos: dict) -> None:
+        """A slug-regiszter (`~/.git-graph/repos.json`) tartalma."""
+        (self.state / "repos.json").write_text(json.dumps(repos), encoding="utf-8")
+
+    def registry(self, plugins: dict, version: int = 2) -> None:
+        """A Claude Code plugin-nyilvántartása (`installed_plugins.json`)."""
+        path = self.home / ".claude" / "plugins" / "installed_plugins.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"version": version, "plugins": plugins}), encoding="utf-8")
 
     def load(self):
         return load(self.home)

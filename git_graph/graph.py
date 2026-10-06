@@ -302,6 +302,7 @@ def worktree_meta(wt: dict, base: str) -> dict:
             pass
     return meta
 
+
 def collect_branches(worktrees: list[dict]) -> list[dict]:
     """Ágak upstreammel, ahead/behind számokkal, és hogy melyik worktree-ben vannak kivéve."""
     fmt = FS.join(
@@ -374,6 +375,7 @@ def branch_owners(worktrees: list[dict]) -> dict[str, str]:
                     best[name] = (float(m[1]), wt["slug"])
     return {name: slug for name, (_, slug) in best.items()}
 
+
 def collect_meta(commits: list[dict], worktrees: list[dict]) -> dict:
     base = default_base()
     return {
@@ -389,6 +391,7 @@ def collect_meta(commits: list[dict], worktrees: list[dict]) -> dict:
         "tracks": branch_tracks(base),
         "base": base,                     # az alapág (origin/HEAD célja) — a helyi párján nem dolgozunk
     }
+
 
 def branch_tracks(base: str) -> dict[str, dict]:
     """Ágankénti távolság (`ahead`, `behind`): `base` az alapághoz (amire az
@@ -433,6 +436,7 @@ def branch_tracks(base: str) -> dict[str, dict]:
         except (subprocess.CalledProcessError, ValueError):
             pass                              # régi git: a remote-only chip szám nélkül marad
     return out
+
 
 def mark_pushed(commits: list[dict], stats: dict[str, dict]) -> None:
     """Az `origin` által ismert commitok linkelhetők a GitHubra — a pusholatlan 404-et adna.

@@ -53,7 +53,7 @@ class RegistryTest(HomeTestCase):
 
     def test_list_artifacts(self) -> None:
         """A regisztrált repók és a szülőmappájuk többi repója; a worktree-k configja közös."""
-        (self.state / "repos.json").write_text("{}", encoding="utf-8")     # csak a kamu repók
+        self.set_repos({})                                            # csak a kamu repók
         gg = self.load()
         main, extra = self.make_repo()
         other = self.plain_repo("masik")                              # nincs regisztrálva

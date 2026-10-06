@@ -11,12 +11,14 @@ from pathlib import Path
 # `git-graph --mcp` hívásonként a lap slugja szerint). Más modulból `gitio.REPO`-ként
 # olvasandó: egy `from … import REPO` a régi értéket tartaná meg.
 REPO = Path.cwd()
+_REMOTES: set[str] | None = None        # a `REPO` remote-jai (`remotes`)
 
 
 def set_repo(repo: Path) -> None:
     """A vizsgált repó váltása; a remote-ok gyorstára repónként más."""
     global REPO, _REMOTES
     REPO, _REMOTES = repo, None
+
 
 # Mezőelválasztó (unit separator) és rekordelválasztó (record separator):
 # commit-üzenetben nem fordulhatnak elő, ellentétben bármilyen látható jellel.
@@ -60,14 +62,13 @@ def resolve_repo(start: Path) -> Path:
         raise SystemExit(f"HIBA: {start} nem git repó (vagy nincs git a PATH-on).")
     return Path(result.stdout.strip())
 
-_REMOTES: set[str] | None = None
-
 
 def remotes() -> set[str]:
     global _REMOTES
     if _REMOTES is None:
         _REMOTES = {r.strip() for r in git("remote").splitlines() if r.strip()}
     return _REMOTES
+
 
 def worktree_list(repo: Path | None = None) -> list[dict]:
     """A repó élő worktree-jei (`git worktree list --porcelain`); az első a fő checkout.
@@ -104,6 +105,7 @@ def admin_dir(wt: dict) -> Path:
     dot = wt["path"] / ".git"
     return dot if dot.is_dir() else Path(dot.read_text(encoding="utf-8").partition("gitdir:")[2].strip())
 
+
 def worktree_created(wt: dict) -> float:
     """A worktree létrehozásának ideje: az admin-mappája (`.git/worktrees/<név>`)
     születési ideje; ahol ez nincs (Linux), a `ctime`-ja."""
@@ -118,6 +120,7 @@ def main_checkout(repo: Path) -> Path:
     """A repó fő checkoutja — a worktree-k közös lapja ennek a slugján fut."""
     worktrees = worktree_list(repo)
     return worktrees[0]["path"] if worktrees else repo
+
 
 def ahead_behind(base: str, rev: str) -> list[int]:
     """`[előny, lemaradás]`: a `rev` commitjai a `base`-en túl, és a `base`-é a `rev`-en túl."""
@@ -156,6 +159,7 @@ def worktree_paths() -> list[Path]:
             for line in git("worktree", "list", "--porcelain").splitlines()
             if line.startswith("worktree ")]
 
+
 def repo_name() -> str:
     """A repó neve: az `origin` remote URL-jéből, különben a mappanév.
 
@@ -173,6 +177,7 @@ def repo_name() -> str:
         name = name[:-4]
     return name or REPO.name
 
+
 def repo_url() -> str:
     """Az `origin` GitHub-webcíme (`https://github.com/<owner>/<repo>`), különben üres.
 
@@ -186,12 +191,14 @@ def repo_url() -> str:
     m = re.match(r"(?:https?://|ssh://)?(?:[^@/]+@)?github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?/?$", url)
     return f"https://github.com/{m[1]}/{m[2]}" if m else ""
 
+
 def default_base() -> str:
     """Az alapág: amire az `origin/HEAD` mutat (pl. `origin/main`); üres, ha nincs."""
     try:
         return git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").strip()
     except subprocess.CalledProcessError:
         return ""
+
 
 def numstat_new_path(path: str) -> str:
     """A `--numstat` átnevezés-alakjából (`a => b`, `x/{a => b}/y`) az új út."""
@@ -200,6 +207,7 @@ def numstat_new_path(path: str) -> str:
     if "{" in path:
         return re.sub(r"\{[^{}]* => ([^{}]*)\}", r"\1", path).replace("//", "/")
     return path.split(" => ", 1)[1]
+
 
 def numstat_old_path(path: str) -> str:
     """A `--numstat` átnevezés-alakjából a régi út (a `numstat_new_path` párja)."""

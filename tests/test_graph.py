@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import time
 
 from helpers import HomeTestCase, git_in
@@ -68,7 +67,7 @@ class GraphTest(HomeTestCase):
         """Az `origin/HEAD` nem külön badge: a célja (`origin/main`) kapja a `default` jelet."""
         main, _ = self.make_repo()
         clone = main.parent / "clone"
-        subprocess.run(["git", "clone", "-q", str(main), str(clone)], check=True, capture_output=True)
+        git_in(main.parent, "clone", "-q", str(main), str(clone))
         gg = self.load()
         gg.gitio.set_repo(clone)
         data = gg.graph.collect_payload(None)
@@ -93,7 +92,7 @@ class GraphTest(HomeTestCase):
     def test_branch_tracks(self) -> None:
         """Ágankénti távolság: az alapághoz, az upstreamhez, és a remote-only ágnak a helyi párjához."""
         bare, repo = self.home / "remote.git", self.home / "work"
-        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
+        git_in(self.home, "init", "-q", "--bare", "-b", "main", str(bare))
         repo.mkdir()
         run = lambda *a: git_in(repo, *a)  # noqa: E731
         run("init", "-q", "-b", "main")

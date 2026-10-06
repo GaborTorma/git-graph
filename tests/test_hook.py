@@ -58,7 +58,7 @@ class HookTest(HomeTestCase):
 
     def test_cli(self) -> None:
         """--publish, --artifacts, --forget és a hibás URL."""
-        (self.state / "repos.json").write_text("{}", encoding="utf-8")     # csak a kamu repó
+        self.set_repos({})                                            # csak a kamu repó
         repo = self.plain_repo()
         publish = self.run_script("--publish", cwd=repo)
         self.assertTrue(publish.stdout.startswith("PUBLIKÁLD: "), publish.stdout)

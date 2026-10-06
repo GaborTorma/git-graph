@@ -292,8 +292,10 @@ agent labelje közös a valódival, ahhoz a próba ne nyúljon.
     csomagot. Tömörítés és időbélyeg nélkül, hogy változatlan forrásból
     bájtra ugyanaz legyen. A `ROOT` a zipből a `~/.git-graph`.
     A másolat mellé a lap fájljai (`~/.git-graph/page/`) és a manifest is kerül
-    (`~/.git-graph/.claude-plugin/plugin.json`) — ebben a sorrendben, a zip
-    utolsóként. A lap fájljait a szerver induláskor egyszer olvassa be
+    (`~/.git-graph/.claude-plugin/plugin.json`) — előbb a lap, aztán a zip, a
+    manifest utolsóként: a zip a verzióját ebből olvassa, egy közben induló
+    újraindulás különben a régi kódot az új verziónak hinné, és nem frissülne
+    tovább. A `--dev-install` is így ír (`install_copy` a `+dev` manifesttel). A lap fájljait a szerver induláskor egyszer olvassa be
     (`page_file`), így a futó verzió a saját kódját adja akkor is, ha a hook már
     újat másolt. A manifestből olvassa a futó szerver induláskor a verzióját (`RUNNING_VERSION`), a
     `changes` pedig a telepítettel együtt adja — a lábléc így jelzi, ha az

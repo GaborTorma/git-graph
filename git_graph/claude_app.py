@@ -107,6 +107,28 @@ def app_log_focus() -> dict:
     return state["focus"]
 
 
+def log_advance(ino: int, pos: int) -> tuple[int, int, bool]:
+    """Az app naplója az (inode, pozíció) kurzortól: az új kurzor, és volt-e közben
+    session-váltás. Ismeretlen kurzornál (`-1`) a napló végéről indul, jelzés nélkül;
+    forgatásnál (új inode) jelez. Saját fájlolvasás, megosztott állapot nélkül."""
+    try:
+        st = APP_LOG.stat()
+    except OSError:
+        return ino, pos, False
+    if st.st_ino != ino or st.st_size < pos:
+        return st.st_ino, st.st_size, ino != -1
+    if st.st_size == pos:
+        return ino, pos, False
+    try:
+        with APP_LOG.open("rb") as f:
+            f.seek(pos)
+            chunk = f.read(st.st_size - pos)
+    except OSError:
+        return ino, pos, False
+    end = chunk.rfind(b"\n") + 1
+    return ino, pos + end, bool(FOCUS_LINE.search(chunk, 0, end))
+
+
 APP_WORKTREES = Path.home() / "Library" / "Application Support" / "Claude" / "git-worktrees.json"
 _APP_WORKTREES: dict = {"mtime": None, "branches": {}}
 

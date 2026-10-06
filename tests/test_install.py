@@ -8,6 +8,7 @@ import subprocess
 import sys
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 from helpers import PYTHON, ROOT, HomeTestCase
 
@@ -15,11 +16,6 @@ from helpers import PYTHON, ROOT, HomeTestCase
 class InstallTest(HomeTestCase):
     def manifest(self) -> Path:
         return self.state / ".claude-plugin" / "plugin.json"
-
-    def registry(self, plugins: dict) -> None:
-        path = self.home / ".claude" / "plugins" / "installed_plugins.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"version": 2, "plugins": plugins}), encoding="utf-8")
 
     def fake_plugin(self, version: str, *, complete: bool = True) -> Path:
         """Egy telepített plugin mappája (a working tree másolata) a megadott verzióval."""
@@ -96,8 +92,7 @@ class InstallTest(HomeTestCase):
         self.registry({"git-graph@git-graph": [{"version": "1"}]})
         self.assertTrue(gg.install.plugin_installed())
         self.assertEqual(gg.install.installed_version(), "1")
-        path = self.home / ".claude" / "plugins" / "installed_plugins.json"
-        path.write_text(json.dumps({"version": 3, "plugins": {}}), encoding="utf-8")
+        self.registry({}, version=3)
         self.assertIsNone(gg.install.plugin_installed())
 
     def test_app_config(self) -> None:
@@ -126,8 +121,8 @@ class InstallTest(HomeTestCase):
     def test_ensure_installed(self) -> None:
         """Csak a plugin hookjából (CLAUDE_PLUGIN_ROOT = a kód gyökere) telepít."""
         gg = self.load()
-        old = os.environ.pop("CLAUDE_PLUGIN_ROOT", None)
-        try:
+        with mock.patch.dict(os.environ):
+            os.environ.pop("CLAUDE_PLUGIN_ROOT", None)
             self.assertIsNone(gg.install.ensure_installed())
             os.environ["CLAUDE_PLUGIN_ROOT"] = str(self.home)
             self.assertIsNone(gg.install.ensure_installed())
@@ -139,10 +134,6 @@ class InstallTest(HomeTestCase):
             if sys.platform == "darwin":
                 self.assertIn("újra kell indítani", notice)
                 self.assertIsNone(gg.install.ensure_installed())        # már bent van
-        finally:
-            os.environ.pop("CLAUDE_PLUGIN_ROOT", None)
-            if old is not None:
-                os.environ["CLAUDE_PLUGIN_ROOT"] = old
 
     def test_watch_plugin_uninstall(self) -> None:
         """A stabil példány két egymást követő hiány után leszerel; másik példány nem figyel."""

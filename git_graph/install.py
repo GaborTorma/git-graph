@@ -44,24 +44,33 @@ UPDATED = threading.Event()  # a figyelőszál jelzi: a főszál két kérés k�
 UNINSTALL_MISSES = 2         # frissítés közben a nyilvántartás egy pillanatra hiányos lehet
 
 
-def own_version() -> str | None:
-    """A futó kód verziója a mellette lévő manifestből; None, ha nincs."""
-    data = read_json(ROOT / MANIFEST)
+def manifest_version(root: Path) -> str | None:
+    """A `<root>` manifestjének verziója; None, ha nincs vagy olvashatatlan."""
+    data = read_json(root / MANIFEST)
     version = data.get("version") if data else None
     return version if isinstance(version, str) else None
 
 
 # Induláskor rögzítve: a futó `git-graph --mcp` ezt a kódot futtatja, akkor is,
 # ha közben a hook már újabbat másolt a stabil helyre.
-RUNNING_VERSION = own_version()
+RUNNING_VERSION = manifest_version(ROOT)
+
+
+def registry_plugins() -> dict | None:
+    """A Claude Code plugin-nyilvántartása (`plugins`); None, ha nem dönthető el.
+
+    Az `installed_plugins.json` a Claude Code belső fájlja — ismeretlen
+    formátumnál inkább nem döntünk, mint hogy tévesen leszereljünk.
+    """
+    data = read_json(INSTALLED_PLUGINS)
+    if not data or data.get("version") != 2 or not isinstance(data.get("plugins"), dict):
+        return None
+    return data["plugins"]
 
 
 def installed_entry() -> dict | None:
     """A plugin bejegyzése a Claude Code nyilvántartásában; None, ha nem dönthető el."""
-    data = read_json(INSTALLED_PLUGINS)
-    if not data or data.get("version") != 2 or not isinstance(data.get("plugins"), dict):
-        return None
-    for key, entries in data["plugins"].items():
+    for key, entries in (registry_plugins() or {}).items():
         if key.startswith(PLUGIN_ID) and isinstance(entries, list) and entries:
             return entries[0] if isinstance(entries[0], dict) else None
     return None
@@ -75,9 +84,7 @@ def installed_version() -> str | None:
 
 def stable_version() -> str | None:
     """A stabil másolat mellé tett manifest verziója — amit egy újraindulás futtatna."""
-    data = read_json(STATE_DIR / MANIFEST)
-    version = data.get("version") if data else None
-    return version if isinstance(version, str) else None
+    return manifest_version(STATE_DIR)
 
 
 def stable_bundle(root: Path) -> bytes:
@@ -88,7 +95,7 @@ def stable_bundle(root: Path) -> bytes:
     forrásból bájtra ugyanaz, a `place` így csak változáskor ír.
     """
     files = [("__main__.py", STABLE_MAIN.encode())]
-    files += [(f"git_graph/{p.name}", p.read_bytes()) for p in sorted((root / "git_graph").glob("*.py"))]
+    files += [(p.relative_to(root).as_posix(), p.read_bytes()) for p in sorted((root / "git_graph").rglob("*.py"))]
     buf = io.BytesIO()
     buf.write(b"#!/usr/bin/env python3\n")    # kézzel is futtatható; a zip a végéről olvas
     with zipfile.ZipFile(buf, "a") as zf:
@@ -99,22 +106,27 @@ def stable_bundle(root: Path) -> bytes:
     return buf.getvalue()
 
 
-def install_copy(root: Path | None = None) -> None:
+def install_copy(root: Path | None = None, manifest: bytes | None = None) -> None:
     """A csomag, a lap fájljai és a manifest másolata a stabil helyre — a futóé, vagy egy plugin-mappáé.
 
-    Előbb a lap fájljai, aztán a manifest, végül a csomag (`stable_bundle`); mind
-    atomi cserével, folyamatonként saját ideiglenes fájlból (több `git-graph --mcp`
-    is másolhat egyszerre). Az újraindulás a manifest verzióján múlik: mire az új
-    verziót mondja, a lap új fájljai már a helyükön vannak.
+    Előbb a lap fájljai, aztán a csomag (`stable_bundle`), végül a manifest (a
+    `manifest`, ha adott, különben a `root`-é); mind atomi cserével,
+    folyamatonként saját ideiglenes fájlból (több `git-graph --mcp` is másolhat
+    egyszerre). Az újraindulás a manifest verzióján múlik: mire az új verziót
+    mondja, a kód és a lap is a helyén van — a stabil zip a verzióját ebből a
+    manifestből olvassa, egy korábbi újraindulás tehát az új verziót hinné a
+    régi kódról.
     """
     root = root or ROOT
     for name in PAGE_FILES:
         if (root / "page" / name).exists():
             place((root / "page" / name).read_bytes(), STATE_DIR / "page" / name, 0o644)
-    if (root / MANIFEST).exists():
-        place((root / MANIFEST).read_bytes(), STATE_DIR / MANIFEST, 0o644)
     if (root / "git_graph").is_dir():
         place(stable_bundle(root), STABLE, 0o755)
+    if manifest is None and (root / MANIFEST).exists():
+        manifest = (root / MANIFEST).read_bytes()
+    if manifest is not None:
+        place(manifest, STATE_DIR / MANIFEST, 0o644)
 
 
 DEV_MARK = "+dev"   # SemVer build-metaadat: a working treeből telepített, fejlesztői példány
@@ -151,12 +163,7 @@ def dev_install() -> int:
     manifest = read_json(ROOT / MANIFEST) or {}
     version = f"{manifest.get('version', '0')}{DEV_MARK}.{int(time.time())}"
     manifest["version"] = version
-    for name in PAGE_FILES:
-        place((ROOT / "page" / name).read_bytes(), STATE_DIR / "page" / name, 0o644)
-    place(stable_bundle(ROOT), STABLE, 0o755)
-    # A manifest utolsóként: a futó szerver ennek a verzióján indul újra.
-    place((json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode(),
-          STATE_DIR / MANIFEST, 0o644)
+    install_copy(ROOT, (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode())
     print(f"✓ fejlesztői példány: {version} — a futó git-graph egy percen belül átvált, a lap újratölt")
     return 0
 
@@ -176,7 +183,7 @@ def pull_update() -> bool:
     if (isinstance(version, str) and version != RUNNING_VERSION and isinstance(path, str)
             and not dev):
         root = Path(path)
-        manifest = read_json(root / MANIFEST) if (root / MANIFEST).exists() else None
+        manifest = read_json(root / MANIFEST)
         complete = all((root / "page" / name).exists() for name in PAGE_FILES)
         if (manifest and manifest.get("version") == version and complete
                 and (root / "git_graph" / "cli.py").exists()):
@@ -224,15 +231,9 @@ def ensure_installed() -> str | None:
 
 
 def plugin_installed() -> bool | None:
-    """Telepítve van-e a plugin; None, ha a nyilvántartásból nem dönthető el.
-
-    Az `installed_plugins.json` a Claude Code belső fájlja — ismeretlen
-    formátumnál inkább nem döntünk, mint hogy tévesen leszereljünk.
-    """
-    data = read_json(INSTALLED_PLUGINS)
-    if not data or data.get("version") != 2 or not isinstance(data.get("plugins"), dict):
-        return None
-    return any(key.startswith(PLUGIN_ID) for key in data["plugins"])
+    """Telepítve van-e a plugin; None, ha a nyilvántartásból nem dönthető el (`registry_plugins`)."""
+    plugins = registry_plugins()
+    return None if plugins is None else any(key.startswith(PLUGIN_ID) for key in plugins)
 
 
 def uninstall() -> None:

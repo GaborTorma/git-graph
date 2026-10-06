@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import os
 
-from helpers import HomeTestCase
+from helpers import HomeTestCase, focus_line
 
 
 class ClaudeAppTest(HomeTestCase):
@@ -37,15 +37,13 @@ class ClaudeAppTest(HomeTestCase):
 
         def focus(*ids: str, tail: str = "") -> None:
             with app.APP_LOG.open("a", encoding="utf-8") as f:
-                for sid in ids:
-                    f.write(f"2001-01-01 00:00:00 [info] [CCD] LocalSessions.setFocusedSession: sessionId={sid}\n")
-                f.write(tail)
+                f.write("".join(focus_line(sid) for sid in ids) + tail)
 
         focus("null", "local_b")
         self.assertEqual(app.focused_worktree(wts)["worktree"], gg.registry.slug_for(extra))
         focus("null", "local_a")
         self.assertEqual(app.focused_worktree(wts)["worktree"], gg.registry.slug_for(main))
-        focus(tail="2001-01-01 00:00:00 [info] [CCD] LocalSessions.setFocusedSession: sessionId=local_b")
+        focus(tail=focus_line("local_b").rstrip("\n"))
         self.assertEqual(app.focused_worktree(wts)["worktree"], gg.registry.slug_for(main))  # félbe írt sor
         focus(tail="\n")
         self.assertEqual(app.focused_worktree(wts)["worktree"], gg.registry.slug_for(extra))
@@ -55,11 +53,10 @@ class ClaudeAppTest(HomeTestCase):
         gg = self.load()
         app = gg.claude_app
         app.APP_LOG.parent.mkdir(parents=True)
-        line = "2001-01-01 00:00:0{} [info] [CCD] LocalSessions.setFocusedSession: sessionId=local_{}\n"
-        app.APP_LOG.write_text(line.format(0, "a") * 50, encoding="utf-8")
+        app.APP_LOG.write_text(focus_line("local_a") * 50, encoding="utf-8")
         self.assertIn("local_a", app.app_log_focus())
         app.APP_LOG.unlink()
-        app.APP_LOG.write_text(line.format(1, "b"), encoding="utf-8")
+        app.APP_LOG.write_text(focus_line("local_b", second=1), encoding="utf-8")
         self.assertIn("local_b", app.app_log_focus())
 
     def test_worktree_of(self) -> None:

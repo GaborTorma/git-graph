@@ -4,9 +4,7 @@ from __future__ import annotations
 import os
 import time
 
-from helpers import HomeTestCase, git_in
-
-FOCUS = "2001-01-01 00:00:00 [info] [CCD] LocalSessions.setFocusedSession: sessionId={}\n"
+from helpers import HomeTestCase, focus_line, git_in
 
 
 class WatchTest(HomeTestCase):
@@ -41,7 +39,7 @@ class WatchTest(HomeTestCase):
         self.assertEqual(gg.watch.wait_changes(main, since, 0.1)["since"], since)
         self.assertLess(time.monotonic() - t0, 1)
         with log.open("a", encoding="utf-8") as f:
-            f.write(FOCUS.format("local_a"))
+            f.write(focus_line("local_a"))
         t0 = time.monotonic()
         after = gg.watch.wait_changes(main, since, 5)
         self.assertNotEqual(after["since"], since)

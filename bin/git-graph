@@ -11,14 +11,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 if not (ROOT / "git_graph").is_dir():
-    # Átmenet a 0.12.x-ről: a régi szerver frissítéskor csak ezt a fájlt (a lap
-    # fájljaival és a manifesttel) másolta a stabil helyre, a csomagot nem — az a
-    # telepített pluginban van. A következő session hookja a teljes stabil
-    # másolatot teszi a helyére.
+    # Átmenet a 0.12.x-ről (törölhető, ha már nem fut 0.12.x): a régi szerver
+    # frissítéskor csak ezt a fájlt (a lap fájljaival és a manifesttel) másolta a
+    # stabil helyre, a csomagot nem — az a telepített pluginban van. A következő
+    # session hookja a stabil zipet teszi a helyére. A nyilvántartást itt kell
+    # olvasni (`install.installed_entry` párja): a csomag még nem importálható.
     registry = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
-    plugins = json.loads(registry.read_text(encoding="utf-8"))["plugins"]
-    ROOT = next(Path(entries[0]["installPath"]) for key, entries in plugins.items()
-                if key.startswith("git-graph@"))
+    try:
+        plugins = json.loads(registry.read_text(encoding="utf-8"))["plugins"]
+        ROOT = next(Path(entries[0]["installPath"]) for key, entries in plugins.items()
+                    if key.startswith("git-graph@"))
+    except (OSError, ValueError, KeyError, IndexError, TypeError, StopIteration) as exc:
+        raise SystemExit(f"git-graph: a git_graph csomag nem található ({type(exc).__name__}: {exc}) "
+                         "— telepítsd újra a plugint") from exc
 sys.path.insert(0, str(ROOT))
 
 from git_graph.cli import main  # noqa: E402
