@@ -1,3 +1,16 @@
+## [0.12.1] - 2026-10-06
+
+### 🐛 Bug Fixes
+
+- *(branches)* Keep a branch with the worktree it was switched away from
+
+### 📚 Documentation
+
+- Add the CorelDRAW source of the cloud-and-branch icon
+
+### 💼 Other
+
+- *(lint)* Keep the worktrees under .claude out of the Biome scanner
 ## [0.12.0] - 2026-10-06
 
 ### 🚀 Features
