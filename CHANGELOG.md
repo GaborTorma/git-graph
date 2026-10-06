@@ -1,3 +1,24 @@
+## [0.12.2] - 2026-10-06
+
+### 🐛 Bug Fixes
+
+- *(page)* Align the ahead and behind columns in the branch menu
+- *(page)* Give the ahead column its own width in the branch menu
+
+### 📚 Documentation
+
+- Drop the stale launchctl note from the install test recipe
+- *(worklog)* Branch menu distance columns
+- *(worklog)* Python package split
+
+### 🚜 Refactor
+
+- Split bin/git-graph into the git_graph package with per-module tests
+- *(install)* Place the manifest last and share the registry and manifest readers
+
+### 🎨 Styling
+
+- *(page)* Dim the folder part of file paths in the commit panel
 ## [0.12.1] - 2026-10-06
 
 ### 🐛 Bug Fixes
