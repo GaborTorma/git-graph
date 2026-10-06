@@ -200,7 +200,7 @@ function wtChipInner(w) {
 function headBranchIcon(w) {
   if (!w.branch) return icon('detached');
   const r = remotesOn() && (DATA.meta.remotes || []).length <= 1
-    && mergedRefs(commitBySha(w.head)?.refs || []).find(x => x.name === w.branch);
+    ? mergedRefs(commitBySha(w.head)?.refs || []).find(x => x.name === w.branch) : null;
   return icon(r?.remotes.length ? (r.default ? 'branchCloudFill' : 'branchCloud') : 'branch');
 }
 
