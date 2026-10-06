@@ -1,3 +1,165 @@
+## [0.12.0] - 2026-10-06
+
+### 🚀 Features
+
+- [**breaking**] Share one artifact per repo across worktrees
+- *(page)* Hide the commit count while the footer shows an error
+- *(page)* Tell worktree pills apart from branches and show how far ahead they are
+- *(page)* Show only real worktrees as pills and branch them off the main line
+- *(page)* Put worktree lanes after the main checkout's branches with a faint separator
+- *(page)* Dim what is not in the own worktree instead of a manual pick
+- *(page)* Fold origin/HEAD into its target and drop the origin/ prefix on remote chips
+- *(page)* Name the remotes on synced branch badges when a repo has several
+- *(page)* Color branch, HEAD and tag badges by their commit's lane
+- Bind a new panel to its session without a prompt
+- *(page)* Treat unowned branches as the main checkout's when dimming
+- Take the own worktree from the focused session in the Claude app
+- *(page)* Ask for the focus right away when the frame moves to another session
+- *(page)* Poll densely after a session switch, worktree icon on the pills
+- *(page)* Guess the focus from the panel size, confirmed by the app's session file
+- *(page)* Show sync state on worktree pills with a filled icon and ↓N
+- *(focus)* Take the focused session from the app log, drop the size guess
+- *(page)* Show what triggered the last session switch in the live tooltip
+- *(focus)* Hold a fingerprint call open until the next session switch
+- *(page)* Branch a commitless worktree HEAD off with a stub, group worktree badges
+- *(server)* Time uncommitted rows by file mtime, start stub lanes afresh per commit
+- *(page)* Other worktrees' WIP rows in the list with chips, fan-out stubs, new worktree icon
+- *(page)* Show uncommitted rows as "Nem commitolt változások" with time, author and diff, placed by mtime
+- *(server)* Order linked worktrees by creation time
+- *(page)* Show how many of the day's rows are above and below its header
+- *(page)* Show the day on the pinned uncommitted row when it is not from today
+- *(page)* Show each branch's distance from the base branch and its upstream on its chip
+- *(page)* Show a remote branch's distance from its local branch last on its chip
+- *(page)* Flag unpushed commits on the base branch's local copy
+- *(page)* Branch distances on the base branch's remote, uncommitted badges and tooltips
+- Group the branch picker by worktree, with local and upstream as one option
+- *(page)* Toggle single refs from the branch picker, branch and cloud in separate columns
+- *(page)* Select a worktree's branches from its header, mirror the selection on the picker button
+- *(page)* Mark a branch synced with its upstream by one cloud-and-branch icon, one icon column
+- *(page)* Add a name filter to the branch picker
+- *(page)* Match worktree and remote names in the branch filter
+- *(page)* Label a detached worktree HEAD and show its distance from the base branch
+- *(page)* Jump to the own HEAD commit when the header chip is clicked
+- *(page)* Jump to the selection's tip after picking in the branch menu
+- *(page)* Dim the header chip when the branch filter hides HEAD, reset the filter on click
+- *(server)* Add the changes long-poll that answers on a repo or session-focus change
+- *(page)* Follow the repo with one open changes call instead of polling and a focus watcher
+
+### 🐛 Bug Fixes
+
+- *(page)* Move worktree lanes back only above their fork point
+- Keep the panel binding across reloads and frame rebuilds
+- *(page)* Retry a transient bridge error quietly after a session switch
+- *(page)* Wait silently while the frame is hidden, poll on reappearing
+- *(page)* Tie a detached worktree to its branch via the app registry, not the name
+- *(page)* Open an uncommitted row's panel under its own row in the pinned band
+- *(server)* Include the uncommitted files' mtime in the change fingerprint
+- *(page)* Show only the uncommitted row of the worktree that has the filtered branch checked out
+- *(page)* Hide only remote-only history and remote badges when remote branches are off
+- *(page)* Keep dropdown menus inside the window so long lists scroll
+- *(page)* Scroll only the branch list, keep the filter and "Minden ág" fixed
+- *(page)* Keep live updates running when the focus changes without an arrival signal
+- *(page)* Keep the remote switch redrawing when remotes are turned off
+- *(page)* Make the header chip a real button so the a11y lint passes
+- *(page)* Keep a detached worktree's WIP row under the branch filter and jump to it
+
+### 📚 Documentation
+
+- *(findings)* Measure a shared worktree artifact
+- *(findings)* One frame per artifact across sessions, focus from the app's session files
+- *(findings)* Measure the app log as the instant session focus signal
+- *(findings)* Measure what the frame gets during a session switch
+- *(findings)* Measure frame moves within one artifact, held calls and the host rate limit
+- *(claude)* Note the worktree stubs
+- *(findings)* Find a detached worktree's branch in the Claude app registry
+- Describe branch distance segments and uncommitted row placement
+- *(worklog)* Shared artifact, session focus, worktrees, uncommitted rows, branch chips, branch picker, header chip
+- Describe the changes long-poll and its measurements
+- *(worklog)* Changes long-poll, drop migration code
+
+### ⚡ Performance
+
+- *(server)* Call the real git binary instead of the macOS shim, pass the repo to collect_worktrees
+- *(server)* One parallel repo state hash without numstat for the change fingerprint
+
+### 🚜 Refactor
+
+- *(server)* Drop the unused per-worktree ahead/behind, share worktree helpers
+- *(page)* Index commits once per data load, one remote-switch reader, opt-in checkmarks
+- *(page)* Group the branch list by section, move the filter keys out of makeMenu
+- Share chip helpers between the header and commit badges, one ahead-behind helper
+- Drop the fingerprint alias, the page calls changes only
+- Drop the migration code for pre-0.12 per-worktree pages and the 0.10.x server
+
+### 🎨 Styling
+
+- *(page)* Fade foreign graph dots and lines with a solid mixed color
+- *(page)* Mark synced branches with a cloud and show remote-only refs as gray chips
+- *(page)* Fill the cloud of the remote's default branch
+- *(page)* Show branch and tag tooltips in the page's own bubble
+- *(page)* Round the tag badge into a full chip
+- *(page)* Always put the tag badge last
+- *(page)* Put the sync cloud right after the branch icon
+- *(page)* Show the worktree icon on the badge of a branch checked out in a worktree
+- *(page)* Thicken the worktree icon to match the line icons
+- *(page)* Show only the worktree icon on a linked worktree's detached HEAD
+- *(page)* Label a linked worktree's detached HEAD with the worktree name
+- *(page)* Fold a linked worktree's detached HEAD into the branch at its tip
+- *(page)* Fold a detached worktree HEAD only into the branch named after it
+- *(page)* Give the branch named after a stubbed worktree the stub's color
+- *(page)* Keep the uncommitted dashed line unfaded on foreign branches
+- *(page)* Keep the uncommitted dashed lines visible while scrolled
+- *(page)* Hide only the own worktree's dashed line while scrolled
+- *(page)* Mark the expanded row a shade darker than hover instead of the accent tint
+- *(page)* Use the hover background for the expanded row
+- *(page)* Outline the expanded row like its panel
+- *(page)* Fold the expanded row into its panel card with an unfold animation, no WIP panel header
+- *(page)* Color the header branch chip by its lane, worktree icon, dirty ring and ahead count
+- *(page)* Fan-shaped lane changes drawn above the straight lanes
+- *(page)* Let lane changes run 1 px along the commit's lane before turning
+- *(page)* Mark the main checkout's uncommitted row with an empty folder and "main"
+- *(page)* Label a detached worktree's uncommitted row with the worktree, not HEAD
+- *(page)* Give uncommitted rows a plain worktree badge, not the HEAD outline
+- *(page)* Show the branch on uncommitted rows' worktree badges
+- *(page)* Let the uncommitted row's worktree badge grow wider than branch chips
+- *(page)* Shorten the base branch anomaly tooltip
+- *(page)* Drop the uncommitted ring from the header chip
+- *(page)* Wrap the uncommitted row's badge like ref badges, folder icon on the main checkout's header chip
+- *(page)* Move to three lines when a badge name would be truncated next to the meta block
+- *(page)* Bump badge icons to 12 px and header chip icons to 13 px
+- *(page)* Drop the cloud and remote distances from chips when remote branches are off
+- *(page)* Show the diff tag on empty commits too
+- *(page)* Tint the branch picker's icons like their branches, fill only the default branch's cloud
+- *(page)* Tighten the branch picker's block lines to 20 px
+- *(page)* Color remote badges like their local branch, or their commit's lane
+- *(page)* Tint the branch picker's HEAD pill with its branch's color
+- *(page)* Show the local–upstream distance once, between the block's two lines
+- *(page)* Build the local–upstream mark from stacked up and down arrows
+- *(page)* Put the local–upstream mark before the distance column, arrows joined
+- *(page)* Put the local–upstream mark last at the row's edge, distances in one column before it
+- *(page)* Keep single-line distances at the branch picker's right edge
+- *(page)* Lay out the branch picker's distances in two fixed columns of arrow and number cells
+- *(page)* Size the distance cells to the longest number, put the detached mark under the WIP ring
+- *(page)* Draw the all-branches icon with two lanes
+- *(page)* Draw the all-branches icon's nodes as hollow circles, like the branch icon
+- *(page)* Enlarge the all-branches icon's hollow nodes so they read as rings at 14 px
+- *(page)* Size each distance column to its own longest number, one to four digits
+- *(page)* Use the developer's drawing for the cloud-and-branch icon
+- *(page)* Draw the cloud-and-branch icon with the set's 1.5 stroke
+- *(page)* Drop the construction line from the filled cloud-and-branch icon
+- *(page)* Update the outline cloud-and-branch icon to the developer's new drawing
+- *(page)* Give synced branch badges the single cloud-and-branch icon
+- *(page)* Put the diff tag before the avatar in the commit row
+- *(page)* Unify worktree marks on HEAD and WIP badges
+- *(page)* Mark a detached HEAD with the chain icon on the bare HEAD badge and the header chip
+- *(page)* Give the header chip the same branch icon as the HEAD commit badge
+- *(page)* Build the header chip like the HEAD commit badge, remote segments included
+- *(page)* Fill the header chip like the own HEAD badge
+- *(page)* Name a detached worktree on the header chip, drop "main" from the main checkout's detached badge
+
+### 🧪 Testing
+
+- Cover branch distances from the base branch, upstream and local pair
 ## [0.11.0] - 2026-10-04
 
 ### 🚀 Features
