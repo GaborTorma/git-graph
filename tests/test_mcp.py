@@ -98,7 +98,7 @@ class McpServerTest(unittest.TestCase):
             init = client.request("initialize", {"protocolVersion": "2025-06-18"})["result"]
             self.assertEqual(init["serverInfo"]["name"], "git-graph")
             tools = {t["name"]: t for t in client.request("tools/list")["result"]["tools"]}
-            self.assertEqual(set(tools), {"changes", "fingerprint", "graph_data", "file_diff", "page_code"})
+            self.assertEqual(set(tools), {"changes", "graph_data", "file_diff", "page_code"})
             self.assertTrue(all(t["annotations"]["readOnlyHint"] for t in tools.values()))
 
             code = client.call("page_code", repo=SLUG, api=1)
@@ -115,7 +115,6 @@ class McpServerTest(unittest.TestCase):
             self.assertTrue(all("email" in c for c in data["commits"] if not c.get("uncommitted")))
             changes = client.call("changes", repo=SLUG)
             self.assertTrue({"state", "since", "focus", "version"} <= set(changes))
-            self.assertEqual(client.call("fingerprint", repo=SLUG)["state"], changes["state"])  # régi név
             icons = {f.get("icon") for st in data["stats"].values() for f in st["files"]}
             self.assertTrue(icons - {None} and icons - {None} <= set(data["fileIcons"]))
 
@@ -447,7 +446,7 @@ class McpServerTest(unittest.TestCase):
         (state / "repos.json").write_text(json.dumps({SLUG: str(self.home / "nincs")}), encoding="utf-8")
         client = McpClient(SCRIPT, self.home)
         try:
-            result = client.request("tools/call", {"name": "fingerprint",
+            result = client.request("tools/call", {"name": "changes",
                                                    "arguments": {"repo": SLUG}})["result"]
             self.assertTrue(result["isError"])
             self.assertIn("megszűnt", result["content"][0]["text"])

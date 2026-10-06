@@ -1853,13 +1853,7 @@ function mcpSource() {
   const mcp = CTX.mcp;
   const call = (tool, args, signal) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
     signal ? { cache: false, signal } : { cache: false }).then(r => r.payload);
-  // A régi manifestű lap (amíg a hook újra nem publikáltatja) a `changes` régi nevén hív.
-  let changes = 'changes';
-  return { changes: (since, wait, signal) => call(changes, { since, wait }, signal).catch(e => {
-             if (e?.code !== 'not_in_manifest' || changes !== 'changes') throw e;
-             changes = 'fingerprint';
-             return call(changes, { since, wait }, signal);
-           }),
+  return { changes: (since, wait, signal) => call('changes', { since, wait }, signal),
            data: () => call('graph_data'),
            diff: (sha, path) => call('file_diff', { sha, path }) };
 }

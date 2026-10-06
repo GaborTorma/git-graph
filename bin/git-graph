@@ -922,7 +922,7 @@ _AVATAR_MEMO: tuple[int, dict] | None = None   # (mtime_ns, tartalom) — a fáj
 
 
 def avatar_cache() -> dict:
-    """A gyorstár (másolat). A `fingerprint` 2 mp-enként kérdezi, a fájl
+    """A gyorstár (másolat). Az állapot (`repo_state`) 2 s-onként kérdezi, a fájl
     pedig a képekkel nagy: csak akkor olvassuk újra, ha módosult."""
     global _AVATAR_MEMO
     try:
@@ -1415,8 +1415,8 @@ FOCUS_LOCK = threading.Lock()
 def app_sessions() -> list[dict]:
     """A Claude app desktop-sessionjei: munkakönyvtár és utolsó fókusz.
 
-    A fájlok nagyok (több száz, egyenként akár ~800 KB), a `fingerprint` pedig
-    2 mp-enként kérdez: mindet `stat`-oljuk (< 1 ms), de csak a megváltozottat
+    A fájlok nagyok (több száz, egyenként akár ~800 KB), a fókuszt pedig minden
+    `changes`-válasz kéri: mindet `stat`-oljuk (< 1 ms), de csak a megváltozottat
     olvassuk újra — váltáskor ez egyetlen fájl.
     """
     out, live = [], set()
@@ -1781,16 +1781,11 @@ _CHANGES_ARG = {"type": "object", "required": ["repo"], "properties": {
     **_REPO_ARG["properties"],
     "since": {"type": "string", "description": "az előző válasz since tokenje (üresen azonnal válaszol)"},
     "wait": {"type": "number", "description": "legfeljebb ennyi s-ig vár változásra (max. 50)"}}}
-# A `fingerprint` a `changes` régi neve: a régi manifestű lap ezen hív, amíg a hook újra
-# nem publikáltatja (egy kiadásig).
-CHANGES_TOOLS = ("changes", "fingerprint")
 MCP_TOOLS = [
-    *({"name": name, "inputSchema": _CHANGES_ARG, "annotations": {"readOnlyHint": True},
-       "description": "Vár, amíg a repó állapota (refek, worktree-k HEAD-je és munkakönyvtára) "
-                      "vagy az előtérben lévő session eltér a since-étől; az állapot hashét, "
-                      "a fókuszt és az új since-et adja — ha a state változott, kérd a graph_data-t."
-                      + ("" if name == "changes" else " (A changes régi neve.)")}
-      for name in CHANGES_TOOLS),
+    {"name": "changes", "inputSchema": _CHANGES_ARG, "annotations": {"readOnlyHint": True},
+     "description": "Vár, amíg a repó állapota (refek, worktree-k HEAD-je és munkakönyvtára) "
+                    "vagy az előtérben lévő session eltér a since-étől; az állapot hashét, "
+                    "a fókuszt és az új since-et adja — ha a state változott, kérd a graph_data-t."},
     {"name": "graph_data", "inputSchema": _REPO_ARG, "annotations": {"readOnlyHint": True},
      "description": "A commit-gráf teljes adata: commitok, élek, fájlstatisztika, ágak, meta."},
     {"name": "file_diff", "annotations": {"readOnlyHint": True},
@@ -1830,7 +1825,7 @@ def slug_repo(args: dict) -> Path | dict:
 
 
 def changes_tool(args: dict, wait: float) -> dict:
-    """A `changes` (régi nevén `fingerprint`) eredménye — a várakozó szálon."""
+    """A `changes` eredménye — a várakozó szálon."""
     repo = slug_repo(args)
     if isinstance(repo, dict):
         return repo
@@ -1877,8 +1872,8 @@ def short_error(exc: subprocess.CalledProcessError) -> str:
 def mcp_serve(limit: int | None) -> int:
     """MCP szerver stdio-n — a Claude app indítja a configjából (a plugin hookja írja be).
 
-    Az Artifact vékony lapja a Claude app host-hídján át ezt hívja: az olcsó
-    `fingerprint`-et sűrűn, a `graph_data`-t csak változáskor. Stdlib JSON-RPC
+    Az Artifact vékony lapja a Claude app host-hídján át ezt hívja: egy nyitva
+    tartott `changes`-t, a `graph_data`-t csak változáskor. Stdlib JSON-RPC
     2.0, soronként egy üzenet; a stdout-ra csak protokoll mehet. Mindkét tool
     read-only-nak jelölt: így az app nem kér hívásonként megerősítést. Közben
     figyeli, eltávolították-e vagy frissítették-e a plugint (`watch_plugin`).
@@ -1941,7 +1936,7 @@ def respond(raw: bytes, send, limit: int | None) -> None:
         result = {}
     elif method == "tools/list":
         result = {"tools": MCP_TOOLS}
-    elif method == "tools/call" and params.get("name") in CHANGES_TOOLS:
+    elif method == "tools/call" and params.get("name") == "changes":
         # Változásig vár: külön szálon, hogy közben a többi kérés is kiszolgálódjon.
         args = params.get("arguments") or {}
         with _WAITERS_LOCK:
