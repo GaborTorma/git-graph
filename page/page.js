@@ -147,6 +147,11 @@ const fileIcon = f => {
   const svg = DATA.fileIcons?.[f.icon];
   return svg ? svg.replace('<svg', '<svg class="fic" aria-hidden="true"') : icon('file', 'ic fic');
 };
+// A fájl útja: a mappa halványabban, a fájlnév teljes színnel.
+const pathHtml = path => {
+  const i = path.lastIndexOf('/') + 1;
+  return (i ? `<span class="dir">${esc(path.slice(0, i))}</span>` : '') + esc(path.slice(i));
+};
 
 /* A friss sorozat sha-i; lejáratkor a lap magától újrarajzol (a pollozás csak
    git-változásra rajzol). Az ál-sornak nincs `committed`-je: sosem friss. */
@@ -731,7 +736,7 @@ function open(sha, animate = false) {
         <span class="d" style="color:var(--del)">−${st.del}</span></div>
       ${st.files.map(f => `<div class="file" tabindex="-1" data-path="${esc(f.path)}" aria-expanded="false">
         <span class="chev">${icon('chev')}</span>${fileIcon(f)}
-        <span class="path">${esc(f.path)}</span>
+        <span class="path">${pathHtml(f.path)}</span>
         <span class="churn">${f.new ? '<span class="tag">új</span>' : f.bin ? '<span class="tag">bin</span>'
           : `<span class="a">+${f.add}</span><span class="d">−${f.del}</span>${bars(f)}`}</span>
         ${c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : '<span></span>'}</div>

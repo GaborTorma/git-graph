@@ -644,6 +644,7 @@ button { font: inherit; color: inherit; }
 .file .ic.fic { width: 13px; height: 13px; margin: auto; color: var(--fg-2); }   /* általános fájlikon */
 .file[aria-expanded="true"] .chev { transform: rotate(90deg); }
 .file .path { font-family: var(--font-mono); font-size: 12px; color: var(--fg-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file .path .dir { color: var(--fg-3); }
 .churn { display: flex; align-items: center; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .churn .a { color: var(--add); }
 .churn .d { color: var(--del); }
