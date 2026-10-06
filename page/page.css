@@ -275,9 +275,10 @@ button { font: inherit; color: inherit; }
   font-size: 12.5px; font-weight: 500;
 }
 .option.blk { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 3px 0; position: relative; }
-/* A jobb szél két oszlopa (`c2`, `c1`), egyforma, fix szélességű cellákkal: elöl a
-   nyíl, a cella végén a szám — a nyilak és a számvégek oszloponként egy vonalban. A
-   két soros blokk ↕ jele a szélső oszlopban, a két sor között. */
+/* A jobb szél három oszlopa (`c3`, `c2`, `c1`), oszloponként egyforma, fix szélességű
+   cellákkal: elöl a nyíl, a cella végén a szám — a nyilak és a számvégek oszloponként
+   egy vonalban. A két soros blokk ↕ jele a szélső oszlopban, a két sor között. Az üres
+   oszlop (nincs benne szám) nulla széles. */
 .blk .dc {
   display: flex; justify-content: space-between; align-items: center;
   width: calc(var(--digits, 2) * 1ch + 11px);   /* nyíl + az oszlop leghosszabb száma (a lap állítja) */
@@ -288,10 +289,13 @@ button { font: inherit; color: inherit; }
 .blk .gap.warn { color: var(--del); font-weight: 600; }
 .blk .c1, .blk .gap { --digits: var(--c1-digits); }
 .blk .c2 { --digits: var(--c2-digits); }
-.blk .c1 { display: flex; justify-content: flex-end; font-size: 11px; min-width: calc(var(--digits, 2) * 1ch + 11px); }
-.blk .c2 { display: flex; justify-content: flex-end; gap: 6px; }
+.blk .c3 { --digits: var(--c3-digits); }
+.blk .c1, .blk .c2, .blk .c3 {
+  display: flex; justify-content: flex-end; font-size: 11px;
+  min-width: calc(var(--digits, 2) * 1ch + min(var(--digits, 2), 1) * 11px);
+}
 .blk .ln {
-  display: grid; grid-template-columns: 14px 14px minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
+  display: grid; grid-template-columns: 14px 14px minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center;
   height: 20px; padding: 0 10px 0 8px;
 }
 .blk .col { display: inline-flex; }

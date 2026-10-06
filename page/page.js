@@ -1210,20 +1210,20 @@ function fillBranches() {
   const rank = b => (isHead(b) ? 0 : b.name === baseLocal ? 1 : 2);
   const sorted = list => [...list].sort((x, y) => rank(x) - rank(y));
   const synced = b => { const up = DATA.meta.tracks?.[b.name]?.up; return up && !up[0] && !up[1]; };
-  /* Egy sor: pipa (külön kattintható), egy ikon (ág, felhő, vagy a kettő együtt), név, és jobbra két
-     távolság-oszlop. A szélső (`c1`): az egysoros blokk távolsága, a két soros blokkban
-     a ↕ jel helye; előtte (`c2`) a két soros blokk soronkénti távolsága. Egy cella: a
-     nyíl elöl, a szám a cella végén — így a nyilak és a számvégek egy vonalban. */
-  const line = (refs, ic, name, c2, c1) => {
+  /* Egy sor: pipa (külön kattintható), egy ikon (ág, felhő, vagy a kettő együtt), név, és jobbra három
+     távolság-oszlop. A szélső (`c1`): az egysoros blokk ↓-je, a két soros blokkban
+     a ↕ jel helye; előtte (`c2`) a két soros blokk soronkénti ↓-je; legbelül (`c3`) minden
+     sor ↑-ja. Egy cella: a nyíl elöl, a szám a cella végén — így a nyilak és a
+     számvégek egy vonalban. */
+  const line = (refs, ic, name, c3, c2, c1) => {
     const on = refs.every(r => branchSel.has(r));
     return `<span class="ln${on ? ' on' : ''}"><span class="ckc" data-refs="${esc(refs.join(' '))}"`
       + ` title="${on ? 'kivesz' : 'hozzáad'}">${icon('check', 'ic ck')}</span>`
       + `<span class="col">${ic}</span>`
-      + `<span class="name">${name}</span><span class="c2">${c2}</span><span class="c1">${c1}</span></span>`;
+      + `<span class="name">${name}</span><span class="c3">${c3}</span><span class="c2">${c2}</span><span class="c1">${c1}</span></span>`;
   };
   // Az alapághoz mért távolság irányonként egy cellában (a távolság-szöveg a
-  // tooltipben): `[↑, ↓]`. Az egysoros blokkban a ↑ a belső oszlopba, a ↓ a szélsőbe
-  // kerül — így a ↑ a két soros blokkok soronkénti távolságával áll egy vonalban.
+  // tooltipben): `[↑, ↓]`.
   const cell = name => {
     const [a, d] = DATA.meta.tracks?.[name]?.base || [0, 0];
     const tip = esc(distText(name).trim());
@@ -1253,9 +1253,9 @@ function fillBranches() {
     const c = branchColor(b);
     // Két sornál a soronkénti távolság a belső oszlopban, a szélen a kettejük közti ↕.
     const lines = !pair
-      ? line(refs, up ? branchCloudIc(up, c) : tinted('branch', c), name, detIc ? '' : ca, detIc || cd)
-      : line([b.name], tinted('branch', c), name, detIc || ca + cd, '')
-        + line([up], cloudIc(up, c), esc(up), cell(up).join(''), '') + pairGap(b);
+      ? line(refs, up ? branchCloudIc(up, c) : tinted('branch', c), name, detIc ? '' : ca, '', detIc || cd)
+      : line([b.name], tinted('branch', c), name, detIc ? '' : ca, detIc || cd, '')
+        + line([up], cloudIc(up, c), esc(up), ...cell(up), '') + pairGap(b);
     return blockBtn(refs, lines);
   };
   const blockBtn = (refs, lines) => `<button type="button" class="option blk" role="option" data-refs="${esc(refs.join(' '))}"`
@@ -1297,15 +1297,19 @@ function fillBranches() {
   }
   for (const [r, list] of byRemote) {
     html += group(r, `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
-      + list.map(b => blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), ...cell(b.name)))).join(''), true);
+      + list.map(b => {
+        const [ca, cd] = cell(b.name);
+        return blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), ca, '', cd));
+      }).join(''), true);
   }
   branchList.innerHTML = html;
   filterBranches();
-  // A két távolság-oszlop szélessége külön-külön a saját leghosszabb számához igazodik
-  // (1–4 jegy); a ↕ jel a szélső oszlophoz tartozik.
-  const longest = sel => Math.max(1, ...[...branchPop.querySelectorAll(sel)].map(e => e.textContent.length));
+  // A három távolság-oszlop szélessége külön-külön a saját leghosszabb számához igazodik
+  // (1–4 jegy, üres oszlopnál 0); a ↕ jel a szélső oszlophoz tartozik.
+  const longest = sel => Math.max(0, ...[...branchPop.querySelectorAll(sel)].map(e => e.textContent.length));
   branchPop.style.setProperty('--c1-digits', longest('.c1 .dc > :last-child, .gap > :last-child'));
   branchPop.style.setProperty('--c2-digits', longest('.c2 .dc > :last-child'));
+  branchPop.style.setProperty('--c3-digits', longest('.c3 .dc > :last-child'));
   const [ics, label] = selView();
   if (branchIc.innerHTML !== ics) branchIc.innerHTML = ics;
   if (branchLabel.textContent !== label) {
