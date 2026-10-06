@@ -1502,11 +1502,7 @@ function revealHead() {
   scroller.scrollTop = Math.max(0, Math.round(top - STEP_TOP));
   row.focus({ preventScroll: true });
 }
-const headChipEl = document.getElementById('headChip');
-headChipEl.addEventListener('click', revealHead);
-headChipEl.addEventListener('keydown', e => {
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); revealHead(); }
-});
+document.getElementById('headChip').addEventListener('click', revealHead);
 function revealExpanded() {
   const row = expanded && rowsEl.querySelector(`.row[data-sha="${CSS.escape(expanded)}"]`);
   if (!row) return;
