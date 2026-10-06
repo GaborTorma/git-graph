@@ -202,7 +202,9 @@ function wtChipInner(w) {
   const branchIc = !w.branch ? 'detached'
     : pairs.length && !multi ? (ref.default ? 'branchCloudFill' : 'branchCloud') : 'branch';
   const cloudOf = on => icon('cloud', on ? 'ic filled' : 'ic');
-  return (mark ? `<span class="synced wt-lead">${icon(mark)}</span>` : '') + icon(branchIc)
+  // Leválasztott hozzáadott worktree: a neve is, mint a commit-chipen (név | lánc hash).
+  const wtName = linked && !w.branch ? `${icon(mark)}<span class="chip-name">${esc(w.name)}</span><span class="div"></span>` : '';
+  return (wtName || (mark ? `<span class="synced wt-lead">${icon(mark)}</span>` : '')) + icon(branchIc)
     + `<span class="chip-name">${esc(w.branch || String(w.head || '').slice(0, 7))}</span>`
     + (w.branch ? distSegs(w.branch) : distSegs('', headTrack(w)))
     + (multi ? pairs.map(o => `<span class="div"></span><span class="synced">${cloudOf(o.default)}${esc(o.name)}</span>`).join('') : '');
@@ -530,8 +532,10 @@ function badges(c) {
     const pair = r.kind === 'remote' && DATA.branches.find(b => !b.remote && b.upstream === r.name);
     const lc = ` style="--lc:${pair ? branchColor(pair) : (group && wtColor(group)) || lane}"`;
     return `<span class="badge ref-${r.kind}${other}"${lc} data-tip="${esc(title)}" aria-label="${esc(title)}">`
-      + `${lead}<span class="badge-name">${esc(orphan ? (linked ? wt.name : 'main') : name)}</span>`
-      + `${orphan ? `<span class="div"></span>${icon('detached')}<span class="badge-name">HEAD</span>` : ''}`
+      // Leválasztott worktree: név | lánc HEAD; a fő checkouté név nélkül (mappa, lánc, HEAD), mint a fejlécen.
+      + (orphan && linked ? `${lead}<span class="badge-name">${esc(wt.name)}</span><span class="div"></span>${icon('detached')}<span class="badge-name">HEAD</span>`
+        : orphan ? `<span class="synced wt-lead">${lead}</span>${icon('detached')}<span class="badge-name">HEAD</span>`
+        : `${lead}<span class="badge-name">${esc(name)}</span>`)
       + `${distSegs(dist, tr)}${remotes}</span>`;
   }).join('');
 }
