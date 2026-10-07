@@ -517,6 +517,30 @@ Harnessben a lapon mérve (adatlekéréssel és rajzolással): ág létrehozása
 törlése ~0,4 s, új fájl / szerkesztés / törlés 0,8–2,2 s; üresjáratban 6 s alatt
 egy hívás sem zárult le.
 
+## A lap nyelve: az OS-é, nem az appé (mérve, 2026-10-07, contract 0.2.72)
+
+Az i18n előkérdése: honnan tudja a lap, milyen nyelvű a Claude app. Egy
+eldobható mérőlap a Claude appban megnyitva (`db` capability-vel írta vissza az
+értékeket, a session `ArtifactData`-val olvasta). Az app beállítása
+`"locale": "en-US"` (`~/Library/Application Support/Claude/config.json`), a
+macOS nyelve `hu-HU` — a kettő szándékosan eltért.
+
+| Érték | Mért |
+| --- | --- |
+| `navigator.language` | `hu` |
+| `navigator.languages` | `["hu","hu-HU"]` |
+| `Intl.DateTimeFormat().resolvedOptions().locale` | `hu` |
+| `…timeZone` | `Europe/Budapest` |
+| `document.documentElement.lang` | üres |
+| `userAgent` | `… Claude/2.26454.0 Chrome/152.0.7977.130 Electron/44.4.3 …` |
+
+- **A `navigator.language` az OS nyelvét adja**, nem az app beállítását: magyar
+  macOS-en angol appal is `hu`.
+- **A runtime API nem adja át az app nyelvét**: a 0.2.72-es `window.claude`
+  típusaiban nincs locale, az `<html lang>` üres.
+- Ami ebből következik: az app nyelvét csak a gépen futó szerver tudja kiolvasni
+  (`config.json` `locale`), a `navigator.language` csak tartalék.
+
 ## Implementációs tanulságok (a generátorból)
 
 - **CSS osztálynév-ütközés**: a táblázat-fejléc `.head` szabálya ráült a
