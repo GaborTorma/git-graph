@@ -58,7 +58,7 @@ hívásával, a stabil másolatból is. A hook, a publikálás és a telepítés
 tesztelt, kamu `HOME`-mal. A lintereket a `uvx` / `pnpm dlx` hozza, a repóba nem kerül
 függőség. Ezen túl kézzel: a `git-graph --mcp` `graph_data`-ja több repón
 (eltérő sávszámmal, merge-ekkel), és a lap az appban. Az élő lapé: `python3 bin/git-graph --dev-install`. Ez a working treet az
-appban futó szerver helyére teszi `+dev` verzióval; a szerver egy percen belül
+appban futó szerver helyére teszi `+dev` verzióval; a szerver 15 s-on belül
 átvált, a lap újratölt, és az app minden git-graph lapja az új kódot mutatja.
 A hook 12 óráig nem másolja vissza a telepítettet (`dev_active`). Utána a sessionből
 publikált lapot kell nézni a Claude appban (az app MCP-naplója a host-híd

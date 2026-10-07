@@ -40,6 +40,7 @@ APP_CONFIG = (Path.home() / "Library" / "Application Support" / "Claude"
 # el egy homebrew-frissítéssel.
 SYSTEM_PYTHON = "/usr/bin/python3"
 PLUGIN_POLL_S = 60           # a nyilvántartás figyelése: leszerelés és frissítés
+STABLE_POLL_S = 15           # a stabil hely figyelése: a --dev-install gyorsan éljen
 UPDATED = threading.Event()  # a figyelőszál jelzi: a főszál két kérés között újraindul
 UNINSTALL_MISSES = 2         # frissítés közben a nyilvántartás egy pillanatra hiányos lehet
 
@@ -151,7 +152,7 @@ def dev_active() -> bool:
 def dev_install() -> int:
     """A working tree a stabil helyre, `+dev` verzióval — a lap élő kipróbálásához.
 
-    A futó szerver a verzióváltáson egy percen belül újraindul erre a kódra,
+    A futó szerver a verzióváltáson 15 s-on belül újraindul erre a kódra,
     a lap pedig újratölt. A fejlesztői példány nem frissít vissza a
     telepített pluginra (`pull_update`), és DEV_TTL-ig a hook
     (`ensure_installed`) sem másolja vissza a telepítettet (`dev_active`) —
@@ -164,7 +165,7 @@ def dev_install() -> int:
     version = f"{manifest.get('version', '0')}{DEV_MARK}.{int(time.time())}"
     manifest["version"] = version
     install_copy(ROOT, (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode())
-    print(f"✓ fejlesztői példány: {version} — a futó git-graph egy percen belül átvált, a lap újratölt")
+    print(f"✓ fejlesztői példány: {version} — a futó git-graph 15 s-on belül átvált, a lap újratölt")
     return 0
 
 
@@ -260,16 +261,23 @@ def watch_plugin() -> None:
     """
     if Path(sys.argv[0]).resolve() != STABLE.resolve():
         return
-    misses = 0
+    misses, due = 0, 0.0
     while True:
-        installed = plugin_installed()
-        misses = misses + 1 if installed is False else 0
-        if misses >= UNINSTALL_MISSES:
-            log("A git-graph plugin nincs telepítve — leszerelés.")
-            uninstall()
-            return
-        if installed and pull_update():
+        if time.monotonic() >= due:
+            due = time.monotonic() + PLUGIN_POLL_S
+            installed = plugin_installed()
+            misses = misses + 1 if installed is False else 0
+            if misses >= UNINSTALL_MISSES:
+                log("A git-graph plugin nincs telepítve — leszerelés.")
+                uninstall()
+                return
+            if installed and pull_update():
+                UPDATED.set()
+                return
+        # Közben csak a stabil manifestet nézi (olcsó): egy `--dev-install` így
+        # negyedperc alatt él. A manifest íródik utolsóként, a csomag már teljes.
+        elif stable_version() not in (None, RUNNING_VERSION):
             UPDATED.set()
             return
-        time.sleep(PLUGIN_POLL_S)
+        time.sleep(min(STABLE_POLL_S, PLUGIN_POLL_S))
 
