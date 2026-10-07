@@ -541,35 +541,6 @@ macOS nyelve `hu-HU` — a kettő szándékosan eltért.
 - Ami ebből következik: az app nyelvét csak a gépen futó szerver tudja kiolvasni
   (`config.json` `locale`), a `navigator.language` csak tartalék.
 
-## Író tool a host-hídon: engedélykérés (mérve, 2026-10-07, contract 0.2.72)
-
-Kérdés: ha a lap egy nem read-only `host:` toolt hív (pl. fájl mentése a lapról),
-kérdez-e az app minden hívásnál, és van-e „mindig engedélyez”. Eszköz: eldobható
-stdlib MCP szerver (`gg-write-probe`, a Claude app configjában) három toollal,
-csak a jelzéseikben eltérve — `read_ping` (`readOnlyHint: true`), `write_note`
-(`readOnlyHint: false`, `destructiveHint: false`), `write_wipe`
-(`readOnlyHint: false`, `destructiveHint: true`); az írók csak a saját
-naplójukba írtak egy sort. Hozzá egy próbalap, mindhárom tool deklarálva.
-
-- **Első megnyitáskor** a szokásos szerver-engedély jön, a deklarált toolok
-  listájával (mindhárom) — a read-only tool ezen túl sosem kérdez.
-- **Író toolnál hívás előtt** külön ablak: *„Allow this artifact to run
-  "write_note"? … from your local MCP server "gg-write-probe", which can modify
-  data.”* — benne a hívás **argumentumai** is (`"text": "probe"`).
-- **Van „mindig engedélyez”**: *„Don't ask again when this artifact runs
-  "<tool>"”* — **Artifact × tool** párosra szól, nem a szerverre. Bepipálva a
-  további hívások kérdés nélkül futnak (1–2 s-onként egymás után is), és **az app
-  újraindítása után is megmarad**.
-- **A `destructiveHint` nem számít**: a romboló jelzésű tool ugyanazt az ablakot
-  kapja, ugyanazzal a pipával.
-- Mellékes: a Claude app configjába felvett szerver a futó **Code sessionben is**
-  megjelent (`mcp__gg-write-probe__*`).
-
-Következmény: egy lapról író művelethez nem kell (és nem is szabad) a
-`readOnlyHint`-et hazudni — az első hívás egyszer megkérdez, a Fejlesztő egy
-pipával tudatosan engedélyezi, utána csendes. Az argumentumok látszanak az
-ablakban, tehát a kérés tartalma ellenőrizhető.
-
 ## Implementációs tanulságok (a generátorból)
 
 - **CSS osztálynév-ütközés**: a táblázat-fejléc `.head` szabálya ráült a
