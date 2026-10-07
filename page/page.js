@@ -148,9 +148,12 @@ const fileIcon = f => {
   return svg ? svg.replace('<svg', '<svg class="fic" aria-hidden="true"') : icon('file', 'ic fic');
 };
 // A fájl útja: a mappa halványabban, a fájlnév teljes színnel.
-const pathHtml = path => {
+// A `from` utáni mappa-előtag új / törölt (`dirFrom`): a fájlnévvel együtt színes.
+const pathHtml = (path, from = Infinity) => {
   const i = path.lastIndexOf('/') + 1;
-  return (i ? `<span class="dir">${esc(path.slice(0, i))}</span>` : '') + esc(path.slice(i));
+  const j = Math.min(from, i);
+  return (j ? `<span class="dir">${esc(path.slice(0, j))}</span>` : '')
+    + (j < i ? `<span class="dir-st">${esc(path.slice(j, i))}</span>` : '') + esc(path.slice(i));
 };
 
 /* A friss sorozat sha-i; lejáratkor a lap magától újrarajzol (a pollozás csak
@@ -738,7 +741,7 @@ function open(sha, animate = false) {
         <span class="d" style="color:var(--del)">−${st.del}</span></div>
       ${st.files.map(f => `<div class="file" tabindex="-1" data-path="${esc(f.path)}" aria-expanded="false">
         <span class="chev">${icon('chev')}</span>${fileIcon(f)}
-        <span class="path">${pathHtml(f.path)}</span>
+        <span class="path${f.status === 'A' ? ' added' : f.status === 'D' ? ' deleted' : ''}">${pathHtml(f.path, f.dirFrom)}</span>
         <span class="churn">${f.new ? '<span class="tag">új</span>' : f.bin ? '<span class="tag">bin</span>'
           : `<span class="a">+${f.add}</span><span class="d">−${f.del}</span>${bars(f)}`}</span>
         ${c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : '<span></span>'}</div>

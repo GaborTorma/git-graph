@@ -83,35 +83,85 @@ def collect_stats(limit: int | None) -> dict[str, dict]:
     A merge commit az első szülőjéhez képest: amit a merge a fő ágra hozott
     (alapból a git a merge-hez nem ad numstatot).
     """
-    args = ["log", "--all", "--date-order", "--numstat", "--diff-merges=first-parent",
-            f"--pretty=format:{RS}%H"]
+    args = ["log", "--all", "--date-order", "--numstat", "--summary", "--diff-merges=first-parent",
+            f"--pretty=format:{RS}%H %P"]
     if limit:
         args.append(f"-{limit}")
     raw = git(*args)
 
     stats: dict[str, dict] = {}
+    checks: list[tuple[dict, str]] = []
     for block in raw.split(RS):
         if not block.strip():
             continue
         lines = block.strip().splitlines()
-        sha = lines[0].strip()
-        files = []
-        added = deleted = 0
-        for line in lines[1:]:
-            if not line.strip():
-                continue
-            cols = line.split("\t")
-            if len(cols) < 3:
-                continue
-            a, d, path = cols[0], cols[1], cols[2]
-            # Bináris fájlnál a git "-" jelet ad szám helyett.
-            ai = int(a) if a.isdigit() else 0
-            di = int(d) if d.isdigit() else 0
-            added += ai
-            deleted += di
-            files.append({"path": path, "add": ai, "del": di, "bin": not a.isdigit()})
-        stats[sha] = {"files": files, "add": added, "del": deleted}
+        sha, *parents = lines[0].split()
+        stats[sha] = numstat_files(lines[1:])
+        # Új mappa: az első szülőben nem volt; törölt: a commitban már nincs.
+        for f in stats[sha]["files"]:
+            if f.get("status") == "D":
+                checks.append((f, sha))
+            elif f.get("status") == "A":
+                if parents:
+                    checks.append((f, parents[0]))
+                else:                                # gyökércommit: minden mappája új
+                    f["dirFrom"] = 0
+    mark_dirs(checks, missing_trees({f"{rev}:{d}" for f, rev in checks for d in dir_prefixes(f["path"])}))
     return stats
+
+
+def dir_prefixes(path: str) -> list[str]:
+    """A fájl mappái kívülről befelé, `/` nélkül: `a/b/c.txt` → `a`, `a/b`."""
+    return [path[:i] for i, ch in enumerate(path) if ch == "/"]
+
+
+def missing_trees(specs: set[str], repo: Path | None = None) -> set[str]:
+    """A `<rev>:<mappa>` alakú hivatkozások közül a nem létezők — egyetlen `cat-file`-lal."""
+    if not specs:
+        return set()
+    order = sorted(specs)
+    out = git("cat-file", "--batch-check", repo=repo, stdin="\n".join(order) + "\n").splitlines()
+    return {spec for spec, line in zip(order, out) if line.endswith(" missing")}
+
+
+def mark_dirs(checks: list[tuple[dict, str]], missing: set[str]) -> None:
+    """Az új / törölt fájl útvonalában az első új / törölt mappa kezdete (`dirFrom`,
+    karakterindex): onnan a mappa-előtag is a fájl színét kapja a lapon."""
+    for f, rev in checks:
+        for d in dir_prefixes(f["path"]):
+            if f"{rev}:{d}" in missing:
+                f["dirFrom"] = d.rfind("/") + 1
+                break
+
+
+SUMMARY_RE = re.compile(r"^ (create|delete) mode \d+ (.+)$")
+SUMMARY_STATUS = {"create": "A", "delete": "D"}
+
+
+def numstat_files(lines: list[str]) -> dict:
+    """A `--numstat --summary` kimenete fájlonként: +/− és az új (`A`) / törölt (`D`)
+    állapot (`status`; a `--summary` `create` / `delete mode` sorából)."""
+    files, status = [], {}
+    added = deleted = 0
+    for line in lines:
+        m = SUMMARY_RE.match(line)
+        if m:
+            status[m.group(2)] = SUMMARY_STATUS[m.group(1)]
+            continue
+        cols = line.split("\t")
+        if len(cols) < 3:
+            continue
+        a, d, path = cols[0], cols[1], cols[2]
+        # Bináris fájlnál a git "-" jelet ad szám helyett.
+        ai = int(a) if a.isdigit() else 0
+        di = int(d) if d.isdigit() else 0
+        added += ai
+        deleted += di
+        files.append({"path": path, "add": ai, "del": di, "bin": not a.isdigit()})
+    for f in files:
+        if f["path"] in status:
+            f["status"] = status[f["path"]]
+    return {"files": files, "add": added, "del": deleted}
 
 
 UNCOMMITTED = "*uncommitted"
@@ -152,17 +202,8 @@ def collect_uncommitted(wt: dict) -> tuple[dict, dict] | None:
     status = wt["status"]
     if not status or not wt["head"]:     # commit nélküli repó: nincs mihez kötni
         return None
-    files, added, deleted = [], 0, 0
-    for line in wt["numstat"].splitlines():
-        cols = line.split("\t")
-        if len(cols) < 3:
-            continue
-        a, d, path = cols[0], cols[1], cols[2]
-        ai = int(a) if a.isdigit() else 0
-        di = int(d) if d.isdigit() else 0
-        added += ai
-        deleted += di
-        files.append({"path": path, "add": ai, "del": di, "bin": not a.isdigit()})
+    st = numstat_files(wt["numstat"].splitlines())
+    files = st["files"]
 
     # A követetlen fájlokat a diff nem látja — számok helyett „új" jelöléssel.
     known = {f["path"] for f in files}
@@ -170,7 +211,21 @@ def collect_uncommitted(wt: dict) -> tuple[dict, dict] | None:
         if line.startswith("??"):
             path = line[3:].strip().strip('"')
             if path not in known:
-                files.append({"path": path, "add": 0, "del": 0, "bin": False, "new": True})
+                files.append({"path": path, "add": 0, "del": 0, "bin": False, "new": True, "status": "A"})
+
+    # Új mappa: a HEAD-ben nincs; törölt: nem maradt benne követett fájl (az index
+    # a még nem stage-elt törlést is tartalmazza, ezért a törölteket levonjuk).
+    added = [f for f in files if f.get("status") == "A"]
+    mark_dirs([(f, wt["head"]) for f in added],
+              missing_trees({f"{wt['head']}:{d}" for f in added for d in dir_prefixes(f["path"])}, wt["path"]))
+    deleted = [f for f in files if f.get("status") == "D"]
+    if deleted:
+        gone = {f["path"] for f in deleted}
+        dirs = {d for f in deleted for d in dir_prefixes(f["path"])}
+        tracked = [p for p in git("ls-files", "--", *dirs, repo=wt["path"]).splitlines()
+                   if p not in gone] if dirs else []
+        empty = {d for d in dirs if not any(p.startswith(d + "/") for p in tracked)}
+        mark_dirs([(f, "") for f in deleted], {f":{d}" for d in empty})
 
     changed = last_change(wt["path"], files)
     commit = {
@@ -188,7 +243,7 @@ def collect_uncommitted(wt: dict) -> tuple[dict, dict] | None:
         "worktree": wt["slug"],
         "changed": changed,
     }
-    return commit, {"files": files, "add": added, "del": deleted}
+    return commit, st
 
 
 def assign_lanes(commits: list[dict], trunk: str | None = None) -> list[dict]:
@@ -273,7 +328,7 @@ def collect_worktrees(repo: Path | None = None) -> list[dict]:
         try:
             wt["status"] = [line for line in git("status", "--porcelain", repo=wt["path"])
                             .splitlines() if line.strip()]
-            wt["numstat"] = git("diff", "--numstat", "HEAD", repo=wt["path"]) if wt["head"] else ""
+            wt["numstat"] = git("diff", "--numstat", "--summary", "HEAD", repo=wt["path"]) if wt["head"] else ""
         except subprocess.CalledProcessError:
             wt["gone"] = True
 

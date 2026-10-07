@@ -58,10 +58,44 @@ class GraphTest(HomeTestCase):
         self.assertLess(lane[side], lane[wts[1]["head"]])          # a worktree oszlopa a végén
         self.assertEqual(data["meta"]["shown"], 3)                 # a valódi commitok, ál-sorok nélkül
         new = data["stats"][f"*uncommitted:{wts[1]['slug']}"]["files"]
-        self.assertEqual(new, [{"path": "uj.txt", "add": 0, "del": 0, "bin": False, "new": True, "icon": "text"}])
+        self.assertEqual(new, [{"path": "uj.txt", "add": 0, "del": 0, "bin": False, "new": True, "status": "A",
+                               "icon": "text"}])
         for c in pending:
             path = data["stats"][c["sha"]]["files"][0]["path"]
             self.assertTrue(gg.diff.file_diff(c["sha"], path)["hunks"], c["sha"])
+
+    def test_file_status(self) -> None:
+        """Új fájl `A`, törölt `D`; a `dirFrom` az első új / kiürült mappa kezdete — commitban és a WIP-ben is."""
+        main = self.plain_repo()
+
+        def commit(msg: str, **files: str | None) -> str:
+            for path, text in files.items():
+                path = main / path.replace("__", "/")
+                if text is None:
+                    git_in(main, "rm", "-q", str(path))
+                else:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(text, encoding="utf-8")
+                    git_in(main, "add", str(path))
+            git_in(main, "commit", "-qm", msg)
+            return git_in(main, "rev-parse", "HEAD").strip()
+
+        first = commit("d", d__old="1\n", a="2\n")
+        second = commit("n", d__n__new="más\n", d__old=None)
+        git_in(main, "rm", "-q", "d/n/new")                         # d/n és d is kiürül
+        (main / "u").mkdir()
+        (main / "u" / "v.txt").write_text("1\n", encoding="utf-8")  # követetlen mappa
+        gg = self.load()
+        gg.gitio.set_repo(main)
+        data = gg.graph.collect_payload(None)
+
+        def files(sha: str) -> dict:
+            return {f["path"]: (f.get("status"), f.get("dirFrom")) for f in data["stats"][sha]["files"]}
+
+        self.assertEqual(files(first), {"a": ("A", None), "d/old": ("A", 0)})
+        self.assertEqual(files(second), {"d/n/new": ("A", 2), "d/old": ("D", None)})   # a d megmaradt
+        slug = data["meta"]["worktrees"][0]["slug"]
+        self.assertEqual(files(f"*uncommitted:{slug}"), {"d/n/new": ("D", 0), "u/": ("A", 0)})
 
     def test_remote_head(self) -> None:
         """Az `origin/HEAD` nem külön badge: a célja (`origin/main`) kapja a `default` jelet."""

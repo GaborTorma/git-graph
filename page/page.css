@@ -643,8 +643,12 @@ button { font: inherit; color: inherit; }
 .file .fic { width: 16px; height: 16px; display: block; }           /* Catppuccin-ikon */
 .file .ic.fic { width: 13px; height: 13px; margin: auto; color: var(--fg-2); }   /* általános fájlikon */
 .file[aria-expanded="true"] .chev { transform: rotate(90deg); }
-.file .path { font-family: var(--font-mono); font-size: 12px; color: var(--fg-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.file .path .dir { color: var(--fg-3); }
+.file .path { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--fg-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file .path .dir, .file .path .dir-st { font-weight: 400; }
+.file .path .dir { color: var(--fg-2); }
+.file .path.added { color: var(--add); }
+.file .path.deleted { color: var(--del); }
+.file .path .dir-st { opacity: .7; }
 .churn { display: flex; align-items: center; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .churn .a { color: var(--add); }
 .churn .d { color: var(--del); }

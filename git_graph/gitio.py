@@ -41,14 +41,14 @@ def git_bin() -> str:
     return path if os.access(path, os.X_OK) else "git"
 
 
-def git(*args: str, repo: Path | None = None) -> str:
+def git(*args: str, repo: Path | None = None, stdin: str | None = None) -> str:
     # --no-optional-locks: a `git status` egyébként FRISSÍTI az indexet, ahhoz
     # pedig `index.lock`-ot vesz. A szerver kétmásodpercenként kérdez — ez a
     # Fejlesztő saját git-parancsait akasztaná meg („Unable to create
     # index.lock"). Olvasó eszköznek úgyis felesleges.
     return subprocess.run(
         [git_bin(), "--no-optional-locks", "-C", str(repo or REPO), *args],
-        capture_output=True, text=True, check=True,
+        input=stdin, capture_output=True, text=True, check=True,
     ).stdout
 
 
