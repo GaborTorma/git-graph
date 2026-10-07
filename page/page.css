@@ -649,6 +649,7 @@ button { font: inherit; color: inherit; }
 .file .path.added { color: var(--add); }
 .file .path.deleted { color: var(--del); }
 .file .path .dir-st { opacity: .7; }
+.file .path .rename-arrow { font-size: 16px; line-height: 0; }
 .churn { display: flex; align-items: center; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .churn .a { color: var(--add); }
 .churn .d { color: var(--del); }

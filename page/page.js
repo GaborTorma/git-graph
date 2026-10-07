@@ -152,8 +152,9 @@ const fileIcon = f => {
 const pathHtml = (path, from = Infinity) => {
   const i = path.lastIndexOf('/') + 1;
   const j = Math.min(from, i);
-  return (j ? `<span class="dir">${esc(path.slice(0, j))}</span>` : '')
-    + (j < i ? `<span class="dir-st">${esc(path.slice(j, i))}</span>` : '') + esc(path.slice(i));
+  return ((j ? `<span class="dir">${esc(path.slice(0, j))}</span>` : '')
+    + (j < i ? `<span class="dir-st">${esc(path.slice(j, i))}</span>` : '') + esc(path.slice(i)))
+    .replaceAll(' =&gt; ', ' <span class="rename-arrow">»</span> ');   // a `--numstat` átnevezés-nyila
 };
 
 /* A friss sorozat sha-i; lejáratkor a lap magától újrarajzol (a pollozás csak
