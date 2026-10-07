@@ -21,6 +21,7 @@
   --track-off:   #e3e1d8;
   --add:         #3d7a37;
   --del:         #c23a3a;
+  --del-fill:    #c23a3a;   /* teli piros felület fehér szöveggel */
   --live:        #3d9a50;
   --tag-fg:      #8a5a00;
   /* fájlikonok (Catppuccin, page/file-icons.json): a sávszínek tónusai */
@@ -67,6 +68,7 @@
     --track-off:   #4a4946;
     --add:         #86c473;
     --del:         #e5806b;
+    --del-fill:    #b8392f;
     --live:        #6cc47e;
     --tag-fg:      #e6c06e;
     --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
@@ -109,6 +111,7 @@
   --track-off:   #4a4946;
   --add:         #86c473;
   --del:         #e5806b;
+  --del-fill:    #b8392f;
   --live:        #6cc47e;
   --tag-fg:      #e6c06e;
   --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
@@ -551,8 +554,14 @@ button { font: inherit; color: inherit; }
 :is(.badge, .head-chip) .ic.filled { fill: currentColor; }
 /* Az ág távolsága (alapág / upstream): ikon és nyilak, egy szakaszban. */
 :is(.badge, .head-chip) .dist { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
-/* Az alapág helyi párja előrébb jár a remote-jánál: anomália. */
-:is(.badge, .head-chip) .dist.warn { color: var(--del); font-weight: 600; }
+/* Az alapág helyi párja előrébb jár a remote-jánál: anomália. Osztott chip — a szakasz
+   piros felületen, mert a teli (sávszínű) chipen a piros szöveg beleolvadna. */
+:is(.badge, .head-chip) .dist.warn { align-self: stretch; margin: 1px 0; padding: 0 5px; background: var(--del-fill); color: #ffffff; font-weight: 600; }
+:is(.badge, .head-chip) .div:has(+ .dist.warn) { display: none; }
+/* A chip végén: 1 px-es keret marad körülötte a chip színéből, a sarok a chipével párhuzamos. */
+:is(.badge, .head-chip) .dist.warn:last-child { border-radius: 0 5px 5px 0; }
+.badge .dist.warn:last-child { margin-right: -5px; }
+.head-chip .dist.warn:last-child { margin-right: -6px; }
 .head-chip .div { margin: 3px 2px; }
 :is(.badge, .head-chip) .synced:has(.wt-ic) { opacity: 1; }   /* a worktree-jel teljes erővel, a felhő visszafogott */
 /* Az ág, a HEAD és a tag a commit sávjának színét viseli (`--lc`, page.js).
