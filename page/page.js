@@ -250,7 +250,9 @@ function distSegs(name, tr = DATA.meta.tracks?.[name] || {}) {
   const base = DATA.meta.base || '', local = base.slice(base.indexOf('/') + 1);
   const odd = base && name === local && tr.up?.[0] > 0;
   const warn = odd ? ` warn" data-tip="${esc(`A helyi ${name}-en ${tr.up[0]} pusholatlan commit van`)}` : '';
-  return [[tr.base, '', ''], [remote && tr.up, icon('cloud'), warn], [remote && tr.local, icon('branch'), '']]
+  // Az upstream felhője teli, ha az az alapág (`origin/HEAD` célja), mint a remote chipen.
+  const up = DATA.branches.find(b => !b.remote && b.name === name)?.upstream;
+  return [[tr.base, '', ''], [remote && tr.up, cloudOf(base && up === base), warn], [remote && tr.local, icon('branch'), '']]
     .filter(([d]) => d && (d[0] || d[1]))
     .map(([d, ic, cls]) => `<span class="div"></span><span class="dist${cls}">${ic}${arrows(d)}</span>`).join('');
 }
