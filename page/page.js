@@ -830,7 +830,6 @@ function toggleFile(fileEl, sha, on) {
    egyik oldala végig üres lenne: ott csak az egymás alatti nézet készül.
    Hunkok közt a kihagyott sorok száma a régi oldal sorszámaiból jön. */
 function diffHtml(d, lang) {
-  if (d.note) return `<p class="diff-note">${esc(d.note)}</p>`;
   if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
   if (!d.hunks.length) return '<p class="diff-note">Nincs megjeleníthető változás.</p>';
   let uni = '', split = '', oldEnd = 1;

@@ -183,7 +183,7 @@ def last_change(root: Path, files: list[dict]) -> int:
     latest = 0
     for f in files:
         try:
-            latest = max(latest, int((root / f["path"].rstrip("/")).stat().st_mtime))
+            latest = max(latest, int((root / f["path"]).stat().st_mtime))
         except OSError:
             pass
     return latest
@@ -326,7 +326,7 @@ def collect_worktrees(repo: Path | None = None) -> list[dict]:
 
     def fill(wt: dict) -> None:
         try:
-            wt["status"] = [line for line in git("status", "--porcelain", repo=wt["path"])
+            wt["status"] = [line for line in git("status", "--porcelain", "--untracked-files=all", repo=wt["path"])
                             .splitlines() if line.strip()]
             wt["numstat"] = git("diff", "--numstat", "--summary", "HEAD", repo=wt["path"]) if wt["head"] else ""
         except subprocess.CalledProcessError:

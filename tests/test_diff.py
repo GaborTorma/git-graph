@@ -71,7 +71,7 @@ class DiffTest(HomeTestCase):
         (repo / "mappa" / "f.txt").write_text("z\n", encoding="utf-8")
         wip = f"*uncommitted:{gg.registry.slug_for(repo)}"
         self.assertEqual(len(gg.diff.file_diff(wip, "uj.txt")["hunks"][0]["lines"]), 2)
-        self.assertIn("note", gg.diff.file_diff(wip, "mappa/"))
+        self.assertEqual(gg.diff.file_diff(wip, "mappa/f.txt")["hunks"][0]["lines"], [{"t": "+", "n": 1, "s": "z"}])
         self.assertEqual(gg.diff.file_diff(wip, "nincs.txt")["hunks"], [])         # nem olvas tetszőleges fájlt
         for bad in ("--output=/tmp/x", "HEAD", "*uncommitted:nincs-ilyen-000000"):
             with self.assertRaises(ValueError, msg=bad):

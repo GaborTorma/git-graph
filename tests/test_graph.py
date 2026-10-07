@@ -83,8 +83,13 @@ class GraphTest(HomeTestCase):
         first = commit("d", d__old="1\n", a="2\n")
         second = commit("n", d__n__new="más\n", d__old=None)
         git_in(main, "rm", "-q", "d/n/new")                         # d/n és d is kiürül
-        (main / "u").mkdir()
-        (main / "u" / "v.txt").write_text("1\n", encoding="utf-8")  # követetlen mappa
+        (main / "u" / "w").mkdir(parents=True)
+        (main / "u" / "v.txt").write_text("1\n", encoding="utf-8")  # követetlen mappa: a fájljai látszanak
+        (main / "u" / "w" / "x.txt").write_text("1\n", encoding="utf-8")
+        (main / "ures").mkdir()                                     # fájl nélküli mappa: nem látszik
+        (main / ".gitignore").write_text("ign/\n", encoding="utf-8")
+        (main / "ign").mkdir()
+        (main / "ign" / "y.txt").write_text("1\n", encoding="utf-8")  # ignorált: nem látszik
         gg = self.load()
         gg.gitio.set_repo(main)
         data = gg.graph.collect_payload(None)
@@ -95,7 +100,8 @@ class GraphTest(HomeTestCase):
         self.assertEqual(files(first), {"a": ("A", None), "d/old": ("A", 0)})
         self.assertEqual(files(second), {"d/n/new": ("A", 2), "d/old": ("D", None)})   # a d megmaradt
         slug = data["meta"]["worktrees"][0]["slug"]
-        self.assertEqual(files(f"*uncommitted:{slug}"), {"d/n/new": ("D", 0), "u/": ("A", 0)})
+        self.assertEqual(files(f"*uncommitted:{slug}"), {"d/n/new": ("D", 0), ".gitignore": ("A", None),
+                                                          "u/v.txt": ("A", 0), "u/w/x.txt": ("A", 0)})
 
     def test_remote_head(self) -> None:
         """Az `origin/HEAD` nem külön badge: a célja (`origin/main`) kapja a `default` jelet."""

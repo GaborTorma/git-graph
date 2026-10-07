@@ -169,9 +169,6 @@ def file_diff(sha: str, path: str) -> dict:
         if root is None:
             raise ValueError(f"nincs ilyen worktree: {slug}")
         raw = git("diff", "--no-color", "--no-ext-diff", "-M", "HEAD", "--", old, new, repo=root)
-        if not raw.strip() and path.endswith("/"):      # a status így mutat egy új mappát
-            return {"hunks": [], "binary": False, "truncated": False,
-                    "note": "követetlen mappa — a fájljai a git add után látszanak"}
         if not raw.strip() and path in git("ls-files", "--others", "--exclude-standard",
                                            "--", path, repo=root).splitlines():
             return untracked_diff(root, path)

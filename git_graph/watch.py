@@ -30,8 +30,8 @@ def repo_state(repo: Path) -> str:
 
         def status(wt: dict) -> list[str] | None:
             try:
-                return [line for line in git("status", "--porcelain", repo=wt["path"]).splitlines()
-                        if line.strip()]
+                return [line for line in git("status", "--porcelain", "--untracked-files=all",
+                                             repo=wt["path"]).splitlines() if line.strip()]
             except subprocess.CalledProcessError:
                 return None                         # közben megszűnt
 
@@ -42,7 +42,7 @@ def repo_state(repo: Path) -> str:
             newest = 0
             for line in lines:
                 try:
-                    newest = max(newest, (wt["path"] / line[3:].strip().strip('"').rstrip("/"))
+                    newest = max(newest, (wt["path"] / line[3:].strip().strip('"'))
                                  .stat().st_mtime_ns)
                 except OSError:
                     pass
