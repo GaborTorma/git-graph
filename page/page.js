@@ -175,13 +175,17 @@ function computeFresh() {
   freshTimer = setTimeout(() => { fresh = new Set(); render(); }, left);
 }
 
+/* A repónév olvasható alakja a fejlécbe: `git-graph` → `Git Graph`. */
+const displayName = name => name.split(/[-_.\s]+/).filter(Boolean)
+  .map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+
 /* Minden, ami a DATA-ból származik és adatcserekor újraszámolandó. */
 function hydrate() {
   computeFresh();
   const laneCount = DATA.commits.reduce((m, c) => Math.max(m, c.lane, ...(c.stubs || []).map(t => t.lane)), 0) + 1;
   graphW = Math.max(32, X0 * 2 + (laneCount - 1) * LANE_W);
   document.documentElement.style.setProperty('--graph-w', graphW + 'px');
-  document.getElementById('repoName').textContent = DATA.meta.repo;
+  document.getElementById('repoName').textContent = displayName(DATA.meta.repo);
   hydrateFocus();
   const base = DATA.meta.repoUrl;
   document.getElementById('footLinks').innerHTML = base
