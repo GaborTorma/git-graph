@@ -30,7 +30,7 @@ import argparse
 from pathlib import Path
 
 from .gitio import config_get, git, main_checkout, remember_artifact, repo_name, resolve_repo, set_repo
-from .hook import session_hook
+from .hook import open_url, session_hook
 from .install import dev_install
 from .mcp import mcp_serve
 from .publish import mark_published, prepare_publish, publish_steps
@@ -71,13 +71,23 @@ def main() -> int:
                     help="fejlesztés: a working tree a stabil helyre (+dev verzióval) — a "
                          "Claude appban futó git-graph átvált rá, a lap élőben kipróbálható")
     ap.add_argument("--session-hook", action="store_true", dest="session_hook",
-                    help="Claude Code hook (SessionStart, és PostToolUse a worktree-"
-                         "váltásra): telepítés, a repó Artifactjának megnyitása vagy "
-                         "publikálása (stdin: a hook JSON-ja)")
+                    help="Claude Code SessionStart hook: telepítés, és ha kell, a repó "
+                         "Artifactjának publikálása (stdin: a hook JSON-ja)")
+    ap.add_argument("--open-url", action="store_true", dest="open_url",
+                    help="a plugin modjának: a repó Artifactjának URL-je, ha most meg kell "
+                         "nyitni (naprakész, és a sessionben még nem volt nyitva); különben semmi")
+    ap.add_argument("--session", metavar="ID", default=None,
+                    help="az --open-url-hez: a Claude Code session azonosítója")
     args = ap.parse_args()
 
     if args.session_hook:
         return session_hook()
+
+    if args.open_url:
+        url = open_url(Path(args.repo).expanduser().resolve(), args.session)
+        if url:
+            print(url)
+        return 0
 
     if args.mcp:
         return mcp_serve(args.limit or None)

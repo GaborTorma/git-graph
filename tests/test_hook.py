@@ -15,30 +15,37 @@ class HookTest(HomeTestCase):
         return subprocess.run([PYTHON, str(SCRIPT), *args], input=stdin, capture_output=True, text=True,
                               cwd=cwd or self.home, env={**base, "HOME": str(self.home), **env})
 
-    def hook(self, cwd: Path, session: str = "s1", event: str | None = None, **env: str) -> str | None:
+    def hook(self, cwd: Path, session: str = "s1", **env: str) -> str | None:
         payload = {"cwd": str(cwd), "session_id": session}
-        if event:
-            payload["hook_event_name"] = event
         out = self.run_script("--session-hook", stdin=json.dumps(payload), **env)
         self.assertEqual(out.returncode, 0, out.stderr)
         if not out.stdout:
             return None
         data = json.loads(out.stdout)["hookSpecificOutput"]
-        self.assertEqual(data["hookEventName"], event or "SessionStart")
+        self.assertEqual(data["hookEventName"], "SessionStart")
         return data["additionalContext"]
 
+    def open_url(self, cwd: Path, session: str, **env: str) -> str:
+        out = self.run_script(str(cwd), "--open-url", "--session", session, **env)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout.strip()
+
     def test_publish_then_open(self) -> None:
-        """Nincs Artifact → publikálás; a session publikálása után → megnyitás, sessionönként egyszer."""
+        """Nincs Artifact → a hook publikáltat; utána a mod nyit (`--open-url`), sessionönként egyszer."""
         main, extra = self.make_repo()
         context = self.hook(extra)                                   # worktree-ből is a fő checkout lapja
         self.assertIn("még nincs", context)
         self.assertIn(str(main), context)
+        self.assertEqual(self.open_url(extra, "s1"), "")              # publikálandó: a session nyitja meg
         out = self.run_script(str(extra), "--published", "https://claude.ai/artifact/x")
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertEqual(git_in(main, "config", "git-graph.artifact").strip(), "https://claude.ai/artifact/x")
-        self.assertIn("nyisd meg EGYSZER", self.hook(main, session="s2"))
-        self.assertIsNone(self.hook(extra, session="s2", event="PostToolUse"))   # worktree-váltás: már nyitva
-        self.assertIn("nyisd meg", self.hook(main, session="s3", event="PostToolUse"))
+        self.assertEqual(self.open_url(main, "s1"), "")               # a publikáló session már nyitotta
+        self.assertIsNone(self.hook(main, session="s2"))              # naprakész: a hook hallgat
+        self.assertEqual(self.open_url(main, "s2"), "https://claude.ai/artifact/x")
+        self.assertEqual(self.open_url(extra, "s2"), "")              # a repó másik worktree-je: már nyitva
+        self.assertEqual(self.open_url(main, "s3", CLAUDE_CODE_ENTRYPOINT="sdk-py"), "")
+        self.assertEqual(self.open_url(self.home, "s3"), "")          # nem repó
 
     def test_quiet(self) -> None:
         """Nem repó, headless session és kikapcsolt publikálás: nincs kimenet."""

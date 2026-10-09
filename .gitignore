@@ -19,5 +19,9 @@ __pycache__/
 # Claude Code worktree-k
 .claude/worktrees/
 
+# A mod típusai: a Claude Code írja, amikor betölti (`claude --plugin-dir .`)
+.claude-plugin/types/
+tsconfig.json
+
 # Parkoló (lokális teendőlista)
 .parked.md

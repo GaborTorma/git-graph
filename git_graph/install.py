@@ -137,7 +137,7 @@ def dev_active() -> bool:
     """Friss `--dev-install` van a stabil helyen (`<verzió>+dev.<időbélyeg>`, DEV_TTL-en belül).
 
     Ilyenkor a hook nem másolja vissza a telepített plugint — különben egy
-    másik session indulása vagy egy worktree-váltás egy percen belül
+    másik session indulása egy percen belül
     visszaállítaná. A védelem lejár, így egy elfelejtett dev-példány nem
     ragad be a frissítések elé.
     """
