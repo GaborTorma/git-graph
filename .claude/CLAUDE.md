@@ -3,7 +3,7 @@
 Git Graph-szerű commit-gráf **bármelyik repóból**: élő Artifact, amely a
 Claude appban a gépen futó `git-graph --mcp`-ből olvas. A VS Code `mhutchie.git-graph` elrendezését követi.
 
-Használat és felépítés: [README.md](README.md).
+Használat és felépítés: [README.md](../README.md).
 
 ## Repó térkép
 
