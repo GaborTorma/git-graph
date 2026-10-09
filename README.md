@@ -131,7 +131,8 @@ kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
 | `tests/` | modulonkénti tesztek és füstteszt az MCP szerverre (stdlib `unittest`) |
 | `.claude-plugin/plugin.json` | a plugin manifestje — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace (egyetlen plugin: ez a repó) |
-| `hooks/hooks.json` | SessionStart és worktree-váltás (PostToolUse) hook: `git-graph --session-hook` (telepít + megnyittatja vagy publikáltatja a gráfot + a régi worktree-Artifactokat töröltet) |
+| `hooks/hooks.json` | SessionStart hook: `git-graph --session-hook` (telepít + publikáltatja a gráfot); és a mod |
+| `hooks/register.ts` | a plugin modja: a meglévő Artifactot a modell nélkül nyitja meg, a session indulásakor |
 | `skills/artifact/SKILL.md` | `/git-graph:artifact`: `git-graph --publish`, és publikálja vagy megnyitja az Artifactot |
 | `skills/remove/SKILL.md` | `/git-graph:remove`: az Artifactok törlése és a repók kitakarítása az eltávolítás előtt |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |
@@ -177,7 +178,9 @@ git-graph percen belül magától frissül, a lap újratölt — app-újraindít
 kiírja az `artifact.html`-t és a lépéseket — meglévő Artifactnál előbb `read`
 (friss sessionből a platform különben elutasítja), majd `publish` a
 `host:git-graph` capability-vel, végül `git-graph --published <URL>`, ami az URL-t és
-a lap hashét visszaírja. Változatlan lapnál nincs teendő.
+a lap hashét visszaírja. Változatlan lapnál nincs teendő: a meglévő lapot a
+plugin modja nyitja meg, a modell nélkül (`git-graph --open-url`, majd `Artifact open`),
+sessionönként egyszer. Modból a publikálást az auto mód nem engedi, ezért az a sessioné marad.
 Ha létezik a `~/.git-graph/no-auto-publish` fájl, a hook nem kér publikálást
 (a `git-graph --forget` után: csak a kézi `/git-graph:artifact` megy).
 

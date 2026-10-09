@@ -35,6 +35,12 @@ def page_digest(html_page: str) -> str:
     return hashlib.sha256((html_page + json.dumps(PUBLISH_CAPS)).encode()).hexdigest()
 
 
+def is_current() -> bool:
+    """Igaz, ha van Artifact, és a lapja egyezik a legutóbb publikálttal (nem ír semmit)."""
+    html_page = build(page_title(repo_name()), register(gitio.REPO))
+    return bool(config_get("artifact")) and page_digest(html_page) == config_get("artifactHash")
+
+
 def prepare_publish() -> dict | None:
     """Az Artifact vékony lapja: kiírja, ha eltér a legutóbb publikálttól.
 
