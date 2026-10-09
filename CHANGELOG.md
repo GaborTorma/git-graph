@@ -1,3 +1,32 @@
+## [0.13.0] - 2026-10-09
+
+### 🚀 Features
+
+- *(page)* Color new and deleted files and their new or emptied folders
+- *(graph)* List files inside untracked folders in the uncommitted row
+- *(page)* Show renamed files with a larger » instead of =>
+- *(page)* Show the repo name in title case in the header
+- *(plugin)* Open the artifact from a plugin mod instead of the model
+
+### 🐛 Bug Fixes
+
+- *(page)* Fill the upstream cloud on branch chips tracking the default branch
+- *(page)* Show the unpushed count on the default branch as a split red chip
+
+### 📚 Documentation
+
+- *(findings)* Record that artifacts see the OS locale, not the app's
+- *(findings)* Record how the app gates write tools on the host bridge
+- *(claude-md)* Report the dev-install version after each change
+- *(worklog)* Mod opens artifact
+
+### ⚡ Performance
+
+- *(install)* Pick up a dev install within 15 seconds
+
+### ⚙️ Miscellaneous Tasks
+
+- Move CLAUDE.md under .claude to pass strict plugin validation
 ## [0.12.2] - 2026-10-06
 
 ### 🐛 Bug Fixes
