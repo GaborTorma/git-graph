@@ -254,6 +254,7 @@ Eszköz: eldobható mod a session hot-reload mappájában, auto módban.
 | `Artifact read` modból | **átmegy** |
 | `Artifact publish` modból (`read` előtte és utána is) | **elutasítva**: *„auto mode classifier gave no verdict … the request that produced this action did not ask for one”* — a modhívás mögött nincs kérés |
 | `consent` mező kódba írt szöveggel | nem mértük: az auto mód már a megírását is megkerülésnek vette |
+| `permissions.allow` szabály a `publish`-ra (`$.tool.check`, futtatás nélkül) | **nem segít**: az `Artifact(publish)`, `Artifact(publish:*)`, `Artifact(<URL>)` forma nem illeszkedik; a tág `Artifact` az `open`-t viszi (`rule: "Artifact"`), de a `publish` és a `read` `ask` marad — a tool saját ellenőrzése a szabály fölött dönt. Auto módban az `ask` az osztályozóhoz megy, az pedig modhívásnál elutasít; nem auto módban engedélyablak lenne |
 | `classic.SessionStart` / `classic.PostToolUse` a modban | **nem fut le**, akkor sem, ha a plugin hookja illeszkedik (`tool.call` igen) |
 | A hook `additionalContext`-je a modban | `session.append` `door: 'hook-context'` sorként átírható |
 
