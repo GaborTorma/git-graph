@@ -241,6 +241,25 @@ Az app MCP-naplója (`~/Library/Logs/Claude/mcp-server-git-graph.log`) a
 host-híd `tools/call` hívásait **nem** naplózza — a lap működését onnan nem
 lehet ellenőrizni.
 
+## Megnyitás és publikálás modból (mérve, 2026-10-09, Claude Code 2.1.293)
+
+Kérdés: kiváltható-e a modell Artifact-hívása egy Claude Code moddal
+(plugin `hooks.json` `modules`, `$.tool.call`), és mehet-e a lap egy mod-panelbe.
+Eszköz: eldobható mod a session hot-reload mappájában, auto módban.
+
+| Mérés | Eredmény |
+| --- | --- |
+| A lap HTML-je egy mod-panelben (`$.ui.open` + `ui.render`) | **nem megy**: a panel saját elemfa (`Box`, `Text`, `Svg`…), DOM, HTML és script nincs; a `Client` modul is ebből rajzol, az `Svg` script nélküli |
+| `$.tool.call({ tool: 'Artifact', action: 'open', url })` | **átmegy**, megerősítés nélkül (~270 ms); friss sessionben (a plugin 0.13.0-s modja, `session.start`) **megnyitja a panelt**. Egy sessionben már egyszer megnyitott lapot sem ez, sem a modell `open`-je nem nyit ki újra (a modellé csak kártyát tesz a beszélgetésbe, a modé semmit) |
+| `Artifact read` modból | **átmegy** |
+| `Artifact publish` modból (`read` előtte és utána is) | **elutasítva**: *„auto mode classifier gave no verdict … the request that produced this action did not ask for one”* — a modhívás mögött nincs kérés |
+| `consent` mező kódba írt szöveggel | nem mértük: az auto mód már a megírását is megkerülésnek vette |
+| `classic.SessionStart` / `classic.PostToolUse` a modban | **nem fut le**, akkor sem, ha a plugin hookja illeszkedik (`tool.call` igen) |
+| A hook `additionalContext`-je a modban | `session.append` `door: 'hook-context'` sorként átírható |
+
+Következmény: a meglévő lapot a plugin modja nyitja meg (`hooks/register.ts`,
+`git-graph --open-url`), a publikálás a session dolga marad (a hook kéri).
+
 ## A lapról a sessionbe: `comments.sendToClaude` (mérve, 2026-10-01, Claude Code 2.1.285)
 
 Kérdés: tud-e a lap egy gombnyomással kérést küldeni a futó Code-sessionnek

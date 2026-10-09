@@ -3,7 +3,7 @@
 Git Graph-szerű commit-gráf **bármelyik repóból**: élő Artifact, amely a
 Claude appban a gépen futó `git-graph --mcp`-ből olvas. A VS Code `mhutchie.git-graph` elrendezését követi.
 
-Használat és felépítés: [README.md](README.md).
+Használat és felépítés: [README.md](../README.md).
 
 ## Repó térkép
 
@@ -17,7 +17,8 @@ Használat és felépítés: [README.md](README.md).
 | `ruff.toml`, `biome.json` | lint: Python (3.9-célverzióval) és a `page/` JS / CSS / HTML-je |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
-| `hooks/hooks.json` | a plugin hookja (`--session-hook`): SessionStart, és PostToolUse az `EnterWorktree` / `ExitWorktree` után |
+| `hooks/hooks.json` | a plugin SessionStart hookja (`--session-hook`) és a mod (`modules`) |
+| `hooks/register.ts` | a plugin modja: a repó Artifactját a modell nélkül nyitja meg (`git-graph --open-url`, `Artifact open`); teszt: `register.test.ts` |
 | `skills/artifact/SKILL.md` | a `/git-graph:artifact` skill (`git-graph --publish`, és publikálja vagy megnyitja) |
 | `skills/remove/SKILL.md` | a `/git-graph:remove` skill: Artifactok törlése + `git-graph --forget` az uninstall előtt |
 | `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
@@ -37,6 +38,8 @@ git-graph --published <URL>  # a session publikálása után: URL + hash a .git/
 git-graph --mcp              # MCP szerver stdio-n — a Claude app indítja, nem kézzel
 git-graph --artifacts        # ismert repók Artifactjai (regiszter + a szülőmappák repói)
 git-graph --forget           # a repó git-graph nyomai + automatikus publikálás KI
+git-graph --open-url --session <ID>   # a mod kérdése: az URL, ha most meg kell nyitni
+claude plugin test .         # a mod tesztjei (hooks/*.test.ts)
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
 python3 bin/git-graph --dev-install   # a working tree az appban futó git-graph helyére (+dev), a lap élőben
 ```
@@ -70,7 +73,7 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
 `HOME`-mal, a modult betöltve — az app configja és a `~/.git-graph` is a
 `HOME` alól jön, a valódihoz így a próba nem nyúl.
 
-- **Check**: `syntax=/usr/bin/python3 -m py_compile bin/git-graph git_graph/*.py && node --check page/page.js && claude plugin validate . --strict` · `lint=uvx ruff@0.16.10 check && pnpm dlx @biomejs/biome@2.5.15 lint` · `test=/usr/bin/python3 -m unittest discover -s tests`
+- **Check**: `syntax=/usr/bin/python3 -m py_compile bin/git-graph git_graph/*.py && node --check page/page.js && claude plugin validate . --strict` · `lint=uvx ruff@0.16.10 check && pnpm dlx @biomejs/biome@2.5.15 lint` · `test=/usr/bin/python3 -m unittest discover -s tests && claude plugin test .`
 
 ## Konvenciók
 
@@ -168,13 +171,19 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
 - **A csomag minden modulja induláskor betöltődik** (a `cli` mindet importálja):
   a stabil zip a futó szerver alatt cserélődhet, egy későbbi import már az új
   zipből olvasna. Függvényen belüli import a csomagból nem lehet.
-- **A hook publikáltat vagy megnyittat.** Ha a repónak nincs Artifactja, vagy a
-  lap hashe eltér a `git-graph.artifactHash`-től, a publikálás lépéseit adja a
-  sessionnek (`publish_steps`); különben a meglévőt nyittatja meg — sessionönként
+- **A hook publikáltat, a mod nyit meg.** Ha a repónak nincs Artifactja, vagy a
+  lap hashe eltér a `git-graph.artifactHash`-től, a hook a publikálás lépéseit adja a
+  sessionnek (`publish_steps`). A meglévőt a plugin modja (`hooks/register.ts`)
+  nyitja meg a modell nélkül, a session indulásakor: a `git-graph --open-url` dönt (`open_url`), a mod
+  `$.tool.call`-lal hívja az `Artifact` `open`-t — sessionönként
   egyszer: a `~/.git-graph/sessions.json` (`session_id → slug`, 7 nap után
   törlődik) szerint, a `source`-tól függetlenül (`resume`, `/clear`, `compact`
   nem zárja be a lapot; archiválásra nincs hook, a `SessionEnd` app-bezáráskor
-  is fut). Headless
+  is fut). Publikáláskor a hook jegyzi be a sessiont: utána a modell nyit.
+  Modból a `publish` nem megy (az auto mód elutasítja, nincs mögötte kérés), az
+  `open` / `read` igen; a mod a `classic.*` eseményeket nem kapja meg
+  (mérve, docs/artifact-findings.md). Ahol nem fut mod (régi kliens), a lap
+  magától nem nyílik meg. Headless
   (`CLAUDE_CODE_ENTRYPOINT=sdk-*`) sessionben és `no-auto-publish` mellett nem
   kér publikálást. Némán kilép, ha a mappa nem repó: egy SessionStart hook
   minden sessionben lefut, zajt nem csinálhat. A repót mindig regisztrálja — a
@@ -200,8 +209,8 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   gazdátlan. A `branches` a csak remote ágakat is adja (`remote: true`). A leválasztott
   HEAD-ű worktree ágát a git nem jegyzi — a Claude app `git-worktrees.json`-ja
   igen (`app_worktree_branches`, a worktree `appBranch` mezője); név szerint
-  nem azonosítunk. Az `EnterWorktree` után a hook PostToolUse-ként is
-  fut, de ugyanazon a repón belül nem nyit újra (sessionönként egyszer).
+  nem azonosítunk. Worktree-váltásra nincs hook: a lap ugyanaz, a session
+  indulásakor megnyílt (0.13 előtt `PostToolUse` futott az `Enter`/`ExitWorktree` után).
 - **A „saját” worktree az előtérben lévő sessioné** — mérve,
   docs/artifact-findings.md: az app egy Artifactnak **egyetlen keretet** tart,
   és azt mutatja minden sessionben; a link `#horgony`-a nem jut át, a host-híd
