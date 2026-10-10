@@ -14,7 +14,6 @@ from .gitio import config_get, git, set_repo, worktree_paths
 from .state import STATE_DIR, log
 
 REPOS = STATE_DIR / "repos.json"       # slug → repó útvonal (a hook írja, a git-graph --mcp olvassa)
-NO_AUTO_PUBLISH = STATE_DIR / "no-auto-publish"   # ha létezik: a hook nem kér publikálást
 SESSIONS = STATE_DIR / "sessions.json"  # session_id → {slug: időbélyeg}: ezekben már megnyílt a lap
 SESSION_TTL = 7 * 24 * 3600            # ennyi idő után a bejegyzés törlődik (archiválásra nincs hook)
 
@@ -93,7 +92,7 @@ def registered_repos() -> dict:
 
 
 def list_artifacts() -> list[tuple[Path, str]]:
-    """(repó, Artifact URL) párok — a `/git-graph:remove` ebből dolgozik.
+    """(repó, Artifact URL) párok — a `/git-graph:forget-all-artifacts` ebből dolgozik.
 
     A regiszter hiányos lehet (leszereléskor törlődik, és csak a hook tölti
     újra), ezért a regisztrált repók szülőmappáinak többi repóját is nézi.
@@ -123,8 +122,8 @@ def forget(repo: Path) -> None:
     """A repó minden git-graph nyoma: a config-szakasza, a helyi lapja és a
     regiszterbejegyzése.
 
-    Az automatikus publikálást is kikapcsolja — különben a következő session
-    hookja új Artifactot kérne.
+    A repó automatikus publikálását is kikapcsolja (`git-graph.autoPublish`)
+    — különben a következő session hookja új Artifactot kérne.
     """
     set_repo(repo)
     slug = slug_for(repo)
@@ -137,6 +136,5 @@ def forget(repo: Path) -> None:
     if data.pop(slug, None) is not None:
         REPOS.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
                          encoding="utf-8")
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    NO_AUTO_PUBLISH.touch()
+    git("config", "--local", "git-graph.autoPublish", "false")
 

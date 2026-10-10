@@ -9,7 +9,7 @@ Az Artifact lapjában nincs adat: a Claude appban megnyitva a gépen futó
 `git-graph --mcp`-ből kéri (a Claude app host-hídján át). Kétmásodpercenként olcsó
 ujjlenyomatot kér, és csak tényleges változásra tölt új adatot. A lapot a
 session publikálja, amikor a hook kéri: ha még nincs, vagy a sablonja (a
-git-graph kódja) változott. Kézzel: a `/git-graph:artifact` skill.
+git-graph kódja) változott. Kézzel: a `/git-graph:artifact-publish` skill.
 
     git-graph --publish                  # az Artifact publikálásának lépései a sessionnek
     git-graph --published <URL>          # a publikálás után: URL + hash a .git/config-ba
@@ -34,7 +34,7 @@ from .hook import open_url, session_hook
 from .install import dev_install
 from .mcp import mcp_serve
 from .publish import mark_published, prepare_publish, publish_steps
-from .registry import NO_AUTO_PUBLISH, forget, list_artifacts, register
+from .registry import forget, list_artifacts, register
 
 
 def main() -> int:
@@ -52,14 +52,14 @@ def main() -> int:
                     help="a repóhoz tartozó Artifact URL kézi megjegyzése")
     ap.add_argument("--artifacts", action="store_true",
                     help="az ismert repók Artifactjai, soronként: <repó>\\t<URL> "
-                         "(a /git-graph:remove ebből dolgozik)")
+                         "(a /git-graph:forget-all-artifacts ebből dolgozik)")
     ap.add_argument("--forget", action="store_true",
                     help="a repó git-graph nyomainak törlése (.git/config kulcsok, "
                          "helyi lap, regiszter) és az automatikus publikálás "
                          "kikapcsolása — az Artifactot nem törli")
     ap.add_argument("--publish", action="store_true",
                     help="az Artifact vékony lapjának kiírása, és a publikálás lépései "
-                         "a sessionnek (változatlan lapnál: naprakész) — a /git-graph:artifact "
+                         "a sessionnek (változatlan lapnál: naprakész) — a /git-graph:artifact-publish "
                          "ezt hívja")
     ap.add_argument("--published", metavar="URL", default=None,
                     help="a session publikálása után: az URL és a lap hashe a "
@@ -104,7 +104,7 @@ def main() -> int:
         repo = main_checkout(resolve_repo(Path(args.repo).expanduser().resolve()))
         forget(repo)
         print(f"✓ {repo}: a git-graph nyomai törölve; automatikus publikálás KI "
-              f"({NO_AUTO_PUBLISH})")
+              "(git-graph.autoPublish=false)")
         return 0
 
     # Bármelyik worktree-ből: a repó közös lapja a fő checkouté.

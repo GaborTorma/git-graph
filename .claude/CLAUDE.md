@@ -19,8 +19,10 @@ Használat és felépítés: [README.md](../README.md).
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
 | `hooks/hooks.json` | a plugin SessionStart hookja (`--session-hook`) és a mod (`modules`) |
 | `hooks/register.ts` | a plugin modja: a repó Artifactját a modell nélkül nyitja meg (`git-graph --open-url`, `Artifact open`); teszt: `register.test.ts` |
-| `skills/artifact/SKILL.md` | a `/git-graph:artifact` skill (`git-graph --publish`, és publikálja vagy megnyitja) |
-| `skills/remove/SKILL.md` | a `/git-graph:remove` skill: Artifactok törlése + `git-graph --forget` az uninstall előtt |
+| `skills/artifact-publish/SKILL.md` | a `/git-graph:artifact-publish` skill (`git-graph --publish`, publikálja, ha kell, és megnyitja) |
+| `skills/artifact-open/SKILL.md` | a `/git-graph:artifact-open` skill (megnyitja a naprakész Artifactot, nem publikál) |
+| `skills/artifact-forget/SKILL.md` | a `/git-graph:artifact-forget` skill: az aktuális repó Artifactjának törlése + `git-graph --forget` |
+| `skills/forget-all-artifacts/SKILL.md` | a `/git-graph:forget-all-artifacts` skill: Artifactok törlése + `git-graph --forget` az uninstall előtt |
 | `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
 | `docs/desktop-live.md` | **mérési napló** (történeti): a kivezetett Browser panel-út |
 | `docs/mcp-plan.md` | a korábbi terv az élő Artifacthoz (azóta a `host:` híddal megvalósult) |
@@ -184,8 +186,8 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   `open` / `read` igen; a mod a `classic.*` eseményeket nem kapja meg
   (mérve, docs/artifact-findings.md). Ahol nem fut mod (régi kliens), a lap
   magától nem nyílik meg. Headless
-  (`CLAUDE_CODE_ENTRYPOINT=sdk-*`) sessionben és `no-auto-publish` mellett nem
-  kér publikálást. Némán kilép, ha a mappa nem repó: egy SessionStart hook
+  (`CLAUDE_CODE_ENTRYPOINT=sdk-*`) sessionben és `git-graph.autoPublish=false` mellett (a `--forget`
+  írja, a `--published` törli) nem kér publikálást. Némán kilép, ha a mappa nem repó: egy SessionStart hook
   minden sessionben lefut, zajt nem csinálhat. A repót mindig regisztrálja — a
   `git-graph --mcp` a lap slugjából a `repos.json`-ból találja meg.
 - **Repónként egy Artifact, a worktree-k közösen látják** (0.12 óta): minden

@@ -48,7 +48,7 @@ class RegistryTest(HomeTestCase):
         self.assertEqual(gg.gitio.config_get("artifact"), "")
         self.assertFalse((self.state / slug).exists())
         self.assertNotIn(slug, gg.registry.registered_repos())
-        self.assertTrue(gg.registry.NO_AUTO_PUBLISH.exists())
+        self.assertEqual(gg.gitio.config_get("autoPublish"), "false")
         gg.registry.forget(repo)                                      # másodszor is lefut
 
     def test_list_artifacts(self) -> None:
