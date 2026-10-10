@@ -1,3 +1,13 @@
+## [0.14.0] - 2026-10-10
+
+### 🚀 Features
+
+- *(skills)* Split artifact commands into publish, open, forget and forget-all
+
+### 📚 Documentation
+
+- *(findings)* Record that permission rules do not let a mod publish
+- *(worklog)* Artifact commands
 ## [0.13.0] - 2026-10-09
 
 ### 🚀 Features
