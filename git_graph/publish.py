@@ -84,10 +84,16 @@ def publish_steps(job: dict) -> str:
 
 
 def mark_published(url: str) -> None:
-    """A session publikálása után: az URL és a feltöltött lap hashe a `.git/config`-ba."""
+    """A session publikálása után: az URL és a feltöltött lap hashe a `.git/config`-ba.
+
+    A kézi publikálás a `--forget` kikapcsolta automatikus publikálást is
+    visszakapcsolja.
+    """
     page = artifact_path(gitio.REPO)
     if not page.exists():
         raise SystemExit("HIBA: nincs kiírt Artifact-lap — előbb: git-graph --publish")
     remember_artifact(url, page_digest(page.read_text(encoding="utf-8")))
+    if config_get("autoPublish"):
+        gitio.git("config", "--local", "--unset", "git-graph.autoPublish")
     register(gitio.REPO)
 

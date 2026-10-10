@@ -52,8 +52,9 @@ class HookTest(HomeTestCase):
         self.assertIsNone(self.hook(self.home))
         repo = self.plain_repo()
         self.assertIsNone(self.hook(repo, CLAUDE_CODE_ENTRYPOINT="sdk-py"))
-        (self.state / "no-auto-publish").touch()
+        git_in(repo, "config", "git-graph.autoPublish", "false")
         self.assertIsNone(self.hook(repo))
+        self.assertIsNotNone(self.hook(self.plain_repo("other")))          # a többi repóban kér
         registered = json.loads((self.state / "repos.json").read_text(encoding="utf-8")).values()
         self.assertIn(str(repo), registered)                          # csendben is regisztrál
 

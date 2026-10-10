@@ -36,6 +36,15 @@ class PublishTest(HomeTestCase):
         with self.assertRaises(SystemExit):
             gg.publish.mark_published("https://claude.ai/artifact/x")
 
+    def test_mark_published_enables_auto(self) -> None:
+        """A kézi publikálás a `--forget` kikapcsolta automatikus publikálást visszakapcsolja."""
+        gg = self.load()
+        repo = self.plain_repo()
+        gg.registry.forget(repo)
+        gg.publish.prepare_publish()
+        gg.publish.mark_published("https://claude.ai/artifact/x")
+        self.assertEqual(gg.gitio.config_get("autoPublish"), "")
+
     def test_set_artifact_drops_hash(self) -> None:
         """Kézi URL (`--set-artifact`): a régi hash már nem érvényes."""
         gg = self.load()
