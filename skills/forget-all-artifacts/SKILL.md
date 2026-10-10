@@ -1,6 +1,6 @@
 ---
-name: remove
-description: A git-graph Artifactjainak törlése és a repók git-graph nyomainak eltakarítása — a plugin eltávolítása ELŐTT. Használd, ha a Fejlesztő a git-graph-ot el akarja távolítani, vagy /git-graph:remove-ot ír.
+name: forget-all-artifacts
+description: A git-graph Artifactjainak törlése és a repók git-graph nyomainak eltakarítása — a plugin eltávolítása ELŐTT. Használd, ha a Fejlesztő a git-graph-ot el akarja távolítani, vagy /git-graph:forget-all-artifacts-ot ír.
 allowed-tools: Bash(git-graph:*), Artifact, AskUserQuestion
 ---
 

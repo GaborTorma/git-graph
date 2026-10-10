@@ -38,7 +38,8 @@ claude plugin marketplace add GaborTorma/git-graph
 claude plugin install git-graph@git-graph
 ```
 
-A plugin hozza a `/git-graph:artifact` skillt, a SessionStart hookot, és a Claude
+A plugin hozza a `/git-graph:artifact-publish`, `/git-graph:artifact-open` és
+`/git-graph:artifact-forget` skillt, a SessionStart hookot, és a Claude
 Bash eszközének PATH-jára a `git-graph` parancsot. Függősége
 nincs a Python 3 stdliben túl; minden git-hívás **csak olvas**. Hálózatra csak
 a szerzők GitHub-avatarjáért megy, GitHub-os repónál, gyorstárazva.
@@ -55,7 +56,7 @@ változáskor ír):
 
 **Eltávolítás:** két lépés.
 
-1. `/git-graph:remove` egy sessionben — törli az Artifactokat (a `git-graph --artifacts`
+1. `/git-graph:forget-all-artifacts` egy sessionben — törli az Artifactokat (a `git-graph --artifacts`
    listája alapján, mindegyiket külön jóváhagyással), és repónként a `git-graph
    --forget`-tel a `git-graph.*` kulcsokat, a helyi lapokat és a
    regiszterbejegyzést. Közben kikapcsolja az automatikus publikálást, hogy a
@@ -118,8 +119,8 @@ legalább egy ág látszik; az Enter az első találatot választja.
 
 A hook némán kilép, ha a mappa nem git repó; headless (`-p`, SDK) sessionben nem
 kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
-(`claude plugin disable git-graph@git-graph`), vagy a publikálásé a
-`~/.git-graph/no-auto-publish` fájl.
+(`claude plugin disable git-graph@git-graph`), vagy repónként a publikálásé a
+`git-graph.autoPublish=false` (a `git-graph --forget` állítja be).
 
 ## Felépítés
 
@@ -133,8 +134,10 @@ kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace (egyetlen plugin: ez a repó) |
 | `hooks/hooks.json` | SessionStart hook: `git-graph --session-hook` (telepít + publikáltatja a gráfot); és a mod |
 | `hooks/register.ts` | a plugin modja: a meglévő Artifactot a modell nélkül nyitja meg, a session indulásakor |
-| `skills/artifact/SKILL.md` | `/git-graph:artifact`: `git-graph --publish`, és publikálja vagy megnyitja az Artifactot |
-| `skills/remove/SKILL.md` | `/git-graph:remove`: az Artifactok törlése és a repók kitakarítása az eltávolítás előtt |
+| `skills/artifact-publish/SKILL.md` | `/git-graph:artifact-publish`: `git-graph --publish`, publikálja az Artifactot, ha kell, és megnyitja |
+| `skills/artifact-open/SKILL.md` | `/git-graph:artifact-open`: megnyitja a naprakész Artifactot (nem publikál) |
+| `skills/artifact-forget/SKILL.md` | `/git-graph:artifact-forget`: az aktuális repó Artifactjának törlése + `git-graph --forget` |
+| `skills/forget-all-artifacts/SKILL.md` | `/git-graph:forget-all-artifacts`: az Artifactok törlése és a repók kitakarítása az eltávolítás előtt |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |
 | `docs/desktop-live.md` | a korábbi Browser panel-út mérései (a `host:` híd óta nem használt) |
 | `docs/mcp-plan.md` | a korábbi terv az élő Artifacthoz (azóta a `host:` híddal megvalósult) |
@@ -174,15 +177,16 @@ Megkötések (a platformé, mérve — [docs/artifact-findings.md](docs/artifact
 **Publikálás:** a lap csak betöltő, így feltölteni csak akkor kell, ha maga a
 betöltő vagy a repó neve változik. Egy plugin-frissítés után a gépen futó
 git-graph percen belül magától frissül, a lap újratölt — app-újraindítás sem kell. Az Artifact API-t csak a modell éri el, ezért a
-**session** publikál: a hook (vagy a `/git-graph:artifact` skill a `git-graph --publish`-sal)
+**session** publikál: a hook (vagy a `/git-graph:artifact-publish` skill a `git-graph --publish`-sal)
 kiírja az `artifact.html`-t és a lépéseket — meglévő Artifactnál előbb `read`
 (friss sessionből a platform különben elutasítja), majd `publish` a
 `host:git-graph` capability-vel, végül `git-graph --published <URL>`, ami az URL-t és
 a lap hashét visszaírja. Változatlan lapnál nincs teendő: a meglévő lapot a
 plugin modja nyitja meg, a modell nélkül (`git-graph --open-url`, majd `Artifact open`),
 sessionönként egyszer. Modból a publikálást az auto mód nem engedi, ezért az a sessioné marad.
-Ha létezik a `~/.git-graph/no-auto-publish` fájl, a hook nem kér publikálást
-(a `git-graph --forget` után: csak a kézi `/git-graph:artifact` megy).
+A `git-graph --forget` után a repóban a hook nem kér publikálást
+(`git-graph.autoPublish=false`); a kézi `/git-graph:artifact-publish` megy, és
+visszakapcsolja.
 
 A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 
@@ -190,6 +194,7 @@ A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 | --- | --- |
 | `git-graph.artifact` | a közzétett oldal URL-je |
 | `git-graph.artifactHash` | a publikált lap hashe (változatlanra nem tölt fel) |
+| `git-graph.autoPublish` | `false`: a hook nem kér publikálást (a `--forget` írja, a `--published` törli) |
 
 Kézi URL-megadás: `git-graph --set-artifact <url>`.
 

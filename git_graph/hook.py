@@ -10,7 +10,7 @@ from pathlib import Path
 from .gitio import config_get, main_checkout, resolve_repo, set_repo
 from .install import ensure_installed
 from .publish import is_current, prepare_publish, publish_steps
-from .registry import NO_AUTO_PUBLISH, register, shown_in_session
+from .registry import register, shown_in_session
 from .state import log
 
 
@@ -41,7 +41,8 @@ def session_hook() -> int:
         return emit_context(notice)                # nem repó: nincs mit mutatni
     set_repo(repo)
     slug = register(repo)                         # a git-graph --mcp a lap slugjából ebből találja meg
-    job = None if headless() or NO_AUTO_PUBLISH.exists() else prepare_publish()
+    auto = config_get("autoPublish") != "false"   # a git-graph --forget kapcsolja ki
+    job = prepare_publish() if auto and not headless() else None
     context = None                                 # nincs Artifact, nem kérünk, vagy a mod nyitja meg
     if job:
         if payload.get("session_id"):              # a publikálás után a session nyitja meg, a mod ne
