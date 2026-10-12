@@ -1036,8 +1036,10 @@ function toggleFile(fileEl, sha, on, reveal = true) {
   if (cached && !cached.stale) return;
   SRC.diff(sha, fileEl.dataset.path, full).then(
     d => {
+      // Élő frissítéskor a régi adat már kirajzolva: ha nem változott, nem rajzoljuk újra.
+      const same = cached && JSON.stringify(cached.data) === JSON.stringify(d);
       diffCache.set(cacheKey, { data: d });
-      if (full === (md && !mdRaw)) show(render(d));   // közben átváltott: a másik nézet a soros
+      if (!same && full === (md && !mdRaw)) show(render(d));   // közben átváltott: a másik nézet a soros
     },
     e => { if (!cached) show(`<p class="diff-note">A diff nem tölthető be: ${esc(
       e?.message || e?.code || e)}</p>`); });
