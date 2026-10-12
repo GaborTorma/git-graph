@@ -1249,11 +1249,8 @@ function mdInline(s) {
     .replace(/(\d+)/g, (_, i) => keep[i]);
 }
 
-const MD_KIND = { ' ': '', '+': ' md-add', '-': ' md-del' };
-const linesKind = ls => {
-  const ts = new Set(ls.map(l => l.t));
-  return ts.size === 1 ? MD_KIND[[...ts][0]] : '';
-};
+// egyforma sorokból álló blokk jele (' add' / ' del' / ''), vegyesé null
+const linesKind = ls => (ls.every(l => l.t === ls[0].t) ? KIND[ls[0].t] : null);
 
 /* Egy változat (a blokk sorainak egy része) renderelve, szöveges blokkra. */
 /* A sor `[start, end)` szakasza; a szó-kiemelés (`hl`) vele tolódik, különben a
@@ -1306,7 +1303,7 @@ function runsOf(keep) {
 
 /* Egy blokk: kódblokk és táblázat soronként színezve, a többi változatonként. */
 function mdBlockHtml(b) {
-  if (b.type === 'hr') return `<div class="md-blk${linesKind(b.lines)}"><hr></div>`;
+  if (b.type === 'hr') return `<div class="md-blk${linesKind(b.lines) ?? ''}"><hr></div>`;
   if (b.type === 'code') {
     // a kerítés sorai nem látszanak (a záró hiányozhat: a fájl vége vagy a levágás)
     const closed = b.fence && b.lines.length > 1 && b.lines.at(-1).s.trim().startsWith(b.fence);
@@ -1317,7 +1314,7 @@ function mdBlockHtml(b) {
     const keep = changed.includes(true) ? near(changed, MD_CODE_CONTEXT) : body.map((_, i) => i < MD_CODE_CONTEXT);
     return '<pre class="md-code mono">' + runsOf(keep).map(r => (r.keep
       ? body.slice(r.from, r.to).map(l =>
-        `<div class="md-cl${MD_KIND[l.t]}">${highlight(l.s, l.hl, b.lang) || ' '}</div>`).join('')
+        `<div class="md-cl${KIND[l.t]}">${highlight(l.s, l.hl, b.lang) || ' '}</div>`).join('')
       : `<div class="md-cl md-skip" title="${r.to - r.from} változatlan sor">···</div>`)).join('') + '</pre>';
   }
   if (b.type === 'table') {
@@ -1330,7 +1327,7 @@ function mdBlockHtml(b) {
     const width = cells(rows[0]).length;
     const row = (l, i) => {
       const cell = i ? 'td' : 'th';
-      return `<tr class="${MD_KIND[l.t].trim()}">`
+      return `<tr class="${KIND[l.t].trim()}">`
         + cells(l).map(c => `<${cell}>${mdInline(c.trim())}</${cell}>`).join('') + '</tr>';
     };
     return '<div class="md-table"><table>' + runsOf(keep).map(r => (r.keep
@@ -1339,9 +1336,9 @@ function mdBlockHtml(b) {
       .join('') + '</table></div>';
   }
   const kind = linesKind(b.lines);
-  if (kind || b.lines.every(l => l.t === ' ')) return `<div class="md-blk${kind}">${mdText(b, b.lines)}</div>`;
-  return `<div class="md-blk md-del">${mdText(b, b.lines.filter(l => l.t !== '+'))}</div>`
-    + `<div class="md-blk md-add">${mdText(b, b.lines.filter(l => l.t !== '-'))}</div>`;
+  if (kind !== null) return `<div class="md-blk${kind}">${mdText(b, b.lines)}</div>`;
+  return `<div class="md-blk del">${mdText(b, b.lines.filter(l => l.t !== '+'))}</div>`
+    + `<div class="md-blk add">${mdText(b, b.lines.filter(l => l.t !== '-'))}</div>`;
 }
 
 function mdDiffHtml(d) {
