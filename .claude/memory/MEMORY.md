@@ -1,0 +1,7 @@
+- [Mélyebb utánajárás korlát előtt](dig-before-declaring-limits.md) — „nem lehet” előtt kísérlet és bizonyíték
+- [Max 20x — kvóta nem szempont](max20-quota-irrelevant.md) — döntésnél sebesség/egyszerűség számít, nem a tokenköltség
+- [GitLens nem dizájnminta](no-gitlens-design.md) — precedensnek jó, kinézetet ne vegyünk át tőle
+- [Ág ellenőrzése commit előtt](check-branch-before-commit.md) — a Fejlesztő menet közben ágat válthat a worktree-ben
+- [Commit-ikon tilos](no-commit-icon.md) — a h-alakú VS Code Git Graph-os commit ikont sehol ne használd
+- [Ne ismételj ikont](no-redundant-icons.md) — chipen csak olyan ikon, ami nem derül ki a chipből (branch-chip távolsága ikon nélkül)
+- [A verziót a release emeli](version-bump-in-release.md) — plugin.json bump csak a /workflow:release-ben
