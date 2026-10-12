@@ -189,6 +189,14 @@ def last_change(root: Path, files: list[dict]) -> int:
     return latest
 
 
+def untracked_lines(path: Path) -> int | None:
+    """Követetlen fájl sorainak száma (mint az `untracked_diff`-é); bináris vagy olvashatatlan: `None`."""
+    try:
+        return len(path.read_bytes()[:2_000_000].decode("utf-8").splitlines())
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
 def collect_uncommitted(wt: dict) -> tuple[dict, dict] | None:
     """Egy worktree változásai egy ál-commitként, a Git Graph mintájára.
 
@@ -205,13 +213,17 @@ def collect_uncommitted(wt: dict) -> tuple[dict, dict] | None:
     st = numstat_files(wt["numstat"].splitlines())
     files = st["files"]
 
-    # A követetlen fájlokat a diff nem látja — számok helyett „új" jelöléssel.
+    # A követetlen fájlokat a diff nem látja: a soraik száma a fájlból jön, és a
+    # helyükre kerülnek (a git útvonal szerint rendez), nem a lista aljára.
     known = {f["path"] for f in files}
     for line in status:
         if line.startswith("??"):
             path = line[3:].strip().strip('"')
             if path not in known:
-                files.append({"path": path, "add": 0, "del": 0, "bin": False, "new": True, "status": "A"})
+                lines = untracked_lines(wt["path"] / path)
+                files.append({"path": path, "add": lines or 0, "del": 0, "bin": lines is None, "status": "A"})
+                st["add"] += lines or 0
+    files.sort(key=lambda f: f["path"])
 
     # Új mappa: a HEAD-ben nincs; törölt: nem maradt benne követett fájl (az index
     # a még nem stage-elt törlést is tartalmazza, ezért a törölteket levonjuk).
