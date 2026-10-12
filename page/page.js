@@ -1254,7 +1254,6 @@ function mdInline(s) {
 // egyforma sorokból álló blokk jele (' add' / ' del' / ''), vegyesé null
 const linesKind = ls => (ls.every(l => l.t === ls[0].t) ? KIND[ls[0].t] : null);
 
-/* Egy változat (a blokk sorainak egy része) renderelve, szöveges blokkra. */
 /* A sor `[start, end)` szakasza; a szó-kiemelés (`hl`) vele tolódik, különben a
    levágott jel (`- `, `#`, `>`, behúzás) hosszával elcsúszna. */
 function cut(l, start, end = l.s.length) {
@@ -1265,6 +1264,7 @@ function cut(l, start, end = l.s.length) {
 const lead = (l, re) => cut(l, re.exec(l.s)?.[0].length || 0);
 const trimmed = l => cut(l, l.s.length - l.s.trimStart().length, l.s.trimEnd().length);
 
+/* Egy változat (a blokk sorainak egy része) renderelve, szöveges blokkra. */
 function mdText(b, ls) {
   const text = n => mdInline(n.map(marked).join('\n'));
   if (b.type === 'h') {
