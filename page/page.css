@@ -567,7 +567,7 @@ button { font: inherit; color: inherit; }
 /* Az ág, a HEAD és a tag a commit sávjának színét viseli (`--lc`, page.js).
    A szöveg a sávszín és az előtér keveréke: világos témában sötétebb,
    sötétben világosabb — a vonalnak szánt színek szövegként gyengék lennének. */
-.badge.ref-branch, .badge.ref-remote, .badge.ref-tag, .badge.other {
+.badge:is(.ref-branch, .ref-remote, .ref-tag, .ref-release, .ref-pr, .ref-issue), .badge.other {
   background: color-mix(in srgb, var(--lc) 14%, var(--bg));
   color: color-mix(in srgb, var(--lc) 70%, var(--fg-0));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc) 38%, var(--bg));
@@ -581,6 +581,8 @@ button { font: inherit; color: inherit; }
    ezért a gyerekei kapják.) */
 .row.foreign .row-in > :not(.desc), .row.foreign .desc > * { opacity: .55; }
 .badge.ref-tag { border-radius: 9px; }   /* a tag az alakjáról ismerszik meg: teljesen kerek chip */
+.badge.ref-release { border-radius: 9px; }   /* a release a tagjét is jelenti: ugyanaz az alak */
+a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitHub-link */
 
 /* ── Commit-részletek ───────────────────────────────────────────────────── */
 .details {

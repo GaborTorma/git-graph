@@ -119,6 +119,8 @@ const ICONS = {
   open: '<path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"/>',
   issue: '<circle cx="8" cy="8" r="5.75"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/>',
   pr: '<circle cx="4" cy="3.5" r="1.5"/><circle cx="4" cy="12.5" r="1.5"/><circle cx="12" cy="12.5" r="1.5"/><path d="M4 5v6M12 11V6.5a2 2 0 0 0-2-2H7.5M9 3 7.5 4.5 9 6"/>',
+  // release: csomag (doboz, fedéllel)
+  release: '<path d="M2.5 5 8 2.5 13.5 5v6L8 13.5 2.5 11z"/><path d="M2.5 5 8 7.5 13.5 5M8 7.5v6"/>',
   // a GitHub-jel (Octicons mark-github, MIT): telt, nem vonalas
   github: '<path fill="currentColor" stroke="none" d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
@@ -440,6 +442,37 @@ function linkify(s) {
   return text.replace(ISSUE_RE, (m, pre, repo, n) =>
     pre + ghLink(`${repo ? 'https://github.com/' + repo : base}/issues/${n}`, `${repo || ''}#${n}`));
 }
+/* A tárgysor hivatkozásai chipként (`refChips`), a tárgyból kivéve: a
+   `Merge pull request #N` és a squash-merge `(#N)` végződése PR, a
+   `chore(release): vX.Y.Z` release, minden más `#N` issue. */
+const RELEASE_RE = /^(\w+\(release\))!?:\s*(v?\d+\.\d+\.\d+\S*)\s*$/;
+function subjectRefs(s) {
+  const refs = [];
+  let text = s;
+  const rel = s.match(RELEASE_RE);
+  if (rel) { refs.push({ kind: 'release', name: rel[2] }); text = rel[1]; }
+  text = text
+    .replace(/^(Merge pull request) #(\d+)/, (m, pre, n) => { refs.push({ kind: 'pr', n }); return pre; })
+    .replace(/\s*\(#(\d+)\)\s*$/, (m, n) => { refs.push({ kind: 'pr', n }); return ''; })
+    .replace(ISSUE_RE, (m, pre, repo, n) => { refs.push({ kind: 'issue', n, repo }); return pre; })
+    .replace(/\(\s*\)/g, '').replace(/\s{2,}/g, ' ').trim();
+  return { text, refs };
+}
+const REF_TIP = { pr: 'pull request', issue: 'issue', release: 'release' };
+function refChips(refs, lc) {
+  const base = DATA.meta.repoUrl;
+  return refs.map(r => {
+    const name = r.kind === 'release' ? r.name : `${r.repo || ''}#${r.n}`;
+    const repoUrl = r.repo ? 'https://github.com/' + r.repo : base;
+    const href = !repoUrl ? ''
+      : r.kind === 'release' ? `${repoUrl}/releases/tag/${encodeURIComponent(r.name)}`
+      : `${repoUrl}/${r.kind === 'pr' ? 'pull' : 'issues'}/${r.n}`;
+    const tip = esc(`${REF_TIP[r.kind]}: ${name}`);
+    const attrs = `class="badge ref-${r.kind}" style="--lc:${lc}" data-tip="${tip}" aria-label="${tip}"`;
+    const body = `${icon(r.kind)}<span class="badge-name">${esc(name)}</span>`;
+    return href ? `<a ${attrs} href="${href}" target="_blank" rel="noopener">${body}</a>` : `<span ${attrs}>${body}</span>`;
+  }).join('');
+}
 const commitUrl = c => `${DATA.meta.repoUrl}/commit/${c.sha}`;
 const fileUrl = (c, f) => commitUrl(c) + (f.anchor ? '#diff-' + f.anchor : '');
 
@@ -507,7 +540,11 @@ function badges(c) {
   // a pöttyéét, amin áll.
   const lane = laneColor(c.lane);
   const showRemote = remotesOn();
-  return sortRefs(mergedRefs(c.refs)).filter(r => showRemote || r.kind !== 'remote').map(r => {
+  // A release chipje a tagjét is jelenti: az azonos nevű tag nem kap külön chipet.
+  const sref = subjectRefs(c.subject).refs;
+  const rel = new Set(sref.filter(r => r.kind === 'release').map(r => r.name));
+  return sortRefs(mergedRefs(c.refs)).filter(r => (showRemote || r.kind !== 'remote')
+    && !(r.kind === 'tag' && rel.has(r.name))).map(r => {
     const wt = r.worktree && worktrees().find(w => w.slug === r.worktree);
     const linked = wt && !wt.main;
     // A fő checkout HEAD-je üres mappát kap elöl, ha vannak worktree-k (mint a fejléc chipje).
@@ -552,7 +589,7 @@ function badges(c) {
           + `${icon('detached')}<span class="badge-name">HEAD</span>`
         : `${lead}<span class="badge-name">${esc(name)}</span>`)
       + `${distSegs(dist, tr)}${remotes}</span>`;
-  }).join('');
+  }).join('') + refChips(sref, lane);
 }
 
 /* A diff-címke száma legfeljebb 3 karakter: 999 fölött kerekített ezres (`1k`). */
@@ -583,7 +620,7 @@ function rowHtml(c) {
   // egysoros elrendezésben a CSS a cím elé teszi (`order`).
   const refs = other ? `<span class="refs wip-lead">${wtBadge(other)}</span>`
     : (() => { const b = badges(c); return b ? `<span class="refs">${b}</span>` : ''; })();
-  const subject = c.subject;
+  const subject = c.uncommitted ? c.subject : subjectRefs(c.subject).text;
   // A WIP-soron is: a fájlok utolsó módosítása, a gép git-felhasználója, a diff.
   // A saját WIP a rögzített sávban ül, napfejléc nélkül: nem mai időnél a nap is kell.
   const pinned = c.uncommitted && c.worktree === focusWt()?.slug;
