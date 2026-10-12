@@ -287,7 +287,11 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   - Csak az appban megy (böngészőben `server_not_connected`), csak a
     tulajdonosnak. A lap nem `retryable` hibánál leáll, és kiírja a teendőt.
   - Új tool → a `PUBLISH_CAPS` tool-listájába is (különben `not_in_manifest`),
-    és az új betöltő publikálása (a capability-lista a hash része).
+    és az új betöltő publikálása (a capability-lista a hash része). Az app a
+    szerver tool-listáját csak a kapcsolódáskor kéri le: a `restart` utáni
+    folyamat ezért `notifications/tools/list_changed`-et küld (`RESTARTED_ENV`,
+    a kézfogásban `listChanged: true`), amire az app azonnal újra lekéri (mérve).
+    Enélkül az új tool app-újraindításig `not_in_manifest` („does not offer a tool”).
 - **A `file_diff` bemenete a lapról jön**: a `sha` csak hex lehet
   (különben `--output=…`-szerű opcióként menne a gitnek), fájlt közvetlenül
   csak akkor olvasunk, ha a git követetlennek mondja — a lapon át ne legyen

@@ -569,6 +569,30 @@ macOS nyelve `hu-HU` — a kettő szándékosan eltért.
 - Ami ebből következik: az app nyelvét csak a gépen futó szerver tudja kiolvasni
   (`config.json` `locale`), a `navigator.language` csak tartalék.
 
+## Új tool a futó szerveren: `tools/list_changed` (mérve, 2026-10-12, contract 0.2.66)
+
+A `settings` tool a futó szerverbe `restart`-tal (`os.execv`) került, a
+betöltő az új tool-listával publikálva. A lap hívása mégis elbukott:
+
+```
+not_in_manifest: host:git-graph does not offer a tool named "settings" on this device
+```
+
+A keret `listTools()`-a a régi négy toolt adta (`changes, graph_data,
+file_diff, page_code`): a manifest és a szerver listájának metszetét. Az app
+MCP-naplója (`mcp-server-git-graph.log`) szerint a `tools/list` csak a
+kapcsolódáskor ment ki.
+
+- **Az app a szerver tool-listáját a kapcsolódáskor gyorstárazza.** Az
+  újrapublikálás és a keret újranyitása nem segít, az app újraindítása igen.
+- **A `notifications/tools/list_changed`-re azonnal újra lekéri**: az
+  újraindult folyamat jelzése után 1 ms-mal jött a `tools/list`. A
+  kézfogásban `listChanged: true`; a `restart` a `GIT_GRAPH_RESTARTED`
+  env-vel szól az új folyamatnak.
+- A host-hívások az app fő naplójában is látszanak (`main.log`,
+  `[ArtifactHostTools] call { tool, outcome, durationMs, confirm }`), a
+  `not_in_manifest` viszont nem: azt a keret dobja, a hívás a gépig nem jut el.
+
 ## Implementációs tanulságok (a generátorból)
 
 - **CSS osztálynév-ütközés**: a táblázat-fejléc `.head` szabálya ráült a

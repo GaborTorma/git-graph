@@ -20,6 +20,7 @@ class McpServerTest(HomeTestCase):
         try:
             init = client.request("initialize", {"protocolVersion": "2025-06-18"})["result"]
             self.assertEqual(init["serverInfo"]["name"], "git-graph")
+            self.assertTrue(init["capabilities"]["tools"]["listChanged"])   # a restart után jelez
             tools = {t["name"]: t for t in client.request("tools/list")["result"]["tools"]}
             self.assertEqual(set(tools), {"changes", "graph_data", "file_diff", "page_code", "settings"})
             self.assertTrue(all(t["annotations"]["readOnlyHint"] for t in tools.values()))

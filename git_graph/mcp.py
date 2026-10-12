@@ -21,6 +21,7 @@ from .registry import repo_for_slug
 from .state import log
 from .watch import WAKE, wait_changes
 
+RESTARTED_ENV = "GIT_GRAPH_RESTARTED"   # a `restart` állítja: az új folyamat már kézfogás után indul
 WAITERS_MAX = 32              # ennél több nyitott hívásnál nem várunk (árva hívások ellen)
 _WAITERS = {"n": 0}           # nyitott várakozó hívások (a `restart` kivárja őket)
 _WAITERS_LOCK = threading.Lock()
@@ -148,6 +149,11 @@ def mcp_serve(limit: int | None) -> int:
             out.write(json.dumps(message).encode() + b"\n")   # ASCII: nem függ a locale-tól
             out.flush()
 
+    # Az app a tool-listát csak a kapcsolódáskor kérdezi le: a frissült (`restart`)
+    # szerver új toolját különben nem ismeri (`not_in_manifest` a lapon).
+    if os.environ.pop(RESTARTED_ENV, None):
+        send({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"})
+
     # Puffereletlen olvasás, saját sorpufferrel: újraindulni (`restart`) csak
     # akkor szabad, ha nincs beolvasott, de feldolgozatlan bemenet — a csőben
     # maradt bájtokat az új folyamat olvassa tovább. A `select` időkorlátja
@@ -183,7 +189,7 @@ def respond(raw: bytes, send, limit: int | None) -> None:
     params = msg.get("params") or {}
     if method == "initialize":
         result: dict = {"protocolVersion": params.get("protocolVersion", "2025-06-18"),
-                        "capabilities": {"tools": {}},
+                        "capabilities": {"tools": {"listChanged": True}},
                         "serverInfo": {"name": MCP_NAME, "version": "1"}}
     elif method == "ping":
         result = {}
@@ -228,6 +234,7 @@ def restart() -> None:
     while _WAITERS["n"] and time.monotonic() < deadline:
         time.sleep(0.02)
     sys.stdout.flush()
+    os.environ[RESTARTED_ENV] = "1"            # az új folyamat jelzi az appnak a tool-lista változását
     python = sys.executable or SYSTEM_PYTHON
     os.execv(python, [python, str(STABLE), *sys.argv[1:]])
 
