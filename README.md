@@ -135,7 +135,7 @@ kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
 | `hooks/hooks.json` | SessionStart hook: `git-graph --session-hook` (telepít + publikáltatja a gráfot); és a mod |
 | `hooks/register.ts` | a plugin modja: a meglévő Artifactot a modell nélkül nyitja meg, a session indulásakor |
 | `skills/artifact-publish/SKILL.md` | `/git-graph:artifact-publish`: `git-graph --publish`, publikálja az Artifactot, ha kell, és megnyitja |
-| `skills/artifact-open/SKILL.md` | `/git-graph:artifact-open`: megnyitja a naprakész Artifactot (nem publikál) |
+| `skills/artifact-open/SKILL.md` | `/git-graph:artifact-open`: `git-graph --open-url`, és újranyitja a naprakész Artifactot (nem publikál) |
 | `skills/artifact-forget/SKILL.md` | `/git-graph:artifact-forget`: az aktuális repó Artifactjának törlése + `git-graph --forget` |
 | `skills/forget-all-artifacts/SKILL.md` | `/git-graph:forget-all-artifacts`: az Artifactok törlése és a repók kitakarítása az eltávolítás előtt |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |

@@ -74,8 +74,9 @@ def main() -> int:
                     help="Claude Code SessionStart hook: telepítés, és ha kell, a repó "
                          "Artifactjának publikálása (stdin: a hook JSON-ja)")
     ap.add_argument("--open-url", action="store_true", dest="open_url",
-                    help="a plugin modjának: a repó Artifactjának URL-je, ha most meg kell "
-                         "nyitni (naprakész, és a sessionben még nem volt nyitva); különben semmi")
+                    help="a plugin modjának és a /git-graph:artifact-open-nak: a repó "
+                         "Artifactjának URL-je, ha naprakész (és --session mellett a sessionben "
+                         "még nem volt nyitva); különben semmi")
     ap.add_argument("--session", metavar="ID", default=None,
                     help="az --open-url-hez: a Claude Code session azonosítója")
     args = ap.parse_args()

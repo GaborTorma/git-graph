@@ -261,6 +261,14 @@ Eszköz: eldobható mod a session hot-reload mappájában, auto módban.
 Következmény: a meglévő lapot a plugin modja nyitja meg (`hooks/register.ts`,
 `git-graph --open-url`), a publikálás a session dolga marad (a hook kéri).
 
+**Panel újranyitása a modellből** (mérve, 2026-10-10, Claude Code 2.1.296): egy
+sessionben már megnyitott lapra a modell `Artifact open`-je csak kártyát tesz ki.
+Bezárt artifact-panelnél (`get_layout`: `open_panes: []`) az `open` után hívott
+`mcp__ccd_view__show_pane` (`pane: "artifact"`) **megnyitja a panelt, a lappal** —
+akkor is, ha a lapot nem ez a session publikálta. Ezért a `/git-graph:artifact-open`
+és az `/git-graph:artifact-publish` az `open` után a `show_pane`-t is hívja (csak a
+desktop appban van; ahol nincs, kimarad).
+
 ## A lapról a sessionbe: `comments.sendToClaude` (mérve, 2026-10-01, Claude Code 2.1.285)
 
 Kérdés: tud-e a lap egy gombnyomással kérést küldeni a futó Code-sessionnek
