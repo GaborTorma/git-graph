@@ -593,6 +593,20 @@ kapcsolódáskor ment ki.
   `[ArtifactHostTools] call { tool, outcome, durationMs, confirm }`), a
   `not_in_manifest` viszont nem: azt a keret dobja, a hívás a gépig nem jut el.
 
+## Rejtett keretben induló betöltő (mérve, 2026-10-12, contract 0.2.66)
+
+A lap egyszer ezzel állt meg:
+
+```
+A git-graph lap nem tölthető be: host:git-graph is not available while this artifact is hidden — try again once it is shown
+```
+
+A betöltő az első hívását (`page_code`) a keret rejtett szakaszában indította
+(lásd: *A keret a váltás alatt: rejtve*), és nem próbálta újra. A hiba
+`retryable`; rejtve az időzítők sem futnak. A betöltő ezért `retryable`
+hibánál 1 s múlva újrahív: az újrapróba a megjelenéskor fut le. Ez a betöltő
+változása, új publikálást kért.
+
 ## Implementációs tanulságok (a generátorból)
 
 - **CSS osztálynév-ütközés**: a táblázat-fejléc `.head` szabálya ráült a
