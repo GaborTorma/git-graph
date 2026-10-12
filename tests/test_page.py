@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 
 from helpers import ROOT, HomeTestCase
 
@@ -53,3 +54,52 @@ class PageTest(HomeTestCase):
         self.assertIn("indítsd újra", gg.page.page_api_mismatch(None))
         code = gg.page.page_code()
         self.assertEqual(set(code), {"head", "body", "js"})
+
+    def test_page_modules(self) -> None:
+        """A lap moduljai a függőségeik után jönnek, a szakaszokból a forrás áll össze."""
+        gg = self.load()
+        mods = gg.page.page_modules()
+        names = [m[0] for m in mods]
+        self.assertEqual(names[-1], "main.js")
+        self.assertEqual(sorted(names), sorted(p.name for p in (ROOT / "page" / "js").glob("*.js")))
+        for name, parts, deps in mods:
+            self.assertEqual(len(parts), len(deps) + 1)
+            self.assertTrue(all(names.index(d) < names.index(name) for d in deps), name)
+            source = parts[0] + "".join(f"'./{d}'" + p for d, p in zip(deps, parts[1:]))
+            self.assertEqual(source, (ROOT / "page" / "js" / name).read_text(encoding="utf-8"))
+        self.assertIn('"main.js"', gg.page.page_code()["js"])
+
+    def fake_modules(self, gg, files: dict[str, str]) -> None:
+        """A lap moduljai egy eldobható `page/js`-ből."""
+        page = self.home / "page"
+        shutil.rmtree(page, ignore_errors=True)
+        (page / "js").mkdir(parents=True)
+        for name, text in files.items():
+            (page / "js" / name).write_text(text, encoding="utf-8")
+        gg.page.PAGE_DIR = page
+        gg.page._PAGE.clear()
+
+    def test_page_module_links(self) -> None:
+        """Csak a belépőből elérhető modul kerül a lapra; körkörös és más alakú relatív import hiba."""
+        gg = self.load()
+        self.fake_modules(gg, {"main.js": "import { a } from './a.js';\nimport './b.js';\n",
+                               "a.js": "import {\n  b,\n} from './b.js';\nexport const a = b;\n",
+                               "b.js": "export const b = 1;\n", "old.js": "import './gone.js';\n"})
+        self.assertEqual([(n, d) for n, _, d in gg.page.page_modules()],
+                         [("b.js", []), ("a.js", ["b.js"]), ("main.js", ["a.js", "b.js"])])
+        self.fake_modules(gg, {"main.js": "import './a.js';\n", "a.js": "import './main.js';\n"})
+        with self.assertRaisesRegex(ValueError, "körkörös"):
+            gg.page.page_modules()
+        self.fake_modules(gg, {"main.js": "const m = import('./a.js');\n", "a.js": ""})
+        with self.assertRaisesRegex(ValueError, "relatív út"):
+            gg.page.page_modules()
+
+    def test_install_prunes_modules(self) -> None:
+        """A stabil helyre a lap minden modulja kikerül; a forrásból eltűnt modul törlődik."""
+        gg = self.load()
+        stale = self.state / "page" / "js" / "old.js"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("", encoding="utf-8")
+        gg.install.install_copy(ROOT)
+        self.assertFalse(stale.exists())
+        self.assertTrue((stale.parent / "main.js").is_file())
