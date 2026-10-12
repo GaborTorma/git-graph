@@ -64,7 +64,15 @@ függőség. Ezen túl kézzel: a `git-graph --mcp` `graph_data`-ja több repón
 (eltérő sávszámmal, merge-ekkel), és a lap az appban. Az élő lapé: `python3 bin/git-graph --dev-install`. Ez a working treet az
 appban futó szerver helyére teszi `+dev` verzióval; a szerver 15 s-on belül
 átvált, a lap újratölt, és az app minden git-graph lapja az új kódot mutatja.
-A hook 12 óráig nem másolja vissza a telepítettet (`dev_active`). A válaszban írd ki a verziót (`0.12.2+dev.<időbélyeg>`) — a lap láblécén ebből látszik, hogy már az
+A hook 12 óráig nem másolja vissza a telepítettet (`dev_active`).
+**Forrásból futó plugin** (ezen a gépen: `~/.claude/settings.json` →
+`env.CLAUDE_CODE_PLUGIN_DIRS` végén `:…/git-graph`, a `git-graph@git-graph`
+disabled, de telepítve marad — a leszerelés a nyilvántartás kulcsát nézi): a
+skillek és a mod a working tree-ből jönnek (skillhez `/reload-plugins`), a hook
+pedig minden session indulásakor `<verzió>+dev.src.<hash>` verzióval telepít
+(`source_digest`) — a szerver csak kódváltozásra indul újra, a `pull_update` nem
+másol vissza. A `CLAUDE_PLUGIN_ROOT` a `~/.claude/plugins/cache` alatt =
+telepített, máshol = forrás. A válaszban írd ki a verziót (`0.12.2+dev.<időbélyeg>`) — a lap láblécén ebből látszik, hogy már az
 új állapot fut.
 Utána a sessionből publikált lapot kell nézni a Claude appban (az app MCP-naplója a host-híd hívásait nem mutatja). A hooké
 és a publikálásé: `--session-hook` kamu `HOME`-mal, `CLAUDE_PLUGIN_ROOT`-tal

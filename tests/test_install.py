@@ -62,6 +62,7 @@ class InstallTest(HomeTestCase):
         now = int(gg.install.time.time())
         for version, active in ((f"0.11.0+dev.{now}", True),
                                 (f"0.11.0+dev.{now - gg.install.DEV_TTL - 60}", False),
+                                ("0.11.0+dev.src.12345678", False),            # forrásból: nem védett
                                 ("0.11.0", False)):
             manifest.write_text(json.dumps({"version": version}), encoding="utf-8")
             self.assertEqual(gg.install.dev_active(), active, version)
@@ -134,6 +135,26 @@ class InstallTest(HomeTestCase):
             if sys.platform == "darwin":
                 self.assertIn("újra kell indítani", notice)
                 self.assertIsNone(gg.install.ensure_installed())        # már bent van
+
+    def test_ensure_installed_source(self) -> None:
+        """Forrásból futó hook: fejlesztői példány a tartalom hashével; a cache-ből a sima verzió."""
+        gg = self.load()
+        version = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
+        with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_ROOT": str(ROOT)}):
+            gg.install.ensure_installed()
+            dev = gg.install.stable_version()
+            self.assertEqual(dev, f"{version}+dev.src.{gg.install.source_digest(ROOT)}")
+            self.assertFalse(gg.install.dev_active())
+            gg.install.ensure_installed()
+            self.assertEqual(gg.install.stable_version(), dev)          # változatlan forrás: ugyanaz
+            gg.install.RUNNING_VERSION = dev
+            self.registry({"git-graph@git-graph": [{"version": "9.9.8", "installPath": str(self.fake_plugin(
+                "9.9.8"))}]})
+            self.assertFalse(gg.install.pull_update())                  # nem másolja vissza
+            self.assertEqual(gg.install.stable_version(), dev)
+            gg.install.PLUGIN_CACHE = ROOT.parent                       # mintha a cache-ből futna
+            gg.install.ensure_installed()
+            self.assertEqual(gg.install.stable_version(), version)
 
     def test_watch_plugin_uninstall(self) -> None:
         """A stabil példány két egymást követő hiány után leszerel; másik példány nem figyel."""

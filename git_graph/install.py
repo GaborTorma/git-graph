@@ -1,6 +1,7 @@
 """Plugin-telepítés (SessionStart hook), frissítés és leszerelés (`git-graph --mcp`)."""
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
@@ -23,6 +24,7 @@ from .state import STATE_DIR, log, place, read_json, write_json
 
 PLUGIN_ID = "git-graph@"     # bármelyik marketplace-ből telepítve
 INSTALLED_PLUGINS = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
+PLUGIN_CACHE = INSTALLED_PLUGINS.parent / "cache"   # a telepített pluginok; ami máshonnan fut, az forrás
 # A plugin útvonala verziónként más (…/cache/<marketplace>/git-graph/<verzió>/),
 # a régi verzió mappája el is tűnhet — az app ezt a másolatot futtatja.
 BIN_DIR = STATE_DIR / "bin"
@@ -145,7 +147,7 @@ def dev_active() -> bool:
     version = stable_version() or ""
     if DEV_MARK not in version:
         return False
-    stamp = version.rsplit(".", 1)[-1]
+    stamp = version.split(f"{DEV_MARK}.", 1)[-1]   # a forrásból futóé (`src.<hash>`) nem időbélyeg
     return stamp.isdigit() and time.time() - int(stamp) < DEV_TTL
 
 
@@ -161,12 +163,27 @@ def dev_install() -> int:
     if ROOT.resolve() == STATE_DIR.resolve():
         log("git-graph: a --dev-install a working treeből futtatandó (python3 bin/git-graph)")
         return 1
-    manifest = read_json(ROOT / MANIFEST) or {}
-    version = f"{manifest.get('version', '0')}{DEV_MARK}.{int(time.time())}"
-    manifest["version"] = version
-    install_copy(ROOT, (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode())
+    version = dev_copy(ROOT, str(int(time.time())))
     print(f"✓ fejlesztői példány: {version} — a futó git-graph 15 s-on belül átvált, a lap újratölt")
     return 0
+
+
+def dev_copy(root: Path, stamp: str) -> str:
+    """A `root` a stabil helyre `<verzió>+dev.<stamp>` verzióval; a verziót adja."""
+    manifest = read_json(root / MANIFEST) or {}
+    version = f"{manifest.get('version', '0')}{DEV_MARK}.{stamp}"
+    manifest["version"] = version
+    install_copy(root, (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode())
+    return version
+
+
+def source_digest(root: Path) -> str:
+    """A `root` kódjának és lapjának rövid hashe — a forrásból futó példány verziójához."""
+    digest = hashlib.sha256(stable_bundle(root))
+    for name in PAGE_FILES:
+        if (root / "page" / name).exists():
+            digest.update((root / "page" / name).read_bytes())
+    return digest.hexdigest()[:8]
 
 
 def pull_update() -> bool:
@@ -219,7 +236,13 @@ def ensure_installed() -> str | None:
     if not root or Path(root).resolve() != ROOT.resolve():
         return None
     if not dev_active():                 # a friss --dev-install-t nem írja felül
-        install_copy()
+        if ROOT.resolve().is_relative_to(PLUGIN_CACHE.resolve()):
+            install_copy()
+        else:
+            # Forrásból (`CLAUDE_CODE_PLUGIN_DIRS`, `--plugin-dir`): fejlesztői
+            # példány, a tartalom hashével — a szerver csak kódváltozásra indul
+            # újra, és a `pull_update` nem másolja vissza a telepített verziót.
+            dev_copy(ROOT, f"src.{source_digest(ROOT)}")
     if sys.platform != "darwin":
         return None
     if not install_app_mcp():
