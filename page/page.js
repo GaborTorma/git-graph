@@ -1227,9 +1227,10 @@ function mdInline(s) {
   const hold = html => `${keep.push(html) - 1}`;
   const link = (text, url) => {
     const href = url.replace(MARK_RE, '');
-    return /^https?:\/\//.test(href)
-      ? hold(`<a class="gh-link" href="${href}" target="_blank" rel="noopener">`) + text + hold('</a>')
-      : hold('<span class="md-link">') + text + hold('</span>');
+    // a `ghLink` két fele közé: a link szövege a többi cserén is átmegy (pl. **félkövér**)
+    const [open, close] = /^https?:\/\//.test(href) ? ghLink(href, '\0').split('\0')
+      : ['<span class="md-link">', '</span>'];
+    return hold(open) + text + hold(close);
   };
   let out = '', last = 0;
   for (const m of s.matchAll(/(`+)([\s\S]+?)\1(?!`)/g)) {        // több sorra is átnyúlhat
