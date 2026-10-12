@@ -56,7 +56,7 @@ változáskor ír):
 
 **Eltávolítás:** két lépés.
 
-1. `/git-graph:forget-all-artifacts` egy sessionben — törli az Artifactokat (a `git-graph --artifacts`
+1. `/git-graph:artifact-forget` egy sessionben, **Mind** választással — törli az Artifactokat (a `git-graph --artifacts`
    listája alapján, mindegyiket külön jóváhagyással), és repónként a `git-graph
    --forget`-tel a `git-graph.*` kulcsokat, a helyi lapokat és a
    regiszterbejegyzést. Közben kikapcsolja az automatikus publikálást, hogy a
@@ -136,8 +136,7 @@ kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
 | `hooks/register.ts` | a plugin modja: a meglévő Artifactot a modell nélkül nyitja meg, a session indulásakor |
 | `skills/artifact-publish/SKILL.md` | `/git-graph:artifact-publish`: `git-graph --publish`, publikálja az Artifactot, ha kell, és megnyitja |
 | `skills/artifact-open/SKILL.md` | `/git-graph:artifact-open`: `git-graph --open-url`, és újranyitja a naprakész Artifactot (nem publikál) |
-| `skills/artifact-forget/SKILL.md` | `/git-graph:artifact-forget`: az aktuális repó Artifactjának törlése + `git-graph --forget` |
-| `skills/forget-all-artifacts/SKILL.md` | `/git-graph:forget-all-artifacts`: az Artifactok törlése és a repók kitakarítása az eltávolítás előtt |
+| `skills/artifact-forget/SKILL.md` | `/git-graph:artifact-forget`: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; eltávolítás előtt: mind) |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |
 | `docs/desktop-live.md` | a korábbi Browser panel-út mérései (a `host:` híd óta nem használt) |
 | `docs/mcp-plan.md` | a korábbi terv az élő Artifacthoz (azóta a `host:` híddal megvalósult) |

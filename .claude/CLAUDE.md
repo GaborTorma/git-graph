@@ -21,8 +21,7 @@ Használat és felépítés: [README.md](../README.md).
 | `hooks/register.ts` | a plugin modja: a repó Artifactját a modell nélkül nyitja meg (`git-graph --open-url`, `Artifact open`); teszt: `register.test.ts` |
 | `skills/artifact-publish/SKILL.md` | a `/git-graph:artifact-publish` skill (`git-graph --publish`, publikálja, ha kell, és megnyitja) |
 | `skills/artifact-open/SKILL.md` | a `/git-graph:artifact-open` skill (`git-graph --open-url`, és megnyitja a naprakész Artifactot; nem publikál) |
-| `skills/artifact-forget/SKILL.md` | a `/git-graph:artifact-forget` skill: az aktuális repó Artifactjának törlése + `git-graph --forget` |
-| `skills/forget-all-artifacts/SKILL.md` | a `/git-graph:forget-all-artifacts` skill: Artifactok törlése + `git-graph --forget` az uninstall előtt |
+| `skills/artifact-forget/SKILL.md` | a `/git-graph:artifact-forget` skill: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; uninstall előtt: mind) |
 | `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
 | `docs/desktop-live.md` | **mérési napló** (történeti): a kivezetett Browser panel-út |
 | `docs/mcp-plan.md` | a korábbi terv az élő Artifacthoz (azóta a `host:` híddal megvalósult) |

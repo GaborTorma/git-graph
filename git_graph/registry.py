@@ -92,7 +92,7 @@ def registered_repos() -> dict:
 
 
 def list_artifacts() -> list[tuple[Path, str]]:
-    """(repó, Artifact URL) párok — a `/git-graph:forget-all-artifacts` ebből dolgozik.
+    """(repó, Artifact URL) párok — a `/git-graph:artifact-forget` ebből dolgozik.
 
     A regiszter hiányos lehet (leszereléskor törlődik, és csak a hook tölti
     újra), ezért a regisztrált repók szülőmappáinak többi repóját is nézi.
