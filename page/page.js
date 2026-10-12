@@ -1283,6 +1283,26 @@ function mdText(b, ls) {
   return `<p>${text(ls)}</p>`;
 }
 
+/* Összecsukás (blokk, táblázatsor, kódsor): ami változott, és a `ctx` távolságú
+   szomszédai látszanak; `runsOf` a látszó és a kimaradó futamokat adja, a
+   kimaradók helyére egy-egy `···` kerül. */
+function near(changed, ctx) {
+  const keep = changed.map(() => false);
+  changed.forEach((c, i) => {
+    if (c) for (let j = Math.max(0, i - ctx); j <= Math.min(changed.length - 1, i + ctx); j++) keep[j] = true;
+  });
+  return keep;
+}
+function runsOf(keep) {
+  const runs = [];
+  keep.forEach((k, i) => {
+    const last = runs.at(-1);
+    if (last?.keep === k) last.to = i + 1;
+    else runs.push({ from: i, to: i + 1, keep: k });
+  });
+  return runs;
+}
+
 /* Egy blokk: kódblokk és táblázat soronként színezve, a többi változatonként. */
 function mdBlockHtml(b) {
   if (b.type === 'hr') return `<div class="md-blk${linesKind(b.lines)}"><hr></div>`;
@@ -1292,40 +1312,30 @@ function mdBlockHtml(b) {
     const body = b.fence ? b.lines.slice(1, closed ? -1 : undefined) : b.lines;
     // Mint a nyers diffben: a változott sorok körül `MD_CODE_CONTEXT` sor, a
     // változatlan kódblokkból (környezetként) az eleje.
-    const changedAt = body.flatMap((l, i) => (l.t === ' ' ? [] : [i]));
-    const keep = i => (changedAt.length ? changedAt.some(c => Math.abs(c - i) <= MD_CODE_CONTEXT)
-      : i < MD_CODE_CONTEXT);
-    let html = '', skipped = 0;
-    body.forEach((l, i) => {
-      if (!keep(i)) { skipped++; return; }
-      if (skipped) html += `<div class="md-cl md-skip" title="${skipped} változatlan sor">···</div>`;
-      skipped = 0;
-      html += `<div class="md-cl${MD_KIND[l.t]}">${highlight(l.s, l.hl, b.lang) || ' '}</div>`;
-    });
-    if (skipped) html += `<div class="md-cl md-skip" title="${skipped} változatlan sor">···</div>`;
-    return `<pre class="md-code mono">${html}</pre>`;
+    const changed = body.map(l => l.t !== ' ');
+    const keep = changed.includes(true) ? near(changed, MD_CODE_CONTEXT) : body.map((_, i) => i < MD_CODE_CONTEXT);
+    return '<pre class="md-code mono">' + runsOf(keep).map(r => (r.keep
+      ? body.slice(r.from, r.to).map(l =>
+        `<div class="md-cl${MD_KIND[l.t]}">${highlight(l.s, l.hl, b.lang) || ' '}</div>`).join('')
+      : `<div class="md-cl md-skip" title="${r.to - r.from} változatlan sor">···</div>`)).join('') + '</pre>';
   }
   if (b.type === 'table') {
     // A fejléc mindig, a többi sorból csak a változott és a szomszédai (a többi `···`):
     // egy nagy táblázat (pl. a repó térképe) egy sor miatt ne nyíljon ki egészben.
     const rows = b.lines.filter(l => !MD_TABLE_SEP.test(l.s));
-    const changedRow = rows.map(l => l.t !== ' ');
+    const keep = near(rows.map((l, i) => i > 0 && l.t !== ' '), MD_CONTEXT);
+    keep[0] = true;
     const cells = l => marked(l).trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/);
     const width = cells(rows[0]).length;
-    let html = '', skipped = 0;
-    rows.forEach((l, i) => {
-      if (i && !changedRow.slice(Math.max(1, i - MD_CONTEXT), i + MD_CONTEXT + 1).includes(true)) {
-        skipped++;
-        return;
-      }
-      if (skipped) html += `<tr class="md-skip"><td colspan="${width}" title="${skipped} változatlan sor">···</td></tr>`;
-      skipped = 0;
+    const row = (l, i) => {
       const cell = i ? 'td' : 'th';
-      html += `<tr class="${MD_KIND[l.t].trim()}">`
+      return `<tr class="${MD_KIND[l.t].trim()}">`
         + cells(l).map(c => `<${cell}>${mdInline(c.trim())}</${cell}>`).join('') + '</tr>';
-    });
-    if (skipped) html += `<tr class="md-skip"><td colspan="${width}" title="${skipped} változatlan sor">···</td></tr>`;
-    return `<div class="md-table"><table>${html}</table></div>`;
+    };
+    return '<div class="md-table"><table>' + runsOf(keep).map(r => (r.keep
+      ? rows.slice(r.from, r.to).map((l, i) => row(l, r.from + i)).join('')
+      : `<tr class="md-skip"><td colspan="${width}" title="${r.to - r.from} változatlan sor">···</td></tr>`))
+      .join('') + '</table></div>';
   }
   const kind = linesKind(b.lines);
   if (kind || b.lines.every(l => l.t === ' ')) return `<div class="md-blk${kind}">${mdText(b, b.lines)}</div>`;
@@ -1340,26 +1350,16 @@ function mdDiffHtml(d) {
   if (!changed.includes(true)) {
     return `<p class="diff-note">${d.hunks.length ? 'Csak üres sorok változtak.' : 'Nincs megjeleníthető változás.'}</p>`;
   }
-  const shown = changed.map((_, i) => changed.slice(Math.max(0, i - MD_CONTEXT), i + MD_CONTEXT + 1).includes(true));
+  const shown = near(changed, MD_CONTEXT);
   let heading = -1;          // a változás előtti legközelebbi címsor is látszik: hol járunk a doksiban
   blocks.forEach((b, i) => {
     if (changed[i] && heading >= 0) shown[heading] = true;
     if (b.type === 'h') heading = i;
   });
   // Egy blokk (hunk) a `···`-ig: fókuszálható, a nyilak blokkról blokkra lépnek.
-  let out = '', run = '', hidden = 0;
-  const flush = () => { if (run) out += `<div class="hunk md-doc" tabindex="-1">${run}</div>`; run = ''; };
-  blocks.forEach((b, i) => {
-    if (!shown[i]) { hidden++; return; }
-    if (hidden) {
-      flush();
-      out += `<p class="diff-gap" title="${hidden} változatlan blokk">···</p>`;
-      hidden = 0;
-    }
-    run += mdBlockHtml(b);
-  });
-  flush();
-  if (hidden) out += `<p class="diff-gap" title="${hidden} változatlan blokk">···</p>`;
+  const out = runsOf(shown).map(r => (r.keep
+    ? `<div class="hunk md-doc" tabindex="-1">${blocks.slice(r.from, r.to).map(mdBlockHtml).join('')}</div>`
+    : `<p class="diff-gap" title="${r.to - r.from} változatlan blokk">···</p>`)).join('');
   return mdMarks(out) + (d.truncated ? '<p class="diff-note">… a fájl túl hosszú, a vége le van vágva.</p>' : '');
 }
 
