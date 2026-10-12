@@ -114,8 +114,7 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   ujjlenyomatban az `avatars` szám jelzi a lapnak, hogy új kép érkezett.
 - **Verziókezelés**: SemVer, a verzió egyetlen forrása a
   `.claude-plugin/plugin.json` (a `marketplace.json` nem ismétli); kézi
-  `vX.Y.Z` tag, Conventional Commits. A bump a feature-commitban történik,
-  a `/release` a `plugin.json` verzióját tageli (a `git cliff` számítását nem).
+  `vX.Y.Z` tag, Conventional Commits.
 - **Deploy**: a marketplace forrása a repó `main`-je, tehát a merge már
   élesít; a `/release` deploy-lépése a helyi frissítés:
   `claude plugin marketplace update git-graph && claude plugin update git-graph@git-graph`.
