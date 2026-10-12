@@ -614,9 +614,10 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
   background: var(--bg-1);
   border: 1px solid var(--border);
   border-radius: 10px;
+  overflow: auto;   /* a magasságát a `fitPanel` korlátozza: a következő commit is látsszon */
 }
-/* A rögzített WIP-sávban a lista is látszódjon alatta: a panel magában görget. */
-.pending .details { position: relative; z-index: 2; max-height: 45vh; overflow: auto; }
+.details > * { flex-shrink: 0; }   /* korlátozott magasságnál görget, nem nyom össze */
+.pending .details { position: relative; z-index: 2; }
 .d-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 /* A szerző kitölti a sort, így egy sorban a chipek jobbra kerülnek; ha
    nem férnek mellé, a saját sorukban balra zárva kezdődnek (nem lógnak jobbra). */
@@ -649,6 +650,11 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .mini.done { color: var(--add); }
 
 .body-text { margin: 0 2px; white-space: pre-wrap; font-size: 12px; line-height: 1.3; color: var(--fg-1); max-width: 72ch; }
+.body-text .more {
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; color: var(--accent);
+}
+.body-text .more:hover { text-decoration: underline; }
 .gh-link { color: var(--accent); text-decoration: none; }
 .gh-link:hover { text-decoration: underline; }
 

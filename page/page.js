@@ -645,6 +645,7 @@ function render() {
   const keepSha = focused?.closest?.('.row')?.dataset.sha;
   const keepPath = (focused?.closest?.('.file') || focused?.closest?.('.diff')?.previousElementSibling)
     ?.dataset.path;               // blokkon állva a fájljára áll vissza
+  const panelTop = document.querySelector('.details')?.scrollTop || 0;
   let day = '', html = '';
   const today = dayKey(new Date());
   // A saját worktree WIP-je a fix sávban; a többié a listában, a chipjükkel.
@@ -685,7 +686,11 @@ function render() {
   const shown = visible.filter(c => !c.uncommitted).length;   // az ál-sor nem commit
   counter.innerHTML = DATA.meta.totalCommits ? `<b>${shown}</b> / ${DATA.meta.totalCommits}` : '';
   counter.title = `${shown} commit látszik, összesen ${DATA.meta.totalCommits}`;
-  if (expanded && visible.some(c => c.sha === expanded)) open(expanded); else expanded = null;
+  if (expanded && visible.some(c => c.sha === expanded)) {
+    open(expanded);
+    const panel = document.querySelector('.details');   // a panel saját görgetése megmarad
+    if (panel) panel.scrollTop = panelTop;
+  } else expanded = null;
   stackDays();
   const back = keepPath && expanded
     ? [...document.querySelectorAll('.details .file')].find(f => f.dataset.path === keepPath)
@@ -764,6 +769,17 @@ function headHtml(c) {
   return `<div class="d-head"><span class="who">${who}</span><span class="chips">${parentChip}${commitChip}</span></div>`;
 }
 
+/* A hosszú commit-üzenetből elsőre csak az eleje látszik (szóhatáron vágva), a
+   többi a „több” gombra nyílik le; a lenyitott üzenet újrarajzolás után is nyitva marad. */
+const BODY_MAX = 200, BODY_SLACK = 40;
+const fullBodies = new Set();
+function bodyHtml(c) {
+  if (c.body.length <= BODY_MAX + BODY_SLACK || fullBodies.has(c.sha)) return linkify(c.body);
+  const cut = c.body.slice(0, BODY_MAX);
+  const head = cut.slice(0, Math.max(cut.search(/\s\S*$/), BODY_MAX / 2)).trimEnd();
+  return `${linkify(head)}… <button type="button" class="more" data-more>több</button>`;
+}
+
 function open(sha, animate = false) {
   document.querySelectorAll('.details').forEach(d => d.remove());
   const row = document.querySelector(`.row[data-sha="${CSS.escape(sha)}"]`);
@@ -778,7 +794,7 @@ function open(sha, animate = false) {
   el.className = 'details';
   el.innerHTML = `
     ${headHtml(c)}
-    ${c.body ? `<p class="body-text">${linkify(c.body)}</p>` : ''}
+    ${c.body ? `<p class="body-text">${bodyHtml(c)}</p>` : ''}
     <div class="files">
       <div class="files-head">Fájlok<span class="n">${st.files.length}</span>
         <span class="a" style="color:var(--add)">+${st.add}</span>
@@ -795,6 +811,8 @@ function open(sha, animate = false) {
   // worktree WIP-je közül a megfelelő alatt), korlátozott magasságban.
   row.after(el);
   fitWho();
+  fitPanel();
+  if (animate) revealCommit(el);
   expanded = sha;
   // Újrarajzolás (élő adatcsere) után a korábban lenyitott fájlok nyitva maradnak.
   el.querySelectorAll('.file').forEach(f => {
@@ -802,6 +820,51 @@ function open(sha, animate = false) {
   });
   drawGraph();               // a panel alatti sorok lejjebb kerültek
   if (animate) unfold(el);
+}
+
+/* A kinyitott panel legfeljebb akkora, hogy az előző commit sora, a saját sora,
+   ő maga és a következő commit sora együtt kiférjen a nézetbe; a többi a panelen belül görget.
+   A fix sávban (saját WIP) a panel alja a lap magasságának 80%-áig érhet. */
+const PANEL_MIN = 120, PENDING_MAX = 0.8;
+function fitPanel() {
+  const panel = document.querySelector('.details');
+  if (!panel) return;
+  const keep = panel.scrollTop;
+  let room;
+  if (pendingEl.contains(panel)) {
+    room = innerHeight * PENDING_MAX - panel.getBoundingClientRect().top;
+  } else {
+    // A fölötte és alatta lévő commit sora (másik napé: a napfejléccel együtt).
+    const cs = getComputedStyle(panel);
+    const near = [rowNear(panel, -1), rowNear(panel, 1)]
+      .reduce((h, n) => h + (n ? n.gap + n.row.offsetHeight : 0), 0);
+    room = scroller.clientHeight - STEP_TOP - panel.previousElementSibling.offsetHeight
+      - parseFloat(cs.marginTop) - parseFloat(cs.marginBottom) - near;
+  }
+  panel.style.maxHeight = `${Math.max(PANEL_MIN, Math.floor(room))}px`;
+  panel.scrollTop = keep;
+}
+new ResizeObserver(() => { fitPanel(); drawGraph(); }).observe(scroller);
+
+/* Lenyitáskor a commit (sor + panel) és a következő commit sora a nézetbe
+   kerül; ha ehhez fel kell ugrania, a fölötte lévő commit még látszik. A
+   `fitPanel` a magasságot ehhez szabja, így a kettő együtt kifér. */
+function rowNear(panel, dir) {
+  const row = dir < 0 ? panel.previousElementSibling : panel;
+  const sib = dir < 0 ? row.previousElementSibling : row.nextElementSibling;
+  if (sib?.classList.contains('row')) return { row: sib, gap: 0 };
+  const group = panel.parentElement[dir < 0 ? 'previousElementSibling' : 'nextElementSibling'];
+  const rows = group?.querySelectorAll('.row');
+  return rows?.length ? { row: rows[dir < 0 ? rows.length - 1 : 0], gap: STEP_TOP } : null;
+}
+function revealCommit(panel) {
+  if (!scroller.contains(panel)) return;
+  const s = scroller.getBoundingClientRect();
+  const next = rowNear(panel, 1)?.row, prev = rowNear(panel, -1)?.row;
+  const top = (prev || panel.previousElementSibling).getBoundingClientRect().top;
+  const bottom = (next || panel).getBoundingClientRect().bottom;
+  if (top < s.top + STEP_TOP) scroller.scrollTop -= Math.round(s.top + STEP_TOP - top);
+  else if (bottom > s.bottom) scroller.scrollTop += Math.round(Math.min(bottom - s.bottom, top - s.top - STEP_TOP));
 }
 
 /* Lenyílás: a panel magassága 0-ról nő. A gráf a sorok mért helyéből rajzol,
@@ -854,6 +917,7 @@ function toggleFile(fileEl, sha, on) {
   const show = html => {
     if (!fileEl.isConnected || fileEl.getAttribute('aria-expanded') !== 'true') return;
     box.innerHTML = html;
+    revealCommit(fileEl.closest('.details'));   // a megnőtt panel ne lógjon ki
     drawGraph();
   };
   const cached = diffCache.get(key);
@@ -1163,6 +1227,16 @@ function onListClick(e) {
   if (jump) {
     const target = rowsEl.querySelector(`.row[data-sha="${jump.dataset.jump}"]`);
     if (target) { open(jump.dataset.jump); target.scrollIntoView({ block: 'center' }); }
+    return;
+  }
+  const more = e.target.closest('[data-more]');
+  if (more) {
+    const c = commitBySha(expanded);
+    fullBodies.add(c.sha);
+    const panel = more.closest('.details');
+    more.parentElement.innerHTML = bodyHtml(c);
+    revealCommit(panel);
+    drawGraph();
     return;
   }
   const file = e.target.closest('.file');
@@ -1656,6 +1730,15 @@ const commitOf = el => el && visible.find(c => c.sha === el.dataset.sha);
 
 /* A kijelölt elem látszódjon: a ragadós napfejléc alá, vagy az alsó szélhez. */
 function ensureVisible(el) {
+  // A panelen belül (fájl, blokk) a panel görget; maga a panel kifér a nézetbe.
+  const panel = el.closest('.details');
+  if (panel && panel !== el) {
+    const p = panel.getBoundingClientRect(), r = el.getBoundingClientRect();
+    if (r.top < p.top || r.height > p.height) panel.scrollTop -= Math.round(p.top - r.top);
+    else if (r.bottom > p.bottom) panel.scrollTop += Math.round(r.bottom - p.bottom);
+    if (scroller.contains(panel)) commitInView(panel, true);
+    return;
+  }
   if (!scroller.contains(el)) return;                    // a fix #pending sor
   const s = scroller.getBoundingClientRect(), r = el.getBoundingClientRect();
   // Ami nem fér ki (magas blokk), annak a teteje igazodik a fejléc alá.
