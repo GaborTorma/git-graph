@@ -82,8 +82,6 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
 `HOME`-mal, a modult betöltve — az app configja és a `~/.git-graph` is a
 `HOME` alól jön, a valódihoz így a próba nem nyúl.
 
-- **Check**: `syntax=/usr/bin/python3 -m py_compile bin/git-graph git_graph/*.py && node --check page/page.js && claude plugin validate . --strict` · `lint=uvx ruff@0.16.10 check && pnpm dlx @biomejs/biome@2.5.15 lint` · `test=/usr/bin/python3 -m unittest discover -s tests && claude plugin test .`
-
 ## Konvenciók
 
 - **Nyelv**: magyar — kommentek, doksi, commit-body, a generált UI feliratai.
