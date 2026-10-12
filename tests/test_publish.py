@@ -1,7 +1,7 @@
 """Publikálás (`publish`): a betöltő kiírása, a session lépései, a publikált lap hashe."""
 from __future__ import annotations
 
-from helpers import HomeTestCase
+from helpers import HomeTestCase, git_in
 
 
 class PublishTest(HomeTestCase):
@@ -37,13 +37,34 @@ class PublishTest(HomeTestCase):
             gg.publish.mark_published("https://claude.ai/artifact/x")
 
     def test_mark_published_enables_auto(self) -> None:
-        """A kézi publikálás a `--forget` kikapcsolta automatikus publikálást visszakapcsolja."""
+        """Az új Artifact (a `--forget` után is) bekapcsolt automatikus megnyitással indul;
+        a meglévő frissítése a kikapcsoltat nem kapcsolja vissza."""
         gg = self.load()
         repo = self.plain_repo()
         gg.registry.forget(repo)
         gg.publish.prepare_publish()
         gg.publish.mark_published("https://claude.ai/artifact/x")
+        self.assertTrue(gg.publish.auto_open())
+        gg.publish.settings({"autoOpen": False})
+        gg.publish.mark_published("https://claude.ai/artifact/x")
+        self.assertFalse(gg.publish.auto_open())
+
+    def test_settings(self) -> None:
+        """Alapból mindkettő be; a megnyitás a repóé, a publikálás a gépé; a régi kulcs is számít."""
+        gg = self.load()
+        repo, other = self.plain_repo(), self.plain_repo("other")
+        gg.gitio.set_repo(repo)
+        self.assertEqual(gg.publish.settings({}), {"autoOpen": True, "autoPublish": True})
+        self.assertEqual(gg.publish.settings({"autoOpen": False, "autoPublish": False}),
+                         {"autoOpen": False, "autoPublish": False})
+        self.assertEqual(gg.gitio.config_get("autoOpen"), "false")
+        gg.gitio.set_repo(other)
+        self.assertEqual(gg.publish.settings({"autoOpen": "nem bool"}), {"autoOpen": True, "autoPublish": False})
+        git_in(other, "config", "git-graph.autoPublish", "false")      # a 0.13 előtti --forget írta
+        self.assertFalse(gg.publish.auto_open())
+        gg.publish.settings({"autoOpen": True})
         self.assertEqual(gg.gitio.config_get("autoPublish"), "")
+        self.assertTrue(gg.publish.auto_open())
 
     def test_set_artifact_drops_hash(self) -> None:
         """Kézi URL (`--set-artifact`): a régi hash már nem érvényes."""

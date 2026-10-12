@@ -10,7 +10,9 @@ from . import gitio
 from .gitio import config_get, remember_artifact, repo_name
 from .page import build
 from .registry import register, slug_for
-from .state import STATE_DIR
+from .state import STATE_DIR, place, read_json
+
+SETTINGS = STATE_DIR / "settings.json"   # a gép beállításai (a lap fogaskerék-menüje írja)
 
 
 def page_title(name: str) -> str:
@@ -27,7 +29,7 @@ def artifact_path(repo: Path) -> Path:
 # A lap ezen át éri el a gépen futó git-graph --mcp-t (enélkül use("mcp") null).
 PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
                                      "tools": ["changes", "graph_data", "file_diff",
-                                               "page_code"]}]}}
+                                               "page_code", "settings"]}]}}
 
 
 def page_digest(html_page: str) -> str:
@@ -83,17 +85,48 @@ def publish_steps(job: dict) -> str:
             f"capabilities: {caps}; 2) {record}; 3) {show}.")
 
 
+def auto_open() -> bool:
+    """A repó Artifactja a session indulásakor magától megnyílik, és ha elavult,
+    frissül (`git-graph.autoOpen`, alap: igen). A 0.13 előtti `--forget` még
+    `autoPublish`-t írt: az is számít."""
+    return (config_get("autoOpen") or config_get("autoPublish")) != "false"
+
+
+def auto_publish() -> bool:
+    """Artifact nélküli repóban a session publikáltasson-e (a gépen, minden repóra; alap: igen)."""
+    return (read_json(SETTINGS) or {}).get("autoPublish") is not False
+
+
+def settings(changes: dict) -> dict:
+    """A lap beállítás-menüje (`settings` tool): a megadott kulcsokat írja, és mindkettőt adja."""
+    if isinstance(changes.get("autoOpen"), bool):
+        gitio.git("config", "--local", "git-graph.autoOpen", str(changes["autoOpen"]).lower())
+        config_unset("autoPublish")
+    if isinstance(changes.get("autoPublish"), bool):
+        data = read_json(SETTINGS) or {}
+        data["autoPublish"] = changes["autoPublish"]
+        place((json.dumps(data, indent=2) + "\n").encode(), SETTINGS, 0o644)
+    return {"autoOpen": auto_open(), "autoPublish": auto_publish()}
+
+
+def config_unset(key: str) -> None:
+    if config_get(key):
+        gitio.git("config", "--local", "--unset", f"git-graph.{key}")
+
+
 def mark_published(url: str) -> None:
     """A session publikálása után: az URL és a feltöltött lap hashe a `.git/config`-ba.
 
-    A kézi publikálás a `--forget` kikapcsolta automatikus publikálást is
-    visszakapcsolja.
+    Az új Artifact (a `--forget` után is) bekapcsolt automatikus megnyitással
+    indul; a meglévő frissítése a beállítást nem érinti.
     """
     page = artifact_path(gitio.REPO)
     if not page.exists():
         raise SystemExit("HIBA: nincs kiírt Artifact-lap — előbb: git-graph --publish")
+    fresh = not config_get("artifact")
     remember_artifact(url, page_digest(page.read_text(encoding="utf-8")))
-    if config_get("autoPublish"):
-        gitio.git("config", "--local", "--unset", "git-graph.autoPublish")
+    config_unset("autoPublish")
+    if fresh:
+        config_unset("autoOpen")
     register(gitio.REPO)
 

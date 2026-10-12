@@ -55,7 +55,7 @@ def main() -> int:
                          "(a /git-graph:artifact-forget ebből dolgozik)")
     ap.add_argument("--forget", action="store_true",
                     help="a repó git-graph nyomainak törlése (.git/config kulcsok, "
-                         "helyi lap, regiszter) és az automatikus publikálás "
+                         "helyi lap, regiszter) és az automatikus megnyitás "
                          "kikapcsolása — az Artifactot nem törli")
     ap.add_argument("--publish", action="store_true",
                     help="az Artifact vékony lapjának kiírása, és a publikálás lépései "
@@ -74,9 +74,9 @@ def main() -> int:
                     help="Claude Code SessionStart hook: telepítés, és ha kell, a repó "
                          "Artifactjának publikálása (stdin: a hook JSON-ja)")
     ap.add_argument("--open-url", action="store_true", dest="open_url",
-                    help="a plugin modjának és a /git-graph:artifact-open-nak: a repó "
-                         "Artifactjának URL-je, ha naprakész (és --session mellett a sessionben "
-                         "még nem volt nyitva); különben semmi")
+                    help="a plugin modjának (--session-nel): a repó Artifactjának URL-je, ha "
+                         "most meg kell nyitni; a /git-graph:artifact-open-nak (nélküle): az "
+                         "URL, elavult lapnál a frissítés lépései, Artifact nélkül semmi")
     ap.add_argument("--session", metavar="ID", default=None,
                     help="az --open-url-hez: a Claude Code session azonosítója")
     args = ap.parse_args()
@@ -104,8 +104,8 @@ def main() -> int:
     if args.forget:
         repo = main_checkout(resolve_repo(Path(args.repo).expanduser().resolve()))
         forget(repo)
-        print(f"✓ {repo}: a git-graph nyomai törölve; automatikus publikálás KI "
-              "(git-graph.autoPublish=false)")
+        print(f"✓ {repo}: a git-graph nyomai törölve; automatikus megnyitás KI "
+              "(git-graph.autoOpen=false)")
         return 0
 
     # Bármelyik worktree-ből: a repó közös lapja a fő checkouté.

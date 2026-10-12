@@ -140,6 +140,8 @@ const ICONS = {
   // minden ág: két sáv, egy-egy üres csomóponttal, mint a branch-ikonon
   allBranches: '<path d="M5 2.5v6M5 11.5v2M11 2.5v2M11 7.5v6"/><circle cx="5" cy="10" r="1.5"/><circle cx="11" cy="6" r="1.5"/>',
   // leválasztott HEAD az ágválasztóban: szétkapcsolt lánc
+  // beállítások: fogaskerék (Lucide settings, ISC), 24-es rácsról lekicsinyítve, a vonal 1,5 marad
+  gear: '<g transform="scale(.6667)" stroke-width="2.25"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></g>',
   detached: '<path d="M6.5 9.5 4.8 11.2a2 2 0 0 1-2.8-2.8L3.7 6.7M9.5 6.5l1.7-1.7a2 2 0 0 1 2.8 2.8l-1.7 1.7M5.5 2.5V4M2.5 5.5H4M10.5 13.5V12M13.5 10.5H12"/>',
 };
 const icon = (name, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -1404,7 +1406,7 @@ branchQuery.addEventListener('keydown', e => {
   } else if (e.key === 'Home' || e.key === 'End') e.stopPropagation();
 });
 
-/* Közös legördülő menü (ágválasztó, téma): nyíl-, Home/End-, Escape- és
+/* Közös legördülő menü (ágválasztó, téma, beállítások): nyíl-, Home/End-, Escape- és
    Tab-billentyű, kattintás kívülre csuk. `onPick` a választott opciót kapja. */
 function makeMenu(btn, pop, onPick, onOpen) {
   // A menü a látható részen belül marad (`--room`, a CSS max-height-jában): ami nem fér
@@ -1430,8 +1432,10 @@ function makeMenu(btn, pop, onPick, onOpen) {
   pop.addEventListener('click', e => {
     const o = e.target.closest('.option');
     if (!o) return;
-    toggle(false);
-    btn.focus();
+    if (!('keep' in o.dataset)) {     // a kapcsoló-opció (`data-keep`) nyitva hagyja
+      toggle(false);
+      btn.focus();
+    }
     onPick(o);
   });
   pop.addEventListener('keydown', e => {
@@ -1789,6 +1793,50 @@ function setTheme(mode) {
 }
 makeMenu(themeBtn, themePop, o => setTheme(o.dataset.value));
 setTheme((() => { try { return localStorage.getItem(THEME_KEY) || 'auto'; } catch { return 'auto'; } })());
+
+/* ── Beállítások ── a fogaskerék-menü kapcsolói. A megnyitás a repóé (a
+   `.git/config`-ban): a session indulásakor magától nyílik a lap, és ha elavult,
+   frissül. A publikálás a gépé: Artifact nélküli repóban a session létrehozza.
+   A git-graph tárolja (`settings` tool); a menü nyitáskor kérdezi le. */
+const SETTINGS = [
+  ['autoOpen', 'Automatikus megnyitás', 'Új session indításakor'],
+  ['autoPublish', 'Automatikus publikálás', 'Új projekt/repo esetén'],
+];
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsPop = document.getElementById('settingsPop');
+settingsBtn.innerHTML = icon('gear');
+let settings = null;                  // a git-graph válasza (null: még nem jött)
+function fillSettings(note = '') {
+  const focused = settingsPop.contains(document.activeElement) && document.activeElement.dataset.key;
+  settingsPop.innerHTML = SETTINGS.map(([key, name, sub]) =>
+    `<button type="button" class="option setting" role="menuitemcheckbox" data-keep data-key="${key}"`
+    + ` aria-checked="${settings?.[key] ?? true}"${settings ? '' : ' disabled'}>`
+    + `<span class="txt"><span class="name">${name}</span><span class="sub">${sub}</span></span>`
+    + '<span class="track"></span></button>').join('')
+    + (note ? `<p class="menu-note">${esc(note)}</p>` : '');
+  if (focused) settingsPop.querySelector(`[data-key="${focused}"]`)?.focus();   // az újraépítés ne vigye el
+}
+async function callSettings(changes) {
+  try {
+    settings = await CTX.mcp.callTool(MCP_SERVER, 'settings', { repo: SLUG, ...changes }, { cache: false })
+      .then(r => r.payload);
+    fillSettings();
+  } catch (e) {
+    // not_in_manifest: az app a futó szerver tool-listáját csak induláskor kérdezi le
+    fillSettings(e?.code === 'not_in_manifest'
+      ? 'A Claude app még nem ismeri ezt a beállítást — indítsd újra az appot.' : mcpProblem(e));
+  }
+}
+makeMenu(settingsBtn, settingsPop, o => {
+  if (!settings || o.disabled) return;
+  const key = o.dataset.key;
+  settings = { ...settings, [key]: !settings[key] };     // azonnal vált, a válasz igazítja
+  fillSettings();
+  callSettings({ [key]: settings[key] });
+}, () => {
+  fillSettings();
+  callSettings({}).then(() => settingsPop.querySelector('.option:not([disabled])')?.focus());
+});
 
 hydrate();
 fillBranches();

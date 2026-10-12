@@ -25,8 +25,8 @@ class HookTest(HomeTestCase):
         self.assertEqual(data["hookEventName"], "SessionStart")
         return data["additionalContext"]
 
-    def open_url(self, cwd: Path, session: str, **env: str) -> str:
-        out = self.run_script(str(cwd), "--open-url", "--session", session, **env)
+    def open_url(self, cwd: Path, session: str | None, **env: str) -> str:
+        out = self.run_script(str(cwd), "--open-url", *(["--session", session] if session else []), **env)
         self.assertEqual(out.returncode, 0, out.stderr)
         return out.stdout.strip()
 
@@ -48,15 +48,42 @@ class HookTest(HomeTestCase):
         self.assertEqual(self.open_url(self.home, "s3"), "")          # nem repó
 
     def test_quiet(self) -> None:
-        """Nem repó, headless session és kikapcsolt publikálás: nincs kimenet."""
+        """Nem repó, headless session és kikapcsolt megnyitás: nincs kimenet."""
         self.assertIsNone(self.hook(self.home))
         repo = self.plain_repo()
         self.assertIsNone(self.hook(repo, CLAUDE_CODE_ENTRYPOINT="sdk-py"))
-        git_in(repo, "config", "git-graph.autoPublish", "false")
+        git_in(repo, "config", "git-graph.autoOpen", "false")
         self.assertIsNone(self.hook(repo))
         self.assertIsNotNone(self.hook(self.plain_repo("other")))          # a többi repóban kér
         registered = json.loads((self.state / "repos.json").read_text(encoding="utf-8")).values()
         self.assertIn(str(repo), registered)                          # csendben is regisztrál
+
+    def test_settings(self) -> None:
+        """Kikapcsolt automatikus publikálás: új Artifactot nem kér, a meglévőt frissíti;
+        kikapcsolt megnyitás: a mod nem nyit, és a hook nem frissít."""
+        (self.state).mkdir(parents=True, exist_ok=True)
+        (self.state / "settings.json").write_text('{"autoPublish": false}', encoding="utf-8")
+        repo = self.plain_repo()
+        self.assertIsNone(self.hook(repo))
+        self.run_script("--publish", cwd=repo)
+        self.run_script(str(repo), "--published", "https://claude.ai/artifact/x")
+        git_in(repo, "config", "git-graph.artifactHash", "elavult")
+        self.assertIn("elavult", self.hook(repo, session="s2"))     # a meglévőt frissíti
+        git_in(repo, "config", "git-graph.autoOpen", "false")
+        self.assertIsNone(self.hook(repo, session="s3"))
+        self.run_script(str(repo), "--published", "https://claude.ai/artifact/x")
+        self.assertEqual(self.open_url(repo, "s4"), "")             # naprakész, de nem nyílik meg
+
+    def test_open_url_for_skill(self) -> None:
+        """Session nélkül (a skillé): a beállítástól függetlenül URL, elavultnál frissítés, Artifact nélkül semmi."""
+        repo = self.plain_repo()
+        self.assertEqual(self.open_url(repo, None), "")
+        self.run_script("--publish", cwd=repo)
+        self.run_script(str(repo), "--published", "https://claude.ai/artifact/x")
+        git_in(repo, "config", "git-graph.autoOpen", "false")
+        self.assertEqual(self.open_url(repo, None), "https://claude.ai/artifact/x")
+        git_in(repo, "config", "git-graph.artifactHash", "elavult")
+        self.assertTrue(self.open_url(repo, None).startswith('PUBLIKÁLD: 1) Artifact, action: "read"'))
 
     def test_installs_from_plugin(self) -> None:
         """A plugin hookja (CLAUDE_PLUGIN_ROOT = a kód gyökere) a stabil másolatot is kiteszi."""
@@ -75,7 +102,7 @@ class HookTest(HomeTestCase):
         self.assertIn("naprakész", self.run_script("--publish", cwd=repo).stdout)
         self.assertEqual(self.run_script("--artifacts").stdout, f"{repo}\thttps://claude.ai/artifact/x\n")
         forget = self.run_script(str(repo), "--forget")
-        self.assertIn("automatikus publikálás KI", forget.stdout)
+        self.assertIn("automatikus megnyitás KI", forget.stdout)
         self.assertEqual(self.run_script("--artifacts").stdout, "")
         self.assertIn("usage", self.run_script(cwd=repo).stdout)
         self.assertIn("nem git repó", self.run_script().stderr)

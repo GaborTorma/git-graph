@@ -20,7 +20,7 @@ Használat és felépítés: [README.md](../README.md).
 | `hooks/hooks.json` | a plugin SessionStart hookja (`--session-hook`) és a mod (`modules`) |
 | `hooks/register.ts` | a plugin modja: a repó Artifactját a modell nélkül nyitja meg (`git-graph --open-url`, `Artifact open`); teszt: `register.test.ts` |
 | `skills/artifact-publish/SKILL.md` | a `/git-graph:artifact-publish` skill (`git-graph --publish`, publikálja, ha kell, és megnyitja) |
-| `skills/artifact-open/SKILL.md` | a `/git-graph:artifact-open` skill (`git-graph --open-url`, és megnyitja a naprakész Artifactot; nem publikál) |
+| `skills/artifact-open/SKILL.md` | a `/git-graph:artifact-open` skill (`git-graph --open-url`, és megnyitja az Artifactot; elavultat előbb frissít, újat nem hoz létre) |
 | `skills/artifact-forget/SKILL.md` | a `/git-graph:artifact-forget` skill: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; uninstall előtt: mind) |
 | `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
 | `docs/desktop-live.md` | **mérési napló** (történeti): a kivezetett Browser panel-út |
@@ -38,7 +38,7 @@ git-graph --publish          # az Artifact vékony lapja + a publikálás lépé
 git-graph --published <URL>  # a session publikálása után: URL + hash a .git/config-ba
 git-graph --mcp              # MCP szerver stdio-n — a Claude app indítja, nem kézzel
 git-graph --artifacts        # ismert repók Artifactjai (regiszter + a szülőmappák repói)
-git-graph --forget           # a repó git-graph nyomai + automatikus publikálás KI
+git-graph --forget           # a repó git-graph nyomai + automatikus megnyitás KI
 git-graph --open-url --session <ID>   # a mod kérdése: az URL, ha most meg kell nyitni
 claude plugin test .         # a mod tesztjei (hooks/*.test.ts)
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
@@ -190,8 +190,15 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   `open` / `read` igen; a mod a `classic.*` eseményeket nem kapja meg
   (mérve, docs/artifact-findings.md). Ahol nem fut mod (régi kliens), a lap
   magától nem nyílik meg. Headless
-  (`CLAUDE_CODE_ENTRYPOINT=sdk-*`) sessionben és `git-graph.autoPublish=false` mellett (a `--forget`
-  írja, a `--published` törli) nem kér publikálást. Némán kilép, ha a mappa nem repó: egy SessionStart hook
+  (`CLAUDE_CODE_ENTRYPOINT=sdk-*`) sessionben nem kér publikálást. A lap
+  fogaskerék-menüje (`settings` tool, `publish.settings`) két kapcsolót ad: az
+  **automatikus megnyitás** repónként (`git-graph.autoOpen`; ki: a hook nem
+  frissít, a mod nem nyit — a `--forget` is ezt írja, az új Artifact
+  `--published`-je törli; a 0.13 előtti `autoPublish=false` is kikapcsoltnak
+  számít), az **automatikus publikálás** a gépen (`~/.git-graph/settings.json`;
+  ki: Artifact nélküli repóban nem kér publikálást). A `--open-url` session
+  nélkül (a `/git-graph:artifact-open`-é) a beállítástól függetlenül az URL-t,
+  elavult lapnál a frissítés lépéseit adja. Némán kilép, ha a mappa nem repó: egy SessionStart hook
   minden sessionben lefut, zajt nem csinálhat. A repót mindig regisztrálja — a
   `git-graph --mcp` a lap slugjából a `repos.json`-ból találja meg.
 - **Repónként egy Artifact, a worktree-k közösen látják** (0.12 óta): minden
@@ -273,7 +280,8 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
     a session szervere nélkül is átmegy (csak figyelmeztet), és a hash része.
   - A `git-graph --mcp` stdout-ján csak JSON-RPC mehet, ASCII-ban (a locale-tól
     függetlenül); napló, ha kell, stderr-re.
-  - A toolok `readOnlyHint: true`-k — enélkül az app hívásonként megerősítést
+  - A toolok `readOnlyHint: true`-k — a `settings` is, pedig a git-graph saját
+    beállítását írja (kapcsolónként ne kérdezzen) —, enélkül az app hívásonként megerősítést
     kérhet. A `watchTool` pollozása ≥ ~30 s, ezért a lap `callTool`-lal hív
     (nyitva tartott `changes`, változáskor `graph_data`).
   - Csak az appban megy (böngészőben `server_not_connected`), csak a

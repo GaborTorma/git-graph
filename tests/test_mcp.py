@@ -21,7 +21,7 @@ class McpServerTest(HomeTestCase):
             init = client.request("initialize", {"protocolVersion": "2025-06-18"})["result"]
             self.assertEqual(init["serverInfo"]["name"], "git-graph")
             tools = {t["name"]: t for t in client.request("tools/list")["result"]["tools"]}
-            self.assertEqual(set(tools), {"changes", "graph_data", "file_diff", "page_code"})
+            self.assertEqual(set(tools), {"changes", "graph_data", "file_diff", "page_code", "settings"})
             self.assertTrue(all(t["annotations"]["readOnlyHint"] for t in tools.values()))
             self.assertEqual(client.request("ping")["result"], {})
 
@@ -39,6 +39,7 @@ class McpServerTest(HomeTestCase):
             self.assertTrue(all("email" in c for c in data["commits"] if not c.get("uncommitted")))
             changes = client.call("changes", repo=SLUG)
             self.assertTrue({"state", "since", "focus", "version"} <= set(changes))
+            self.assertEqual(set(client.call("settings", repo=SLUG)), {"autoOpen", "autoPublish"})   # csak olvas
             icons = {f.get("icon") for st in data["stats"].values() for f in st["files"]}
             self.assertTrue(icons - {None} and icons - {None} <= set(data["fileIcons"]))
 

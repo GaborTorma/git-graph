@@ -8,9 +8,9 @@ allowed-tools: Bash(git-graph:*), Bash(git config:*), Artifact, AskUserQuestion
 
 Az Artifactot törli a claude.ai-ról, és a `git-graph --forget`-tel a repó
 `git-graph.*` kulcsait, helyi lapját és regiszterbejegyzését. A `--forget` a repó
-automatikus publikálását is kikapcsolja (`git-graph.autoPublish=false` a
+automatikus megnyitását is kikapcsolja (`git-graph.autoOpen=false` a
 `.git/config`-ban): a session hookja abban a repóban nem kér új Artifactot. A kézi
-`/git-graph:artifact-publish` visszakapcsolja.
+`/git-graph:artifact-publish` új Artifactja visszakapcsolja.
 
 A `claude plugin uninstall` a gépi részt magától leszereli, de az Artifactokat nem
 törli — eltávolítás előtt ezért az összeset kell.
@@ -50,7 +50,7 @@ A kiválasztott soronként:
 ### 5. Jelentsd vissza
 
 Hány Artifact törlődött, mi maradt, és hogy ezekben a repókban az automatikus
-publikálás ki van kapcsolva (visszakapcsolás: `/git-graph:artifact-publish`).
+megnyitás ki van kapcsolva (visszakapcsolás: `/git-graph:artifact-publish`).
 
 **Mind** esetén utolsó sorként a plugin eltávolítása:
 

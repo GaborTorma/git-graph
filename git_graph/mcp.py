@@ -16,6 +16,7 @@ from .gitio import set_repo
 from .graph import collect_payload
 from .install import RUNNING_VERSION, STABLE, SYSTEM_PYTHON, UPDATED, stable_version, watch_plugin
 from .page import PAGE_FILES, page_api_mismatch, page_code, page_file
+from .publish import settings
 from .registry import repo_for_slug
 from .state import log
 from .watch import WAKE, wait_changes
@@ -47,6 +48,16 @@ MCP_TOOLS = [
          **_REPO_ARG["properties"],
          "api": {"type": "integer", "description": "a lap betöltőjének szerződés-verziója"}}},
      "description": "A git-graph lap élő kódja (CSS, HTML, JS) a publikált betöltőnek."},
+    # Ír (a repó `git-graph.*` kulcsát és a ~/.git-graph-ot), de csak a git-graph saját
+    # beállítását: read-only-nak jelölve az app nem kér kattintásonként megerősítést.
+    {"name": "settings", "annotations": {"readOnlyHint": True},
+     "inputSchema": {"type": "object", "required": ["repo"], "properties": {
+         **_REPO_ARG["properties"],
+         "autoOpen": {"type": "boolean", "description": "a repó Artifactja a session indulásakor "
+                                                        "megnyílik (és ha kell, frissül)"},
+         "autoPublish": {"type": "boolean", "description": "Artifact nélküli repóban a session "
+                                                           "publikálja (a gépen, minden repóra)"}}},
+     "description": "A git-graph beállításai: a megadottakat beírja, és mindkettő értékét adja."},
 ]
 
 
@@ -92,6 +103,8 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
         if name == "page_code":
             mismatch = page_api_mismatch(args.get("api"))
             return text(mismatch, True) if mismatch else text(page_code())
+        if name == "settings":
+            return text(settings(args))
     except subprocess.CalledProcessError as exc:
         return text(short_error(exc), True)
     except (OSError, ValueError) as exc:

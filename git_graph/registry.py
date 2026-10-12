@@ -122,8 +122,8 @@ def forget(repo: Path) -> None:
     """A repó minden git-graph nyoma: a config-szakasza, a helyi lapja és a
     regiszterbejegyzése.
 
-    A repó automatikus publikálását is kikapcsolja (`git-graph.autoPublish`)
-    — különben a következő session hookja új Artifactot kérne.
+    A repó automatikus megnyitását is kikapcsolja (`git-graph.autoOpen`) —
+    különben a következő session hookja új Artifactot kérne.
     """
     set_repo(repo)
     slug = slug_for(repo)
@@ -136,5 +136,5 @@ def forget(repo: Path) -> None:
     if data.pop(slug, None) is not None:
         REPOS.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
                          encoding="utf-8")
-    git("config", "--local", "git-graph.autoPublish", "false")
+    git("config", "--local", "git-graph.autoOpen", "false")
 

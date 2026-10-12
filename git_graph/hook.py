@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .gitio import config_get, main_checkout, resolve_repo, set_repo
 from .install import ensure_installed
-from .publish import is_current, prepare_publish, publish_steps
+from .publish import auto_open, auto_publish, is_current, prepare_publish, publish_steps
 from .registry import register, shown_in_session
 from .state import log
 
@@ -19,7 +19,8 @@ def session_hook() -> int:
 
     SessionStartként fut. A repó minden worktree-je a fő checkout lapját
     látja, ezért a worktree-váltásra nem kell hook. Ha nincs Artifact, vagy a
-    lapja elavult, a sessiont kéri meg, hogy publikálja: a lap csak
+    lapja elavult, a sessiont kéri meg, hogy publikálja (`auto_open`,
+    `auto_publish`): a lap csak
     kódfrissítéskor változik, az pedig csak új sessionnel lép életbe — és
     ilyenkor először ez a hook fut. A meglévő lapot nem ez nyitja meg, hanem a
     plugin modja (`hooks/register.ts` → `open_url`), a modell nélkül. Headless
@@ -41,7 +42,9 @@ def session_hook() -> int:
         return emit_context(notice)                # nem repó: nincs mit mutatni
     set_repo(repo)
     slug = register(repo)                         # a git-graph --mcp a lap slugjából ebből találja meg
-    auto = config_get("autoPublish") != "false"   # a git-graph --forget kapcsolja ki
+    # A meglévő lapot az automatikus megnyitás frissíti; Artifact nélküli
+    # repóban a gép automatikus publikálása is kell (a lap beállítás-menüje).
+    auto = auto_open() and (bool(config_get("artifact")) or auto_publish())
     job = prepare_publish() if auto and not headless() else None
     context = None                                 # nincs Artifact, nem kérünk, vagy a mod nyitja meg
     if job:
@@ -61,20 +64,29 @@ def headless() -> bool:
 
 
 def open_url(start: Path, session_id: str | None) -> str | None:
-    """A mod kérdése: meg kell-e most nyitni a repó Artifactját, és mi az URL-je.
+    """A mod kérdése (`session_id`-val): meg kell-e most nyitni a repó Artifactját, és mi az URL-je.
 
-    Akkor igen, ha van naprakész Artifact (különben a hook publikáltat, és
-    utána a session nyitja meg), és ebben a sessionben még nem volt nyitva
-    (`shown_in_session`).
+    Akkor igen, ha be van kapcsolva az automatikus megnyitás, van naprakész
+    Artifact (különben a hook publikáltat, és utána a session nyitja meg), és
+    ebben a sessionben még nem volt nyitva (`shown_in_session`).
+
+    A `/git-graph:artifact-open`-nek (session nélkül) a beállítástól
+    függetlenül: az URL, elavult lapnál a frissítés lépései (`PUBLIKÁLD: …`),
+    Artifact nélkül semmi.
     """
     try:
         repo = main_checkout(resolve_repo(start))
     except (SystemExit, subprocess.CalledProcessError):
         return None
     set_repo(repo)
-    if headless() or not is_current():
+    if not session_id:
+        if not config_get("artifact"):
+            return None
+        job = prepare_publish()
+        return "PUBLIKÁLD: " + publish_steps(job) if job else config_get("artifact")
+    if headless() or not auto_open() or not is_current():
         return None
-    if session_id and shown_in_session(session_id, register(repo)):
+    if shown_in_session(session_id, register(repo)):
         return None
     return config_get("artifact")
 

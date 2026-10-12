@@ -38,7 +38,7 @@ class RegistryTest(HomeTestCase):
         self.assertFalse(gg.registry.shown_in_session("s1", "x"))
 
     def test_forget(self) -> None:
-        """A config-szakasz, a helyi lap és a regiszterbejegyzés megy; a publikálás KI."""
+        """A config-szakasz, a helyi lap és a regiszterbejegyzés megy; az automatikus megnyitás KI."""
         gg = self.load()
         repo = self.plain_repo()
         git_in(repo, "config", "git-graph.artifact", "https://claude.ai/artifact/x")
@@ -48,7 +48,7 @@ class RegistryTest(HomeTestCase):
         self.assertEqual(gg.gitio.config_get("artifact"), "")
         self.assertFalse((self.state / slug).exists())
         self.assertNotIn(slug, gg.registry.registered_repos())
-        self.assertEqual(gg.gitio.config_get("autoPublish"), "false")
+        self.assertEqual(gg.gitio.config_get("autoOpen"), "false")
         gg.registry.forget(repo)                                      # másodszor is lefut
 
     def test_list_artifacts(self) -> None:
