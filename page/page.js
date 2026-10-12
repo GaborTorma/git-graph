@@ -128,6 +128,9 @@ const ICONS = {
   check: '<path d="m3.5 8.5 3 3 6-7"/>',
   file: '<path d="M4 1.5h5l3.5 3.5v9.5H4z"/><path d="M9 1.5V5h3.5"/>',
   chev: '<path d="M6.5 4.5 10 8l-3.5 3.5"/>',
+  // Markdown-diff nézetváltó: nyers forrás, illetve renderelt szöveg
+  code: '<path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5"/>',
+  text: '<path d="M2.5 3.5h11M2.5 6.5h11M2.5 9.5h11M2.5 12.5h7"/>',
   // a worktree-jel: mappa, benne egy kör (a kivett állapot) — saját rajz a készlet vonalvastagságával
   worktree: '<path class="wt-ic" d="M3 13a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h2.5L7 4.5h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1z"/>'
     + '<circle class="wt-ic" cx="8" cy="9" r="1.5" fill="currentColor"/>',
@@ -1021,13 +1024,23 @@ function toggleFile(fileEl, sha, on, reveal = true) {
     settle();
     drawGraph();
   };
-  const cached = diffCache.get(key);
+  // Markdown-fájl: renderelve a teljes fájlból (`full`, külön gyorstárazva), a
+  // kapcsolóval nyersen — a kapcsoló mindkét nézet fölött ott van.
+  const md = lang === 'md', full = md && !mdRaw;
+  const cacheKey = full ? key + '\nfull' : key;
+  const render = d => (md ? mdModeHtml() : '') + (full ? mdDiffHtml(d) : diffHtml(d, lang));
+  const cached = diffCache.get(cacheKey);
   if (!SRC) return show('<p class="diff-note">A diff csak élő nézetben látszik '
     + '(az Artifact a Claude appban).</p>');
-  show(cached ? diffHtml(cached.data, lang) : '<p class="diff-note loading">Betöltés…</p>');
+  show(cached ? render(cached.data) : '<p class="diff-note loading">Betöltés…</p>');
   if (cached && !cached.stale) return;
-  SRC.diff(sha, fileEl.dataset.path).then(
-    d => { diffCache.set(key, { data: d }); show(diffHtml(d, lang)); },
+  SRC.diff(sha, fileEl.dataset.path, full).then(
+    d => {
+      // Élő frissítéskor a régi adat már kirajzolva: ha nem változott, nem rajzoljuk újra.
+      const same = cached && JSON.stringify(cached.data) === JSON.stringify(d);
+      diffCache.set(cacheKey, { data: d });
+      if (!same && full === (md && !mdRaw)) show(render(d));   // közben átváltott: a másik nézet a soros
+    },
     e => { if (!cached) show(`<p class="diff-note">A diff nem tölthető be: ${esc(
       e?.message || e?.code || e)}</p>`); });
 }
@@ -1091,6 +1104,263 @@ function splitRows(h, lang) {
     old += j - i; i = k;
   }
   return out;
+}
+
+/* ── Markdown-diff ───────────────────────────────────────────────────────────
+   A `.md` fájl diffje renderelve. A teljes fájl (`full`) összefésült sorait
+   (változatlan + törölt + hozzáadott) blokkokra bontjuk; egy blokk változott,
+   ha van benne törölt vagy hozzáadott sor. A csak hozzáadott blokk zöld, a csak
+   törölt piros; a vegyes (bekezdés, címsor, listaelem, idézet) előbb a régi
+   változatával pirosan, alatta az újjal zölden, a cserélt szavak kiemelve. A
+   táblázat és a kódblokk soronként színezett. A változatlan blokkokból csak a
+   változás körüli (`MD_CONTEXT`) és az előtte álló legközelebbi címsor
+   látszik, a többi `···`. A kapcsoló (`mdRaw`) a nyers diffre vált, a lap
+   megjegyzi. Ha a két változat blokkszerkezete eltér (pl. új kódkerítés), a
+   renderelés pontatlan lehet — arra való a nyers nézet. */
+const MD_CONTEXT = 1;          // blokk (a táblázatban sor)
+const MD_CODE_CONTEXT = 3;     // a kódblokkban sor, mint a git diffjében
+const MD_RAW_KEY = 'git-graph:mdRaw';
+let mdRaw = (() => { try { return localStorage.getItem(MD_RAW_KEY) === '1'; } catch { return false; } })();
+
+function setMdRaw(raw) {
+  mdRaw = raw;
+  try { localStorage.setItem(MD_RAW_KEY, raw ? '1' : '0'); } catch { /* privát ablak: nem baj */ }
+  document.querySelectorAll('.details .file[aria-expanded="true"]').forEach(f => {
+    if (langOf(f.dataset.path) === 'md') toggleFile(f, expanded, true, 'commit');
+  });
+}
+
+const mdModeHtml = () => `<button class="mini md-mode" data-md-mode title="${
+  mdRaw ? 'Renderelt nézet' : 'Nyers diff'}">${icon(mdRaw ? 'text' : 'code')}</button>`;
+
+const MD_FENCE = /^\s{0,3}(`{3,}|~{3,})\s*([\w+#.-]*)/;
+const MD_HEAD = /^\s{0,3}(#{1,6})(?:\s+|$)/;
+const MD_SETEXT = /^\s{0,3}(=+|-+)\s*$/;
+const MD_HR = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
+const MD_LI = /^(\s*)([-*+]|\d{1,9}[.)])\s+/;
+const MD_QUOTE = /^\s{0,3}>\s?/;
+const MD_TABLE = /^\s*\|/;
+const MD_TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+const MD_HTML = /^\s{0,3}<[!/a-zA-Z]/;
+
+/* Az összefésült sorok blokkjai: { type, lines, … }. Az üres sor blokkhatár,
+   magában nem blokk (az üres sorok változása így nem látszik). */
+function mdBlocks(lines) {
+  const blocks = [];
+  let cur = null;
+  const start = (type, l, extra) => { cur = { type, lines: [l], ...extra }; blocks.push(cur); };
+  lines.forEach((l, i) => {
+    const s = l.s;
+    if (cur?.type === 'code' && cur.fence) {          // kódblokk belseje: a záró kerítésig
+      cur.lines.push(l);
+      const t = s.trim();
+      if (t.startsWith(cur.fence) && /^([`~]+|-{3,})$/.test(t)) cur = null;
+      return;
+    }
+    if (!s.trim()) { cur = null; return; }
+    // YAML front matter (pl. SKILL.md): kódként, különben a záró `---` címsort csinálna
+    if (i === 0 && s === '---') { start('code', l, { fence: '---', lang: '' }); return; }
+    const fence = MD_FENCE.exec(s);
+    if (fence) { start('code', l, { fence: fence[1], lang: LANGS[fence[2].toLowerCase()] || '' }); return; }
+    if (cur?.type === 'p' && MD_SETEXT.test(s)) {    // aláhúzott címsor
+      cur.type = 'h';
+      cur.level = s.trim()[0] === '=' ? 1 : 2;
+      cur.setext = true;
+      cur.lines.push(l);
+      cur = null;
+      return;
+    }
+    const head = MD_HEAD.exec(s);
+    if (head) { start('h', l, { level: head[1].length }); cur = null; return; }
+    if (MD_HR.test(s)) { start('hr', l); cur = null; return; }
+    if (MD_TABLE.test(s)) { if (cur?.type === 'table') cur.lines.push(l); else start('table', l); return; }
+    if (MD_QUOTE.test(s)) { if (cur?.type === 'quote') cur.lines.push(l); else start('quote', l); return; }
+    const li = MD_LI.exec(s);
+    if (li) { start('li', l, { indent: li[1].length }); return; }
+    if (MD_HTML.test(s) && cur?.type !== 'p' && cur?.type !== 'li') {   // HTML-blokk: forrásként
+      if (cur?.type === 'code') cur.lines.push(l); else start('code', l, { lang: 'html' });
+      return;
+    }
+    if (cur && ['p', 'li', 'quote', 'code'].includes(cur.type)) cur.lines.push(l);
+    else start('p', l);
+  });
+  return blocks;
+}
+
+/* A szó-kiemelés (`hl`) helyei jelölőkarakterekként a szövegbe: az inline
+   renderelést túlélik, a végén `mdMarks` cseréli őket `<mark>`-ra. */
+const MARK_ON = '', MARK_OFF = '', MARK_RE = /[]/g;
+function marked(l) {
+  let s = l.s;
+  for (const [a, b] of [...(l.hl || [])].sort((x, y) => y[0] - x[0])) {
+    s = s.slice(0, a) + MARK_ON + s.slice(a, b) + MARK_OFF + s.slice(b);
+  }
+  // Két formázójel (`**`, `__`, `~~`, `` ` ``) közé eső jelölő a futam elé kerül, hogy a jelpár összeálljon.
+  let prev;
+  do { prev = s; s = s.replace(/([*_~`])([]+)(?=[*_~`])/g, '$2$1'); } while (s !== prev);
+  return s;
+}
+function mdMarks(html) {
+  if (!html.includes(MARK_ON)) return html;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const walker = document.createTreeWalker(tpl.content, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  let on = false;
+  for (const n of nodes) {
+    if (!on && !n.data.includes(MARK_ON)) continue;
+    const frag = document.createDocumentFragment();
+    for (const part of n.data.split(/([])/)) {
+      if (part === MARK_ON) on = true;
+      else if (part === MARK_OFF) on = false;
+      else if (part) frag.append(on ? Object.assign(document.createElement('mark'), { textContent: part }) : part);
+    }
+    n.replaceWith(frag);
+  }
+  return tpl.innerHTML;
+}
+
+/* Inline formázás: kód, link, kép (csak az alt szövege — a CSP külső képet nem
+   enged), félkövér, dőlt, áthúzott. A kész elemek (`keep`) helyőrzőként várnak,
+   hogy a későbbi cserék (pl. `_` egy URL-ben) ne nyúljanak beléjük. */
+function mdInline(s) {
+  const keep = [];
+  const hold = html => `${keep.push(html) - 1}`;
+  const link = (text, url) => {
+    const href = url.replace(MARK_RE, '');
+    // a `ghLink` két fele közé: a link szövege a többi cserén is átmegy (pl. **félkövér**)
+    const [open, close] = /^https?:\/\//.test(href) ? ghLink(href, '\0').split('\0')
+      : ['<span class="md-link">', '</span>'];
+    return hold(open) + text + hold(close);
+  };
+  let out = '', last = 0;
+  for (const m of s.matchAll(/(`+)([\s\S]+?)\1(?!`)/g)) {        // több sorra is átnyúlhat
+    out += esc(s.slice(last, m.index)) + hold(`<code>${esc(m[2].replace(/\n/g, ' '))}</code>`);
+    last = m.index + m[0].length;
+  }
+  out += esc(s.slice(last));
+  return out
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, (_, alt) => hold(`<span class="md-img">${alt}</span>`))
+    .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^)]*&quot;)?\)/g, (_, text, url) => link(text, url))
+    .replace(/&lt;(https?:\/\/[^\s&]+)&gt;/g, (_, url) => link(url, url))
+    .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, '<strong>$2</strong>')
+    .replace(/(^|[^\w*])([*_])(?=[^\s*_])(.+?)(?<=[^\s*_])\2(?![\w*])/g, '$1<em>$3</em>')
+    .replace(/~~(?=\S)(.+?)(?<=\S)~~/g, '<s>$1</s>')
+    .replace(/ {2,}\n|\\\n/g, '<br>')
+    .replace(/(\d+)/g, (_, i) => keep[i]);
+}
+
+// egyforma sorokból álló blokk jele (' add' / ' del' / ''), vegyesé null
+const linesKind = ls => (ls.every(l => l.t === ls[0].t) ? KIND[ls[0].t] : null);
+
+/* A sor `[start, end)` szakasza; a szó-kiemelés (`hl`) vele tolódik, különben a
+   levágott jel (`- `, `#`, `>`, behúzás) hosszával elcsúszna. */
+function cut(l, start, end = l.s.length) {
+  const hl = (l.hl || []).map(([a, b]) => [Math.max(a, start) - start, Math.min(b, end) - start])
+    .filter(([a, b]) => b > a);
+  return { ...l, s: l.s.slice(start, end), hl };
+}
+const lead = (l, re) => cut(l, re.exec(l.s)?.[0].length || 0);
+const trimmed = l => cut(l, l.s.length - l.s.trimStart().length, l.s.trimEnd().length);
+
+/* Egy változat (a blokk sorainak egy része) renderelve, szöveges blokkra. */
+function mdText(b, ls) {
+  const text = n => mdInline(n.map(marked).join('\n'));
+  if (b.type === 'h') {
+    const src = b.setext ? ls.filter(l => !MD_SETEXT.test(l.s)) : ls;
+    const t = src.map(l => { const h = lead(l, MD_HEAD); return cut(h, 0, h.s.replace(/\s+#+\s*$/, '').length); });
+    return `<div class="md-h md-h${b.level}">${text(t)}</div>`;
+  }
+  if (b.type === 'quote') return `<blockquote>${text(ls.map(l => lead(l, MD_QUOTE)))}</blockquote>`;
+  if (b.type === 'li') {
+    const m = MD_LI.exec(ls[0].s);
+    const mark = !m ? '' : /\d/.test(m[2]) ? esc(m[2]) : '•';
+    const t = ls.map((l, i) => (i === 0 && m ? lead(l, MD_LI) : trimmed(l)));
+    return `<div class="md-li" style="--md-ind:${b.indent || 0}"><span class="md-mk">${mark}</span>`
+      + `<span>${text(t)}</span></div>`;
+  }
+  return `<p>${text(ls)}</p>`;
+}
+
+/* Összecsukás (blokk, táblázatsor, kódsor): ami változott, és a `ctx` távolságú
+   szomszédai látszanak; `runsOf` a látszó és a kimaradó futamokat adja, a
+   kimaradók helyére egy-egy `···` kerül. */
+function near(changed, ctx) {
+  const keep = changed.map(() => false);
+  changed.forEach((c, i) => {
+    if (c) for (let j = Math.max(0, i - ctx); j <= Math.min(changed.length - 1, i + ctx); j++) keep[j] = true;
+  });
+  return keep;
+}
+function runsOf(keep) {
+  const runs = [];
+  keep.forEach((k, i) => {
+    const last = runs.at(-1);
+    if (last?.keep === k) last.to = i + 1;
+    else runs.push({ from: i, to: i + 1, keep: k });
+  });
+  return runs;
+}
+
+/* Egy blokk: kódblokk és táblázat soronként színezve, a többi változatonként. */
+function mdBlockHtml(b) {
+  if (b.type === 'hr') return `<div class="md-blk${linesKind(b.lines) ?? ''}"><hr></div>`;
+  if (b.type === 'code') {
+    // a kerítés sorai nem látszanak (a záró hiányozhat: a fájl vége vagy a levágás)
+    const closed = b.fence && b.lines.length > 1 && b.lines.at(-1).s.trim().startsWith(b.fence);
+    const body = b.fence ? b.lines.slice(1, closed ? -1 : undefined) : b.lines;
+    // Mint a nyers diffben: a változott sorok körül `MD_CODE_CONTEXT` sor, a
+    // változatlan kódblokkból (környezetként) az eleje.
+    const changed = body.map(l => l.t !== ' ');
+    const keep = changed.includes(true) ? near(changed, MD_CODE_CONTEXT) : body.map((_, i) => i < MD_CODE_CONTEXT);
+    return '<pre class="md-code mono">' + runsOf(keep).map(r => (r.keep
+      ? body.slice(r.from, r.to).map(l =>
+        `<div class="md-cl${KIND[l.t]}">${highlight(l.s, l.hl, b.lang) || ' '}</div>`).join('')
+      : `<div class="md-cl md-skip" title="${r.to - r.from} változatlan sor">···</div>`)).join('') + '</pre>';
+  }
+  if (b.type === 'table') {
+    // A fejléc mindig, a többi sorból csak a változott és a szomszédai (a többi `···`):
+    // egy nagy táblázat (pl. a repó térképe) egy sor miatt ne nyíljon ki egészben.
+    const rows = b.lines.filter(l => !MD_TABLE_SEP.test(l.s));
+    const keep = near(rows.map((l, i) => i > 0 && l.t !== ' '), MD_CONTEXT);
+    keep[0] = true;
+    const cells = l => marked(l).trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/);
+    const width = cells(rows[0]).length;
+    const row = (l, i) => {
+      const cell = i ? 'td' : 'th';
+      return `<tr class="${KIND[l.t].trim()}">`
+        + cells(l).map(c => `<${cell}>${mdInline(c.trim())}</${cell}>`).join('') + '</tr>';
+    };
+    return '<div class="md-table"><table>' + runsOf(keep).map(r => (r.keep
+      ? rows.slice(r.from, r.to).map((l, i) => row(l, r.from + i)).join('')
+      : `<tr class="md-skip"><td colspan="${width}" title="${r.to - r.from} változatlan sor">···</td></tr>`))
+      .join('') + '</table></div>';
+  }
+  const kind = linesKind(b.lines);
+  if (kind !== null) return `<div class="md-blk${kind}">${mdText(b, b.lines)}</div>`;
+  return `<div class="md-blk del">${mdText(b, b.lines.filter(l => l.t !== '+'))}</div>`
+    + `<div class="md-blk add">${mdText(b, b.lines.filter(l => l.t !== '-'))}</div>`;
+}
+
+function mdDiffHtml(d) {
+  if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
+  const blocks = mdBlocks(d.hunks.flatMap(h => h.lines));
+  const changed = blocks.map(b => b.lines.some(l => l.t !== ' '));
+  if (!changed.includes(true)) {
+    return `<p class="diff-note">${d.hunks.length ? 'Csak üres sorok változtak.' : 'Nincs megjeleníthető változás.'}</p>`;
+  }
+  const shown = near(changed, MD_CONTEXT);
+  let heading = -1;          // a változás előtti legközelebbi címsor is látszik: hol járunk a doksiban
+  blocks.forEach((b, i) => {
+    if (changed[i] && heading >= 0) shown[heading] = true;
+    if (b.type === 'h') heading = i;
+  });
+  // Egy blokk (hunk) a `···`-ig: fókuszálható, a nyilak blokkról blokkra lépnek.
+  const out = runsOf(shown).map(r => (r.keep
+    ? `<div class="hunk md-doc" tabindex="-1">${blocks.slice(r.from, r.to).map(mdBlockHtml).join('')}</div>`
+    : `<p class="diff-gap" title="${r.to - r.from} változatlan blokk">···</p>`)).join('');
+  return mdMarks(out) + (d.truncated ? '<p class="diff-note">… a fájl túl hosszú, a vége le van vágva.</p>' : '');
 }
 
 /* ── Szintaxis-színezés ──────────────────────────────────────────────────
@@ -1316,6 +1586,7 @@ function onListClick(e) {
   if (e.target.closest('a[href]')) return;   // GitHub-link: nyíljon, a sor ne csukódjon
   const copy = e.target.closest('[data-copy]');
   if (copy) { copyText(copy.dataset.copy, copy); return; }
+  if (e.target.closest('[data-md-mode]')) { setMdRaw(!mdRaw); return; }
   const jump = e.target.closest('[data-jump]');
   if (jump) {
     const target = rowsEl.querySelector(`.row[data-sha="${jump.dataset.jump}"]`);
@@ -2146,7 +2417,7 @@ function mcpSource() {
     signal ? { cache: false, signal } : { cache: false }).then(r => r.payload);
   return { changes: (since, wait, signal) => call('changes', { since, wait }, signal),
            data: () => call('graph_data'),
-           diff: (sha, path) => call('file_diff', { sha, path }) };
+           diff: (sha, path, full) => call('file_diff', { sha, path, full }) };
 }
 
 /* Adat még nincs (MCP-lap induláskor): az üzenet a sorok helyére is kerül. */

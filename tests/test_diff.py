@@ -77,6 +77,27 @@ class DiffTest(HomeTestCase):
             with self.assertRaises(ValueError, msg=bad):
                 gg.diff.file_diff(bad, "a.txt")
 
+    def test_file_diff_full(self) -> None:
+        """`full`: a teljes fájl egy hunkban, a változatlan sorokkal — commitban és WIP-ben."""
+        repo = self.plain_repo()
+        lines = [f"sor {i}" for i in range(30)]
+        (repo / "doc.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        git_in(repo, "add", "doc.md")
+        git_in(repo, "commit", "-qm", "doc")
+        lines[15] = "módosított sor"
+        (repo / "doc.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        gg = self.load()
+        gg.gitio.set_repo(repo)
+        wip = f"*uncommitted:{gg.registry.slug_for(repo)}"
+        (hunk,) = gg.diff.file_diff(wip, "doc.md", full=True)["hunks"]
+        self.assertEqual(len(hunk["lines"]), 31)                 # 29 változatlan + törölt + hozzáadott
+        self.assertEqual(hunk["old"], 1)
+        self.assertEqual(len(gg.diff.file_diff(wip, "doc.md")["hunks"][0]["lines"]), 8)   # 3+3 környezet
+        git_in(repo, "commit", "-qam", "mod")
+        sha = git_in(repo, "rev-parse", "HEAD").strip()
+        (hunk,) = gg.diff.file_diff(sha, "doc.md", full=True)["hunks"]
+        self.assertEqual(len(hunk["lines"]), 31)
+
     def test_untracked_binary(self) -> None:
         gg = self.load()
         (self.home / "kep.bin").write_bytes(b"\xff\xfe\x00")

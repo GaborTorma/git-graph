@@ -13,6 +13,7 @@ HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 SHA_RE = re.compile(r"^[0-9a-f]{7,64}$")
 TOKEN_RE = re.compile(r"\w+|\s+|[^\w\s]")
 DIFF_MAX_LINES = 3000           # egy lockfile ne fagyassza meg a lapot
+FULL_CONTEXT = "-U1000000"      # a teljes fájl egy hunkban (a renderelt Markdown-diffhez)
 PAIR_MAX_CELLS = 10000          # e fölött (pl. 100×100-as blokk) nincs hasonlóság-illesztés
 PAIR_MIN_RATIO = 0.6            # ennél hasonlóbb sorpár számít „ugyanannak a sornak"
 
@@ -152,15 +153,18 @@ def untracked_diff(root: Path, path: str) -> dict:
             "truncated": truncated}
 
 
-def file_diff(sha: str, path: str) -> dict:
+def file_diff(sha: str, path: str, full: bool = False) -> dict:
     """Egy fájl diffje a commitban (vagy egy Uncommitted ál-sorban: a worktree HEAD-jéhez képest).
 
+    `full`: a változatlan sorok is mind benne vannak (egyetlen hunk) — a lap
+    ebből rendereli a Markdown-fájlt, a blokkjai csak a teljes szövegből jók.
     A `sha` és a `path` a lapról jön: a sha csak hex lehet (különben `--opció`-ként
     futna), az ál-soré `*uncommitted:<slug>`, és a slug csak egy élő worktree-é
     lehet; a fájlt pedig csak akkor olvassuk közvetlenül, ha a git követetlennek
     mondja — így a lapon át nem olvasható ki tetszőleges fájl.
     """
     old, new = numstat_old_path(path), numstat_new_path(path)
+    context = [FULL_CONTEXT] if full else []
     pending = UNCOMMITTED_RE.match(sha)
     if pending:
         slug = pending[1]
@@ -168,13 +172,14 @@ def file_diff(sha: str, path: str) -> dict:
                      if slug in (None, slug_for(wt["path"]))), None)
         if root is None:
             raise ValueError(f"nincs ilyen worktree: {slug}")
-        raw = git("diff", "--no-color", "--no-ext-diff", "-M", "HEAD", "--", old, new, repo=root)
+        raw = git("diff", "--no-color", "--no-ext-diff", "-M", *context, "HEAD", "--", old, new,
+                  repo=root)
         if not raw.strip() and path in git("ls-files", "--others", "--exclude-standard",
                                            "--", path, repo=root).splitlines():
             return untracked_diff(root, path)
     elif SHA_RE.match(sha):
         raw = git("show", "--format=", "--no-color", "--no-ext-diff", "-M",
-                  "--diff-merges=first-parent", sha, "--", old, new)
+                  "--diff-merges=first-parent", *context, sha, "--", old, new)
     else:
         raise ValueError(f"érvénytelen commit: {sha!r}")
     return parse_diff(raw)

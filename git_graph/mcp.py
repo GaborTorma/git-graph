@@ -42,7 +42,8 @@ MCP_TOOLS = [
      "inputSchema": {"type": "object", "required": ["repo", "sha", "path"], "properties": {
          **_REPO_ARG["properties"],
          "sha": {"type": "string", "description": "commit sha, vagy *uncommitted:<worktree-slug>"},
-         "path": {"type": "string", "description": "a fájl útja, ahogy a graph_data adja"}}},
+         "path": {"type": "string", "description": "a fájl útja, ahogy a graph_data adja"},
+         "full": {"type": "boolean", "description": "a teljes fájl, a változatlan sorokkal együtt"}}},
      "description": "Egy fájl diffje egy commitban, hunkokra és sorokra bontva."},
     {"name": "page_code", "annotations": {"readOnlyHint": True},
      "inputSchema": {"type": "object", "required": ["repo", "api"], "properties": {
@@ -100,7 +101,8 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
         if name == "graph_data":
             return text(collect_payload(limit))
         if name == "file_diff":
-            return text(file_diff(str(args.get("sha", "")), str(args.get("path", ""))))
+            return text(file_diff(str(args.get("sha", "")), str(args.get("path", "")),
+                                  bool(args.get("full"))))
         if name == "page_code":
             mismatch = page_api_mismatch(args.get("api"))
             return text(mismatch, True) if mismatch else text(page_code())
