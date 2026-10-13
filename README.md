@@ -142,9 +142,6 @@ repóét kikapcsolja.
 | `skills/artifact-open/SKILL.md` | `/git-graph:artifact-open`: `git-graph --open-url`, és megnyitja az Artifactot — ha elavult, előbb frissíti (újat nem hoz létre) |
 | `skills/artifact-forget/SKILL.md` | `/git-graph:artifact-forget`: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; eltávolítás előtt: mind) |
 | `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |
-| `docs/desktop-live.md` | a korábbi Browser panel-út mérései (a `host:` híd óta nem használt) |
-| `docs/mcp-plan.md` | a korábbi terv az élő Artifacthoz (azóta a `host:` híddal megvalósult) |
-| `probe/` | eldobható MCP-mérőeszköz a blokkoló újratesztelésére |
 
 ## Kimenet
 

@@ -11,7 +11,7 @@ runtime contract **0.2.23**.
 > fut, hanem a Claude Desktop **Browser paneljében**, lokális szerverrel
 > (`gg --serve`): ott nincs CSP-korlát, a lap közvetlenül pollozhat. Az alábbi
 > mérések érvényben maradnak arra, amire szólnak — a **publikált Artifact**
-> képességeire. Az élő út mérései: [desktop-live.md](desktop-live.md).
+> képességeire. (A Browser panel-út méréseit a 0.14 után töröltük: git-történet.)
 >
 > Ami azóta változott: a contract **0.2.23 → 0.2.49**, és a fiók
 > capability-listája bővült — `artifact, assets, db, downloads, mcp, room,
@@ -55,7 +55,7 @@ Az `assets` **nincs** köztük.
 ## A `host:` ügy — a legfontosabb tanulság
 
 A terv az volt, hogy egy helyi MCP szerver szolgáltatja a gráf-adatot, és a lap
-`host:<név>`-vel hívja. Megépült (lásd [`../probe/`](../probe/)), regisztrálva
+`host:<név>`-vel hívja. Megépült (`probe/`, a 0.14 után törölve: git-történet), regisztrálva
 **mindkét** helyre, külön néven:
 
 - `gg-probe-code` — `claude mcp add` (Claude Code), `✔ Connected`
@@ -122,7 +122,7 @@ konnektoraidat**. Az `assets`-et és a `host:`-ot **nem** érinti.
   pusholatlan commitokat nem. Alternatíva: a helyi MCP szervert tunnellel
   kitenni és **egyéni** claude.ai konnektorként felvenni — ez működne a lokális
   repóval is, de internetre tesz egy repó-olvasó szolgáltatást (token auth +
-  repó-whitelist kötelező). Részletek: [mcp-plan.md](mcp-plan.md).
+  repó-whitelist kötelező).
 - **Nem mért, nyitott kérdés**: egy már nyitott Artifact-panel magától
   újrarajzol-e republish után — az `artifact` capability doksija szerint
   *„every open view … reloads to it"*, de ez az oldalról indított publishre
