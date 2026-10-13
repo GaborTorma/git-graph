@@ -16,7 +16,9 @@ link és pillanatkép nincs; parancs nélkül a súgót írja ki.
 
 Nincs build — stdlib csomag és statikus lapfájlok (a stabil másolat zipjét a
 telepítés rakja össze, a lap moduljait a `page_code` köti össze). A **Check** a lap
-moduljait Node-ban összeköti (`scripts/check-page.mjs`), lintel (ruff, Biome), és lefuttatja a
+moduljait Node-ban összeköti (`scripts/check-page.mjs`), lintel (ruff, Biome), típusellenőriz
+(`tsc --checkJs`, `page/tsconfig.json`; a `graph_data` és a betöltő kontextusának alakja a
+`page/js/types.d.ts`-ben, nem szigorú módban), és lefuttatja a
 teszteket (`/usr/bin/python3`-mal, ahogy az app indítja): modulonként, és a
 füsttesztet — az MCP-t stdio-n kézfogással, `tools/list`-tel és a toolok
 hívásával, a stabil másolatból is. A hook, a publikálás és a telepítés is
@@ -201,7 +203,9 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   (`setData`, `setExpanded`, `setVisible`, …). A modul ott veszi fel az
   eseménykezelőit, ahol a kódja van; a sorrend a betöltésé (pl. a `details`
   Escape-je a `keyboard`-é előtt). A Check a `scripts/check-page.mjs`-sel köti össze
-  őket (hiányzó export, szintaxis); a Biome a fölösleges és a felülírt importot jelzi.
+  őket (hiányzó export, szintaxis); a Biome a fölösleges és a felülírt importot jelzi, a
+  `tsc` a típusokat (`types.d.ts`: a lap lekérdezései HTMLElement-et adnak; ahol más
+  elem vagy esemény jön, JSDoc-cast).
   A telepítés a `page/js/` minden modulját másolja, a forrásból eltűntet törli
   (`page_files`). A 0.14-es szerver a `page/page.js` hiányában magától nem frissít,
   a következő session hookja telepíti az újat. A betöltő és a `page_code` szerződése a

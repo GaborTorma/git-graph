@@ -17,7 +17,7 @@ const settingsPop = document.getElementById('settingsPop');
 settingsBtn.innerHTML = icon('gear');
 let settings = null;                  // a git-graph válasza (null: még nem jött)
 function fillSettings(note = '') {
-  const focused = settingsPop.contains(document.activeElement) && document.activeElement.dataset.key;
+  const focused = settingsPop.contains(document.activeElement) && /** @type {HTMLElement} */ (document.activeElement).dataset.key;
   settingsPop.innerHTML = SETTINGS.map(([key, name, sub]) =>
     `<button type="button" class="option setting" role="menuitemcheckbox" data-keep data-key="${key}"`
     + ` aria-checked="${settings?.[key] ?? true}"${settings ? '' : ' disabled'}>`

@@ -100,7 +100,7 @@ export function open(sha, animate = false) {
   // A korábban lenyitott fájlok nyitva maradnak (újrarajzolás, újranyitás) —
   // még a méretezés és a nézetbe ugrás előtt, hogy a teljes panellel számoljon.
   el.querySelectorAll('.file').forEach(f => {
-    if (openFiles.has(sha + '\n' + f.dataset.path)) toggleFile(f, sha, true, animate && 'commit');
+    if (openFiles.has(sha + '\n' + f.dataset.path)) toggleFile(f, sha, true, animate ? 'commit' : false);
   });
   fitPanel();
   if (animate) {
@@ -179,7 +179,7 @@ export function closeCommit(focusRow = true) {
   panel.classList.add('folding');
   shrink(panel, () => {
     if (!panel.isConnected) return;
-    const own = panel.previousElementSibling;
+    const own = /** @type {HTMLElement} */ (panel.previousElementSibling);
     panel.remove();
     if (own?.classList.contains('row') && own.dataset.sha !== expanded) own.setAttribute('aria-expanded', 'false');   // közben újra kinyílhatott
     drawGraph();

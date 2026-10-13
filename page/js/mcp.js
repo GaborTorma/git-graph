@@ -5,8 +5,8 @@ export function mcpSource() {
   const mcp = CTX.mcp;
   const call = (tool, args, signal) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
     signal ? { cache: false, signal } : { cache: false }).then(r => r.payload);
-  return { changes: (since, wait, signal) => call('changes', { since, wait }, signal),
-           data: () => call('graph_data'),
+  return { changes: (since, wait, signal) => /** @type {Promise<Changes>} */ (call('changes', { since, wait }, signal)),
+           data: () => /** @type {Promise<GraphData>} */ (call('graph_data')),
            diff: (sha, path, full) => call('file_diff', { sha, path, full }) };
 }
 

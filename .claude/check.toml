@@ -3,4 +3,5 @@
 [check]
 syntax = '/usr/bin/python3 -m py_compile bin/git-graph git_graph/*.py && node --experimental-vm-modules --no-warnings scripts/check-page.mjs && claude plugin validate . --strict'
 lint = 'uvx ruff@0.16.10 check && pnpm dlx @biomejs/biome@2.5.15 lint'
+typecheck = 'pnpm --package=typescript@7.0.2 dlx tsc -p page'
 test = '/usr/bin/python3 -m unittest discover -s tests && claude plugin test .'

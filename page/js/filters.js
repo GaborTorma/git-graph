@@ -29,7 +29,7 @@ makeMenu(branchBtn, branchPop, o => {
 /* A pipára kattintás csak azt a sort veszi ki vagy teszi be, a menü nyitva marad
    (a makeMenu kattintás-kezelője elé, rögzítő fázisban). */
 branchPop.addEventListener('click', e => {
-  const c = e.target.closest('.ckc[data-refs]');
+  const c = /** @type {HTMLElement} */ (e.target).closest('.ckc[data-refs]');
   if (!c) return;
   e.stopPropagation();
   const refs = c.dataset.refs.split(' ');
@@ -44,7 +44,7 @@ branchPop.addEventListener('click', e => {
 /* Keresés: minden szó (szóközzel elválasztva) szerepeljen a commit
    üzenetében, törzsében, szerzőjében, e-mail-címében, ref-neveiben — vagy a
    hash eleje legyen. Kis- és nagybetű, ékezet nem számít. */
-const searchEl = document.getElementById('search');
+const searchEl = /** @type {HTMLInputElement} */ (document.getElementById('search'));
 
 function matches(c, words) {
   if (!words.length) return true;
@@ -55,7 +55,7 @@ function matches(c, words) {
 export function applyFilters() {
   const branch = branchSel.size ? branchSel : null;
   const remotes = remotesOn();
-  const refsOnly = document.getElementById('onlyRefs').checked;
+  const refsOnly = /** @type {HTMLInputElement} */ (document.getElementById('onlyRefs')).checked;
   const words = queryWords(searchEl.value);
   const keep = branch ? ancestryOf(branch) : null;
   setBranchKeep(keep);

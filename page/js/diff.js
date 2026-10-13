@@ -20,6 +20,7 @@ export const setSource = src => { SRC = src; };
 
 /* `reveal`: a megnőtt panelt a nézetbe hozza — `true`: a commitot és a
    fájlt (felhasználói nyitás), `'commit'`: csak a commitot, `false`: semmit. */
+/** @param {boolean | 'commit'} [reveal] */
 export function toggleFile(fileEl, sha, on, reveal = true) {
   const key = sha + '\n' + fileEl.dataset.path;
   const box = fileEl.nextElementSibling;

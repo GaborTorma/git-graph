@@ -24,7 +24,7 @@ export const setFocusAuto = focus => { focusAuto = focus; };
 export const worktrees = () => DATA.meta.worktrees || [];
 export const linkedWts = () => worktrees().filter(w => !w.main);
 /* A remote ágak kapcsolója (alapból be): a távolságok, a badge-ek, az ágválasztó és a szűrés is ezt nézi. */
-export const remotesOn = () => document.getElementById('showRemotes')?.checked ?? true;
+export const remotesOn = () => /** @type {HTMLInputElement} */ (document.getElementById('showRemotes'))?.checked ?? true;
 /* A saját worktree; a fő checkout, ha a session nem egy worktree-ben dolgozik. */
 export function focusWt() {
   const wts = worktrees();
