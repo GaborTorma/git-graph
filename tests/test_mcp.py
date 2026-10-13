@@ -1,17 +1,16 @@
 """Füstteszt: a `git-graph --mcp` stdio-n, kamu HOME-mal — ahogy az app indítja (`mcp`).
 
-A working tree belépőjét, a stabil másolatot (zip), a fejlesztői példányt és a
-0.12.x-ről örökölt stabil belépőt is elindítja.
+A working tree belépőjét, a stabil másolatot (zip) és a fejlesztői példányt is
+elindítja.
 """
 from __future__ import annotations
 
 import contextlib
 import json
 import os
-import shutil
 import subprocess
 
-from helpers import PYTHON, ROOT, SCRIPT, SLUG, HomeTestCase, McpClient, git
+from helpers import ROOT, SCRIPT, SLUG, HomeTestCase, McpClient, git
 
 
 class McpServerTest(HomeTestCase):
@@ -81,21 +80,6 @@ class McpServerTest(HomeTestCase):
         self.assertIn("+dev.", version)
         self.assertTrue((self.state / "page" / "js" / "main.js").is_file())
         self.check_server(self.state / "bin" / "git-graph")
-
-    def test_legacy_stable_entry(self) -> None:
-        """0.12.x-ről frissítve a régi szerver csak a belépőt másolja a stabil helyre: az a
-        csomagot a telepített pluginból tölti be."""
-        bin_dir = self.state / "bin"
-        bin_dir.mkdir()
-        shutil.copy2(SCRIPT, bin_dir / "git-graph")
-        shutil.copytree(ROOT / "page", self.state / "page")
-        self.registry({"git-graph@git-graph": [{"version": "0", "installPath": str(ROOT)}]})
-        self.check_server(bin_dir / "git-graph")
-        self.registry({})                                   # nincs plugin: érthető hiba, nem nyers kivétel
-        out = subprocess.run([PYTHON, str(bin_dir / "git-graph"), "--help"], capture_output=True, text=True,
-                             env={**os.environ, "HOME": str(self.home)})
-        self.assertIn("a git_graph csomag nem található", out.stderr)
-        self.assertNotIn("Traceback", out.stderr)
 
     def test_vanished_repo(self) -> None:
         """A regiszterben lévő, de eltűnt repó: rövid hiba, nem nyers git-kivétel."""

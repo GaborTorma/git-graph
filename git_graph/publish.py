@@ -87,9 +87,8 @@ def publish_steps(job: dict) -> str:
 
 def auto_open() -> bool:
     """A repó Artifactja a session indulásakor magától megnyílik, és ha elavult,
-    frissül (`git-graph.autoOpen`, alap: igen). A 0.13 előtti `--forget` még
-    `autoPublish`-t írt: az is számít."""
-    return (config_get("autoOpen") or config_get("autoPublish")) != "false"
+    frissül (`git-graph.autoOpen`, alap: igen)."""
+    return config_get("autoOpen") != "false"
 
 
 def auto_publish() -> bool:
@@ -101,7 +100,6 @@ def settings(changes: dict) -> dict:
     """A lap beállítás-menüje (`settings` tool): a megadott kulcsokat írja, és mindkettőt adja."""
     if isinstance(changes.get("autoOpen"), bool):
         gitio.git("config", "--local", "git-graph.autoOpen", str(changes["autoOpen"]).lower())
-        config_unset("autoPublish")
     if isinstance(changes.get("autoPublish"), bool):
         data = read_json(SETTINGS) or {}
         data["autoPublish"] = changes["autoPublish"]
@@ -125,7 +123,6 @@ def mark_published(url: str) -> None:
         raise SystemExit("HIBA: nincs kiírt Artifact-lap — előbb: git-graph --publish")
     fresh = not config_get("artifact")
     remember_artifact(url, page_digest(page.read_text(encoding="utf-8")))
-    config_unset("autoPublish")
     if fresh:
         config_unset("autoOpen")
     register(gitio.REPO)
