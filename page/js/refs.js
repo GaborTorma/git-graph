@@ -71,7 +71,7 @@ function distSegs(name, tr = DATA.meta.tracks?.[name] || {}) {
   const up = DATA.branches.find(b => !b.remote && b.name === name)?.upstream;
   return [[tr.base, '', ''], [remote && tr.up, cloudOf(base && up === base), warn], [remote && tr.local, icon('branch'), '']]
     .filter(([d]) => d && (d[0] || d[1]))
-    .map(([d, ic, cls]) => `<span class="div"></span><span class="dist${cls}">${ic}${arrows(d)}</span>`).join('');
+    .map(([d, ic, cls]) => `<span class="div"></span><span class="dist${cls}">${ic}${arrows(/** @type {[number, number]} */ (d))}</span>`).join('');
 }
 
 /* `#12` és `owner/repo#12` → issue/PR (a `/issues/N` a PR-ra átirányít).

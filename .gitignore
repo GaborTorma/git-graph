@@ -21,7 +21,7 @@ __pycache__/
 
 # A mod típusai: a Claude Code írja, amikor betölti (`claude --plugin-dir .`)
 .claude-plugin/types/
-tsconfig.json
+/tsconfig.json
 
 # Parkoló (lokális teendőlista)
 .parked.md

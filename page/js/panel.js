@@ -20,7 +20,7 @@ export function fitPanel() {
     const cs = getComputedStyle(panel);
     const next = rowAfter(panel);
     const near = next ? next.gap + next.row.offsetHeight : 0;
-    room = scroller.clientHeight - STEP_TOP - panel.previousElementSibling.offsetHeight
+    room = scroller.clientHeight - STEP_TOP - /** @type {HTMLElement} */ (panel.previousElementSibling).offsetHeight
       - parseFloat(cs.marginTop) - parseFloat(cs.marginBottom) - near;
   }
   panel.style.maxHeight = `${Math.max(PANEL_MIN, Math.floor(room))}px`;

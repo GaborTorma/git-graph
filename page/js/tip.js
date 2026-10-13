@@ -22,7 +22,7 @@ function showTip(el) {
   tipEl.classList.add('on');
 }
 document.addEventListener('mouseover', e => {
-  const el = e.target.closest?.('[data-tip]');
+  const el = /** @type {HTMLElement} */ (e.target).closest?.('[data-tip]');
   if (el === tipFor) return;
   hideTip();
   if (!el) return;

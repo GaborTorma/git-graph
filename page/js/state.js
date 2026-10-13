@@ -7,16 +7,18 @@
 export const CTX = globalThis.GIT_GRAPH;
 export const SLUG = CTX.slug;
 export const MCP_SERVER = CTX.server;
-export let DATA = { commits: [], edges: [], stats: {}, branches: [], avatars: {},
+/** @type {GraphData} */
+export let DATA = { commits: [], edges: [], stats: {}, branches: [], avatars: {}, fileIcons: {},
   meta: { repo: CTX.repo, repoUrl: '', head: '', totalCommits: 0, shown: 0, dirty: 0,
-          generated: '', worktrees: [] } };
-export const setData = d => { DATA = d; };
+          generated: '', worktrees: [], remotes: [], tracks: {}, base: '' } };
+export const setData = (/** @type {GraphData} */ d) => { DATA = d; };
 
+/** @type {string | null} */
 export let expanded = null;      // a kinyitott commit sha-ja
-export const setExpanded = sha => { expanded = sha; };
+export const setExpanded = (/** @type {string | null} */ sha) => { expanded = sha; };
 
 export let visible = DATA.commits; // szűrés utáni lista
-export const setVisible = list => { visible = list; };
+export const setVisible = (/** @type {Commit[]} */ list) => { visible = list; };
 
 /* Az ágszűrő által megtartott commitok (null: nincs ágszűrés) — a fejléc chipje ebből tudja,
    hogy a saját HEAD kiesett-e. */

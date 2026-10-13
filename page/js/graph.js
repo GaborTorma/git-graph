@@ -37,8 +37,8 @@ export function drawGraph() {
   }
   const rowY = i => midBySha.get(visible[i].sha) ?? i * ROW_H + ROW_H / 2;
   const h = Math.max(rowsEl.offsetHeight, visible.length * ROW_H);
-  svg.setAttribute('width', graphW);
-  svg.setAttribute('height', h);
+  svg.setAttribute('width', String(graphW));
+  svg.setAttribute('height', String(h));
   svg.setAttribute('viewBox', `0 0 ${graphW} ${h}`);
 
   // Az egyenesek előbb, a sávváltó vonalak felül: az elágazás a commit pöttyénél
@@ -135,8 +135,8 @@ function drawPending() {
   // az idő · avatar · diff oszlopban álljon a lista soraival.
   pendingEl.style.paddingRight = `${scroller.offsetWidth - scroller.clientWidth}px`;
   const h = pendingEl.offsetHeight;
-  lane.setAttribute('width', graphW);
-  lane.setAttribute('height', h);
+  lane.setAttribute('width', String(graphW));
+  lane.setAttribute('height', String(h));
   lane.innerHTML = [...pendingEl.querySelectorAll('.row')].map(row => {
     const c = commitBySha(row.dataset.sha);
     if (!c) return '';

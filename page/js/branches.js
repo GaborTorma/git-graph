@@ -12,7 +12,7 @@ export const branchBtn = document.getElementById('branchBtn');
 export const branchPop = document.getElementById('branchPop');
 const branchAll = document.getElementById('branchAll');
 const branchList = document.getElementById('branchList');
-export const branchQuery = document.getElementById('branchQuery');
+export const branchQuery = /** @type {HTMLInputElement} */ (document.getElementById('branchQuery'));
 const branchLabel = document.getElementById('branchLabel');
 const branchIc = document.getElementById('branchIc');
 export let branchSel = new Set();
@@ -176,9 +176,9 @@ export function fillBranches() {
   // A három távolság-oszlop szélessége külön-külön a saját leghosszabb számához igazodik
   // (1–4 jegy, üres oszlopnál 0); a ↕ jel a szélső oszlophoz tartozik.
   const longest = sel => Math.max(0, ...[...branchPop.querySelectorAll(sel)].map(e => e.textContent.length));
-  branchPop.style.setProperty('--c1-digits', longest('.c1 .dc > :last-child, .gap > :last-child'));
-  branchPop.style.setProperty('--c2-digits', longest('.c2 .dc > :last-child'));
-  branchPop.style.setProperty('--c3-digits', longest('.c3 .dc > :last-child'));
+  branchPop.style.setProperty('--c1-digits', String(longest('.c1 .dc > :last-child, .gap > :last-child')));
+  branchPop.style.setProperty('--c2-digits', String(longest('.c2 .dc > :last-child')));
+  branchPop.style.setProperty('--c3-digits', String(longest('.c3 .dc > :last-child')));
   const [ics, label] = selView();
   if (branchIc.innerHTML !== ics) branchIc.innerHTML = ics;
   if (branchLabel.textContent !== label) {
@@ -195,7 +195,7 @@ export function filterBranches() {
   const words = queryWords(branchQuery.value);
   branchAll.hidden = words.length > 0;
   let any = false;
-  for (const grp of branchList.children) {
+  for (const grp of /** @type {HTMLCollectionOf<HTMLElement>} */ (branchList.children)) {
     let shown = false;
     for (const el of grp.querySelectorAll('.blk')) {
       const text = fold(`${grp.dataset.name} ${el.dataset.refs}`);

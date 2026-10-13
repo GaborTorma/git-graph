@@ -62,7 +62,7 @@ function relative(c, dir, other) {
   return DATA.commits.find(x => other ? x.parents.slice(1).includes(c.sha) : x.parents[0] === c.sha);
 }
 document.addEventListener('keydown', e => {
-  if (e.altKey || e.target.closest('input, textarea, .menu-pop')
+  if (e.altKey || /** @type {HTMLElement} */ (e.target).closest('input, textarea, .menu-pop')
       || menuOpen()) return;
   const active = document.activeElement;
   const hunk = active?.closest?.('.hunk');

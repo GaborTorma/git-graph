@@ -58,9 +58,9 @@ function rowHtml(c) {
    marad fent, a következő nap fejléce kitolja — nem csúsznak egymásra. */
 export function render() {
   // A kijelölés (fókusz) az újrarajzolás után visszaáll: sor vagy fájl.
-  const focused = document.activeElement;
+  const focused = /** @type {HTMLElement} */ (document.activeElement);
   const keepSha = focused?.closest?.('.row')?.dataset.sha;
-  const keepPath = (focused?.closest?.('.file') || focused?.closest?.('.diff')?.previousElementSibling)
+  const keepPath = /** @type {HTMLElement} */ (focused?.closest?.('.file') || focused?.closest?.('.diff')?.previousElementSibling)
     ?.dataset.path;               // blokkon állva a fájljára áll vissza
   const panelTop = document.querySelector(OPEN_PANEL)?.scrollTop || 0;
   let day = '', html = '';
