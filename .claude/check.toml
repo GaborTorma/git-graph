@@ -1,6 +1,6 @@
 # /workflow:check
 
 [check]
-syntax = '/usr/bin/python3 -m py_compile bin/git-graph git_graph/*.py && node --check page/page.js && claude plugin validate . --strict'
+syntax = '/usr/bin/python3 -m py_compile bin/git-graph git_graph/*.py && node --experimental-vm-modules --no-warnings scripts/check-page.mjs && claude plugin validate . --strict'
 lint = 'uvx ruff@0.16.10 check && pnpm dlx @biomejs/biome@2.5.15 lint'
 test = '/usr/bin/python3 -m unittest discover -s tests && claude plugin test .'

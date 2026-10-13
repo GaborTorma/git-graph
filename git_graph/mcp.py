@@ -15,7 +15,7 @@ from .diff import file_diff
 from .gitio import set_repo
 from .graph import collect_payload
 from .install import RUNNING_VERSION, STABLE, SYSTEM_PYTHON, UPDATED, stable_version, watch_plugin
-from .page import PAGE_FILES, page_api_mismatch, page_code, page_file
+from .page import page_api_mismatch, page_code, page_file, page_files
 from .publish import settings
 from .registry import repo_for_slug
 from .state import log
@@ -137,7 +137,7 @@ def mcp_serve(limit: int | None) -> int:
     """
     out = sys.stdout.buffer
     # A lap fájljai most: a futó verzió kódja, nem amit a hook később másol.
-    for name in PAGE_FILES:
+    for name in page_files():
         try:
             page_file(name)
         except OSError as exc:

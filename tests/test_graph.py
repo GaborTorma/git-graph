@@ -1,7 +1,6 @@
-"""A lap adatcsomagja (`graph`): refek, sávok, worktree-k, ágak és távolságaik."""
+"""A lap adatcsomagja (`graph`): refek és az összerakott csomag — worktree-k, WIP-sorok, fájlállapot."""
 from __future__ import annotations
 
-import os
 import time
 
 from helpers import HomeTestCase, git_in
@@ -17,24 +16,6 @@ class GraphTest(HomeTestCase):
                          [("head", "main"), ("branch", "feat"), ("remote", "fork/x"),
                           ("remote", "origin/main"), ("tag", "v1")])
         self.assertEqual(gg.graph.parse_refs("HEAD"), [{"kind": "detached", "name": "HEAD"}])
-
-    def test_assign_lanes(self) -> None:
-        """Merge: az első szülő a sávban folytatódik, a második új sávot kap; az élek sorindexesek."""
-        gg = self.load()
-        commits = [{"sha": "m", "parents": ["a", "b"]},
-                   {"sha": "b", "parents": ["a"]},
-                   {"sha": "a", "parents": []}]
-        edges = gg.graph.assign_lanes(commits)
-        self.assertEqual([c["lane"] for c in commits], [0, 1, 0])
-        self.assertIn({"fromRow": 0, "fromLane": 0, "toRow": 1, "toLane": 1, "merge": True}, edges)
-        self.assertIn({"fromRow": 1, "fromLane": 1, "toRow": 2, "toLane": 0, "merge": False}, edges)
-
-    def test_assign_lanes_trunk(self) -> None:
-        """A `trunk` a 0. sávot kapja akkor is, ha egy újabb commit előtte jön."""
-        gg = self.load()
-        commits = [{"sha": "f", "parents": ["a"]}, {"sha": "t", "parents": ["a"]}, {"sha": "a", "parents": []}]
-        gg.graph.assign_lanes(commits, trunk="t")
-        self.assertEqual([c["lane"] for c in commits], [1, 0, 0])
 
     def test_worktrees(self) -> None:
         """Közös adat: minden worktree HEAD-je és ál-sora, a diff a saját mappájából."""
@@ -115,113 +96,6 @@ class GraphTest(HomeTestCase):
         refs = [r for c in data["commits"] for r in c["refs"]]
         self.assertFalse([r for r in refs if r["name"].endswith("/HEAD")])
         self.assertTrue(next(r for r in refs if r["name"] == "origin/main").get("default"))
-
-    def test_worktree_stubs(self) -> None:
-        """Saját commit és WIP nélküli worktree HEAD-je csonkot kap; a saját ág csúcsa nem."""
-        gg = self.load()
-        commits = [{"sha": "c", "parents": ["a"], "refs": []},   # feat: saját ág
-                   {"sha": "b", "parents": ["a"], "refs": []},   # trunk
-                   {"sha": "a", "parents": [], "refs": []}]
-        edges = gg.graph.assign_lanes(commits, "b")
-        wt = lambda slug, head, main=False: {"slug": slug, "head": head, "main": main}  # noqa: E731
-        gg.graph.worktree_stubs(commits, edges, [wt("m", "b", True), wt("feat", "c"), wt("old", "a")])
-        self.assertNotIn("stubs", commits[0])
-        self.assertNotIn("stubs", commits[1])
-        self.assertEqual(commits[2]["stubs"], [{"lane": 2, "worktree": "old"}])
-
-    def test_branch_tracks(self) -> None:
-        """Ágankénti távolság: az alapághoz, az upstreamhez, és a remote-only ágnak a helyi párjához."""
-        bare, repo = self.home / "remote.git", self.home / "work"
-        git_in(self.home, "init", "-q", "--bare", "-b", "main", str(bare))
-        repo.mkdir()
-        run = lambda *a: git_in(repo, *a)  # noqa: E731
-        run("init", "-q", "-b", "main")
-        run("remote", "add", "origin", str(bare))
-        run("commit", "-q", "--allow-empty", "-m", "init")
-        run("push", "-q", "-u", "origin", "main")
-        run("remote", "set-head", "origin", "main")
-        run("switch", "-q", "-c", "feat")
-        run("commit", "-q", "--allow-empty", "-m", "f1")
-        run("push", "-q", "-u", "origin", "feat")
-        run("commit", "-q", "--allow-empty", "-m", "f2")                 # egy pusholatlan
-        run("push", "-q", "origin", "feat:only-remote")                 # remote-only ág
-        run("switch", "-q", "main")
-        run("commit", "-q", "--allow-empty", "-m", "anomália")           # a helyi main előreszalad
-        gg = self.load()
-        gg.gitio.set_repo(repo)
-        tracks = gg.graph.branch_tracks(gg.gitio.default_base())
-        self.assertEqual(gg.gitio.default_base(), "origin/main")
-        self.assertEqual(tracks["feat"], {"up": [1, 0], "base": [2, 0]})
-        self.assertEqual(tracks["main"], {"up": [1, 0]})              # az alapágnak nincs base-szakasza
-        self.assertEqual(tracks["origin/feat"]["local"], [0, 1])       # a helyi feat egy committal előrébb
-        self.assertEqual(tracks["origin/only-remote"], {"base": [2, 0]})
-        self.assertEqual(tracks["origin/main"], {"local": [0, 1]})     # az alapág remote-ja: csak a helyi párjához
-        branches = {b["name"]: b for b in gg.graph.collect_branches(gg.graph.collect_worktrees())}
-        self.assertTrue(branches["origin/only-remote"]["remote"])      # a csak remote ág is választható
-        self.assertNotIn("origin/feat", branches)                      # a helyi párja képviseli
-        self.assertTrue(branches["main"]["current"])
-        commits, stats = gg.graph.collect_commits(None), gg.graph.collect_stats(None)
-        gg.graph.mark_pushed(commits, stats)       # a payload csak GitHub-os originnél hívja
-        pushed = {c["subject"] for c in commits if c.get("pushed")}
-        self.assertEqual(pushed, {"init", "f1", "f2"})                 # a helyi main előfutása nem
-
-    def test_branch_owners(self) -> None:
-        """Az ág a worktree-é, amelyikben utoljára ki volt véve (HEAD-reflog); a soha ki nem vett gazdátlan."""
-        main, extra = self.make_repo()
-        git_in(extra, "switch", "-q", "-c", "wt-side")                 # a worktree-ben létrehozva
-        git_in(extra, "switch", "-q", "feat")
-        git_in(main, "branch", "orphan")                               # sehol nem volt kivéve
-        gg = self.load()
-        gg.gitio.set_repo(main)
-        wts = gg.graph.collect_worktrees()
-        owners = gg.graph.branch_owners(wts)
-        slug = {w["path"]: w["slug"] for w in wts}
-        self.assertEqual(owners["main"], slug[main])
-        self.assertEqual(owners["side"], slug[main])                   # a fő checkoutban járt
-        self.assertEqual(owners["feat"], slug[extra])                  # ott van kivéve
-        self.assertEqual(owners["wt-side"], slug[extra])
-        self.assertNotIn("orphan", owners)
-        branches = {b["name"]: b for b in gg.graph.collect_branches(wts)}
-        self.assertEqual(branches["wt-side"]["owner"], slug[extra])
-        self.assertIsNone(branches["orphan"]["owner"])
-        self.assertEqual(branches["feat"]["worktree"], slug[extra])
-
-    def test_last_change(self) -> None:
-        """A WIP-sor ideje: a commitolatlan fájlok legutóbbi mtime-ja; a törölt kimarad."""
-        gg = self.load()
-        (self.home / "a.txt").write_text("x", encoding="utf-8")
-        os.utime(self.home / "a.txt", (1000, 1000))
-        files = [{"path": "a.txt"}, {"path": "torolt.txt"}]
-        self.assertEqual(gg.graph.last_change(self.home, files), 1000)
-
-    def test_collect_uncommitted(self) -> None:
-        """Változás nélkül és commit nélküli repóban nincs ál-sor; a szerző a worktree git-felhasználója."""
-        gg = self.load()
-        repo = self.plain_repo()
-        git_in(repo, "config", "user.name", "Teszt Elek")
-        gg.gitio.set_repo(repo)
-        wt = gg.graph.collect_worktrees()[0]
-        self.assertIsNone(gg.graph.collect_uncommitted(wt))
-        (repo / "a.txt").write_text("1\n2\n", encoding="utf-8")
-        wt = gg.graph.collect_worktrees()[0]
-        commit, churn = gg.graph.collect_uncommitted(wt)
-        self.assertEqual(commit["author"], "Teszt Elek")
-        self.assertEqual(commit["parents"], [wt["head"]])
-        self.assertEqual((churn["add"], churn["del"]), (1, 0))
-        self.assertIsNone(gg.graph.collect_uncommitted({**wt, "head": None}))
-
-    def test_untracked_files(self) -> None:
-        """A követetlen fájl sorai a +-ba számítanak, és útvonal szerint a helyükre kerülnek."""
-        gg = self.load()
-        repo = self.plain_repo()
-        (repo / "0.txt").write_text("x\ny\nz\n", encoding="utf-8")
-        (repo / "0.bin").write_bytes(b"\xff\x00")
-        (repo / "a.txt").write_text("1\n2\n", encoding="utf-8")
-        gg.gitio.set_repo(repo)
-        _, churn = gg.graph.collect_uncommitted(gg.graph.collect_worktrees()[0])
-        self.assertEqual([(f["path"], f["add"], f["bin"]) for f in churn["files"]],
-                         [("0.bin", 0, True), ("0.txt", 3, False), ("a.txt", 1, False)])
-        self.assertEqual(churn["add"], 4)
 
 
 class WorktreeListTest(HomeTestCase):

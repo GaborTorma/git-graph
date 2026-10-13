@@ -89,7 +89,7 @@ class HookTest(HomeTestCase):
         """A plugin hookja (CLAUDE_PLUGIN_ROOT = a kód gyökere) a stabil másolatot is kiteszi."""
         self.hook(self.home, CLAUDE_PLUGIN_ROOT=str(ROOT))
         self.assertTrue((self.state / "bin" / "git-graph").is_file())
-        self.assertTrue((self.state / "page" / "page.js").is_file())
+        self.assertTrue((self.state / "page" / "js" / "main.js").is_file())
 
     def test_cli(self) -> None:
         """--publish, --artifacts, --forget és a hibás URL."""

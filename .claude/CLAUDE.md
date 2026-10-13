@@ -10,8 +10,10 @@ Használat és felépítés: [README.md](../README.md).
 | Útvonal | Mi ez |
 | --- | --- |
 | `bin/git-graph` | a `git-graph` parancs: a `git_graph` csomag vékony belépője (a hook és a Bash eszköz ezt futtatja) |
-| `git_graph/` | a Python-oldal: `gitio` (git-hívások, `REPO`), `graph` (a `graph_data` csomagja), `diff`, `avatars`, `page` (betöltő, `page_code`, ikonok), `registry` (slug, `repos.json`, sessionök), `claude_app` (az app session-fókusza), `watch` (a `changes` long-pollja), `publish`, `mcp` (`--mcp`), `install` (stabil másolat, frissítés, leszerelés), `hook` (`--session-hook`), `cli`, `state` (`~/.git-graph`, atomi írás) |
-| `page/` | a lap: `loader.html` (az Artifact betöltője, `build()`), `head.html`, `page.css`, `body.html`, `page.js` (a `page_code` adja), `file-icons.json` (fájltípus-ikonok, generált) |
+| `git_graph/` | a Python-oldal: `gitio` (git-hívások, `REPO`), `graph` (a `graph_data` csomagja: commitok, refek, összerakás), `stats` (fájlstatisztika), `worktrees` (worktree-k, WIP-sor), `branches` (ágak, távolságok), `lanes` (sávkiosztás), `diff`, `avatars`, `page` (betöltő, `page_code`, ikonok), `registry` (slug, `repos.json`, sessionök), `claude_app` (az app session-fókusza), `watch` (a `changes` long-pollja), `publish`, `mcp` (`--mcp`), `install` (stabil másolat, frissítés, leszerelés), `hook` (`--session-hook`), `cli`, `state` (`~/.git-graph`, atomi írás) |
+| `page/` | a lap: `loader.html` (az Artifact betöltője, `build()`), `head.html`, `page.css`, `body.html`, `js/` (a lap ES-moduljai, belépő: `main.js`; a `page_code` köti össze), `file-icons.json` (fájltípus-ikonok, generált) |
+| `page/js/` | `state` (közös állapot + setterek), `dom`, `util`, `dates`, `icons`, `model` (saját worktree, színek, elérhetőség), `avatars`, `graph` (SVG), `anim`, `layout`, `scroll`, `panel`, `syntax`, `diff-html`, `md-diff`, `diff` (fájl-diff), `refs` (chipek), `details` (commit-panel), `rows` (`render`), `hydrate`, `menu`, `branches` (ágválasztó), `filters`, `keyboard`, `theme`, `settings`, `mcp`, `live` (`startLive`), `tip`, `main` |
+| `scripts/check-page.mjs` | a lap moduljainak szintaxisa és összekötése (import ↔ export) Node-ban, futtatás nélkül — a Check része |
 | `scripts/file-icons.py` | a `page/file-icons.json` előállítása a Catppuccin VS Code ikonjaiból (MIT, verzióra rögzítve) — kézzel, frissítéskor |
 | `tests/` | modulonként egy `test_<modul>.py`, kamu `HOME`-mal (`helpers.py`: a csomag friss betöltése, eldobható repók, MCP-kliens); `test_mcp.py` a füstteszt: `git-graph --mcp` stdio-n a working tree-ből, a stabil másolatból és a 0.12-es belépőből |
 | `ruff.toml`, `biome.json` | lint: Python (3.9-célverzióval) és a `page/` JS / CSS / HTML-je |
@@ -46,7 +48,7 @@ python3 bin/git-graph --dev-install   # a working tree az appban futó git-graph
 ```
 
 Az Artifact csak egy betöltő (`page/loader.html`, `build()`): a lap kódját
-(`page/head.html`, `page.css`, `body.html`, `page.js`) a `page_code` toollal, az adatot a
+(`page/head.html`, `page.css`, `body.html`, `js/*.js`) a `page_code` toollal, az adatot a
 `graph_data`-val kéri a Claude app host-hídján át a `git-graph --mcp`-ből, a
 `startLive` pollozójával. Kódváltozás így újrapublikálás nélkül él: a
 `claude plugin update` után a futó szerver percen belül frissíti magát, a lap
@@ -55,7 +57,8 @@ A `git-graph` a Claude Bash eszközének parancsa (a plugin `bin/`-je), terminá
 link és pillanatkép nincs; parancs nélkül a súgót írja ki.
 
 Nincs build — stdlib csomag és statikus lapfájlok (a stabil másolat zipjét a
-telepítés rakja össze). A **Check** lintel (ruff, Biome), és lefuttatja a
+telepítés rakja össze, a lap moduljait a `page_code` köti össze). A **Check** a lap
+moduljait Node-ban összeköti (`scripts/check-page.mjs`), lintel (ruff, Biome), és lefuttatja a
 teszteket (`/usr/bin/python3`-mal, ahogy az app indítja): modulonként, és a
 füsttesztet — az MCP-t stdio-n kézfogással, `tools/list`-tel és a toolok
 hívásával, a stabil másolatból is. A hook, a publikálás és a telepítés is
@@ -264,9 +267,24 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   vagy a capability-lista változásakor kell feltölteni. Adatot és kódot ne tegyél
   vissza a lapba.
 - **A lap kódja élőben jön** (`page_code`, mérve: az Artifact CSP-je engedi az
-  `import(blob:)`-ot, docs/artifact-findings.md). A `page/page.js` ES-modulként fut
+  `import(blob:)`-ot, docs/artifact-findings.md). A `page/js/` valódi ES-modulok
   (strict mode), a kontextust (`slug`, `repo`, MCP kliens) a betöltő adja a
-  `globalThis.GIT_GRAPH`-ban. A betöltő és a `page_code` szerződése a
+  `globalThis.GIT_GRAPH`-ban (`state.js`).
+- **A lap moduljait a `page_code` köti össze** (`page_modules`, `PAGE_BOOT`): a
+  blob-URL-hez relatív út nem oldható fel, ezért a modulok a függőségeik után kapnak
+  blob-URL-t, és az importjuk útja a függőségük URL-jére cserélődik. Ezért:
+  **körkörös import nem lehet** (az alsóbb modul felfelé callbackkel szól, pl.
+  `computeFresh(render)`), importálni csak a sor eleji `import … from './x.js'`
+  alakban lehet (dinamikus `import()` nem), és a lapra csak a `main.js`-ből elérhető
+  modul kerül — új modul felvétele lista nélkül, az importjával megy. A modul
+  exportja kívülről csak olvasható: a közös állapotot a gazdája setterrel írja
+  (`setData`, `setExpanded`, `setVisible`, …). A modul ott veszi fel az
+  eseménykezelőit, ahol a kódja van; a sorrend a betöltésé (pl. a `details`
+  Escape-je a `keyboard`-é előtt). A Check a `scripts/check-page.mjs`-sel köti össze
+  őket (hiányzó export, szintaxis); a Biome a fölösleges és a felülírt importot jelzi.
+  A telepítés a `page/js/` minden modulját másolja, a forrásból eltűntet törli
+  (`page_files`). A 0.14-es szerver a `page/page.js` hiányában magától nem frissít,
+  a következő session hookja telepíti az újat. A betöltő és a `page_code` szerződése a
   `LOADER_API`: csak akkor lép, ha a kettő közti megállapodás változik — eltérésnél
   a `page_code` hibával adja vissza a teendőt, a betöltő kiírja. A betöltő nem
   írhatja felül a `body`-t: a platform a `<title>`-t is oda teszi.

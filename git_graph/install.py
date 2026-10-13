@@ -13,7 +13,7 @@ import zipfile
 from pathlib import Path
 
 from . import MCP_NAME, ROOT
-from .page import PAGE_FILES
+from .page import PAGE_ENTRY, PAGE_FILES, page_files
 from .state import STATE_DIR, log, place, read_json, write_json
 
 # A Claude Code pluginnak nincs install/update/uninstall eseménye. Ami a gépen
@@ -118,12 +118,18 @@ def install_copy(root: Path | None = None, manifest: bytes | None = None) -> Non
     egyszerre). Az újraindulás a manifest verzióján múlik: mire az új verziót
     mondja, a kód és a lap is a helyén van — a stabil zip a verzióját ebből a
     manifestből olvassa, egy korábbi újraindulás tehát az új verziót hinné a
-    régi kódról.
+    régi kódról. A lap egy már nem létező modulja törlődik: a lap csak a belépőből
+    elérhető modulokat tölti be, de a régi másolat ne maradjon ott.
     """
     root = root or ROOT
-    for name in PAGE_FILES:
+    names = page_files(root)
+    for name in names:
         if (root / "page" / name).exists():
             place((root / "page" / name).read_bytes(), STATE_DIR / "page" / name, 0o644)
+    if (root / "page" / PAGE_ENTRY).exists():
+        for old in (STATE_DIR / "page" / "js").glob("*.js"):
+            if f"js/{old.name}" not in names:
+                old.unlink(missing_ok=True)
     if (root / "git_graph").is_dir():
         place(stable_bundle(root), STABLE, 0o755)
     if manifest is None and (root / MANIFEST).exists():
@@ -180,7 +186,7 @@ def dev_copy(root: Path, stamp: str) -> str:
 def source_digest(root: Path) -> str:
     """A `root` kódjának és lapjának rövid hashe — a forrásból futó példány verziójához."""
     digest = hashlib.sha256(stable_bundle(root))
-    for name in PAGE_FILES:
+    for name in page_files(root):
         if (root / "page" / name).exists():
             digest.update((root / "page" / name).read_bytes())
     return digest.hexdigest()[:8]
@@ -202,7 +208,7 @@ def pull_update() -> bool:
             and not dev):
         root = Path(path)
         manifest = read_json(root / MANIFEST)
-        complete = all((root / "page" / name).exists() for name in PAGE_FILES)
+        complete = all((root / "page" / name).exists() for name in (*PAGE_FILES, PAGE_ENTRY))
         if (manifest and manifest.get("version") == version and complete
                 and (root / "git_graph" / "cli.py").exists()):
             install_copy(root)

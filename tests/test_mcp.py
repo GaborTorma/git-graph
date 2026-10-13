@@ -66,7 +66,7 @@ class McpServerTest(HomeTestCase):
         """A stabil másolat (`~/.git-graph/bin`, egy zip) a lap fájljait is magával viszi."""
         gg = self.load()
         gg.install.install_copy(ROOT)
-        for name in gg.page.PAGE_FILES:
+        for name in gg.page.page_files(ROOT):
             self.assertTrue((self.state / "page" / name).is_file(), name)
         stable = self.state / "bin" / "git-graph"
         self.assertTrue(os.access(stable, os.X_OK))
@@ -79,7 +79,7 @@ class McpServerTest(HomeTestCase):
             self.assertEqual(gg.install.dev_install(), 0)
         version = json.loads((self.state / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
         self.assertIn("+dev.", version)
-        self.assertTrue((self.state / "page" / "page.js").is_file())
+        self.assertTrue((self.state / "page" / "js" / "main.js").is_file())
         self.check_server(self.state / "bin" / "git-graph")
 
     def test_legacy_stable_entry(self) -> None:

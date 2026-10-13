@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 
 from .gitio import git, numstat_new_path, numstat_old_path, worktree_list
-from .graph import UNCOMMITTED_RE
 from .registry import slug_for
+from .worktrees import UNCOMMITTED_RE
 
 HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 SHA_RE = re.compile(r"^[0-9a-f]{7,64}$")
