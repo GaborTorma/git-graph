@@ -144,6 +144,8 @@ class GraphTest(HomeTestCase):
         wt_lane = next(c["lane"] for c in data["commits"] if c.get("worktree") == wt)
         self.assertLess(lane["On main: fo"], wt_lane)
         self.assertEqual(lane["On feat: wt"], wt_lane + 1)
+        owner = {c["subject"]: c["owner"] for c in data["commits"] if c.get("stash")}
+        self.assertEqual(owner, {"On feat: wt": wt, "On main: fo": data["meta"]["worktrees"][0]["slug"]})
 
 class WorktreeListTest(HomeTestCase):
     def test_worktree_order(self) -> None:

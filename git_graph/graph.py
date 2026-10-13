@@ -172,6 +172,17 @@ def mark_worktree_heads(commits: list[dict], worktrees: list[dict]) -> None:
         c["refs"].sort(key=lambda r: REF_ORDER.get(r["kind"], 9))
 
 
+def mark_stash_owners(commits: list[dict], worktrees: list[dict]) -> None:
+    """A stash gazdája (`owner`, worktree-slug): ahol az ága (`branch`) ki van véve, ha
+    egyikben sincs, a fő checkout. A stash a bázisáról mindenhonnan elérhető, ezért a
+    halványítás és a sáv ebből dönt, nem az elérhetőségből."""
+    main = next((wt["slug"] for wt in worktrees if wt["main"]), None)
+    by_branch = {wt["branch"]: wt["slug"] for wt in worktrees if wt["branch"]}
+    for c in commits:
+        if c.get("stash"):
+            c["owner"] = by_branch.get(c["branch"], main)
+
+
 def fold_remote_heads(commits: list[dict]) -> None:
     """A `<remote>/HEAD` nem külön badge: csak mutató a remote alapértelmezett ágára.
 
@@ -203,6 +214,7 @@ def collect_payload(limit: int | None) -> dict:
     if meta["repoUrl"]:
         mark_pushed(commits, stats)
     mark_worktree_heads(commits, worktrees)
+    mark_stash_owners(commits, worktrees)
     fold_remote_heads(commits)
 
     # Worktree-nként egy ál-sor, a gráf tetejére, a HEAD-jük fölé — a lane-kiosztás

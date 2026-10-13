@@ -27,6 +27,7 @@ interface Commit {
   stubs?: { lane: number; worktree: string }[];
   stash?: boolean;
   branch?: string | null;
+  owner?: string | null;
   uncommitted?: boolean;
   worktree?: string;
   changed?: number;

@@ -37,6 +37,9 @@ export function focusWt() {
      ál-sora) — más ág, a fő checkout és más worktree-k WIP-je;
    - a fő checkoutból nézve: csak a hozzáadott worktree-k saját commitjai (a
      HEAD-jükből elérhető, a fő checkoutéból nem) és az ál-soraik. */
+/* Az ál-sor a worktree-jéé; a stash a gazdájáé (`owner`, a szervertől) — semmilyen
+   HEAD-ből nem érhető el. */
+const home = c => c.stash ? c.owner : c.worktree;
 let foreignSet = null;
 export function computeOwn() {
   const own = focusWt(), linked = linkedWts();
@@ -47,16 +50,9 @@ export function computeOwn() {
   if (own.main) {
     foreignSet = new Set();
     for (const w of linked) for (const sha of reach(w.head)) if (!mine.has(sha)) foreignSet.add(sha);
-    for (const c of DATA.commits) if (c.uncommitted && c.worktree !== own.slug) foreignSet.add(c.sha);
+    for (const c of DATA.commits) if ((c.uncommitted || c.stash) && home(c) !== own.slug) foreignSet.add(c.sha);
   } else {
-    foreignSet = new Set(DATA.commits.filter(c => !mine.has(c.sha) && c.worktree !== own.slug).map(c => c.sha));
-  }
-  // A stash a bázisáról mindenhonnan elérhető: a gazdája a worktree, amelyikben az ága
-  // (`branch`, a stash üzenetéből) ki van véve; ha egyikben sincs, a fő checkout.
-  for (const c of DATA.commits) {
-    if (!c.stash) continue;
-    const owner = worktrees().find(w => w.branch && w.branch === c.branch) || worktrees().find(w => w.main);
-    if (owner === own) foreignSet.delete(c.sha); else foreignSet.add(c.sha);
+    foreignSet = new Set(DATA.commits.filter(c => !mine.has(c.sha) && home(c) !== own.slug).map(c => c.sha));
   }
 }
 export const foreign = c => Boolean(foreignSet) && foreignSet.has(c.sha);
