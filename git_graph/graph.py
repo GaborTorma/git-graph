@@ -16,6 +16,9 @@ from .stats import collect_stats
 from .worktrees import collect_uncommitted, collect_worktrees, worktree_meta
 
 
+COMMIT_FMT = FS.join(["%H", "%P", "%an", "%ae", "%aI", "%cI", "%D", "%s", "%b"])
+
+
 def collect_commits(limit: int | None) -> list[dict]:
     """Commitok minden refről, szülőkkel, ref-dekorációval és törzzsel; köztük a stash-ek."""
     args = ["log", *ALL_BUT_STASH, "--date-order", f"--pretty=format:{RS}{COMMIT_FMT}"]
@@ -24,18 +27,15 @@ def collect_commits(limit: int | None) -> list[dict]:
     return insert_stashes(parse_commits(git(*args)), stash_commits())
 
 
-COMMIT_FMT = FS.join(["%H", "%P", "%an", "%ae", "%aI", "%cI", "%D", "%s", "%b", "%gd"])
-
-
 def parse_commits(raw: str) -> list[dict]:
     commits: list[dict] = []
     for record in raw.split(RS):
         if not record.strip():
             continue
         parts = record.split(FS)
-        if len(parts) < 10:
+        if len(parts) < 9:
             continue
-        sha, parents, author, email, date, committed, refs, subject, body, _ = parts[:10]
+        sha, parents, author, email, date, committed, refs, subject, body = parts[:9]
         commits.append(
             {
                 "sha": sha.strip(),
@@ -63,29 +63,35 @@ def stash_commits() -> list[dict]:
     (`^2`, `^3`) nem sor és nem sáv. A chipje `stash`, a neve `stash@{N}`; a `branch`
     az ág, amelyen készült (az üzenetéből: `On <ág>: …`, `WIP on <ág>: …`) — a lap
     ebből tudja, melyik worktree-é."""
-    raw = git("stash", "list", f"--pretty=format:{RS}{COMMIT_FMT}")
-    names = [r.split(FS)[-1].strip() for r in raw.split(RS) if r.strip()]
-    stashes = parse_commits(raw)
-    for c, name in zip(stashes, names):
+    stashes = parse_commits(git("stash", "list", f"--pretty=format:{RS}{COMMIT_FMT}"))
+    for n, c in enumerate(stashes):
         on = STASH_ON_RE.match(c["subject"])
-        c.update(parents=c["parents"][:1], refs=[{"kind": "stash", "name": name}], stash=True,
+        c.update(parents=c["parents"][:1], refs=[{"kind": "stash", "name": f"stash@{{{n}}}"}], stash=True,
                  branch=on[1] if on and on[1] != "(no branch)" else None)
     return stashes
+
+
+def committed_at(c: dict) -> datetime:
+    # A `%cI` UTC-nél `Z`-vel végződik: a Python 3.9 `fromisoformat`-ja nem ismeri.
+    return datetime.fromisoformat(c["committed"].replace("Z", "+00:00"))
 
 
 def insert_stashes(commits: list[dict], stashes: list[dict]) -> list[dict]:
     """A stash-ek a `--date-order` szerinti helyükre: az első nem újabb commit elé, de
     legkésőbb a bázisuk elé. Ha a bázis és a helyük is a limiten túl van, kimaradnak."""
-    # A `%cI` UTC-nél `Z`-vel végződik: a Python 3.9 `fromisoformat`-ja nem ismeri.
-    when = lambda c: datetime.fromisoformat(c["committed"].replace("Z", "+00:00"))  # noqa: E731
+    shas = {c["sha"] for c in commits}
+    times = [committed_at(c) for c in commits]
     for st in reversed(stashes):                 # a régebbi előbb: az újabb fölé kerül, azonos időnél is
-        if any(c["sha"] == st["sha"] for c in commits):
+        if st["sha"] in shas:
             continue
-        base = next((i for i, c in enumerate(commits) if c["sha"] in st["parents"]), None)
-        at = next((i for i, c in enumerate(commits) if when(c) <= when(st)), len(commits))
-        if base is None and at == len(commits) and st["parents"]:
+        end = len(commits)
+        base = next((i for i, c in enumerate(commits) if c["sha"] == st["parents"][0]), end)
+        when = committed_at(st)
+        at = next((i for i, t in enumerate(times) if t <= when), end)
+        if base == end and at == end:
             continue
-        commits.insert(min(at, len(commits) if base is None else base), st)
+        commits.insert(min(at, base), st)
+        times.insert(min(at, base), when)
     return commits
 
 
