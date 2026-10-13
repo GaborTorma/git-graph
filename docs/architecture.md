@@ -22,7 +22,13 @@ moduljait Node-ban összeköti (`scripts/check-page.mjs`), lintel (ruff, Biome),
 teszteket (`/usr/bin/python3`-mal, ahogy az app indítja): modulonként, és a
 füsttesztet — az MCP-t stdio-n kézfogással, `tools/list`-tel és a toolok
 hívásával, a stabil másolatból is. A hook, a publikálás és a telepítés is
-tesztelt, kamu `HOME`-mal. A lintereket a `uvx` / `pnpm dlx` hozza, a repóba nem kerül
+tesztelt, kamu `HOME`-mal. A lap viselkedését headless Chromium teszteli
+(`tests/page/`, Playwright): a valódi betöltő (`loader.html`) egy kamu `window.claude`
+MCP-klienstől kéri a lapot, a hívások a valódi `git-graph --mcp`-hez mennek egy
+eldobható, többnapos fixture-repóval; a nyitva tartott `changes` megszakításig függ. Ez
+méri a gráf pöttyeit a sorokhoz (napfejléc, kinyitott panel, átméretezés után), a
+`fitRows` töréspontjait és a `stepRows` lépését. Új viselkedési teszt a
+`harness.PageTestCase`-re épül; a `settle()` a véges animációkat és a görgetést várja ki. A lintereket a `uvx` / `pnpm dlx` hozza, a repóba nem kerül
 függőség. Ezen túl kézzel: a `git-graph --mcp` `graph_data`-ja több repón
 (eltérő sávszámmal, merge-ekkel), és a lap az appban. Az élő lapé: `python3 bin/git-graph --dev-install`. Ez a working treet az
 appban futó szerver helyére teszi `+dev` verzióval; a szerver 15 s-on belül

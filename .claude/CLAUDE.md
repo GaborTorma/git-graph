@@ -16,7 +16,7 @@ Használat és felépítés: [README.md](../README.md).
 | `scripts/check-page.mjs` | a lap moduljainak szintaxisa és összekötése (import ↔ export) Node-ban, futtatás nélkül — a Check része |
 | `page/js/types.d.ts`, `page/tsconfig.json` | a lap típusai (`graph_data`, `GIT_GRAPH`) a `tsc --checkJs`-hez — a lapra nem kerül |
 | `scripts/file-icons.py` | a `page/file-icons.json` előállítása a Catppuccin VS Code ikonjaiból (MIT, verzióra rögzítve) — kézzel, frissítéskor |
-| `tests/` | modulonként egy `test_<modul>.py`, kamu `HOME`-mal (`helpers.py`: a csomag friss betöltése, eldobható repók, MCP-kliens); `test_mcp.py` a füstteszt: `git-graph --mcp` stdio-n a working tree-ből, és a stabil másolatból |
+| `tests/` | modulonként egy `test_<modul>.py`, kamu `HOME`-mal (`helpers.py`: a csomag friss betöltése, eldobható repók, MCP-kliens); `test_mcp.py` a füstteszt: `git-graph --mcp` stdio-n a working tree-ből, és a stabil másolatból; `tests/page/`: a lap viselkedése headless Chromiumban (Playwright, `harness.py`: valódi betöltő + `git-graph --mcp`, fixture-repó) |
 | `ruff.toml`, `biome.json` | lint: Python (3.9-célverzióval) és a `page/` JS / CSS / HTML-je |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
@@ -42,6 +42,7 @@ git-graph --artifacts        # ismert repók Artifactjai (regiszter + a szülőm
 git-graph --forget           # a repó git-graph nyomai + automatikus megnyitás KI
 git-graph --open-url --session <ID>   # a mod kérdése: az URL, ha most meg kell nyitni
 claude plugin test .         # a mod tesztjei (hooks/*.test.ts)
+uv run --no-project --with playwright==1.63.0 python -m unittest discover -s tests/page   # a lap böngészőben
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
 python3 bin/git-graph --dev-install   # a working tree az appban futó git-graph helyére (+dev), a lap élőben
 ```
@@ -57,7 +58,7 @@ link és pillanatkép nincs; parancs nélkül a súgót írja ki.
 
 A **Check** (`.claude/check.toml`): a lap moduljainak összekötése Node-ban, ruff +
 Biome, `tsc --checkJs` a `page/js`-re, a tesztek `/usr/bin/python3`-mal (ahogy az app
-indítja) és a mod tesztjei.
+indítja), a mod tesztjei és a lap viselkedése headless Chromiumban (`tests/page/`).
 Ezen túl kézzel: a lap az appban, `python3 bin/git-graph --dev-install` után. A
 válaszban írd ki a verziót (`<verzió>+dev.<időbélyeg>`) — a lap láblécén ebből
 látszik, hogy már az új állapot fut. Forrásból futó plugin, a hook és a
@@ -83,8 +84,9 @@ telepítés kézi próbája: [architecture.md](../docs/architecture.md#fejleszt�
   különben fordulásnál ide-oda ugrál. A dátum `Europe/Budapest` szerint,
   magyar formában jelenik meg.
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
-  futnia kell, `pip install` nélkül. Ne hozz be libet. A lintek (ruff, Biome)
-  és a `tsc` csak fejlesztői eszközök, `uvx` / `pnpm dlx` futtatja őket, verzióra rögzítve.
+  futnia kell, `pip install` nélkül. Ne hozz be libet. A lintek (ruff, Biome),
+  a `tsc` és a Playwright csak fejlesztői eszközök, `uvx` / `uv run --with` / `pnpm dlx`
+  futtatja őket, verzióra rögzítve.
 - **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a
   `.git/config` `git-graph.*` kulcsai — lokális, sosem commitolódik.
 - **Hálózat csak az avatarért.** GitHub-os repónál a szerzők képét a Python
