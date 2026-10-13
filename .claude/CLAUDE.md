@@ -246,8 +246,10 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   (`repo_state`) eltér a `since` tokenben lévőtől — git-műveletnél egy
   `stat`-előszűrő (`stamp_paths`) miatt ~50 ms-on belül, fájlszerkesztésnél a
   2 s-onkénti teljes számításra —, legkésőbb 50 s után üresen. A `since`
-  (állapot-hash + naplókurzor) miatt a két hívás között jött változás sem vész
-  el. A szál explicit repóval dolgozik, a `REPO` globálist nem érinti. A `send`
+  (állapot-hash + naplókurzor + fókusz) miatt a két hívás között jött változás sem vész
+  el. A fókuszt a 2 s-os kör is újraszámolja: új sessionre váltáskor a napló
+  sora előbb jön, mint a session-fájl, a váltáskor kiadott fókusz még a régi
+  (mérve: enélkül 50 s-ig). A szál explicit repóval dolgozik, a `REPO` globálist nem érinti. A `send`
   ezért zárolt, a fókusz-gyorstárak `FOCUS_LOCK` alatt; a `restart` előbb a
   várakozókat válaszoltatja (`WAKE`). A host a lap megszakítását (`signal`) nem
   adja át a szervernek: az árva várakozót a határidő zárja, és `WAITERS_MAX`

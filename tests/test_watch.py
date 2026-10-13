@@ -1,7 +1,9 @@
 """A `changes` long-poll (`watch`): az állapot-hash és a nyitva tartott hívás."""
 from __future__ import annotations
 
+import json
 import os
+import threading
 import time
 
 from helpers import HomeTestCase, focus_line, git_in
@@ -48,6 +50,33 @@ class WatchTest(HomeTestCase):
         changed = gg.watch.wait_changes(main, after["since"], 5)
         self.assertNotEqual(changed["state"], after["state"])
         self.assertLess(time.monotonic() - t0, 4)
+
+    def test_late_session_file(self) -> None:
+        """Új sessionnél a napló sora előbb jön, mint a session-fájl: a fájl megjelenése
+        is válasz (a fókusz a `since`-ben), nem a határidő."""
+        main, extra = self.make_repo()
+        gg = self.load()
+        app = gg.claude_app
+        app.APP_LOG.parent.mkdir(parents=True)
+        app.APP_LOG.write_text("", encoding="utf-8")
+        folder = app.APP_SESSIONS / "acc" / "org"
+        folder.mkdir(parents=True)
+        (folder / "local_a.json").write_text(json.dumps({"cwd": str(main), "lastFocusedAt": 1000}),
+                                             encoding="utf-8")
+        first = gg.watch.wait_changes(main, "", 0)
+        self.assertEqual(first["focus"]["worktree"], gg.registry.slug_for(main))
+        with app.APP_LOG.open("a", encoding="utf-8") as f:
+            f.write(focus_line("local_b"))                             # a fájlja még nincs meg
+        switched = gg.watch.wait_changes(main, first["since"], 5)
+        self.assertEqual(switched["focus"]["worktree"], gg.registry.slug_for(main))
+        later = threading.Timer(0.5, lambda: (folder / "local_b.json").write_text(
+            json.dumps({"cwd": str(extra), "lastFocusedAt": 2000}), encoding="utf-8"))
+        later.start()                                                  # várakozás közben jelenik meg
+        t0 = time.monotonic()
+        late = gg.watch.wait_changes(main, switched["since"], 10)
+        later.join()
+        self.assertEqual(late["focus"]["worktree"], gg.registry.slug_for(extra))
+        self.assertLess(time.monotonic() - t0, 4)                       # a 2 s-os körrel, nem 10 s
 
     def test_wake(self) -> None:
         """Újraindulás előtt (`WAKE`) a várakozó hívás azonnal válaszol."""

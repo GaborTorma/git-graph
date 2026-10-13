@@ -81,36 +81,44 @@ def file_stamp(paths: list[Path]) -> tuple[int, ...]:
 
 
 def wait_changes(repo: Path, since: str, wait: float) -> dict:
-    """A `changes` tool: vár, amíg a repó állapota eltér a `since`-étől, vagy az app
-    naplójában session-váltás jelenik meg — legfeljebb `wait` s-ig (`WAIT_MAX`).
+    """A `changes` tool: vár, amíg a repó állapota vagy a fókusz eltér a `since`-étől,
+    vagy az app naplójában session-váltás jelenik meg — legfeljebb `wait` s-ig (`WAIT_MAX`).
 
-    A `since` az előző válasz átlátszatlan tokenje: állapot-hash és naplókurzor
-    (`<hash>.<inode>:<pozíció>`); üresen azonnal válaszol. A két hívás között
-    jött változás sem vész el. Várakozás közben 50 ms-onként a naplót és az
-    olcsó stat-jelet nézi (git-művelet ~50 ms-on belül), a teljes állapotot
-    (`repo_state`, ~15 ms) a stat-jel változásakor és `STATE_EVERY`-nként — a
-    fájlszerkesztés így legfeljebb ~2 s alatt jön. Külön szálon fut, explicit
-    repóval: a `REPO` globálist nem használja.
+    A `since` az előző válasz átlátszatlan tokenje: állapot-hash, naplókurzor és
+    az akkori fókusz (`<hash>.<inode>:<pozíció>.<worktree-slug>`); üresen azonnal
+    válaszol. A két hívás között jött változás sem vész el. Várakozás közben
+    50 ms-onként a naplót és az olcsó stat-jelet nézi (git-művelet ~50 ms-on
+    belül), a teljes állapotot (`repo_state`, ~15 ms) és a fókuszt a stat-jel
+    változásakor és `STATE_EVERY`-nként — a fájlszerkesztés így legfeljebb ~2 s
+    alatt jön. A fókuszt azért is: új sessionre váltáskor a napló sora előbb jön,
+    mint az app session-fájlja (mérve) — a váltáskor kiadott fókusz még a régi,
+    a fájl megjelenését pedig csak ez veszi észre, nem a 50 s-os határidő. Külön
+    szálon fut, explicit repóval: a `REPO` globálist nem használja.
     """
-    old, _, cursor = since.partition(".")
+    old, _, rest = since.partition(".")
+    cursor, marked, old_focus = rest.partition(".")
     try:
         ino, pos = (int(x) for x in cursor.split(":"))
     except ValueError:
         ino = pos = -1
     ino, pos, switched = log_advance(ino, pos)
     state = repo_state(repo)
+    focus = focused_worktree(worktree_list(repo))
     paths = stamp_paths(repo)
     stamp, full_at = file_stamp(paths), time.monotonic() + STATE_EVERY
     deadline = time.monotonic() + max(0.0, min(wait, WAIT_MAX))
-    while not switched and state == old and not WAKE.is_set() and time.monotonic() < deadline:
+    while (not switched and state == old and not (marked and (focus["worktree"] or "") != old_focus)
+           and not WAKE.is_set() and time.monotonic() < deadline):
         time.sleep(0.05)
         ino, pos, switched = log_advance(ino, pos)
         now = file_stamp(paths)
         if now != stamp or time.monotonic() >= full_at:
             stamp, full_at = now, time.monotonic() + STATE_EVERY
             state = repo_state(repo)
+            focus = focused_worktree(worktree_list(repo))
+    if switched:                                  # a váltás a válasz pillanatában számít
+        focus = focused_worktree(worktree_list(repo))
     # A verziók is itt: egy frissítés utáni, még újra nem indított app a láblécben látszik.
-    return {"since": f"{state}.{ino}:{pos}", "state": state,
-            "focus": focused_worktree(worktree_list(repo)),
-            "version": RUNNING_VERSION, "installed": installed_version()}
+    return {"since": f"{state}.{ino}:{pos}.{focus['worktree'] or ''}", "state": state,
+            "focus": focus, "version": RUNNING_VERSION, "installed": installed_version()}
 
