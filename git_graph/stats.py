@@ -4,20 +4,22 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .gitio import RS, git
+from .gitio import ALL_BUT_STASH, RS, git
 
 
 def collect_stats(limit: int | None) -> dict[str, dict]:
     """Fájlonkénti +/− soronként, commitra bontva (`--numstat`).
 
     A merge commit az első szülőjéhez képest: amit a merge a fő ágra hozott
-    (alapból a git a merge-hez nem ad numstatot).
+    (alapból a git a merge-hez nem ad numstatot). A stash is: a bázisához képest, és
+    a `-u`-val félretett követetlen fájljai (`untracked_stashed`) új fájlként.
     """
-    args = ["log", "--all", "--date-order", "--numstat", "--summary", "--diff-merges=first-parent",
-            f"--pretty=format:{RS}%H %P"]
+    opts = ["--numstat", "--summary", "--diff-merges=first-parent", f"--pretty=format:{RS}%H %P"]
+    args = ["log", *ALL_BUT_STASH, "--date-order", *opts]
     if limit:
         args.append(f"-{limit}")
-    raw = git(*args)
+    stashes = git("stash", "list", *opts)
+    raw = git(*args) + stashes
 
     stats: dict[str, dict] = {}
     checks: list[tuple[dict, str]] = []
@@ -36,8 +38,42 @@ def collect_stats(limit: int | None) -> dict[str, dict]:
                     checks.append((f, parents[0]))
                 else:                                # gyökércommit: minden mappája új
                     f["dirFrom"] = 0
+    checks += untracked_stashed(stashes, stats)
     mark_dirs(checks, missing_trees({f"{rev}:{d}" for f, rev in checks for d in dir_prefixes(f["path"])}))
     return stats
+
+
+def untracked_stashed(stashes: str, stats: dict[str, dict]) -> list[tuple[dict, str]]:
+    """A `stash -u` követetlen fájljai a stash fájllistájába, új fájlként (`A`).
+
+    Ezek nem a stash commitban vannak, hanem a harmadik szülőjében (`^3`, `untracked
+    files on …`): egy szülő nélküli commitban, amelyben csak ők vannak — a bázishoz
+    mért diffből ezért kimaradnának. Egyetlen `log --no-walk`-kal, a gyökér-diffjükből.
+    A visszaadott párok a `mark_dirs`-é: az új mappa a bázishoz képest új.
+    """
+    owner: dict[str, tuple[str, str]] = {}        # ^3 → (stash, bázis)
+    for block in stashes.split(RS):
+        if not block.strip():
+            continue
+        sha, *parents = block.strip().splitlines()[0].split()
+        if len(parents) == 3:
+            owner[parents[2]] = (sha, parents[0])
+    if not owner:
+        return []
+    raw = git("log", "--no-walk=unsorted", "--numstat", "--summary", f"--pretty=format:{RS}%H", *owner)
+    checks = []
+    for block in raw.split(RS):
+        if not block.strip():
+            continue
+        lines = block.strip().splitlines()
+        stash, base = owner[lines[0].strip()]
+        extra = numstat_files(lines[1:])
+        st = stats[stash]
+        st["files"] += extra["files"]
+        st["add"] += extra["add"]
+        st["del"] += extra["del"]
+        checks += [(f, base) for f in extra["files"]]
+    return checks
 
 
 def dir_prefixes(path: str) -> list[str]:

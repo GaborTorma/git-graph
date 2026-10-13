@@ -75,6 +75,9 @@ def worktree_lanes_last(commits: list[dict], edges: list[dict], worktrees: list[
     ott az eredeti sorrend marad, különben az a vonal is hátrébb csúszna, és egy
     oszlop (szín) kimaradna. A határon átnyúló vonal a következő commitja
     fölött fordul be az eredeti oszlopába.
+
+    A worktree stash-ei (a `branch`-ük a worktree ága) a worktree oszlopai után
+    jönnek: a stash a bázisáról mindenhonnan elérhető, a gazdája az ága szerint dől el.
     """
     by_sha = {c["sha"]: c for c in commits}
     row_of = {c["sha"]: i for i, c in enumerate(commits)}
@@ -94,6 +97,12 @@ def worktree_lanes_last(commits: list[dict], edges: list[dict], worktrees: list[
             while c is not None and c["lane"] == lane and c["parents"]:
                 c = by_sha.get(c["parents"][0])
             boundary = max(boundary, row_of[c["sha"]] if c is not None else len(commits))
+        for c in commits:
+            if c.get("stash") and wt["branch"] and c.get("branch") == wt["branch"]:
+                if c["lane"] not in cols:
+                    cols.append(c["lane"])
+                base = row_of.get(c["parents"][0]) if c["parents"] else None
+                boundary = max(boundary, base if base is not None else len(commits))
     if not cols:
         return
     count = max(c["lane"] for c in commits) + 1

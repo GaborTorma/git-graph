@@ -21,11 +21,14 @@ def repo_state(repo: Path) -> str:
     commitra is badge-változás, új vagy megszűnt worktree is változás), a
     státusz és a commitolatlan fájlok legutóbbi módosítása ns-ban — ez jelzi egy
     már módosított fájl újabb szerkesztését is, a `diff --numstat` nélkül —, és a
-    megtalált avatarok száma. A `for-each-ref` és a worktree-k `status`-a
+    megtalált avatarok száma. A `refs/stash` csak a legújabb stash-t mutatja: a
+    régebbiek (`stash@{N}`) a reflogból jönnek, ezért a `stash list` is benne van.
+    A `for-each-ref` és a worktree-k `status`-a
     párhuzamosan fut: ~15 ms egy kis repón (sorban, numstattal ~50 ms volt).
     """
     with ThreadPoolExecutor(max_workers=8) as pool:
         refs = pool.submit(git, "for-each-ref", "--format=%(objectname) %(refname)", repo=repo)
+        stashes = pool.submit(git, "stash", "list", "--format=%H", repo=repo)
         worktrees = worktree_list(repo)
 
         def status(wt: dict) -> list[str] | None:
@@ -35,7 +38,7 @@ def repo_state(repo: Path) -> str:
             except subprocess.CalledProcessError:
                 return None                         # közben megszűnt
 
-        parts = [refs.result(), str(avatar_signal())]
+        parts = [refs.result(), stashes.result(), str(avatar_signal())]
         for wt, lines in zip(worktrees, pool.map(status, worktrees)):
             if lines is None:
                 continue
@@ -57,13 +60,15 @@ WAKE = threading.Event()      # újraindulás előtt: a várakozó hívások azo
 
 def stamp_paths(repo: Path) -> list[Path]:
     """Az olcsó előszűrő fájljai: worktree-nként a HEAD, az index és a HEAD reflogja,
-    közösen a packed-refs, a FETCH_HEAD és a ref-mappák (egy ref írása átnevezés,
-    a mappa mtime-ja változik). A fájlszerkesztést nem fogja: arra a teljes állapot."""
+    közösen a packed-refs, a FETCH_HEAD, a ref-mappák (egy ref írása átnevezés,
+    a mappa mtime-ja változik; a `refs/stash` a `refs` alatt) és a stash reflogja (egy
+    régebbi stash eldobása csak azt írja). A fájlszerkesztést nem fogja: arra a teljes állapot."""
     common = repo / ".git"
     if not common.is_dir():
         common = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir", repo=repo).strip())
     admins = [common, *sorted((common / "worktrees").glob("*"))]
-    refs = [common / "refs" / "heads", common / "refs" / "tags",
+    refs = [common / "refs", common / "refs" / "heads", common / "refs" / "tags",
+            common / "logs" / "refs" / "stash",
             *sorted((common / "refs" / "remotes").glob("*"))]
     return [*(a / name for a in admins for name in ("HEAD", "index", "logs/HEAD")),
             common / "packed-refs", common / "FETCH_HEAD", *refs]

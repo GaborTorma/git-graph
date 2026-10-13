@@ -97,6 +97,53 @@ class GraphTest(HomeTestCase):
         self.assertFalse([r for r in refs if r["name"].endswith("/HEAD")])
         self.assertTrue(next(r for r in refs if r["name"] == "origin/main").get("default"))
 
+    def test_stash(self) -> None:
+        """A stash egy sor a bázisán (`-u`-val is): a segédcommitjai (`^2`, `^3`) nem sorok,
+        a régebbi stash is látszik, a fájllista és a diff a bázishoz képest."""
+        main = self.plain_repo()
+        base = git_in(main, "rev-parse", "HEAD").strip()
+        (main / "a.txt").write_text("2\n", encoding="utf-8")
+        (main / "u.txt").write_text("új\n", encoding="utf-8")
+        git_in(main, "stash", "push", "-q", "-u", "-m", "egy")
+        (main / "a.txt").write_text("3\n", encoding="utf-8")
+        git_in(main, "stash", "push", "-q", "-m", "ketto")
+        top, old = git_in(main, "stash", "list", "--format=%H").split()
+        gg = self.load()
+        gg.gitio.set_repo(main)
+        data = gg.graph.collect_payload(None)
+        self.assertEqual([c["sha"] for c in data["commits"]], [top, old, base])
+        for sha, name in ((top, "stash@{0}"), (old, "stash@{1}")):
+            c = next(c for c in data["commits"] if c["sha"] == sha)
+            self.assertEqual((c["parents"], c["refs"], c.get("stash"), c.get("branch")),
+                             ([base], [{"kind": "stash", "name": name}], True, "main"))
+        self.assertEqual([(e["fromRow"], e["toRow"]) for e in data["edges"]], [(0, 2), (1, 2)])
+        self.assertEqual(len({c["lane"] for c in data["commits"]}), 3)   # a két stash a saját sávján
+        self.assertEqual(data["meta"]["totalCommits"], 3)
+        # A `-u` követetlen fájlja (a `^3`-ban) is a listában, új fájlként.
+        files = {f["path"]: f.get("status") for f in data["stats"][old]["files"]}
+        self.assertEqual(files, {"a.txt": None, "u.txt": "A"})
+        self.assertEqual(data["stats"][old]["add"], 2)
+        self.assertEqual([f["path"] for f in data["stats"][top]["files"]], ["a.txt"])
+        for path in files:
+            self.assertTrue(gg.diff.file_diff(old, path)["hunks"], path)
+
+
+    def test_stash_lanes(self) -> None:
+        """A hozzáadott worktree stash-e (az ága szerint) a worktree oszlopai után ül; a fő
+        checkouté a fő checkout oszlopai közt marad."""
+        main, extra = self.make_repo()
+        (extra / "b.txt").write_text("stash\n", encoding="utf-8")
+        git_in(extra, "stash", "push", "-q", "-m", "wt", "--", "b.txt")
+        (main / "c.txt").write_text("stash\n", encoding="utf-8")
+        git_in(main, "stash", "push", "-q", "-u", "-m", "fo", "--", "c.txt")
+        gg = self.load()
+        gg.gitio.set_repo(main)
+        data = gg.graph.collect_payload(None)
+        lane = {c["subject"]: c["lane"] for c in data["commits"]}
+        wt = data["meta"]["worktrees"][1]["slug"]
+        wt_lane = next(c["lane"] for c in data["commits"] if c.get("worktree") == wt)
+        self.assertLess(lane["On main: fo"], wt_lane)
+        self.assertEqual(lane["On feat: wt"], wt_lane + 1)
 
 class WorktreeListTest(HomeTestCase):
     def test_worktree_order(self) -> None:

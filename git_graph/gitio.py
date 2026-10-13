@@ -25,6 +25,10 @@ def set_repo(repo: Path) -> None:
 FS = "\x1f"
 RS = "\x1e"
 
+# Minden ref, a `refs/stash` nélkül: a stash segédcommitjai (index: `^2`, követetlen
+# fájlok: `^3`) így nem kerülnek a `log` elé; a stash-eket a reflogjuk adja (`git stash list`).
+ALL_BUT_STASH = ("--exclude=refs/stash", "--all")
+
 
 @functools.cache
 def git_bin() -> str:

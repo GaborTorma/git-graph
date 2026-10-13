@@ -180,6 +180,14 @@ def file_diff(sha: str, path: str, full: bool = False) -> dict:
     elif SHA_RE.match(sha):
         raw = git("show", "--format=", "--no-color", "--no-ext-diff", "-M",
                   "--diff-merges=first-parent", *context, sha, "--", old, new)
+        # A `stash -u` követetlen fájlja a harmadik szülőben (`^3`) van, nem a bázishoz
+        # mért diffben; csak stash-nél — egy octopus merge `^3`-a valódi szülő.
+        if not raw.strip():
+            parents = {line.split()[0]: line.split()[1:]
+                       for line in git("stash", "list", "--format=%H %P").splitlines()}.get(sha, [])
+            if len(parents) == 3:
+                raw = git("show", "--format=", "--no-color", "--no-ext-diff", *context,
+                          parents[2], "--", new)
     else:
         raise ValueError(f"érvénytelen commit: {sha!r}")
     return parse_diff(raw)

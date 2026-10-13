@@ -96,3 +96,19 @@ class WatchTest(HomeTestCase):
         before = gg.watch.file_stamp(paths)
         git_in(repo, "commit", "-q", "--allow-empty", "-m", "x")
         self.assertNotEqual(gg.watch.file_stamp(paths), before)
+
+    def test_stash_drop(self) -> None:
+        """Egy régebbi stash eldobása a `refs/stash`-t nem mozdítja: a stash reflogja jelez,
+        az előszűrőn és a teljes állapotban is."""
+        repo = self.plain_repo()
+        for text in ("2\n", "3\n"):
+            (repo / "a.txt").write_text(text, encoding="utf-8")
+            git_in(repo, "stash", "push", "-q")
+        gg = self.load()
+        paths = gg.watch.stamp_paths(repo)
+        before = gg.watch.file_stamp(paths), gg.watch.repo_state(repo)
+        time.sleep(0.01)
+        git_in(repo, "stash", "drop", "-q", "stash@{1}")
+        after = gg.watch.file_stamp(paths), gg.watch.repo_state(repo)
+        self.assertNotEqual(after[0], before[0])
+        self.assertNotEqual(after[1], before[1])

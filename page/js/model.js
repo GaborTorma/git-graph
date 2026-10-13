@@ -51,6 +51,13 @@ export function computeOwn() {
   } else {
     foreignSet = new Set(DATA.commits.filter(c => !mine.has(c.sha) && c.worktree !== own.slug).map(c => c.sha));
   }
+  // A stash a bázisáról mindenhonnan elérhető: a gazdája a worktree, amelyikben az ága
+  // (`branch`, a stash üzenetéből) ki van véve; ha egyikben sincs, a fő checkout.
+  for (const c of DATA.commits) {
+    if (!c.stash) continue;
+    const owner = worktrees().find(w => w.branch && w.branch === c.branch) || worktrees().find(w => w.main);
+    if (owner === own) foreignSet.delete(c.sha); else foreignSet.add(c.sha);
+  }
 }
 export const foreign = c => Boolean(foreignSet) && foreignSet.has(c.sha);
 /* A halvány pötty és vonal tömör, a háttérrel kevert szín — átlátszósággal
