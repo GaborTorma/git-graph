@@ -68,13 +68,16 @@ def assign_lanes(commits: list[dict], trunk: str | None = None) -> list[dict]:
 
 def worktree_lanes_last(commits: list[dict], edges: list[dict], worktrees: list[dict]) -> None:
     """A hozzáadott worktree-k oszlopai a fő checkout ágai mögé kerülnek — de csak
-    a worktree-k elágazási pontja fölött.
+    a worktree-k elágazási pontja fölött, és csak az ott élő ágak mögé.
 
     Az oszlopok cseréje (permutáció) a rajzot nem rontja el. Az elágazás alatt
     viszont az oszlopot már más ág (pl. egy régi, beolvasztott ág) használja:
     ott az eredeti sorrend marad, különben az a vonal is hátrébb csúszna, és egy
     oszlop (szín) kimaradna. A határon átnyúló vonal a következő commitja
     fölött fordul be az eredeti oszlopába.
+
+    A worktree stash-ei (a `branch`-ük a worktree ága) a worktree oszlopai után
+    jönnek: a stash a bázisáról mindenhonnan elérhető, a gazdája az ága szerint dől el.
     """
     by_sha = {c["sha"]: c for c in commits}
     row_of = {c["sha"]: i for i, c in enumerate(commits)}
@@ -94,10 +97,26 @@ def worktree_lanes_last(commits: list[dict], edges: list[dict], worktrees: list[
             while c is not None and c["lane"] == lane and c["parents"]:
                 c = by_sha.get(c["parents"][0])
             boundary = max(boundary, row_of[c["sha"]] if c is not None else len(commits))
+        for c in commits:
+            if c.get("stash") and wt["branch"] and c.get("branch") == wt["branch"]:
+                if c["lane"] not in cols:
+                    cols.append(c["lane"])
+                base = row_of.get(c["parents"][0]) if c["parents"] else None
+                boundary = max(boundary, base if base is not None else len(commits))
     if not cols:
         return
+    # A worktree-k csak a határ fölött élő sávok mögé kerülnek (a commitok és az onnan
+    # induló élek sávjai): egy csak lejjebb használt sáv (régi, beolvasztott ág) ne
+    # hagyjon üres oszlopot előttük — az a határ fölött mögéjük kerül.
+    used = {0} | {c["lane"] for c in commits[:boundary]}      # a 0. a trunké
+    for e in edges:
+        if e["fromRow"] < boundary:
+            used.add(e["fromLane"])
+            if e["toRow"] < boundary:
+                used.add(e["toLane"])
     count = max(c["lane"] for c in commits) + 1
-    order = [lane for lane in range(count) if lane not in cols] + cols
+    order = ([lane for lane in range(count) if lane in used and lane not in cols] + cols
+             + [lane for lane in range(count) if lane not in used and lane not in cols])
     new = {old: i for i, old in enumerate(order)}
     lane_at = lambda row, lane: new[lane] if row < boundary else lane  # noqa: E731
     for row, c in enumerate(commits):

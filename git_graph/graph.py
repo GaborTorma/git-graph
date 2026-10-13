@@ -3,11 +3,13 @@ worktree-k, az ágak és a fájlstatisztika a saját moduljukban."""
 from __future__ import annotations
 
 import hashlib
+import re
 import subprocess
+from datetime import datetime
 
 from .avatars import avatars_for
 from .branches import branch_tracks, collect_branches
-from .gitio import FS, RS, default_base, git, numstat_new_path, remotes, repo_name, repo_url
+from .gitio import ALL_BUT_STASH, FS, RS, default_base, git, numstat_new_path, remotes, repo_name, repo_url
 from .lanes import assign_lanes, worktree_lanes_last, worktree_stubs
 from .page import attach_icons
 from .stats import collect_stats
@@ -15,21 +17,25 @@ from .worktrees import collect_uncommitted, collect_worktrees, worktree_meta
 
 
 def collect_commits(limit: int | None) -> list[dict]:
-    """Commitok minden refről, szülőkkel, ref-dekorációval és törzzsel."""
-    fmt = FS.join(["%H", "%P", "%an", "%ae", "%aI", "%cI", "%D", "%s", "%b"])
-    args = ["log", "--all", "--date-order", f"--pretty=format:{RS}{fmt}"]
+    """Commitok minden refről, szülőkkel, ref-dekorációval és törzzsel; köztük a stash-ek."""
+    args = ["log", *ALL_BUT_STASH, "--date-order", f"--pretty=format:{RS}{COMMIT_FMT}"]
     if limit:
         args.append(f"-{limit}")
-    raw = git(*args)
+    return insert_stashes(parse_commits(git(*args)), stash_commits())
 
+
+COMMIT_FMT = FS.join(["%H", "%P", "%an", "%ae", "%aI", "%cI", "%D", "%s", "%b", "%gd"])
+
+
+def parse_commits(raw: str) -> list[dict]:
     commits: list[dict] = []
     for record in raw.split(RS):
         if not record.strip():
             continue
         parts = record.split(FS)
-        if len(parts) < 9:
+        if len(parts) < 10:
             continue
-        sha, parents, author, email, date, committed, refs, subject, body = parts[:9]
+        sha, parents, author, email, date, committed, refs, subject, body, _ = parts[:10]
         commits.append(
             {
                 "sha": sha.strip(),
@@ -48,7 +54,42 @@ def collect_commits(limit: int | None) -> list[dict]:
     return commits
 
 
-REF_ORDER = {"head": 0, "detached": 0, "branch": 1, "remote": 2, "tag": 3}
+STASH_ON_RE = re.compile(r"(?:WIP on|On) (.+?): ")
+
+
+def stash_commits() -> list[dict]:
+    """A stash-ek (`git stash list`, a legújabb elöl), mint a VS Code Git Graph-ban: egy
+    sor, egyetlen szülővel — a bázissal (`^1`); az index- és a követetlen-commit
+    (`^2`, `^3`) nem sor és nem sáv. A chipje `stash`, a neve `stash@{N}`; a `branch`
+    az ág, amelyen készült (az üzenetéből: `On <ág>: …`, `WIP on <ág>: …`) — a lap
+    ebből tudja, melyik worktree-é."""
+    raw = git("stash", "list", f"--pretty=format:{RS}{COMMIT_FMT}")
+    names = [r.split(FS)[-1].strip() for r in raw.split(RS) if r.strip()]
+    stashes = parse_commits(raw)
+    for c, name in zip(stashes, names):
+        on = STASH_ON_RE.match(c["subject"])
+        c.update(parents=c["parents"][:1], refs=[{"kind": "stash", "name": name}], stash=True,
+                 branch=on[1] if on and on[1] != "(no branch)" else None)
+    return stashes
+
+
+def insert_stashes(commits: list[dict], stashes: list[dict]) -> list[dict]:
+    """A stash-ek a `--date-order` szerinti helyükre: az első nem újabb commit elé, de
+    legkésőbb a bázisuk elé. Ha a bázis és a helyük is a limiten túl van, kimaradnak."""
+    # A `%cI` UTC-nél `Z`-vel végződik: a Python 3.9 `fromisoformat`-ja nem ismeri.
+    when = lambda c: datetime.fromisoformat(c["committed"].replace("Z", "+00:00"))  # noqa: E731
+    for st in reversed(stashes):                 # a régebbi előbb: az újabb fölé kerül, azonos időnél is
+        if any(c["sha"] == st["sha"] for c in commits):
+            continue
+        base = next((i for i, c in enumerate(commits) if c["sha"] in st["parents"]), None)
+        at = next((i for i, c in enumerate(commits) if when(c) <= when(st)), len(commits))
+        if base is None and at == len(commits) and st["parents"]:
+            continue
+        commits.insert(min(at, len(commits) if base is None else base), st)
+    return commits
+
+
+REF_ORDER = {"head": 0, "detached": 0, "branch": 1, "remote": 2, "tag": 3, "stash": 4}
 
 
 def parse_refs(decoration: str) -> list[dict]:
@@ -80,7 +121,8 @@ def collect_meta(commits: list[dict], worktrees: list[dict]) -> dict:
         "repo": repo_name(),
         "repoUrl": repo_url(),
         "head": git("rev-parse", "--abbrev-ref", "HEAD").strip(),
-        "totalCommits": int(git("rev-list", "--all", "--count").strip()),
+        "totalCommits": int(git("rev-list", *ALL_BUT_STASH, "--count").strip())
+        + sum(1 for c in commits if c.get("stash")),
         "shown": len(commits),
         "dirty": len(worktrees[0]["status"]) if worktrees else 0,
         "generated": git("log", "-1", "--pretty=format:%aI").strip(),

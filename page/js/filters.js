@@ -68,7 +68,11 @@ export function applyFilters() {
     if (c.uncommitted) {
       return !words.length && (!branch || worktrees().some(w => w.slug === c.worktree && branch.has(w.branch || w.appBranch)));
     }
-    if (keep && !keep.has(c.sha)) return false;
+    // A stash nem őse semminek: ágszűrésnél akkor marad, ha a saját ága (`branch`) a
+    // szűrtek közt van, és a bázisa is látszik (különben az éle a semmibe futna).
+    if (c.stash && keep) {
+      if (!branch.has(c.branch) || !keep.has(c.parents[0])) return false;
+    } else if (keep && !keep.has(c.sha)) return false;
     // Remote ágak nélkül a helyi történet minden commitja marad (csak a remote-badge
     // tűnik el); ami csak remote ágból érhető el, az kimarad.
     if (local && !local.has(c.sha)) return false;

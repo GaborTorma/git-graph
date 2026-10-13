@@ -59,7 +59,9 @@ export function drawGraph() {
     // (`hideOwnEdge`); a többié látszik — különben nem tudni, hová tart.
     const from = DATA.commits[e.fromRow];
     const own = from.worktree === focusWt()?.slug ? ' own' : '';
-    const dash = from.uncommitted ? ` class="pend-edge${own}" stroke-dasharray="3 3"` : '';
+    // A stash sem commit a branch-en: az éle a bázisára ugyanígy szaggatott.
+    const dash = from.uncommitted ? ` class="pend-edge${own}" stroke-dasharray="3 3"`
+      : from.stash ? ' stroke-dasharray="3 3"' : '';
     const path = `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
     if (x1 === x2) out += path; else bends += path;
   }
@@ -89,9 +91,9 @@ export function drawGraph() {
     if (c.uncommitted && c.worktree === focusWt()?.slug) return;   // a pontja a #pending sávban van
     const color = tint(c, laneColor(c.lane));
     const merge = c.parents.length > 1;
-    // Az ál-sor pontja üres karika: a szaggatott vonal már jelzi, hogy nem
-    // commit — a pöttyözött körvonal ezen a méreten csak elmosódna.
-    const hollow = merge || c.uncommitted;
+    // Az ál-sor és a stash pontja üres karika: a szaggatott vonal már jelzi, hogy nem
+    // commit a branch-en — a pöttyözött körvonal ezen a méreten csak elmosódna.
+    const hollow = merge || c.uncommitted || c.stash;
     if (fresh.has(c.sha)) out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="8" fill="${color}" opacity=".28"/>`;
     out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="${hollow ? DOT_R + 1 : DOT_R}"`
         +  ` fill="${hollow ? 'var(--bg)' : color}" stroke="${color}" stroke-width="2"/>`;

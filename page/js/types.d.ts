@@ -4,7 +4,7 @@
 
 /** Egy ref a commit mellett (`parse_refs`). */
 interface Ref {
-  kind: 'head' | 'detached' | 'branch' | 'remote' | 'tag';
+  kind: 'head' | 'detached' | 'branch' | 'remote' | 'tag' | 'stash';
   name: string;
   worktree?: string;
   default?: boolean;
@@ -25,6 +25,8 @@ interface Commit {
   lane: number;
   pushed?: boolean;
   stubs?: { lane: number; worktree: string }[];
+  stash?: boolean;
+  branch?: string | null;
   uncommitted?: boolean;
   worktree?: string;
   changed?: number;

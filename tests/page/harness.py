@@ -100,6 +100,7 @@ class PageTestCase(unittest.TestCase):
         (home / ".git-graph").mkdir()
         repo = home / "repo"
         make_history(repo)
+        cls.prepare(repo)
         (home / ".git-graph" / "repos.json").write_text(json.dumps({SLUG: str(repo)}), encoding="utf-8")
         cls.client = McpClient(SCRIPT, home)
         ctx = {"slug": SLUG, "repo": "fixture", "server": "host:git-graph", "api": 1}
@@ -107,6 +108,10 @@ class PageTestCase(unittest.TestCase):
                     .replace("__CTX__", json.dumps(ctx)).replace("__TITLE__", "fixture"))
         cls.pw = sync_playwright().start()
         cls.browser = cls.pw.chromium.launch()
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        """Az osztály saját kiegészítése a fixture-történethez (alapból semmi)."""
 
     @classmethod
     def tearDownClass(cls) -> None:

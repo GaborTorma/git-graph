@@ -90,6 +90,24 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   A lapon a saját worktree-é a fix `#pending` sávban ül (a pontja Y-ja a sáv mért
   soraiból jön, `drawPending`, negatív a lista tetejéhez képest); a többié a
   listában, az ideje szerint a commitok közé sorolva, sosem a HEAD-je alá.
+- **A stash egy sor, a bázisán** (mint a VS Code Git Graph-ban): a `refs/stash`
+  commitja merge-szerű (szülői: bázis, index-commit, `-u`-nál a követetlen fájlok
+  gyökér-commitja), a `log --all` mindhármat sorként, külön sávval hozta. Ezért a
+  `log` és a `rev-list` `ALL_BUT_STASH`-sel fut (`--exclude=refs/stash --all`), a
+  stash-ek pedig a reflogjukból (`git stash list`, a régebbiek is), egyetlen szülővel,
+  `stash` chippel (`stash@{N}`), a dátumuk szerint, de legkésőbb a bázisuk elé
+  beszúrva (`insert_stashes`). A fájllista és a diff a bázishoz képest
+  (`--diff-merges=first-parent`); a `-u`-val félretett követetlen fájlok a
+  harmadik szülőben (`^3`) vannak, ezek új fájlként kerülnek mellé (`untracked_stashed`,
+  a `file_diff` is onnan olvassa). A chipen a `stash` ikon áll, a pontja
+  üres karika, az éle a bázisára szaggatott (mint a WIP-soré). A stash
+  a bázisáról minden worktree-ből elérhető: a gazdája (nem halvány) az a worktree, amelyik
+  az ágát kivette (`branch`, az üzenetéből: `On <ág>: …`), különben a fő checkout. Az
+  ágszűrő is ezt nézi: a stash nem őse semminek, ezért akkor marad, ha az ága a szűrtek
+  közt van és a bázisa látszik. A sávok is: a hozzáadott worktree stash-ei a
+  worktree oszlopai után kerülnek (`worktree_lanes_last`), nem a fő checkout sávjai közé. Egy
+  régebbi stash eldobása a `refs/stash`-t nem mozdítja: az ujjlenyomatban a
+  `stash list`, az előszűrőben a stash reflogja (`logs/refs/stash`) jelez.
 - **Minden git-hívás `--no-optional-locks`**: a `git status` egyébként frissíti
   az indexet, ahhoz `index.lock`-ot vesz, és a gyakori állapotlekérés így a Fejlesztő
   saját git-parancsait akasztja meg (egy commit tényleg elhasalt rajta). Ezért

@@ -174,7 +174,7 @@ export function wtBadge(w) {
 }
 
 // A leválasztott HEAD-en az ág-ikon helyén lánc (az ág nélküliség jele), utána „HEAD”.
-const REF_ICON = { head: 'branch', branch: 'branch', remote: 'cloud', tag: 'tag', detached: 'detached' };
+const REF_ICON = { head: 'branch', branch: 'branch', remote: 'cloud', tag: 'tag', detached: 'detached', stash: 'stash' };
 export function badges(c) {
   // A HEAD, az ág és a tag a commit sávjának színét kapja (`--lc`), mint a vonal; a
   // remote chip is: ha van helyi ága, annak a színét (mint az ágválasztóban), különben
@@ -190,12 +190,13 @@ export function badges(c) {
     const linked = wt && !wt.main;
     // A fő checkout HEAD-je üres mappát kap elöl, ha vannak worktree-k (mint a fejléc chipje).
     const mainLead = wt?.main && linkedWts().length > 0;
-    const dist = r.kind === 'tag' || r.kind === 'detached' ? '' : r.name;   // tagnek nincs
+    const dist = ['tag', 'detached', 'stash'].includes(r.kind) ? '' : r.name;   // tagnek, stash-nek nincs
     // Leválasztott HEAD: az ág helyett a worktree adja a HEAD-commit távolságát (a fő checkouté ref-mező nélkül jön).
     const tr = r.kind === 'detached' ? wtTrack(wt || worktrees().find(w => w.main)) : undefined;
     // Worktree leválasztott HEAD-je: ág nincs — a worktree jele és neve | lánc (az ág-ikon helyén) HEAD.
     const orphan = r.kind === 'detached' && (linked || mainLead);
     const title = (orphan ? `${wt.main ? 'main' : wt.name}: leválasztott HEAD (ág nélkül)`
+      : r.kind === 'stash' ? `félretett változások (git stash): ${r.name}`
       : r.kind === 'detached' ? 'leválasztott HEAD (ág nélkül)'
       : (r.kind === 'head' ? 'HEAD → ' : r.kind + ': ') + r.name)
       + (r.remotes.length ? ' = ' + r.remotes.map(o => `${o.name}/${r.name}`).join(', ') : '')
