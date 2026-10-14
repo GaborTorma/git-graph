@@ -16,6 +16,8 @@ DIFF_MAX_LINES = 3000           # egy lockfile ne fagyassza meg a lapot
 FULL_CONTEXT = "-U1000000"      # a teljes fájl egy hunkban (a renderelt Markdown-diffhez)
 PAIR_MAX_CELLS = 10000          # e fölött (pl. 100×100-as blokk) nincs hasonlóság-illesztés
 PAIR_MIN_RATIO = 0.6            # ennél hasonlóbb sorpár számít „ugyanannak a sornak"
+PROSE_SUFFIXES = {".md", ".markdown", ".mdx", ".txt", ".rst", ".adoc"}
+PROSE_MAX_TOKENS = 20000        # e fölött a szöveges blokk is soronként párosodik
 
 
 def mark_words(old: dict, new: dict) -> None:
@@ -38,18 +40,73 @@ def mark_words(old: dict, new: dict) -> None:
             new["hl"].append([pos_b[j1], pos_b[j2]])
 
 
-def pair_lines(dels: list, adds: list) -> list:
+def mark_prose(dels: list, adds: list) -> list | None:
+    """Szöveges fájl cserélt blokkja egyben, szó-szinten: a sortörés is csak szóköz.
+
+    Egy bekezdés újratördelése így nem változás — csak a valóban cserélt szavak
+    kapnak `hl`-t, soronként. A visszaadott mátrix a sorpárok közös
+    (nem szóköz) karaktereinek száma: ebből párosít a `pair_lines`. Túl nagy
+    blokknál `None` (marad a soronkénti összevetés).
+    """
+    def tokens(lines: list) -> tuple:
+        toks, line_of, pos = [], [], []
+        for i, line in enumerate(lines):
+            if i:
+                toks.append("\n")
+                line_of.append(None)
+                pos.append(None)
+            at = 0
+            for t in TOKEN_RE.findall(line["s"]):
+                toks.append(t)
+                line_of.append(i)
+                pos.append(at)
+                at += len(t)
+        return toks, line_of, pos
+
+    a, line_a, pos_a = tokens(dels)
+    b, line_b, pos_b = tokens(adds)
+    if len(a) > PROSE_MAX_TOKENS or len(b) > PROSE_MAX_TOKENS:
+        return None
+    norm = lambda toks: [" " if t.isspace() else t for t in toks]   # noqa: E731
+    for line in dels + adds:
+        line["hl"] = []
+    sim = [[0] * len(adds) for _ in dels]
+
+    def mark(lines: list, line_of: list, pos: list, toks: list, i1: int, i2: int) -> None:
+        for k in range(i1, i2):
+            if line_of[k] is None:
+                continue
+            hl, end = lines[line_of[k]]["hl"], pos[k] + len(toks[k])
+            if hl and hl[-1][1] == pos[k]:
+                hl[-1][1] = end
+            else:
+                hl.append([pos[k], end])
+
+    matcher = difflib.SequenceMatcher(None, norm(a), norm(b), autojunk=False)
+    for op, i1, i2, j1, j2 in matcher.get_opcodes():
+        if op == "equal":
+            for k in range(i2 - i1):
+                if not a[i1 + k].isspace():
+                    sim[line_a[i1 + k]][line_b[j1 + k]] += len(a[i1 + k])
+            continue
+        mark(dels, line_a, pos_a, a, i1, i2)
+        mark(adds, line_b, pos_b, b, j1, j2)
+    return sim
+
+
+def pair_lines(dels: list, adds: list, sim: list | None = None) -> list:
     """Törölt és hozzáadott sorok párosítása: [(törölt index, hozzáadott index), …].
 
     Előbb a hasonló sorok illeszkednek, sorrendtartóan (a hasonlóságok összegét
     maximalizáló DP) — így egy beszúrt sor nem csúsztatja el a többi párt, ha
     a git pl. az átszámozás miatt az egész listát cserének látja. A horgonyok
     közti maradék sorok pozíció szerint párosodnak (módosított sor). Nagy
-    blokknál csak a pozíció szerinti párosítás marad.
+    blokknál csak a pozíció szerinti párosítás marad. A `sim` kész hasonlóság
+    (szöveges fájlnál a `mark_prose` közös karakterei).
     """
     m, n = len(dels), len(adds)
     anchors: list = []
-    if m and n and m * n <= PAIR_MAX_CELLS:
+    if m and n and m * n <= PAIR_MAX_CELLS and sim is None:
         sim = [[0.0] * n for _ in range(m)]
         for d in range(m):
             sm = difflib.SequenceMatcher(None, autojunk=False)
@@ -60,6 +117,7 @@ def pair_lines(dels: list, adds: list) -> list:
                     r = sm.ratio()
                     if r >= PAIR_MIN_RATIO:
                         sim[d][a] = r
+    if m and n and m * n <= PAIR_MAX_CELLS and sim is not None:
         best = [[0.0] * (n + 1) for _ in range(m + 1)]
         for d in range(m - 1, -1, -1):
             for a in range(n - 1, -1, -1):
@@ -83,12 +141,13 @@ def pair_lines(dels: list, adds: list) -> list:
     return pairs
 
 
-def parse_diff(raw: str) -> dict:
+def parse_diff(raw: str, prose: bool = False) -> dict:
     """Egyfájlos unified diff → hunkok soronként, a lap ebből rajzol.
 
     Sor: `t` (` `/`+`/`-`), `n` (a törölt sornál a régi, máskor az új sorszám),
     `s` (szöveg), cserélt sorpárnál `hl` (a változott szakaszok). A hunk `old`
-    kezdete adja a lapon a kihagyott („unmodified") sorok számát.
+    kezdete adja a lapon a kihagyott („unmodified") sorok számát. `prose`:
+    szöveges fájl, a cserélt blokk szavai egyben (`mark_prose`).
     """
     hunks: list[dict] = []
     binary = truncated = False
@@ -133,9 +192,11 @@ def parse_diff(raw: str) -> dict:
             k = j
             while k < len(lines) and lines[k]["t"] == "+":
                 k += 1
-            for d, a in pair_lines(lines[i:j], lines[j:k]):
+            sim = mark_prose(lines[i:j], lines[j:k]) if prose and j < k else None
+            for d, a in pair_lines(lines[i:j], lines[j:k], sim):
                 lines[i + d]["p"] = j + a
-                mark_words(lines[i + d], lines[j + a])
+                if sim is None:
+                    mark_words(lines[i + d], lines[j + a])
             i = k
     return {"hunks": hunks, "binary": binary, "truncated": truncated}
 
@@ -190,5 +251,5 @@ def file_diff(sha: str, path: str, full: bool = False) -> dict:
                           parents[2], "--", new)
     else:
         raise ValueError(f"érvénytelen commit: {sha!r}")
-    return parse_diff(raw)
+    return parse_diff(raw, Path(path).suffix.lower() in PROSE_SUFFIXES)
 

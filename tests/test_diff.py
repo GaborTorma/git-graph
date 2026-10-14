@@ -46,6 +46,21 @@ class DiffTest(HomeTestCase):
         self.assertEqual(gg.diff.pair_lines([{"s": "a"}], [{"s": "zzz"}]), [(0, 0)])   # pozíció szerint
         self.assertEqual(gg.diff.pair_lines([], [{"s": "x"}]), [])
 
+    def test_prose_rewrap(self) -> None:
+        """Szöveges fájlban az újratördelés nem változás: csak az új mondat kiemelt, a sorok pozíció szerint párosak."""
+        gg = self.load()
+        raw = ("@@ -1,2 +1,2 @@\n"
+               "-Tömör válaszok. A felesleges udvariaskodás és záró\n"
+               "-összefoglaló nélkül.\n"
+               "+Egyszerűen fogalmazz. Tömör válaszok.\n"
+               "+A felesleges udvariaskodás és záró összefoglaló nélkül.\n")
+        lines = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
+        hl = [[ln["s"][a:b] for a, b in ln["hl"]] for ln in lines]
+        self.assertEqual(hl, [[], [], ["Egyszerűen fogalmazz. "], []])
+        self.assertEqual([ln.get("p") for ln in lines[:2]], [2, 3])
+        # kódban marad a soronkénti összevetés
+        self.assertNotEqual(gg.diff.parse_diff(raw)["hunks"][0]["lines"][0]["hl"], [])
+
     def test_numstat_paths(self) -> None:
         """Átnevezés-alakok: `a => b` és `x/{a => b}/y`, az üres oldallal is."""
         gg = self.load()
