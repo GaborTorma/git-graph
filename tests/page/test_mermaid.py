@@ -2,11 +2,10 @@
 keretben, a változatlan keret nélkül; hibás diagramnál a kódnézet marad, a hibával."""
 from __future__ import annotations
 
-import subprocess
 import unittest
 from pathlib import Path
 
-from harness import PageTestCase
+from harness import PageTestCase, commit_versions
 
 FENCE = "```"
 OLD = f"""# Ábra
@@ -47,33 +46,15 @@ FIGS = ("fs => fs.map(f => [f.className.replace(/md-mmd-(fig|)/g, '').trim(),"
 
 
 class MermaidTest(PageTestCase):
+    SUBJECT = "ábra"
+
     @classmethod
     def prepare(cls, repo: Path) -> None:
-        def git(*args: str) -> None:
-            subprocess.run(["git", "-c", "user.name=Teszt Elek", "-c", "user.email=teszt@x.hu",
-                            "-C", str(repo), *args], check=True, capture_output=True)
-        (repo / "abra.md").write_text(OLD, encoding="utf-8")
-        (repo / "hibas.md").write_text(OLD_BAD, encoding="utf-8")
-        (repo / "szoveg.md").write_text("Régi szöveg.\n", encoding="utf-8")
-        (repo / "torles.md").write_text(OLD_ONLY, encoding="utf-8")
-        (repo / "sorok.md").write_text(OLD_LINES, encoding="utf-8")
-        (repo / "cel.md").write_text(OLD_TARGET, encoding="utf-8")
-        git("add", ".")
-        git("commit", "-qm", "ábra")
-        (repo / "abra.md").write_text(NEW, encoding="utf-8")
-        (repo / "hibas.md").write_text(NEW_BAD, encoding="utf-8")
-        (repo / "szoveg.md").write_text("Új szöveg.\n", encoding="utf-8")
-        (repo / "torles.md").write_text(NEW_ONLY, encoding="utf-8")
-        (repo / "sorok.md").write_text(NEW_LINES, encoding="utf-8")
-        (repo / "lanc.md").write_text(CHAIN, encoding="utf-8")
-        (repo / "cel.md").write_text(NEW_TARGET, encoding="utf-8")
-        git("add", ".")
-        git("commit", "-qam", "ábra: módosítva")
-
-    def open_file(self, name: str) -> None:
-        self.page.locator("#rows .row", has_text="ábra: módosítva").click()
-        self.settle()
-        self.page.locator("#rows .details .file", has_text=name).click()
+        commit_versions(repo, {
+            "abra.md": (OLD, NEW), "hibas.md": (OLD_BAD, NEW_BAD), "szoveg.md": ("Régi szöveg.\n", "Új szöveg.\n"),
+            "torles.md": (OLD_ONLY, NEW_ONLY), "sorok.md": (OLD_LINES, NEW_LINES), "lanc.md": (None, CHAIN),
+            "cel.md": (OLD_TARGET, NEW_TARGET),
+        }, cls.SUBJECT)
 
     def figs(self, scope: str) -> list:
         self.page.wait_for_selector(f"{scope} .md-mmd-on")

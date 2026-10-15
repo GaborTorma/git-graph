@@ -2,11 +2,11 @@
 sornál egy változat látszik."""
 from __future__ import annotations
 
-import subprocess
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 
-from harness import PageTestCase
+from harness import PageTestCase, commit_versions
 
 OLD = """---
 leiras: régi
@@ -81,53 +81,40 @@ OLD_PY = "x = hivas(a)\ny = 1\nz = masik(a, b, c)\nw = 2\nv = csere(a)\n"
 NEW_PY = "x = hivas(a, b)\ny = 1\nz = masik(a)\nw = 2\nv = mas(a)\n"
 
 
+FILES = {
+    "doksi.md": (OLD, NEW), "kod.py": (OLD_PY, NEW_PY), "rend.md": (OLD_REORDER, NEW_REORDER),
+    "tabla.md": (OLD_TABLE, NEW_TABLE), "kodtord.md": (OLD_CODEWRAP, NEW_CODEWRAP), "rovid.md": (OLD_SHORT, NEW_SHORT),
+    "ujratord.md": (OLD_REWRAP, NEW_REWRAP), "jog.json": (OLD_JSON, NEW_JSON), "tordel.md": (OLD_WRAP, NEW_WRAP),
+    "kihagy.md": (OLD_GAP, NEW_GAP), "utolso.md": (OLD_LAST, NEW_LAST), "bekezdes.md": (OLD_PARA, NEW_PARA),
+}
+
+# JS-részletek a lap elemeinek kiolvasásához: `e` osztálya a `base` nélkül, a kiemelt szövegei
+CLS = "e.className.replace(/{}/g, '').trim()"
+MARKS = "[...e.querySelectorAll('mark')].map(m => m.textContent)"
+LINE = f"e => [{CLS.format('diff-line|mono')}, e.querySelector('.tx').textContent, {MARKS}]"   # nyers sor
+
+
 class MdDiffTest(PageTestCase):
+    SUBJECT = "doksi"
+
     @classmethod
     def prepare(cls, repo: Path) -> None:
-        def git(*args: str) -> None:
-            subprocess.run(["git", "-c", "user.name=Teszt Elek", "-c", "user.email=teszt@x.hu",
-                            "-C", str(repo), *args], check=True, capture_output=True)
-        doc = repo / "doksi.md"
-        code = repo / "kod.py"
-        (repo / "rend.md").write_text(OLD_REORDER, encoding="utf-8")
-        (repo / "tabla.md").write_text(OLD_TABLE, encoding="utf-8")
-        (repo / "kodtord.md").write_text(OLD_CODEWRAP, encoding="utf-8")
-        (repo / "rovid.md").write_text(OLD_SHORT, encoding="utf-8")
-        (repo / "ujratord.md").write_text(OLD_REWRAP, encoding="utf-8")
-        (repo / "jog.json").write_text(OLD_JSON, encoding="utf-8")
-        (repo / "tordel.md").write_text(OLD_WRAP, encoding="utf-8")
-        (repo / "kihagy.md").write_text(OLD_GAP, encoding="utf-8")
-        (repo / "utolso.md").write_text(OLD_LAST, encoding="utf-8")
-        (repo / "bekezdes.md").write_text(OLD_PARA, encoding="utf-8")
-        doc.write_text(OLD, encoding="utf-8")
-        code.write_text(OLD_PY, encoding="utf-8")
-        git("add", ".")
-        git("commit", "-qm", "doksi")
-        doc.write_text(NEW, encoding="utf-8")
-        code.write_text(NEW_PY, encoding="utf-8")
-        (repo / "rend.md").write_text(NEW_REORDER, encoding="utf-8")
-        (repo / "tabla.md").write_text(NEW_TABLE, encoding="utf-8")
-        (repo / "kodtord.md").write_text(NEW_CODEWRAP, encoding="utf-8")
-        (repo / "rovid.md").write_text(NEW_SHORT, encoding="utf-8")
-        (repo / "ujratord.md").write_text(NEW_REWRAP, encoding="utf-8")
-        (repo / "jog.json").write_text(NEW_JSON, encoding="utf-8")
-        (repo / "tordel.md").write_text(NEW_WRAP, encoding="utf-8")
-        (repo / "kihagy.md").write_text(NEW_GAP, encoding="utf-8")
-        (repo / "utolso.md").write_text(NEW_LAST, encoding="utf-8")
-        (repo / "bekezdes.md").write_text(NEW_PARA, encoding="utf-8")
-        git("commit", "-qam", "doksi: módosítva")
+        commit_versions(repo, FILES, cls.SUBJECT)
 
-    def open_file(self, name: str) -> None:
-        self.page.locator("#rows .row", has_text="doksi: módosítva").click()
-        self.settle()
-        self.page.locator("#rows .details .file", has_text=name).click()
+    @contextmanager
+    def raw_view(self):
+        """A markdown nyers diffje; a végén vissza (a lap megjegyzi), hiba esetén is."""
+        self.page.locator("[data-md-mode]").first.click()
+        try:
+            yield
+        finally:
+            self.page.locator("[data-md-mode]").first.click()
 
     def test_one_sided_paragraph(self) -> None:
         self.open_file("doksi.md")
         self.page.wait_for_selector(".md-doc")
         blocks = self.page.locator(".diff-uni .md-blk").evaluate_all(
-            "bs => bs.map(b => [b.className.replace('md-blk', '').trim(), b.textContent,"
-            " [...b.querySelectorAll('mark')].map(m => m.textContent)])")
+            f"bs => bs.map(e => [{CLS.format('md-blk')}, e.textContent, {MARKS}])")
         self.assertEqual(blocks[2:], [            # előtte a címsor és a környezet
             ["add only", "Ide új szavak kerülnek be, a végére is.", [" új", ", a végére is"]],
             ["del only", "Innen szavak tűnnek el, nagyon.", [", nagyon"]],
@@ -139,8 +126,7 @@ class MdDiffTest(PageTestCase):
         ])
         # a front matter (kódblokk): csak a törölt sor, a kiemelt szóval
         lines = self.page.locator(".diff-uni .md-cl").evaluate_all(
-            "ls => ls.map(l => [l.className.replace('md-cl', '').trim(), l.textContent,"
-            " [...l.querySelectorAll('mark')].map(m => m.textContent)])")
+            f"ls => ls.map(e => [{CLS.format('md-cl')}, e.textContent, {MARKS}])")
         self.assertEqual(lines, [["", "leiras: régi", []], ["del only", "eszkozok: egy, ketto, harom", ["ketto, "]]])
         # az `only` sor háttere semleges, a szó kiemelése ugyanaz, mint a vegyes sorban
         bg = self.page.locator(".diff-uni .md-blk.del.only").first.evaluate(
@@ -155,8 +141,8 @@ class MdDiffTest(PageTestCase):
         self.open_file("doksi.md")
         self.page.wait_for_selector(".diff-split .md-row")
         rows = self.page.locator(".diff-split .md-row:has(.md-blk)").evaluate_all(
-            "rs => rs.map(r => [...r.children].map(c => { const b = c.querySelector('.md-blk');"
-            " return b ? b.className.replace(/md-blk/, '').trim() : '-'; }))")
+            f"rs => rs.map(r => [...r.children].map(c => {{ const e = c.querySelector('.md-blk');"
+            f" return e ? {CLS.format('md-blk')} : '-'; }}))")
         # a nézetváltó gomb (úszik) mellett sem szűkül az első sor: a két oszlop határa egy vonalban
         widths = self.page.locator(".diff-split .md-row").evaluate_all(
             "rs => [...new Set(rs.map(r => Math.round(r.getBoundingClientRect().width)))]")
@@ -192,14 +178,13 @@ class MdDiffTest(PageTestCase):
         self.page.wait_for_selector(".diff-split .md-row table")
         sides = self.page.locator(".diff-split .md-row").first.evaluate(
             "r => [...r.children].map(c => [...c.querySelectorAll('tr')].map(t => t.cells[0].textContent.trim()))")
-        # a párban álló sorok egyforma magasak (a jobb oldali új sor helyőrzője is)
-        heights = self.page.locator(".diff-split .md-row").first.evaluate(
+        heights = lambda: self.page.locator(".diff-split .md-row").first.evaluate(   # noqa: E731
             "r => [...r.children].map(c => [...c.querySelectorAll('tr')].map(t => t.getBoundingClientRect().height))")
-        self.assertEqual(heights[0], heights[1])
-        self.resize(1100)                          # keskenyebben más a tördelés: újra egyforma
-        heights = self.page.locator(".diff-split .md-row").first.evaluate(
-            "r => [...r.children].map(c => [...c.querySelectorAll('tr')].map(t => t.getBoundingClientRect().height))")
-        self.assertEqual(heights[0], heights[1])
+        a, b = heights()           # a párban álló sorok egyforma magasak (a jobb oldali új sor helyőrzője is)
+        self.assertEqual(a, b)
+        self.resize(1100)          # keskenyebben más a tördelés: újra egyforma
+        a, b = heights()
+        self.assertEqual(a, b)
         self.assertEqual(sides, [
             ["Név", "···", "s1", "s2", "s3", "s4", "···", "s7", "", "s8", "···"],
             ["Név", "···", "s1", "s2", "s3", "s4", "···", "s7", "új", "s8", "···"],
@@ -225,7 +210,7 @@ class MdDiffTest(PageTestCase):
         self.resize(1400)
         self.open_file("bekezdes.md")
         self.page.wait_for_selector(".diff-split .md-row")
-        blk = "b => b ? [b.className.replace('md-blk', '').trim(), b.textContent, [...b.querySelectorAll('mark')].map(m => m.textContent)] : null"
+        blk = f"e => e ? [{CLS.format('md-blk')}, e.textContent, {MARKS}] : null"
         rows = self.page.locator(".diff-split .md-row").evaluate_all(
             f"rs => rs.map(r => [...r.children].map(c => ({blk})(c.querySelector('.md-blk:not(.md-none)'))))")
         self.assertEqual(rows, [
@@ -241,13 +226,12 @@ class MdDiffTest(PageTestCase):
         """Nyers side-by-side: a két pár közti pár nélküli törölt és új sor egy sorban."""
         self.resize(1400)
         self.open_file("rend.md")
-        self.page.locator("[data-md-mode]").first.click()          # nyers diff
-        self.page.wait_for_selector(".diff-split .split-row")
-        rows = self.page.locator(".diff-split .split-row").evaluate_all(
-            "rs => rs.map(r => [...r.querySelectorAll('.half')].map(h => h.querySelector('.tx')?.textContent ?? null))")
+        with self.raw_view():
+            self.page.wait_for_selector(".diff-split .split-row")
+            rows = self.page.locator(".diff-split .split-row").evaluate_all(
+                "rs => rs.map(r => [...r.querySelectorAll('.half')].map(h => h.querySelector('.tx')?.textContent ?? null))")
         self.assertIn(["Régi egy szöveg.", "Új első tartalom."], rows)
         self.assertIn(["Régi kettő szöveg.", "Új második tartalom."], rows)
-        self.page.locator("[data-md-mode]").first.click()          # vissza (a lap megjegyzi)
 
     def test_md_table_last_row(self) -> None:
         """A táblázat utolsó sorának új változata a régi mellé kerül, akkor is, ha utána egy bekezdés kimaradt."""
@@ -256,8 +240,8 @@ class MdDiffTest(PageTestCase):
         self.page.wait_for_selector(".diff-split .md-row")
         rows = self.page.locator(".diff-split .md-row").evaluate_all(
             "rs => rs.map(r => [...r.children].map(c => [...c.querySelectorAll('tr, .md-blk')]"
-            ".map(e => e.tagName === 'TR' ? [e.cells[0].tagName, e.cells[0].textContent.trim(), e.className]"
-            " : ['P', e.textContent.trim(), e.className.replace('md-blk', '').trim()])))")
+            f".map(e => e.tagName === 'TR' ? [e.cells[0].tagName, e.cells[0].textContent.trim(), e.className]"
+            f" : ['P', e.textContent.trim(), {CLS.format('md-blk')}])))")
         self.assertEqual(rows, [
             [[["TH", "Lépés", ""], ["TD", "1.", "del"], ["TD", "2.", "del only"]],
              [["TH", "Lépés", ""], ["TD", "1.", "add"], ["TD", "2.", ""]]],
@@ -280,13 +264,11 @@ class MdDiffTest(PageTestCase):
         egészében új sor teljes zöld (nem semleges)."""
         self.resize(1400)
         self.open_file("tordel.md")
-        self.page.locator("[data-md-mode]").first.click()          # nyers diff
-        self.page.wait_for_selector(".diff-split .split-row")
-        rows = self.page.locator(".diff-split .split-row").evaluate_all(
-            "rs => rs.map(r => [...r.querySelectorAll('.half')].map(h => h.querySelector('.tx')"
-            " ? [h.className.replace('half', '').trim(), h.querySelector('.tx').textContent,"
-            " [...h.querySelectorAll('mark')].map(m => m.textContent).join('|')] : null))")
-        self.page.locator("[data-md-mode]").first.click()          # vissza (a lap megjegyzi)
+        with self.raw_view():
+            self.page.wait_for_selector(".diff-split .split-row")
+            rows = self.page.locator(".diff-split .split-row").evaluate_all(
+                "rs => rs.map(r => [...r.querySelectorAll('.half')].map(e => e.querySelector('.tx')"
+                f" ? [{CLS.format('half')}, e.querySelector('.tx').textContent, {MARKS}.join('|')] : null))")
         texts = [[c and c[1] for c in r] for r in rows]
         at = texts.index(["- **Egy**: első pont.", "- **Egy**: első pont."])
         self.assertEqual(texts[at + 1][0], "- **Kivétel**: doksi, config, egyeztetés alatt álló finomítás. Ha")
@@ -299,42 +281,38 @@ class MdDiffTest(PageTestCase):
         self.open_file("jog.json")
         self.page.wait_for_selector(".diff .diff-line")
         lines = self.page.locator(".diff .diff-line").evaluate_all(
-            "ls => ls.filter(l => /add|del/.test(l.className)).map(l => [l.className.replace(/diff-line|mono/g, '').trim(),"
-            " l.querySelector('.tx').textContent.trim(), [...l.querySelectorAll('mark')].map(m => m.textContent)])")
+            f"ls => ls.filter(e => /add|del/.test(e.className)).map({LINE})")
         self.assertEqual(lines, [
-            ["add only", '"Bash(git reset --hard*)",', [","]],
-            ["add", '"Bash(git mv *)",', []],
-            ["add", '"Bash(git rm *)"', []],
+            ["add only", '  "Bash(git reset --hard*)",', [","]],
+            ["add", '  "Bash(git mv *)",', []],
+            ["add", '  "Bash(git rm *)"', []],
         ])
 
     def test_raw_rewrap_unchanged(self) -> None:
         """Tiszta újratördelés a nyers diffben: változatlan sorként, jel és szín nélkül, mindkét nézetben."""
         self.resize(1400)
         self.open_file("ujratord.md")
-        self.page.locator("[data-md-mode]").first.click()          # nyers diff
-        self.page.wait_for_selector(".diff-split .split-row")
-        half = ("h => h.querySelector('.tx') ? [h.className.replace('half', '').trim(), h.querySelector('.sg').textContent,"
-                " h.querySelector('.tx').textContent] : null")
-        rows = self.page.locator(".diff-split .split-row").evaluate_all(
-            f"rs => rs.map(r => [...r.querySelectorAll('.half')].map({half}))")
+        with self.raw_view():
+            self.page.wait_for_selector(".diff-split .split-row")
+            half = (f"e => e.querySelector('.tx') ? [{CLS.format('half')}, e.querySelector('.sg').textContent,"
+                    " e.querySelector('.tx').textContent] : null")
+            rows = self.page.locator(".diff-split .split-row").evaluate_all(
+                f"rs => rs.map(r => [...r.querySelectorAll('.half')].map({half}))")
+            uni = self.page.locator(".diff-uni .diff-line").evaluate_all(f"ls => ls.map({LINE})")
         self.assertEqual(rows[:2], [
             [["", "", "Első bekezdés sora"], ["", "", "Első bekezdés sora folytatás itt."]],
             [["", "", "folytatás itt."], None],
         ])
-        uni = self.page.locator(".diff-uni .diff-line").evaluate_all(
-            "ls => ls.map(l => [l.className.replace(/diff-line|mono/g, '').trim(), l.querySelector('.tx').textContent])")
-        self.page.locator("[data-md-mode]").first.click()          # vissza (a lap megjegyzi)
-        self.assertEqual(uni[0], ["", "Első bekezdés sora folytatás itt."])
+        self.assertEqual(uni[0], ["", "Első bekezdés sora folytatás itt.", []])
 
     def test_raw_deletion_rewrapped_line(self) -> None:
         """Csak törlésnél a régi oldal szó nélkül változott (átkerült) sora változatlanként, jel nélkül."""
         self.open_file("rovid.md")
-        self.page.locator("[data-md-mode]").first.click()          # nyers diff
-        self.page.wait_for_selector(".diff .diff-line")
-        lines = self.page.locator(".diff .diff-line").evaluate_all(
-            "ls => ls.map(l => [l.className.replace(/diff-line|mono/g, '').trim(), l.querySelector('.sg').textContent,"
-            " l.querySelector('.tx').textContent.trim()])")
-        self.page.locator("[data-md-mode]").first.click()          # vissza (a lap megjegyzi)
+        with self.raw_view():
+            self.page.wait_for_selector(".diff .diff-line")
+            lines = self.page.locator(".diff .diff-line").evaluate_all(
+                f"ls => ls.map(e => [{CLS.format('diff-line|mono')}, e.querySelector('.sg').textContent,"
+                " e.querySelector('.tx').textContent.trim()])")
         self.assertEqual(lines[1:], [
             ["del only", "−", "command), és bármi egy plugin repóban."],
             ["", "", "Ezt a Fejlesztő átolvassa."],
@@ -352,9 +330,7 @@ class MdDiffTest(PageTestCase):
     def test_one_sided_code_line(self) -> None:
         self.open_file("kod.py")
         self.page.wait_for_selector(".diff-uni .diff-line")
-        lines = self.page.locator(".diff-uni .diff-line").evaluate_all(
-            "ls => ls.map(l => [l.className.replace(/diff-line|mono/g, '').trim(), l.querySelector('.tx').textContent,"
-            " [...l.querySelectorAll('mark')].map(m => m.textContent)])")
+        lines = self.page.locator(".diff-uni .diff-line").evaluate_all(f"ls => ls.map({LINE})")
         self.assertEqual(lines, [
             ["add only", "x = hivas(a, b)", [", b"]],
             ["", "y = 1", []],
@@ -370,8 +346,8 @@ class MdDiffTest(PageTestCase):
         self.open_file("kod.py")
         self.page.wait_for_selector(".diff-split .split-row")
         rows = self.page.locator(".diff-split .split-row").evaluate_all(
-            "rs => rs.map(r => [...r.querySelectorAll('.half')].map(h => h.className.replace('half', '').trim()"
-            " + ':' + h.querySelector('.sg').textContent))")
+            f"rs => rs.map(r => [...r.querySelectorAll('.half')].map(e => {CLS.format('half')}"
+            " + ':' + e.querySelector('.sg').textContent))")
         self.assertEqual(rows, [
             [":", "add only:+"],
             [":", ":"],
