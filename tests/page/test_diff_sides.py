@@ -67,6 +67,8 @@ OLD_JSON = '[\n  "Bash(git reset --hard*)"\n]\n'
 NEW_JSON = '[\n  "Bash(git reset --hard*)",\n  "Bash(git mv *)",\n  "Bash(git rm *)"\n]\n'
 OLD_REWRAP = "Első bekezdés sora\nfolytatás itt.\n\nKöztes.\n\nRégi zárás.\n"
 NEW_REWRAP = "Első bekezdés sora folytatás itt.\n\nKöztes.\n\nÚj zárás.\n"
+OLD_SHORT = "- **Kivétel**: rule vagy skill szövege (`RULE.md`,\n  command), és bármi egy plugin repóban.\n  Ezt a Fejlesztő átolvassa.\n"
+NEW_SHORT = "- **Kivétel**: rule vagy skill szövege (`RULE.md`,\n  command). Ezt a Fejlesztő átolvassa.\n"
 TABLE_ROWS = [f"| s{i} | sor {i} szövege |" for i in range(10)]
 OLD_TABLE = "| Név | Mi |\n| --- | --- |\n" + "\n".join(TABLE_ROWS) + "\n"
 NEW_TABLE = ("| Név | Mi |\n| --- | --- |\n"
@@ -85,6 +87,7 @@ class MdDiffTest(PageTestCase):
         code = repo / "kod.py"
         (repo / "rend.md").write_text(OLD_REORDER, encoding="utf-8")
         (repo / "tabla.md").write_text(OLD_TABLE, encoding="utf-8")
+        (repo / "rovid.md").write_text(OLD_SHORT, encoding="utf-8")
         (repo / "ujratord.md").write_text(OLD_REWRAP, encoding="utf-8")
         (repo / "jog.json").write_text(OLD_JSON, encoding="utf-8")
         (repo / "tordel.md").write_text(OLD_WRAP, encoding="utf-8")
@@ -99,6 +102,7 @@ class MdDiffTest(PageTestCase):
         code.write_text(NEW_PY, encoding="utf-8")
         (repo / "rend.md").write_text(NEW_REORDER, encoding="utf-8")
         (repo / "tabla.md").write_text(NEW_TABLE, encoding="utf-8")
+        (repo / "rovid.md").write_text(NEW_SHORT, encoding="utf-8")
         (repo / "ujratord.md").write_text(NEW_REWRAP, encoding="utf-8")
         (repo / "jog.json").write_text(NEW_JSON, encoding="utf-8")
         (repo / "tordel.md").write_text(NEW_WRAP, encoding="utf-8")
@@ -315,6 +319,20 @@ class MdDiffTest(PageTestCase):
             "ls => ls.map(l => [l.className.replace(/diff-line|mono/g, '').trim(), l.querySelector('.tx').textContent])")
         self.page.locator("[data-md-mode]").first.click()          # vissza (a lap megjegyzi)
         self.assertEqual(uni[0], ["", "Első bekezdés sora folytatás itt."])
+
+    def test_raw_deletion_rewrapped_line(self) -> None:
+        """Csak törlésnél a régi oldal szó nélkül változott (átkerült) sora változatlanként, jel nélkül."""
+        self.open_file("rovid.md")
+        self.page.locator("[data-md-mode]").first.click()          # nyers diff
+        self.page.wait_for_selector(".diff .diff-line")
+        lines = self.page.locator(".diff .diff-line").evaluate_all(
+            "ls => ls.map(l => [l.className.replace(/diff-line|mono/g, '').trim(), l.querySelector('.sg').textContent,"
+            " l.querySelector('.tx').textContent.trim()])")
+        self.page.locator("[data-md-mode]").first.click()          # vissza (a lap megjegyzi)
+        self.assertEqual(lines[1:], [
+            ["del only", "−", "command), és bármi egy plugin repóban."],
+            ["", "", "Ezt a Fejlesztő átolvassa."],
+        ])
 
     def test_one_sided_code_line(self) -> None:
         self.open_file("kod.py")

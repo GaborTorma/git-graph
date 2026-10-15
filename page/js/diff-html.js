@@ -60,8 +60,12 @@ export function styles(lines, partner) {
       continue;
     }
     const drop = untouched(run, '-') ? '-' : untouched(run, '+') ? '+' : null;
-    // az egészében új / törölt sor (nincs szó-kiemelése) teljes színű marad
-    if (drop) { for (const l of run) if (l.t === drop || l.hl) st.set(l, l.t === drop ? 'drop' : 'only'); continue; }
+    // a megmaradó oldalon: a szavanként változott sor `only`, a szó nélkül változott
+    // (újratördelt) `same`, az egészében új / törölt (nincs `hl`-je) teljes színű
+    if (drop) {
+      for (const l of run) if (l.t === drop || l.hl) st.set(l, l.t === drop ? 'drop' : l.hl.length ? 'only' : 'same');
+      continue;
+    }
     const inRun = new Set(run);
     for (const d of run) {
       const a = d.t === '-' ? partner(d) : null;
