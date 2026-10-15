@@ -64,11 +64,11 @@ def head_lines(root: Path, head: str, path: str) -> list[str] | None:
         return None
 
 
-def line_churn(old: list[str], new: list[str]) -> tuple[int, int, float]:
+def line_churn(old: list[str], new: list[str], sm: difflib.SequenceMatcher | None = None) -> tuple[int, int, float]:
     """Két sorlista különbsége: (+, −, hasonlóság). A hasonlóság a közös sorok aránya
     a hosszabbikhoz (mint a git `-M`-é, csak sorokban, nem bájtokban); üres fájl
-    sosem hasonló — a git sem párosítja."""
-    sm = difflib.SequenceMatcher(None, old, new, autojunk=False)
+    sosem hasonló — a git sem párosítja. `sm`: a két listára már felépített matcher."""
+    sm = sm or difflib.SequenceMatcher(None, old, new, autojunk=False)
     add = rem = 0
     for op, i1, i2, j1, j2 in sm.get_opcodes():
         if op != "equal":
@@ -120,7 +120,7 @@ def pair_renames(root: Path, head: str, deleted: list[str], untracked: list[str]
             sm = difflib.SequenceMatcher(None, a, b, autojunk=False)
             if sm.real_quick_ratio() < RENAME_MIN or sm.quick_ratio() < RENAME_MIN:
                 continue                     # a 2M/(a+b) felső korlát, ≥ a mérték
-            add, rem, score = line_churn(a, b)
+            add, rem, score = line_churn(a, b, sm)
             if score >= RENAME_MIN:
                 scored.append((-score, o.rsplit("/", 1)[-1] != n.rsplit("/", 1)[-1], o, n, add, rem))
     pairs, used = [], set()
