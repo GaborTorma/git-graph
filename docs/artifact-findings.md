@@ -344,6 +344,27 @@ Eldobható mérőlap, a build szövegével beágyazva; az eredményt a lap a saj
   ismételt hívás 271 ms (az első 7 s-ában az engedélykérés is benne van), utána
   blobból renderel. Az app naplója `outcome: 'ok'`-t írt.
 
+## A host-híd válaszmérete (mérve, 2026-10-15, contract 0.2.80)
+
+Kérdés: mekkora `page_code` választ visz át a `host:git-graph` híd — elfér-e a
+Mermaid ELK-elrendezéssel? Eldobható mérőlap (`mcp` + `db`), az appban megnyitva,
+a `page_code` ideiglenes `part`-jaival:
+
+| Válasz | Eredmény |
+| --- | --- |
+| 3 382 711 karakter (11.17.2 karcsú + ELK) | **megy**, 275 ms |
+| 3 572 520 karakter (11.17.2 hivatalos build) | **megy** |
+| 3 665 728 karakter (12.2.0 karcsú, ELK-kal) | **megy**, 290 ms; futtatás 62 ms, ELK + `neo` rajz 110 ms |
+| 5 082 864 karakter (@mermaid-js/layout-elk egyfájlos buildje) | `tool_error` — „The tool result is too large.” |
+
+- **A határ 3,67 és 5,08 MB között van**; pontosabban nem mértük. A 12.x hivatalos
+  buildje (5,5 MB) ezért nem mehet, a lapra a karcsú build kerül (`scripts/mermaid.sh`).
+- **Rejtett keretben a híd nem válaszol**: `server_unavailable` — „host:git-graph is
+  not available while this artifact is hidden”. A mérőlapnak a megjelenésig várnia kell.
+- A @mermaid-js/layout-elk (0.2.x, 11-hez) a Mermaid rajzolójának saját másolatát
+  hozza (~3,5 MB); a 12-ben az ELK beépített, ez a duplikáció nincs.
+- CSP-sértés egyik esetben sem volt.
+
 ## Közös Artifact a worktree-knek (mérve, 2026-10-04, Claude Code 2.1.286, contract 0.2.67)
 
 Kérdés: kiváltható-e a worktree-nkénti Artifact egy repónként közös lappal,

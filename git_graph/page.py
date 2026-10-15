@@ -25,8 +25,9 @@ PAGE_DIR = ROOT / "page"
 PAGE_FILES = ("loader.html", "head.html", "page.css", "body.html", "file-icons.json",
               "vendor/mermaid.min.js")
 PAGE_ENTRY = "js/main.js"   # a lap belépő modulja; a többit ez húzza be
-# A Mermaid (11.17.2, MIT, `vendor/mermaid.LICENSE`) egyfájlos buildje: a lap lustán,
-# csak diagramos markdown-diffnél kéri (`page_code` `part: "mermaid"`), blobból futtatja.
+# A Mermaid (12.2.0, MIT, `vendor/mermaid.LICENSE`) karcsú egyfájlos buildje
+# (`scripts/mermaid.sh`, ELK-kal): a lap lustán, csak diagramos markdown-diffnél kéri
+# (`page_code` `part: "mermaid"`), blobból futtatja.
 PAGE_PARTS = {"mermaid": "vendor/mermaid.min.js"}
 _PAGE: dict[str, str] = {}
 

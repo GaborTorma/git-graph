@@ -56,7 +56,7 @@ class PageTest(HomeTestCase):
         self.assertEqual(set(code), {"head", "body", "js"})
         mermaid = gg.page.page_code("mermaid")             # lustán kért darab: csak a JS-e
         self.assertEqual(set(mermaid), {"js"})
-        self.assertIn('globalThis["mermaid"]', mermaid["js"])
+        self.assertIn("globalThis.mermaid=", mermaid["js"])
         with self.assertRaises(ValueError):
             gg.page.page_code("nincs")
 

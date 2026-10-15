@@ -1,10 +1,11 @@
 /* ── Mermaid-diagramok a markdown-diffben ──
    A `md-diff.js` a ```mermaid blokkot kódnézetként rajzolja, a kirajzolandó
-   változatokkal (`.md-mmd[data-mmd]`); ez cseréli diagramra. A Mermaidot (3,6 MB,
-   `page/vendor/`) csak az első diagramnál kéri a gépen futó git-graph-tól
-   (`page_code` `part: 'mermaid'`), és blobból futtatja (az Artifact CSP-je
-   engedi — mérve, docs/artifact-findings.md). A változott diagram
-   változataiban a változott elemek színesek (`markChanges`), a változott
+   változatokkal (`.md-mmd[data-mmd]`); ez cseréli diagramra. A Mermaidot (karcsú
+   build, 3,7 MB, `page/vendor/`) csak az első diagramnál kéri a gépen futó
+   git-graph-tól (`page_code` `part: 'mermaid'`), és blobból futtatja (az Artifact
+   CSP-je engedi — mérve, docs/artifact-findings.md). A rajz a lap palettáján
+   (`base` téma), `neo` stílusban, a Mermaid 12 alapértelmezett ELK-elrendezésével.
+   A változott diagram változataiban a változott elemek színesek (`markChanges`), a változott
    szöveg kiemelve (`markText`); a diagramok egymás mellett, ha elférnek. A diagram a lap témáját követi: váltáskor
    újrarajzol. Ha a Mermaid nem tölthető be, vagy a diagram hibás, a kódnézet
    marad, alatta a hibával. */
@@ -34,6 +35,28 @@ const root = document.documentElement;
 const darkMedia = matchMedia('(prefers-color-scheme: dark)');
 const dark = () => (root.getAttribute('data-theme') || (darkMedia.matches ? 'dark' : 'light')) === 'dark';
 
+/* A Mermaid `base` témája a lap palettáján (page.css): a csomópont a háttérnél
+   világosabb (sötétben sötétebb), a keret és a vonal halk. A `base` téma a
+   színekből számol, ezért itt tömör hex áll, nem a lap áttetsző `--border`-e. */
+const PALETTE = {
+  light: { background: '#faf9f5', mainBkg: '#ffffff', primaryColor: '#ffffff', primaryTextColor: '#141413',
+           primaryBorderColor: '#c9c6ba', secondaryColor: '#f5f4ed', tertiaryColor: '#efede4',
+           lineColor: '#9c9a92', textColor: '#3d3d3a', clusterBkg: '#f5f4ed', clusterBorder: '#dedbd0',
+           edgeLabelBackground: '#faf9f5', nodeTextColor: '#141413',
+           actorBkg: '#ffffff', actorBorder: '#c9c6ba', actorTextColor: '#141413', signalColor: '#6b6a64',
+           signalTextColor: '#3d3d3a', labelBoxBkgColor: '#f5f4ed', labelBoxBorderColor: '#dedbd0',
+           loopTextColor: '#6b6a64', activationBkgColor: '#efede4', noteBkgColor: '#f5f4ed' },
+  dark: { darkMode: true, background: '#1f1e1d', mainBkg: '#2d2c2a', primaryColor: '#2d2c2a', primaryTextColor: '#faf9f5',
+          primaryBorderColor: '#57554f', secondaryColor: '#383734', tertiaryColor: '#262624',
+          lineColor: '#7f7d76', textColor: '#e3e1d8', clusterBkg: '#262624', clusterBorder: '#3f3e3a',
+          edgeLabelBackground: '#1f1e1d', nodeTextColor: '#faf9f5',
+          actorBkg: '#2d2c2a', actorBorder: '#57554f', actorTextColor: '#faf9f5', signalColor: '#a8a69d',
+          signalTextColor: '#e3e1d8', labelBoxBkgColor: '#262624', labelBoxBorderColor: '#3f3e3a',
+          loopTextColor: '#a8a69d', activationBkgColor: '#383734', noteBkgColor: '#383734' },
+};
+const themeVariables = () => ({ ...PALETTE[dark() ? 'dark' : 'light'],
+                                fontFamily: getComputedStyle(root).getPropertyValue('--font-ui').trim() });
+
 function fail(box, e) {
   box.classList.remove('md-mmd-on');
   box.querySelector('.md-mmd-view').innerHTML = `<p class="md-mmd-err">A diagram nem rajzolható ki: ${
@@ -42,7 +65,7 @@ function fail(box, e) {
 
 async function draw(boxes, mermaid) {
   mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', suppressErrorRendering: true,
-                       theme: dark() ? 'dark' : 'default' });
+                       theme: 'base', themeVariables: themeVariables(), look: 'neo' });
   for (const box of boxes) {
     if (!box.isConnected) continue;
     try {

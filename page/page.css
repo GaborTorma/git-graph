@@ -790,7 +790,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .md-mmd-half:first-child:not(:only-child) { justify-content: flex-end; }
 .md-mmd-fig {
   box-sizing: border-box; max-width: 100%; padding: 8px;
-  border: 1px solid var(--border-soft); border-radius: 6px;
+  border: 1px solid var(--border-soft); border-radius: 6px; background: var(--bg-1);
   overflow-x: auto;
 }
 /* a bal csík csak az egészében új / törölt diagramé; nem `.add` / `.del`: azokat a

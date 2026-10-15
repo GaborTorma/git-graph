@@ -238,11 +238,18 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   írhatja felül a `body`-t: a platform a `<title>`-t is oda teszi.
 - **A Mermaid lustán jön** (`page_code` `part: "mermaid"`, `PAGE_PARTS`): a
   markdown-diff ```mermaid blokkjához, csak ha a diffben diagram van (`mermaid.js`).
-  A lap első külső JS-függősége: vendorolt egyfájlos build (`page/vendor/`, 11.17.2,
-  MIT, a licenc mellette), verzióra rögzítve; blobból fut (mérve,
+  A lap első külső JS-függősége: vendorolt egyfájlos build (`page/vendor/`, 12.2.0,
+  a licencek mellette), verzióra rögzítve; blobból fut (mérve,
   docs/artifact-findings.md). Nem modul, ezért nem a `page_modules` köti be, és a
-  Biome sem nézi. Frissítés: a `dist/mermaid.min.js` és a `LICENSE` cseréje, a
-  verzió a `page.py` kommentjében.
+  Biome sem nézi. **Karcsú build** (`scripts/mermaid.sh`, esbuild): a hivatalos
+  `dist/mermaid.min.js` (5,5 MB) nem fér át a host-hídon (a határ 3,67 és 5,08 MB
+  között), ezért a `cytoscape` (mindmap, architecture), a `katex` (képlet) és a
+  `@mermaid-js/parser` (pie, gitGraph, packet, radar, treemap) helyén csonk áll —
+  ezeknél a kódnézet marad, alatta a hibával. Az ELK (a 12-ben beépített,
+  alapértelmezett elrendezés) benne van: 3,7 MB-ból 1,44 MB az `elkjs`. A rajz a
+  `base` témán, a lap palettáján (`PALETTE` a `mermaid.js`-ben), `neo` stílusban.
+  Frissítés: a szkriptben a verzió, futtatás, a verzió a `page.py` kommentjében is;
+  a buildnek a mért határ alatt kell maradnia.
 - **Host-híd (`host:git-graph`)** — mérve, docs/artifact-findings.md:
   - Csak a Claude app configjában (`claude_desktop_config.json`) felvett szerver
     érhető el; a `claude mcp add`-os nem. Az app csak induláskor olvassa, és

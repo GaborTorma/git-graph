@@ -155,6 +155,8 @@ class MermaidTest(PageTestCase):
         self.assertFalse(self.page.evaluate("'mermaid' in globalThis"))
         self.page.locator("#rows .details .file", has_text="abra.md").click()
         self.figs(".diff-uni")
+        # a rajz `neo` stílusú, a lap palettáján (`base` téma)
+        self.assertIn("neo", self.page.evaluate("document.querySelector('.diff-uni .md-mmd-fig svg').outerHTML"))
         # a diagram stílusa a saját azonosítója nélkül (az minden rajzolásnál új)
         style = ("() => document.querySelector('.diff-uni .md-mmd-fig svg style').textContent"
                  ".replace(/#gg-mmd-\\d+/g, '')")
