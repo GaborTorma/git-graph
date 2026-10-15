@@ -41,7 +41,7 @@ export const untouched = (ls, t) => ls.every(l => l.t !== t || (l.hl && !l.hl.le
 
 /* Melyik változott sor érintetlen (`drop`: a szavai mind megvannak a másik
    oldalon) és melyik a párja (`only`: a háttere semleges, csak a változott
-   szavai színesek, `kindOf`). Egy futamban (törölt + hozzáadott sorok): ha az
+   szavai színesek, `kindOf`; `same`: ő sem változott, tiszta újratördelés). Egy futamban (törölt + hozzáadott sorok): ha az
    egyik oldala egészében érintetlen (csak beszúrás / csak törlés), az az oldal;
    különben páronként (`partner`: a törölt sor párja), pl. egy táblázat egyetlen
    sorában csak törlés, a többiben csere. */
@@ -53,6 +53,12 @@ export function styles(lines, partner) {
     const run = lines.slice(i, j);
     i = j;
     if (!run.some(l => l.t === '+') || !run.some(l => l.t === '-')) continue;
+    // tiszta újratördelés (egyik oldalon sem változott szó): a régi sorok kimaradnak,
+    // az újak változatlanként (`same`) látszanak
+    if (untouched(run, '-') && untouched(run, '+')) {
+      for (const l of run) st.set(l, l.t === '-' ? 'drop' : 'same');
+      continue;
+    }
     const drop = untouched(run, '-') ? '-' : untouched(run, '+') ? '+' : null;
     // az egészében új / törölt sor (nincs szó-kiemelése) teljes színű marad
     if (drop) { for (const l of run) if (l.t === drop || l.hl) st.set(l, l.t === drop ? 'drop' : 'only'); continue; }
@@ -61,20 +67,24 @@ export function styles(lines, partner) {
       const a = d.t === '-' ? partner(d) : null;
       if (!a || !inRun.has(a)) continue;
       const [x, y] = untouched([d], '-') ? [d, a] : untouched([a], '+') ? [a, d] : [];
-      if (x) { st.set(x, 'drop'); st.set(y, 'only'); }
+      if (x) { st.set(x, 'drop'); st.set(y, untouched([y], y.t) ? 'same' : 'only'); }
     }
   }
   return st;
 }
 /** @type {(l: any) => any} */
 const noPartner = () => null;
+// a sor a `styles` szerint: az érintetlen (`drop`) és a változatlan (`same`) jel
+// nélkül, az `only` semleges háttérrel
+const look = (st, l) => (st.get(l) === 'drop' || st.get(l) === 'same' ? { ...l, t: ' ' }
+  : st.get(l) === 'only' ? { ...l, only: true } : l);
 
 
 /* Az egymás alatti nézet sorai: az érintetlen oldal kimarad (`styles`) — a
    másik oldal a kiemelt szavaival mindent elmond. */
 export function oneSide(lines, partner = noPartner) {
   const st = styles(lines, partner);
-  return lines.filter(l => st.get(l) !== 'drop').map(l => (st.get(l) === 'only' ? { ...l, only: true } : l));
+  return lines.filter(l => st.get(l) !== 'drop').map(l => look(st, l));
 }
 
 const diffCell = (l, no, lang) => `<span class="no">${no ?? ''}</span>`
@@ -91,13 +101,13 @@ const diffCell = (l, no, lang) => `<span class="no">${no ?? ''}</span>`
 export function alignRows(L, partner) {
   const at = new Map(L.map((l, i) => [l, i]));
   const st = styles(L, partner);
-  const look = l => (!l ? l : st.get(l) === 'drop' ? { ...l, t: ' ' } : st.get(l) === 'only' ? { ...l, only: true } : l);
+  const see = l => (l ? look(st, l) : l);
   const rows = [];
   for (let i = 0; i < L.length;) {
     if (L[i].t === ' ') { rows.push({ a: L[i], b: L[i], ctx: true }); i++; continue; }
     let j = i; while (j < L.length && L[j].t === '-') j++;
     let k = j; while (k < L.length && L[k].t === '+') k++;
-    const row = (d, n) => rows.push({ a: look(d), b: look(n) });
+    const row = (d, n) => rows.push({ a: see(d), b: see(n) });
     // egészében egyoldalú futam (csak beszúrás / csak törlés): az érintetlen oldal
     // változatlanként látszik, a párok nem számítanak — a két oldal felülről
     // egymás mellett, lyuk nélkül

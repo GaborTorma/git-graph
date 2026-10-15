@@ -65,6 +65,8 @@ NEW_WRAP = ("- **Egy**: első pont.\n- **Kivétel**: doksi, config, az AI-nak sz
             "része lesz, különben nem fut.\n\nKöztes bekezdés.\n\nÚj zárás.\n")
 OLD_JSON = '[\n  "Bash(git reset --hard*)"\n]\n'
 NEW_JSON = '[\n  "Bash(git reset --hard*)",\n  "Bash(git mv *)",\n  "Bash(git rm *)"\n]\n'
+OLD_REWRAP = "Első bekezdés sora\nfolytatás itt.\n\nKöztes.\n\nRégi zárás.\n"
+NEW_REWRAP = "Első bekezdés sora folytatás itt.\n\nKöztes.\n\nÚj zárás.\n"
 TABLE_ROWS = [f"| s{i} | sor {i} szövege |" for i in range(10)]
 OLD_TABLE = "| Név | Mi |\n| --- | --- |\n" + "\n".join(TABLE_ROWS) + "\n"
 NEW_TABLE = ("| Név | Mi |\n| --- | --- |\n"
@@ -83,6 +85,7 @@ class MdDiffTest(PageTestCase):
         code = repo / "kod.py"
         (repo / "rend.md").write_text(OLD_REORDER, encoding="utf-8")
         (repo / "tabla.md").write_text(OLD_TABLE, encoding="utf-8")
+        (repo / "ujratord.md").write_text(OLD_REWRAP, encoding="utf-8")
         (repo / "jog.json").write_text(OLD_JSON, encoding="utf-8")
         (repo / "tordel.md").write_text(OLD_WRAP, encoding="utf-8")
         (repo / "kihagy.md").write_text(OLD_GAP, encoding="utf-8")
@@ -96,6 +99,7 @@ class MdDiffTest(PageTestCase):
         code.write_text(NEW_PY, encoding="utf-8")
         (repo / "rend.md").write_text(NEW_REORDER, encoding="utf-8")
         (repo / "tabla.md").write_text(NEW_TABLE, encoding="utf-8")
+        (repo / "ujratord.md").write_text(NEW_REWRAP, encoding="utf-8")
         (repo / "jog.json").write_text(NEW_JSON, encoding="utf-8")
         (repo / "tordel.md").write_text(NEW_WRAP, encoding="utf-8")
         (repo / "kihagy.md").write_text(NEW_GAP, encoding="utf-8")
@@ -292,6 +296,25 @@ class MdDiffTest(PageTestCase):
             ["add", '"Bash(git mv *)",', []],
             ["add", '"Bash(git rm *)"', []],
         ])
+
+    def test_raw_rewrap_unchanged(self) -> None:
+        """Tiszta újratördelés a nyers diffben: változatlan sorként, jel és szín nélkül, mindkét nézetben."""
+        self.resize(1400)
+        self.open_file("ujratord.md")
+        self.page.locator("[data-md-mode]").first.click()          # nyers diff
+        self.page.wait_for_selector(".diff-split .split-row")
+        half = ("h => h.querySelector('.tx') ? [h.className.replace('half', '').trim(), h.querySelector('.sg').textContent,"
+                " h.querySelector('.tx').textContent] : null")
+        rows = self.page.locator(".diff-split .split-row").evaluate_all(
+            f"rs => rs.map(r => [...r.querySelectorAll('.half')].map({half}))")
+        self.assertEqual(rows[:2], [
+            [["", "", "Első bekezdés sora"], ["", "", "Első bekezdés sora folytatás itt."]],
+            [["", "", "folytatás itt."], None],
+        ])
+        uni = self.page.locator(".diff-uni .diff-line").evaluate_all(
+            "ls => ls.map(l => [l.className.replace(/diff-line|mono/g, '').trim(), l.querySelector('.tx').textContent])")
+        self.page.locator("[data-md-mode]").first.click()          # vissza (a lap megjegyzi)
+        self.assertEqual(uni[0], ["", "Első bekezdés sora folytatás itt."])
 
     def test_one_sided_code_line(self) -> None:
         self.open_file("kod.py")
