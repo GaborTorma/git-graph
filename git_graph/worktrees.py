@@ -98,8 +98,8 @@ def rename_path(old: str, new: str) -> str:
     return f"{old[:pre]}{{{old[pre:len(old) - suf]} => {new[pre:len(new) - suf]}}}{old[len(old) - suf:]}"
 
 
-def pair_renames(root: Path, head: str, deleted: list[str], untracked: list[str]) -> list[tuple[str, str]]:
-    """A törölt (`D`) és a követetlen (`??`) fájlok párjai, hasonlóság szerint: [(régi, új), …].
+def pair_renames(root: Path, head: str, deleted: list[str], untracked: list[str]) -> list[tuple[str, str, int, int]]:
+    """A törölt (`D`) és a követetlen (`??`) fájlok párjai, hasonlóság szerint: [(régi, új, +, −), …].
 
     A még nem stage-elt átnevezést a git nem látja (az új fájl követetlen; `git add -N`
     után látná, de az indexet nem írjuk), így a párosítás itt történik: a legjobb
@@ -120,14 +120,14 @@ def pair_renames(root: Path, head: str, deleted: list[str], untracked: list[str]
             sm = difflib.SequenceMatcher(None, a, b, autojunk=False)
             if sm.real_quick_ratio() < RENAME_MIN or sm.quick_ratio() < RENAME_MIN:
                 continue                     # a 2M/(a+b) felső korlát, ≥ a mérték
-            score = line_churn(a, b)[2]
+            add, rem, score = line_churn(a, b)
             if score >= RENAME_MIN:
-                scored.append((-score, o.rsplit("/", 1)[-1] != n.rsplit("/", 1)[-1], o, n))
+                scored.append((-score, o.rsplit("/", 1)[-1] != n.rsplit("/", 1)[-1], o, n, add, rem))
     pairs, used = [], set()
-    for _, _, o, n in sorted(scored):
+    for _, _, o, n, add, rem in sorted(scored):
         if o not in used and n not in used:
             used |= {o, n}
-            pairs.append((o, n))
+            pairs.append((o, n, add, rem))
     return pairs
 
 
@@ -153,10 +153,9 @@ def collect_uncommitted(wt: dict) -> tuple[dict, dict] | None:
     untracked = [p for p in (line[3:].strip().strip('"') for line in status if line.startswith("??"))
                  if p not in known]
     # A még nem stage-elt átnevezés: a törölt és az új fájl egy sor (`pair_renames`).
-    gone = [f for f in files if f.get("status") == "D" and not f["bin"]]
-    for old, new in pair_renames(wt["path"], wt["head"], [f["path"] for f in gone], untracked):
-        f = next(f for f in gone if f["path"] == old)
-        add, rem, _ = line_churn(head_lines(wt["path"], wt["head"], old) or [], read_lines(wt["path"] / new) or [])
+    gone = {f["path"]: f for f in files if f.get("status") == "D" and not f["bin"]}
+    for old, new, add, rem in pair_renames(wt["path"], wt["head"], list(gone), untracked):
+        f = gone[old]
         st["add"], st["del"] = st["add"] + add, st["del"] - f["del"] + rem
         f.update({"path": rename_path(old, new), "add": add, "del": rem})
         del f["status"]
