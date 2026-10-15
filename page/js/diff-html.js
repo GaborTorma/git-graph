@@ -112,21 +112,17 @@ export function alignRows(L, partner) {
     let j = i; while (j < L.length && L[j].t === '-') j++;
     let k = j; while (k < L.length && L[k].t === '+') k++;
     const row = (d, n) => rows.push({ a: see(d), b: see(n) });
-    // egészében egyoldalú futam (csak beszúrás / csak törlés): az érintetlen oldal
-    // változatlanként látszik, a párok nem számítanak — a két oldal felülről
-    // egymás mellett, lyuk nélkül
-    const run = L.slice(i, k);
-    if (j > i && k > j && (untouched(run, '-') || untouched(run, '+'))) {
-      for (let x = 0; x < Math.max(j - i, k - j); x++) row(i + x < j ? L[i + x] : null, j + x < k ? L[j + x] : null);
-      i = k;
-      continue;
-    }
     const pair = d => { const x = at.get(partner(L[d])); return x >= j && x < k ? x : null; };
-    // a párok (sorrendtartóan), köztük a pár nélküli törölt és új sorok egymás mellett
+    // a párok (sorrendtartóan), köztük a pár nélküli törölt és új sorok egymás mellett;
+    // egészében egyoldalú futamban (csak beszúrás / csak törlés) az érintetlen oldal
+    // változatlanként látszik, a párok nem számítanak: a két oldal felülről, lyuk nélkül
+    const run = L.slice(i, k);
     const pairs = [];
-    for (let d = i, last = j; d < j; d++) {
-      const p = pair(d);
-      if (p != null && p >= last) { pairs.push([d, p]); last = p + 1; }
+    if (!untouched(run, '-') && !untouched(run, '+')) {
+      for (let d = i, last = j; d < j; d++) {
+        const p = pair(d);
+        if (p != null && p >= last) { pairs.push([d, p]); last = p + 1; }
+      }
     }
     let d0 = i, a0 = j;
     for (const [d, p] of [...pairs, [j, k]]) {
