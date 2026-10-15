@@ -329,24 +329,36 @@ function mermaidHtml(versions, code) {
   return `<div class="md-mmd" data-mmd="${esc(JSON.stringify(versions))}">${code}<div class="md-mmd-view"></div></div>`;
 }
 
-/* A csak hozzáadott blokk helye. A változásban előbb az összes törölt, aztán
-   az összes hozzáadott sor jön (egy átrendezett szövegnél sok bekezdésnyi), a
-   párosított hozzáadott sorok pedig a párjuk blokkjába kerülnek: a pár nélküli
-   új blokk így a törölt rész végére csúszna. Helyette a következő párosított
-   blokk elé kerül (a köztes törölt blokkok után); ha nincs ilyen, a helyén marad. */
-function placeAdded(blocks, lines) {
-  const at = new Map(lines.map((l, i) => [l, i]));
-  const blockOf = new Map(blocks.flatMap(b => b.lines.map(l => [l, b])));
-  const added = b => b.lines.every(l => l.t === '+');
-  const before = new Map();
-  for (const b of blocks.filter(added)) {
-    for (let i = at.get(b.lines.at(-1)) + 1; i < lines.length && lines[i].t !== ' '; i++) {
-      const o = blockOf.get(lines[i]);
-      if (lines[i].t === '+' && o && !added(o)) { before.set(o, [...(before.get(o) || []), b]); break; }
+/* A változás sorai a markdown-blokkok sorrendjében. A Python egy változásban
+   előbb az összes törölt, aztán az összes hozzáadott sort adja (egy átrendezett
+   szövegnél sok bekezdésnyi): itt minden törölt bekezdés után jönnek a párjai,
+   az előttük álló pár nélküli új sorok pedig a bekezdés elé — így a pár nélküli
+   új bekezdés a helyén marad (a köztes törölt bekezdések után), nem csúszik a
+   törölt rész végére. */
+function interleave(lines) {
+  const out = [];
+  for (let i = 0; i < lines.length;) {
+    if (lines[i].t !== '-') { out.push(lines[i++]); continue; }
+    let j = i; while (j < lines.length && lines[j].t === '-') j++;
+    let k = j; while (k < lines.length && lines[k].t === '+') k++;
+    const at = new Map(lines.slice(j, k).map((l, x) => [l, j + x]));
+    let a = j;
+    for (let p = i; p < j;) {          // törölt bekezdés: a sorai, utána az üres sorok
+      let q = p;
+      while (q < j && lines[q].s.trim()) q++;
+      while (q < j && !lines[q].s.trim()) q++;
+      const paired = lines.slice(p, q).map(l => at.get(partnerOf(l))).filter(x => x >= a);
+      if (paired.length) {
+        const hi = Math.max(...paired) + 1;
+        out.push(...lines.slice(a, Math.min(...paired)), ...lines.slice(p, q), ...lines.slice(Math.min(...paired), hi));
+        a = hi;
+      } else out.push(...lines.slice(p, q));
+      p = q;
     }
+    out.push(...lines.slice(a, k));
+    i = k;
   }
-  const moved = new Set([...before.values()].flat());
-  return blocks.filter(b => !moved.has(b)).flatMap(b => [...(before.get(b) || []), b]);
+  return out;
 }
 
 /* A side-by-side sorai: [régi, új] blokkpárok. A legtöbb blokk mindkét oldalon
@@ -374,8 +386,7 @@ const aboveMermaid = (b, next) => b.type === 'h' && next?.mermaid && b.lines.eve
 export function mdDiffHtml(d) {
   if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
   annotate(d);
-  const lines = d.hunks.flatMap(h => h.lines);
-  const blocks = placeAdded(mdBlocks(lines), lines);
+  const blocks = mdBlocks(interleave(d.hunks.flatMap(h => h.lines)));
   // a tiszta újratördelés (`styles`: `same` / `drop`) nem változás
   const shownLines = blocks.map(b => oneSide(b.lines));
   const changed = shownLines.map(ls => ls.some(l => l.t !== ' '));
