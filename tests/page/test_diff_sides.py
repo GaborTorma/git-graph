@@ -54,7 +54,7 @@ NEW_REORDER = "## 1. Alfa szakasz!\n\nÚj első tartalom.\n\n## 2. Béta szakasz
 TABLE_ROWS = [f"| s{i} | sor {i} szövege |" for i in range(10)]
 OLD_TABLE = "| Név | Mi |\n| --- | --- |\n" + "\n".join(TABLE_ROWS) + "\n"
 NEW_TABLE = ("| Név | Mi |\n| --- | --- |\n"
-             + "\n".join([*TABLE_ROWS[:2], "| s2 | sor |", *TABLE_ROWS[3:8], "| új | új sor, jóval hosszabb szöveggel, ami egy keskeny oszlopban több sorba is törik, mert a cella szélessége a panel felénél is kisebb, így a magassága nagyobb a helyőrzőénél |", *TABLE_ROWS[8:]]) + "\n")
+             + "\n".join([*TABLE_ROWS[:2], "| s2 | sor |", "| s3 | másik |", *TABLE_ROWS[4:8], "| új | új sor, jóval hosszabb szöveggel, ami egy keskeny oszlopban több sorba is törik, mert a cella szélessége a panel felénél is kisebb, így a magassága nagyobb a helyőrzőénél |", *TABLE_ROWS[8:]]) + "\n")
 OLD_PY = "x = hivas(a)\ny = 1\nz = masik(a, b, c)\nw = 2\nv = csere(a)\n"
 NEW_PY = "x = hivas(a, b)\ny = 1\nz = masik(a)\nw = 2\nv = mas(a)\n"
 
@@ -161,9 +161,24 @@ class MdDiffTest(PageTestCase):
             "r => [...r.children].map(c => [...c.querySelectorAll('tr')].map(t => t.getBoundingClientRect().height))")
         self.assertEqual(heights[0], heights[1])
         self.assertEqual(sides, [
-            ["Név", "···", "s1", "s2", "s3", "···", "s7", "", "s8", "···"],
-            ["Név", "···", "s1", "s2", "s3", "···", "s7", "új", "s8", "···"],
+            ["Név", "···", "s1", "s2", "s3", "s4", "···", "s7", "", "s8", "···"],
+            ["Név", "···", "s1", "s2", "s3", "s4", "···", "s7", "új", "s8", "···"],
         ])
+
+    def test_md_table_row_one_sided(self) -> None:
+        """Táblázatban a csak törlésű sor egyoldalú akkor is, ha a szomszéd sora (egy futamban) cserélődött."""
+        self.resize(1400)
+        self.open_file("tabla.md")
+        self.page.wait_for_selector(".diff-split .md-row table")
+        kinds = self.page.locator(".diff-split .md-row").first.evaluate(
+            "r => [...r.children].map(c => Object.fromEntries([...c.querySelectorAll('tr')]"
+            ".filter(t => /^s[23]$/.test(t.cells[0].textContent.trim()))"
+            ".map(t => [t.cells[0].textContent.trim(), t.className])))")
+        self.assertEqual(kinds, [{"s2": "del only", "s3": "del"}, {"s2": "", "s3": "add"}])
+        uni = self.page.locator(".diff-uni .md-table tr").evaluate_all(
+            "ts => ts.filter(t => /^s[23]$/.test(t.cells[0].textContent.trim()))"
+            ".map(t => [t.cells[0].textContent.trim(), t.className])")
+        self.assertEqual(uni, [["s2", "del only"], ["s3", "del"], ["s3", "add"]])
 
     def test_one_sided_code_line(self) -> None:
         self.open_file("kod.py")

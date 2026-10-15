@@ -208,8 +208,9 @@ function runsOf(keep) {
    helyőrző; nélküle az egymás alatti nézet (`oneSide`). A kódblokk és a
    táblázat sorai a két oldalon párban (`alignRows`, `partner`: a törölt sor
    párja), hogy egymás mellett ugyanazok a sorok látszódjanak. */
-function mdBlockHtml(b, side, partner) {
-  const pick = side ? ls => sideOf(ls, side) : oneSide;
+function mdBlockHtml(b, side, partner = new Map()) {
+  const pf = l => partner.get(l);
+  const pick = side ? ls => sideOf(ls, side, pf) : ls => oneSide(ls, pf);
   if (side) {
     const ls = pick(b.lines);
     if (!ls.length && b.type !== 'code' && b.type !== 'table') return '<div class="md-blk md-none"></div>';
@@ -226,7 +227,7 @@ function mdBlockHtml(b, side, partner) {
     // a változásnak csak az érintett oldala, mint a nyers diffben (`oneSide`);
     // side-by-side-ban a két oldal párban, a hiányzó sor helyőrző
     const lines = b.fence ? b.lines.slice(1, closed ? -1 : undefined) : b.lines;
-    const rows = side ? alignRows(lines, l => partner.get(l)) : null;
+    const rows = side ? alignRows(lines, pf) : null;
     const body = side ? rows.map(r => (side === '-' ? r.a : r.b)) : pick(lines);
     // Mint a nyers diffben: a változott sorok körül `MD_CODE_CONTEXT` sor, a
     // változatlan kódblokkból (környezetként) az eleje.
@@ -243,7 +244,7 @@ function mdBlockHtml(b, side, partner) {
   if (b.type === 'table') {
     // A fejléc mindig, a többi sorból csak a változott és a szomszédai (a többi `···`):
     // egy nagy táblázat (pl. a repó térképe) egy sor miatt ne nyíljon ki egészben.
-    const pairs = side ? alignRows(b.lines, l => partner.get(l)).filter(r => !MD_TABLE_SEP.test((r.a || r.b).s)) : null;
+    const pairs = side ? alignRows(b.lines, pf).filter(r => !MD_TABLE_SEP.test((r.a || r.b).s)) : null;
     const rows = side ? pairs.map(r => (side === '-' ? r.a : r.b)) : pick(b.lines).filter(l => !MD_TABLE_SEP.test(l.s));
     const keep = near(side ? pairs.map((r, i) => i > 0 && !r.ctx) : rows.map((l, i) => i > 0 && l.t !== ' '), MD_CONTEXT);
     keep[0] = true;
@@ -356,8 +357,8 @@ export function mdDiffHtml(d) {
   const view = one => runsOf(shown).map(r => (r.keep
     ? `<div class="hunk md-doc" tabindex="-1">${blocks.slice(r.from, r.to).map((b, i) => one(b, blocks[r.from + i + 1])).join('')}</div>`
     : `<p class="diff-gap" title="${r.to - r.from} változatlan blokk">···</p>`)).join('');
-  const uni = view(b => mdBlockHtml(b));
-  const kinds = new Set(blocks.flatMap(b => oneSide(b.lines).map(l => l.t)));
+  const uni = view(b => mdBlockHtml(b, null, partner));
+  const kinds = new Set(blocks.flatMap(b => oneSide(b.lines, l => partner.get(l)).map(l => l.t)));
   const out = kinds.has('+') && kinds.has('-')
     ? `<div class="diff-uni">${uni}</div><div class="diff-split">${view((b, next) => (b.mermaid || aboveMermaid(b, next)
       ? `<div class="md-mmd-row">${mdBlockHtml(b)}</div>`         // a diagram és a címsora a teljes szélességen

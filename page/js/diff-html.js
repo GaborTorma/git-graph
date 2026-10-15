@@ -16,17 +16,20 @@ export function diffHtml(d, lang) {
     const gap = h.old - oldEnd;
     const gapHtml = gap > 0 ? `<p class="diff-gap" title="${gap} változatlan sor">···</p>` : '';
     // Egy blokk (hunk) a `···`-ig: fókuszálható, a nyilak blokkról blokkra lépnek.
-    uni += gapHtml + '<div class="hunk" tabindex="-1">' + oneSide(h.lines).map(l => `<div class="diff-line mono${kindOf(l)}">`
+    uni += gapHtml + '<div class="hunk" tabindex="-1">' + oneSide(h.lines, partnerIn(h)).map(l => `<div class="diff-line mono${kindOf(l)}">`
       + diffCell(l, l.n, lang) + '</div>').join('') + '</div>';
     split += gapHtml + '<div class="hunk" tabindex="-1">' + splitRows(h, lang) + '</div>';
     oldEnd = h.old + h.lines.filter(l => l.t !== '+').length;
   }
-  const kinds = new Set(d.hunks.flatMap(h => oneSide(h.lines).map(l => l.t)));
+  const kinds = new Set(d.hunks.flatMap(h => oneSide(h.lines, partnerIn(h)).map(l => l.t)));
   const oneSided = !(kinds.has('+') && kinds.has('-'));   // a változatlan sor nem számít
   return (oneSided ? `<div>${uni}</div>`
     : `<div class="diff-uni">${uni}</div><div class="diff-split">${split}</div>`)
     + (d.truncated ? '<p class="diff-note">… a diff túl hosszú, a vége le van vágva.</p>' : '');
 }
+
+// a hunk törölt sorának párja (`p`: a hunkbeli indexe)
+const partnerIn = h => l => (l.p != null ? h.lines[l.p] : null);
 
 export const KIND = { ' ': '', '+': ' add', '-': ' del' };
 export const kindOf = l => KIND[l.t] + (l.only ? ' only' : '');
@@ -36,40 +39,48 @@ export const kindOf = l => KIND[l.t] + (l.only ? ' only' : '');
    egészében változott. */
 export const untouched = (ls, t) => ls.every(l => l.t !== t || (l.hl && !l.hl.length));
 
-/* A változott futamokból (törölt + hozzáadott sorok) kimarad az érintetlen
-   oldal: csak beszúrásnál a régi sorok, csak törlésnél az újak — a másik
-   oldal a kiemelt szavaival mindent elmond. A megmaradó sor `only`: a háttere
-   semleges, csak a változott szavai színesek (`kindOf`). */
-export function oneSide(lines) {
-  const out = [];
+/* Melyik változott sor érintetlen (`drop`: a szavai mind megvannak a másik
+   oldalon) és melyik a párja (`only`: a háttere semleges, csak a változott
+   szavai színesek, `kindOf`). Egy futamban (törölt + hozzáadott sorok): ha az
+   egyik oldala egészében érintetlen (csak beszúrás / csak törlés), az az oldal;
+   különben páronként (`partner`: a törölt sor párja), pl. egy táblázat egyetlen
+   sorában csak törlés, a többiben csere. */
+export function styles(lines, partner) {
+  const st = new Map();
   for (let i = 0; i < lines.length;) {
-    if (lines[i].t === ' ') { out.push(lines[i++]); continue; }
+    if (lines[i].t === ' ') { i++; continue; }
     let j = i; while (j < lines.length && lines[j].t !== ' ') j++;
     const run = lines.slice(i, j);
+    i = j;
+    if (!run.some(l => l.t === '+') || !run.some(l => l.t === '-')) continue;
     const drop = untouched(run, '-') ? '-' : untouched(run, '+') ? '+' : null;
-    out.push(...(drop && run.some(l => l.t === '+') && run.some(l => l.t === '-')
-      ? run.filter(l => l.t !== drop).map(l => ({ ...l, only: true })) : run));
-    i = j;
-  }
-  return out;
-}
-/* A side-by-side egyik oldala (`keep`: '-' a régi, '+' az új): a változatlan
-   sorok és a `keep` jelűek. Csak beszúrásnál vagy csak törlésnél (mint a
-   `oneSide`-ban) az érintetlen oldal sorai változatlanként, a másikéi `only`. */
-export function sideOf(lines, keep) {
-  const out = [];
-  for (let i = 0; i < lines.length;) {
-    if (lines[i].t === ' ') { out.push(lines[i++]); continue; }
-    let j = i; while (j < lines.length && lines[j].t !== ' ') j++;
-    const run = lines.slice(i, j);
-    const both = run.some(l => l.t === '+') && run.some(l => l.t === '-');
-    const drop = !both ? null : untouched(run, '-') ? '-' : untouched(run, '+') ? '+' : null;
-    for (const l of run) {
-      if (l.t === keep) out.push(!drop ? l : drop === keep ? { ...l, t: ' ' } : { ...l, only: true });
+    if (drop) { for (const l of run) st.set(l, l.t === drop ? 'drop' : 'only'); continue; }
+    const inRun = new Set(run);
+    for (const d of run) {
+      const a = d.t === '-' ? partner(d) : null;
+      if (!a || !inRun.has(a)) continue;
+      const [x, y] = untouched([d], '-') ? [d, a] : untouched([a], '+') ? [a, d] : [];
+      if (x) { st.set(x, 'drop'); st.set(y, 'only'); }
     }
-    i = j;
   }
-  return out;
+  return st;
+}
+/** @type {(l: any) => any} */
+const noPartner = () => null;
+
+/* Az egymás alatti nézet sorai: az érintetlen oldal kimarad (`styles`) — a
+   másik oldal a kiemelt szavaival mindent elmond. */
+export function oneSide(lines, partner = noPartner) {
+  const st = styles(lines, partner);
+  return lines.filter(l => st.get(l) !== 'drop').map(l => (st.get(l) === 'only' ? { ...l, only: true } : l));
+}
+
+/* A side-by-side egyik oldala (`keep`: '-' a régi, '+' az új): a változatlan
+   sorok és a `keep` jelűek; az érintetlen sor (`styles`) változatlanként. */
+export function sideOf(lines, keep, partner = noPartner) {
+  const st = styles(lines, partner);
+  return lines.filter(l => l.t === ' ' || l.t === keep).map(l => (st.get(l) === 'drop' ? { ...l, t: ' ' }
+    : st.get(l) === 'only' ? { ...l, only: true } : l));
 }
 const diffCell = (l, no, lang) => `<span class="no">${no ?? ''}</span>`
   + `<span class="sg">${l.t === ' ' ? '' : l.t === '-' ? '−' : '+'}</span>`
@@ -81,17 +92,16 @@ const diffCell = (l, no, lang) => `<span class="no">${no ?? ''}</span>`
    nélküliek egyedül (a másik oldal `null`): a törölt a helyén, a hozzáadott a
    megelőző pár alá (az első pár előttiek elé) — ugyanaz a párosítás, amiből a
    Python a szó-kiemelést számolja. Csak beszúrásnál vagy csak törlésnél (mint
-   a `oneSide`-ban) az érintetlen oldal változatlan sorként, a másik `only`. */
+   a `styles`-ban) az érintetlen sor változatlanként, a párja `only`. */
 export function alignRows(L, partner) {
   const at = new Map(L.map((l, i) => [l, i]));
+  const st = styles(L, partner);
+  const look = l => (!l ? l : st.get(l) === 'drop' ? { ...l, t: ' ' } : st.get(l) === 'only' ? { ...l, only: true } : l);
   const rows = [];
   for (let i = 0; i < L.length;) {
     if (L[i].t === ' ') { rows.push({ a: L[i], b: L[i], ctx: true }); i++; continue; }
     let j = i; while (j < L.length && L[j].t === '-') j++;
     let k = j; while (k < L.length && L[k].t === '+') k++;
-    const run = L.slice(i, k);
-    const drop = j === i || k === j ? null : untouched(run, '-') ? '-' : untouched(run, '+') ? '+' : null;
-    const look = l => (!l || !drop ? l : l.t === drop ? { ...l, t: ' ' } : { ...l, only: true });
     const row = (d, n) => rows.push({ a: look(d), b: look(n) });
     const pair = d => { const x = at.get(partner(L[d])); return x >= j && x < k ? x : null; };
     let a = j;
@@ -115,7 +125,7 @@ function splitRows(h, lang) {
   const side = (l, no) => (l ? `<div class="half${kindOf(l)}">${diffCell(l, no, lang)}</div>`
     : '<div class="half none"></div>');
   let old = h.old;
-  return alignRows(h.lines, l => (l.p != null ? h.lines[l.p] : null)).map(r => {
+  return alignRows(h.lines, partnerIn(h)).map(r => {
     const left = side(r.a, r.ctx ? old : r.a?.n);
     if (r.a) old++;
     return `<div class="split-row mono">${left}${side(r.b, r.b?.n)}</div>`;
