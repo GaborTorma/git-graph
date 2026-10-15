@@ -32,16 +32,18 @@ const MD_HTML = /^\s{0,3}<[!/a-zA-Z]/;
 
 /* Az összefésült sorok blokkjai: { type, lines, … }. Az üres sor blokkhatár,
    magában nem blokk (az üres sorok változása így nem látszik). A hozzáadott
-   sor, ha a párja (`pairOf`) egy csak törölt, azonos fajta blokk (bármelyik)
-   sora, nem nyit újat (pl. listaelem, címsor, bekezdés; kódblokk igen): a párja
-   blokkjába kerül, így a blokk vegyes, és a két változat egy helyen látszik. */
+   sor, ha a párja (`pairOf`) egy azonos fajta, még hozzáadott sor nélküli
+   blokk (bármelyik) sora, nem nyit újat (pl. listaelem, címsor, bekezdés,
+   táblázatsor; kódblokk igen): a párja blokkjába kerül, így a két változat
+   egy helyen látszik — akkor is, ha a git a párt egy törölt bekezdés mögé
+   tette (a táblázat utolsó sora és utána egy kivett bekezdés). */
 function mdBlocks(lines, pairOf) {
   const blocks = [];
   let cur = null;
   const start = (type, l, extra) => {
     const pair = pairOf.get(l);
     const own = pair && blocks.findLast(b => b.lines.includes(pair));
-    if (own?.type === type && type !== 'code' && own.lines.every(x => x.t === '-')) { own.lines.push(l); cur = own; return; }
+    if (own?.type === type && type !== 'code' && !own.lines.some(x => x.t === '+')) { own.lines.push(l); cur = own; return; }
     cur = { type, lines: [l], ...extra };
     blocks.push(cur);
   };

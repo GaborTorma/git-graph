@@ -53,6 +53,8 @@ OLD_REORDER = "## 1. Alfa szakasz\n\nRégi egy szöveg.\n\n## 2. Béta szakasz\n
 NEW_REORDER = "## 1. Alfa szakasz!\n\nÚj első tartalom.\n\n## 2. Béta szakasz!\n\nÚj második tartalom.\n"
 OLD_PARA = "Bevezető mondat.\nFontos rész itt.\n\nElső mondat.\nMásodik mondat.\nHarmadik mondat.\n"
 NEW_PARA = "Fontos rész itt, bővítve.\n\nElső mondat.\nHarmadik mondat.\n"
+OLD_LAST = "| Lépés | Mit |\n| --- | --- |\n| 1. | első |\n| 2. | verzió, deploy, tag |\n\nKivett bekezdés.\n"
+NEW_LAST = "| Lépés | Mit |\n| --- | --- |\n| 1. | másik |\n| 2. | verzió, tag |\n"
 TABLE_ROWS = [f"| s{i} | sor {i} szövege |" for i in range(10)]
 OLD_TABLE = "| Név | Mi |\n| --- | --- |\n" + "\n".join(TABLE_ROWS) + "\n"
 NEW_TABLE = ("| Név | Mi |\n| --- | --- |\n"
@@ -71,6 +73,7 @@ class MdDiffTest(PageTestCase):
         code = repo / "kod.py"
         (repo / "rend.md").write_text(OLD_REORDER, encoding="utf-8")
         (repo / "tabla.md").write_text(OLD_TABLE, encoding="utf-8")
+        (repo / "utolso.md").write_text(OLD_LAST, encoding="utf-8")
         (repo / "bekezdes.md").write_text(OLD_PARA, encoding="utf-8")
         doc.write_text(OLD, encoding="utf-8")
         code.write_text(OLD_PY, encoding="utf-8")
@@ -80,6 +83,7 @@ class MdDiffTest(PageTestCase):
         code.write_text(NEW_PY, encoding="utf-8")
         (repo / "rend.md").write_text(NEW_REORDER, encoding="utf-8")
         (repo / "tabla.md").write_text(NEW_TABLE, encoding="utf-8")
+        (repo / "utolso.md").write_text(NEW_LAST, encoding="utf-8")
         (repo / "bekezdes.md").write_text(NEW_PARA, encoding="utf-8")
         git("commit", "-qam", "doksi: módosítva")
 
@@ -210,6 +214,21 @@ class MdDiffTest(PageTestCase):
         self.assertIn(["Régi egy szöveg.", "Új első tartalom."], rows)
         self.assertIn(["Régi kettő szöveg.", "Új második tartalom."], rows)
         self.page.locator("[data-md-mode]").first.click()          # vissza (a lap megjegyzi)
+
+    def test_md_table_last_row(self) -> None:
+        """A táblázat utolsó sorának új változata a régi mellé kerül, akkor is, ha utána egy bekezdés kimaradt."""
+        self.resize(1400)
+        self.open_file("utolso.md")
+        self.page.wait_for_selector(".diff-split .md-row")
+        rows = self.page.locator(".diff-split .md-row").evaluate_all(
+            "rs => rs.map(r => [...r.children].map(c => [...c.querySelectorAll('tr, .md-blk')]"
+            ".map(e => e.tagName === 'TR' ? [e.cells[0].tagName, e.cells[0].textContent.trim(), e.className]"
+            " : ['P', e.textContent.trim(), e.className.replace('md-blk', '').trim()])))")
+        self.assertEqual(rows, [
+            [[["TH", "Lépés", ""], ["TD", "1.", "del"], ["TD", "2.", "del only"]],
+             [["TH", "Lépés", ""], ["TD", "1.", "add"], ["TD", "2.", ""]]],
+            [[["P", "Kivett bekezdés.", "del"]], [["P", "", "md-none"]]],
+        ])
 
     def test_one_sided_code_line(self) -> None:
         self.open_file("kod.py")
