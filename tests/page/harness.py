@@ -86,6 +86,10 @@ def make_history(repo: Path) -> None:
     for tag in ("v1.0.0", "v1.1.0-release-candidate-1"):
         git("tag", tag)
 
+# Az Artifact CSP-jének mért része (docs/artifact-findings.md): a lap blobból futtat
+# (modulok, Mermaid), inline `<style>`-t ír; a CDN-lista itt nem kell.
+CSP = "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'"
+
 
 class PageTestCase(unittest.TestCase):
     """Osztályonként egy fixture-repó, MCP-szerver és böngésző; tesztenként új lap."""
@@ -134,7 +138,8 @@ class PageTestCase(unittest.TestCase):
         self.page.on("pageerror", lambda e: self.errors.append(str(e)))
         self.page.expose_function("__mcp", self.mcp)
         self.page.add_init_script(FAKE_CLAUDE)
-        self.page.route(URL, lambda route: route.fulfill(content_type="text/html", body=self.html))
+        self.page.route(URL, lambda route: route.fulfill(
+            content_type="text/html", headers={"Content-Security-Policy": CSP}, body=self.html))
         self.page.goto(URL)
         self.page.wait_for_selector("#rows .row")
         self.settle()

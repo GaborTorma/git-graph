@@ -8,6 +8,7 @@ import { diffHtml } from './diff-html.js';
 import { drawGraph } from './graph.js';
 import { icon } from './icons.js';
 import { mdDiffHtml, syncRows } from './md-diff.js';
+import { renderMermaid } from './mermaid.js';
 import { revealCommit, revealFile } from './panel.js';
 import { expanded } from './state.js';
 import { langOf } from './syntax.js';
@@ -50,7 +51,13 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
   // hozás a végső méretből számol.
   const show = html => {
     if (!fileEl.isConnected || fileEl.getAttribute('aria-expanded') !== 'true') return;
-    const fill = () => { box.hidden = false; box.innerHTML = html; syncRows(box); watchWidth(box); };
+    const fill = () => {
+      box.hidden = false;
+      box.innerHTML = html;
+      syncRows(box);
+      watchWidth(box);
+      renderMermaid(box, () => SRC.mermaid());
+    };
     const settle = () => {
       if (reveal) revealCommit(fileEl.closest('.details'), true);
       if (reveal === true) revealFile(fileEl);

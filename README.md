@@ -41,7 +41,8 @@ claude plugin install git-graph@git-graph
 A plugin hozza a `/git-graph:artifact-publish`, `/git-graph:artifact-open` és
 `/git-graph:artifact-forget` skillt, a SessionStart hookot, és a Claude
 Bash eszközének PATH-jára a `git-graph` parancsot. Függősége
-nincs a Python 3 stdliben túl; minden git-hívás **csak olvas**. Hálózatra csak
+nincs a Python 3 stdliben túl (a lap a Mermaid vendorolt buildjét hozza, a
+markdown-diff diagramjaihoz); minden git-hívás **csak olvas**. Hálózatra csak
 a szerzők GitHub-avatarjáért megy, GitHub-os repónál, gyorstárazva.
 
 A pluginnak nincs telepítési eseménye, ezért a gépi részt az **első session

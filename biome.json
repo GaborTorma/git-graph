@@ -1,6 +1,6 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
-	"files": { "includes": ["page/**", "!!.claude/worktrees"] },
+	"files": { "includes": ["page/**", "!!page/vendor", "!!.claude/worktrees"] },
 	"formatter": { "enabled": false },
 	"assist": { "enabled": false },
 	"linter": {

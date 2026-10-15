@@ -11,8 +11,8 @@ Használat és felépítés: [README.md](../README.md).
 | --- | --- |
 | `bin/git-graph` | a `git-graph` parancs: a `git_graph` csomag vékony belépője (a hook és a Bash eszköz ezt futtatja) |
 | `git_graph/` | a Python-oldal: `gitio` (git-hívások, `REPO`), `graph` (a `graph_data` csomagja: commitok, refek, összerakás), `stats` (fájlstatisztika), `worktrees` (worktree-k, WIP-sor), `branches` (ágak, távolságok), `lanes` (sávkiosztás), `diff`, `avatars`, `page` (betöltő, `page_code`, ikonok), `registry` (slug, `repos.json`, sessionök), `claude_app` (az app session-fókusza), `watch` (a `changes` long-pollja), `publish`, `mcp` (`--mcp`), `install` (stabil másolat, frissítés, leszerelés), `hook` (`--session-hook`), `cli`, `state` (`~/.git-graph`, atomi írás) |
-| `page/` | a lap: `loader.html` (az Artifact betöltője, `build()`), `head.html`, `page.css`, `body.html`, `js/` (a lap ES-moduljai, belépő: `main.js`; a `page_code` köti össze), `file-icons.json` (fájltípus-ikonok, generált) |
-| `page/js/` | `state` (közös állapot + setterek), `dom`, `util`, `dates`, `icons`, `model` (saját worktree, színek, elérhetőség), `avatars`, `graph` (SVG), `anim`, `layout`, `scroll`, `panel`, `syntax`, `diff-html`, `md-diff`, `diff` (fájl-diff), `refs` (chipek), `details` (commit-panel), `rows` (`render`), `hydrate`, `menu`, `branches` (ágválasztó), `filters`, `keyboard`, `theme`, `settings`, `mcp`, `live` (`startLive`), `tip`, `main` |
+| `page/` | a lap: `loader.html` (az Artifact betöltője, `build()`), `head.html`, `page.css`, `body.html`, `js/` (a lap ES-moduljai, belépő: `main.js`; a `page_code` köti össze), `file-icons.json` (fájltípus-ikonok, generált), `vendor/` (a Mermaid 11.17.2 egyfájlos buildje + licenc; lustán, `page_code` `part: "mermaid"`) |
+| `page/js/` | `state` (közös állapot + setterek), `dom`, `util`, `dates`, `icons`, `model` (saját worktree, színek, elérhetőség), `avatars`, `graph` (SVG), `anim`, `layout`, `scroll`, `panel`, `syntax`, `diff-html`, `md-diff`, `mermaid` (diagramok a markdown-diffben), `diff` (fájl-diff), `refs` (chipek), `details` (commit-panel), `rows` (`render`), `hydrate`, `menu`, `branches` (ágválasztó), `filters`, `keyboard`, `theme`, `settings`, `mcp`, `live` (`startLive`), `tip`, `main` |
 | `scripts/check-page.mjs` | a lap moduljainak szintaxisa és összekötése (import ↔ export) Node-ban, futtatás nélkül — a Check része |
 | `page/js/types.d.ts`, `page/tsconfig.json` | a lap típusai (`graph_data`, `GIT_GRAPH`) a `tsc --checkJs`-hez — a lapra nem kerül |
 | `scripts/file-icons.py` | a `page/file-icons.json` előállítása a Catppuccin VS Code ikonjaiból (MIT, verzióra rögzítve) — kézzel, frissítéskor |
@@ -84,7 +84,8 @@ telepítés kézi próbája: [architecture.md](../docs/architecture.md#fejleszt�
   különben fordulásnál ide-oda ugrál. A dátum `Europe/Budapest` szerint,
   magyar formában jelenik meg.
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
-  futnia kell, `pip install` nélkül. Ne hozz be libet. A lintek (ruff, Biome),
+  futnia kell, `pip install` nélkül. Ne hozz be libet. A lap egyetlen külső
+  JS-e a vendorolt Mermaid (`page/vendor/`, verzióra rögzítve). A lintek (ruff, Biome),
   a `tsc` és a Playwright csak fejlesztői eszközök, `uvx` / `uv run --with` / `pnpm dlx`
   futtatja őket, verzióra rögzítve.
 - **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a

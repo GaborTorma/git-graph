@@ -48,7 +48,9 @@ MCP_TOOLS = [
     {"name": "page_code", "annotations": {"readOnlyHint": True},
      "inputSchema": {"type": "object", "required": ["repo", "api"], "properties": {
          **_REPO_ARG["properties"],
-         "api": {"type": "integer", "description": "a lap betöltőjének szerződés-verziója"}}},
+         "api": {"type": "integer", "description": "a lap betöltőjének szerződés-verziója"},
+         "part": {"type": "string", "enum": ["mermaid"],
+                  "description": "egy lustán kért darab: csak annak a JS-e (a Mermaid-diagramokhoz)"}}},
      "description": "A git-graph lap élő kódja (CSS, HTML, JS) a publikált betöltőnek."},
     # Ír (a repó `git-graph.*` kulcsát és a ~/.git-graph-ot), de csak a git-graph saját
     # beállítását: read-only-nak jelölve az app nem kér kattintásonként megerősítést.
@@ -105,7 +107,7 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
                                   bool(args.get("full"))))
         if name == "page_code":
             mismatch = page_api_mismatch(args.get("api"))
-            return text(mismatch, True) if mismatch else text(page_code())
+            return text(mismatch, True) if mismatch else text(page_code(args.get("part")))
         if name == "settings":
             return text(settings(args))
     except subprocess.CalledProcessError as exc:

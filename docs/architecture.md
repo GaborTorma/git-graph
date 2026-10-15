@@ -236,6 +236,13 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   `LOADER_API`: csak akkor lép, ha a kettő közti megállapodás változik — eltérésnél
   a `page_code` hibával adja vissza a teendőt, a betöltő kiírja. A betöltő nem
   írhatja felül a `body`-t: a platform a `<title>`-t is oda teszi.
+- **A Mermaid lustán jön** (`page_code` `part: "mermaid"`, `PAGE_PARTS`): a
+  markdown-diff ```mermaid blokkjához, csak ha a diffben diagram van (`mermaid.js`).
+  A lap első külső JS-függősége: vendorolt egyfájlos build (`page/vendor/`, 11.17.2,
+  MIT, a licenc mellette), verzióra rögzítve; blobból fut (mérve,
+  docs/artifact-findings.md). Nem modul, ezért nem a `page_modules` köti be, és a
+  Biome sem nézi. Frissítés: a `dist/mermaid.min.js` és a `LICENSE` cseréje, a
+  verzió a `page.py` kommentjében.
 - **Host-híd (`host:git-graph`)** — mérve, docs/artifact-findings.md:
   - Csak a Claude app configjában (`claude_desktop_config.json`) felvett szerver
     érhető el; a `claude mcp add`-os nem. Az app csak induláskor olvassa, és

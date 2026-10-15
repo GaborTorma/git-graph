@@ -22,8 +22,12 @@ LOADER_API = 1   # a betöltő és a `page_code` szerződése — csak a betölt
 # A lap fájljai a kód mellett: a pluginban, a working tree-ben és a stabil
 # másolatnál (`install_copy`) is `<gyökér>/page/`.
 PAGE_DIR = ROOT / "page"
-PAGE_FILES = ("loader.html", "head.html", "page.css", "body.html", "file-icons.json")
+PAGE_FILES = ("loader.html", "head.html", "page.css", "body.html", "file-icons.json",
+              "vendor/mermaid.min.js")
 PAGE_ENTRY = "js/main.js"   # a lap belépő modulja; a többit ez húzza be
+# A Mermaid (11.17.2, MIT, `vendor/mermaid.LICENSE`) egyfájlos buildje: a lap lustán,
+# csak diagramos markdown-diffnél kéri (`page_code` `part: "mermaid"`), blobból futtatja.
+PAGE_PARTS = {"mermaid": "vendor/mermaid.min.js"}
 _PAGE: dict[str, str] = {}
 
 
@@ -150,8 +154,15 @@ def page_modules() -> list[tuple[str, list[str], list[str]]]:
     return order
 
 
-def page_code() -> dict:
-    """A lap élő kódja a betöltőnek (`page_code` tool): head-elemek, body, JS-modul."""
+def page_code(part: str | None = None) -> dict:
+    """A lap élő kódja a betöltőnek (`page_code` tool): head-elemek, body, JS-modul.
+
+    A `part` egy lustán kért darab (`PAGE_PARTS`): akkor csak annak a JS-e.
+    """
+    if part is not None:
+        if part not in PAGE_PARTS:
+            raise ValueError(f"ismeretlen part: {part}")
+        return {"js": page_file(PAGE_PARTS[part])}
     return {"head": page_file("head.html") + "<style>\n" + page_file("page.css") + "</style>\n",
             "body": page_file("body.html"),
             "js": PAGE_BOOT.replace("__MODULES__", json.dumps(page_modules(), ensure_ascii=False))}
