@@ -119,10 +119,11 @@ def mark_prose(dels: list, adds: list) -> list | None:
     sorpárok közös (nem szóköz) karaktereinek száma: ebből párosít a
     `pair_lines`. Túl nagy blokknál `None` (marad a soronkénti összevetés).
     """
-    if sum(len(TOKEN_RE.findall(line["s"])) for line in dels + adds) > 2 * PROSE_MAX_TOKENS:
+    ta, tb = [TOKEN_RE.findall(line["s"]) for line in dels], [TOKEN_RE.findall(line["s"]) for line in adds]
+    if sum(map(len, ta + tb)) > 2 * PROSE_MAX_TOKENS:
         return None
 
-    def tokens(lines: list, idx: list) -> tuple:
+    def tokens(found: list, idx: list) -> tuple:
         toks, line_of, pos, row = [], [], [], []
         for r, i in enumerate(idx):
             if r:
@@ -131,7 +132,7 @@ def mark_prose(dels: list, adds: list) -> list | None:
                 pos.append(None)
                 row.append(r - 1)           # a sortörés az előző sor vége
             at = 0
-            for n, t in enumerate(TOKEN_RE.findall(lines[i]["s"])):
+            for n, t in enumerate(found[i]):
                 if r and not n and t.isspace():  # a folytatósor behúzása a sortöréshez tartozik
                     at += len(t)
                     continue
@@ -153,12 +154,12 @@ def mark_prose(dels: list, adds: list) -> list | None:
                 hl.append([pos[k], end])
 
     norm = lambda toks: [" " if t.isspace() else t for t in toks]   # noqa: E731
-    words = lambda lines, idx: [t for i in idx for t in TOKEN_RE.findall(lines[i]["s"]) if not t.isspace()]  # noqa: E731
+    words = lambda found, idx: [t for i in idx for t in found[i] if not t.isspace()]  # noqa: E731
     for line in dels + adds:
         line["hl"] = []
     sim = [[0] * len(adds) for _ in dels]
     pa, pb = paragraphs(dels), paragraphs(adds)
-    wa, wb = [words(dels, p) for p in pa], [words(adds, p) for p in pb]
+    wa, wb = [words(ta, p) for p in pa], [words(tb, p) for p in pb]
     psim = [[0.0] * len(pb) for _ in pa]
     if len(pa) * len(pb) <= PAIR_MAX_CELLS:
         for x, ws in enumerate(wa):
@@ -166,12 +167,12 @@ def mark_prose(dels: list, adds: list) -> list | None:
             sm.set_seq2(ws)
             for y, wt in enumerate(wb):
                 sm.set_seq1(wt)
-                if sm.quick_ratio() >= PARA_MIN_RATIO:
+                if sm.real_quick_ratio() >= PARA_MIN_RATIO and sm.quick_ratio() >= PARA_MIN_RATIO:
                     r = sm.ratio()
                     psim[x][y] = r if r >= PARA_MIN_RATIO else 0.0
     for x, y in pair_lines(pa, pb, psim):
-        a, line_a, pos_a, row_a = tokens(dels, pa[x])
-        b, line_b, pos_b, row_b = tokens(adds, pb[y])
+        a, line_a, pos_a, row_a = tokens(ta, pa[x])
+        b, line_b, pos_b, row_b = tokens(tb, pb[y])
         for op, i1, i2, j1, j2 in opcodes(match_blocks(norm(a), norm(b), row_a, row_b), len(a), len(b)):
             if op == "equal":
                 for k in range(i2 - i1):
@@ -305,15 +306,14 @@ def parse_diff(raw: str, prose: bool = False) -> dict:
         else:
             n, old_no, new_no = new_no, old_no + 1, new_no + 1
         hunks[-1]["lines"].append({"t": tag, "n": n, "s": line[1:]})
-        if tag == " ":
+        if prose and tag == " ":
             hunks[-1]["lines"][-1]["o"] = old_no - 1      # a régi sorszám (`join_runs`-nak)
 
     if prose:
         for h in hunks:
             h["lines"] = join_runs(h["lines"])
-    for h in hunks:
-        for ln in h["lines"]:
-            ln.pop("o", None)
+            for ln in h["lines"]:
+                ln.pop("o", None)
 
     # Egy törölt blokk és a rá következő hozzáadott blokk sorait párba állítjuk
     # (`pair_lines`): a pár a side-by-side nézetben egy sorba kerül (`p` a
