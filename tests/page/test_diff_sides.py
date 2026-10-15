@@ -261,6 +261,25 @@ class MdDiffTest(PageTestCase):
             self.assertLess(first - box, 10, view)        # csak a doboz belső margója, nincs üres sor
         self.assertEqual(self.page.locator(".md-mode").evaluate("b => getComputedStyle(b).position"), "absolute")
 
+    def test_raw_one_sided_run(self) -> None:
+        """Nyers side-by-side, csak beszúrásos futam: a sorok felülről egymás mellett (nincs lyuk), és az
+        egészében új sor teljes zöld (nem semleges)."""
+        self.resize(1400)
+        self.open_file("tordel.md")
+        self.page.locator("[data-md-mode]").first.click()          # nyers diff
+        self.page.wait_for_selector(".diff-split .split-row")
+        rows = self.page.locator(".diff-split .split-row").evaluate_all(
+            "rs => rs.map(r => [...r.querySelectorAll('.half')].map(h => h.querySelector('.tx')"
+            " ? [h.className.replace('half', '').trim(), h.querySelector('.tx').textContent,"
+            " [...h.querySelectorAll('mark')].map(m => m.textContent).join('|')] : null))")
+        self.page.locator("[data-md-mode]").first.click()          # vissza (a lap megjegyzi)
+        texts = [[c and c[1] for c in r] for r in rows]
+        at = texts.index(["- **Egy**: első pont.", "- **Egy**: első pont."])
+        self.assertEqual(texts[at + 1][0], "- **Kivétel**: doksi, config, egyeztetés alatt álló finomítás. Ha")
+        self.assertEqual(texts[at + 1][1], "- **Kivétel**: doksi, config, az AI-nak szóló szöveg,")
+        whole = next(r[1] for r in rows if r[1] and r[1][1] == "része lesz, különben nem fut.")
+        self.assertEqual(whole, ["add", "része lesz, különben nem fut.", ""])     # egészében új: teljes zöld
+
     def test_whole_new_line_stays_green(self) -> None:
         """Csak beszúrásos futamban az egészében új sor teljes zöld, csak a szavas változás semleges."""
         self.open_file("jog.json")
