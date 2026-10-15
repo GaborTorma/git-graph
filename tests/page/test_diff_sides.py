@@ -238,16 +238,16 @@ class MdDiffTest(PageTestCase):
             [[["P", "Kivett bekezdés.", "del"]], [["P", "", "md-none"]]],
         ])
 
-    def test_md_split_gap_beside_toggle(self) -> None:
-        """Ha a side-by-side egy `···`-vel kezdődik, az a nézetváltó gomb mellett marad (nincs üres sor)."""
-        self.resize(1400)
+    def test_md_toggle_floats(self) -> None:
+        """A nézetváltó lebegő gomb: nem foglal helyet, a tartalom a diff tetején kezdődik, mindkét nézetben."""
         self.open_file("kihagy.md")
-        self.page.wait_for_selector(".diff-split .md-row")
-        gap, mode, row = self.page.evaluate(
-            "[...['.diff-split > .diff-gap', '.md-mode', '.diff-split .md-row']].map(q => {"
-            " const r = document.querySelector(q).getBoundingClientRect(); return [r.top, r.bottom]; })")
-        self.assertLess(gap[0], mode[1])               # a gomb sorában
-        self.assertGreaterEqual(row[0], mode[1])       # a rácssor a gomb alatt
+        for width, view in ((1400, ".diff-split"), (900, ".diff-uni")):
+            self.resize(width)
+            box, first = self.page.evaluate(
+                f"[document.querySelector('.diff:has(.md-mode)'), document.querySelector('{view}').firstElementChild]"
+                ".map(e => e.getBoundingClientRect().top)")
+            self.assertLess(first - box, 10, view)        # csak a doboz belső margója, nincs üres sor
+        self.assertEqual(self.page.locator(".md-mode").evaluate("b => getComputedStyle(b).position"), "absolute")
 
     def test_one_sided_code_line(self) -> None:
         self.open_file("kod.py")
