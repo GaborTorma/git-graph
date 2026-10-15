@@ -127,6 +127,10 @@ class MdDiffTest(PageTestCase):
         rows = self.page.locator(".diff-split .md-row:has(.md-blk)").evaluate_all(
             "rs => rs.map(r => [...r.children].map(c => { const b = c.querySelector('.md-blk');"
             " return b ? b.className.replace(/md-blk/, '').trim() : '-'; }))")
+        # a nézetváltó gomb (úszik) mellett sem szűkül az első sor: a két oszlop határa egy vonalban
+        widths = self.page.locator(".diff-split .md-row").evaluate_all(
+            "rs => [...new Set(rs.map(r => Math.round(r.getBoundingClientRect().width)))]")
+        self.assertEqual(len(widths), 1, widths)
         self.assertEqual(rows[2:], [               # előtte a címsor és a környezet
             ["", "add only"],                       # csak beszúrás: a régi oldal változatlan
             ["del only", ""],

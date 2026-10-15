@@ -729,7 +729,9 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .split-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .split-row .half + .half { border-left: 1px solid var(--border-soft); }
 .half.none { background: var(--bg-1); }
-.diff-split { display: none; }
+/* a side-by-side a nézetváltó gomb (`.md-mode`, úszik) alatt kezdődik: a rácssorai
+   mellette összeszűkülnének, és a két oszlop határa soronként elcsúszna */
+.diff-split { display: none; clear: both; }
 @container (min-width: 1000px) {
   .diff-uni { display: none; }
   .diff-split { display: block; }
