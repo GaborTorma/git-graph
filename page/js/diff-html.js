@@ -11,12 +11,13 @@ import { highlight } from './syntax.js';
 export function diffHtml(d, lang) {
   if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
   if (!d.hunks.length) return '<p class="diff-note">Nincs megjeleníthető változás.</p>';
+  annotate(d);
   let uni = '', split = '', oldEnd = 1;
   const kinds = new Set();
   for (const h of d.hunks) {
     const gap = h.old - oldEnd;
     const gapHtml = gap > 0 ? `<p class="diff-gap" title="${gap} változatlan sor">···</p>` : '';
-    const lines = oneSide(h.lines, partnerIn(h));
+    const lines = oneSide(h.lines);
     for (const l of lines) kinds.add(l.t);
     // Egy blokk (hunk) a `···`-ig: fókuszálható, a nyilak blokkról blokkra lépnek.
     uni += gapHtml + '<div class="hunk" tabindex="-1">' + lines.map(l => `<div class="diff-line mono${kindOf(l)}">`
@@ -30,94 +31,97 @@ export function diffHtml(d, lang) {
     + (d.truncated ? '<p class="diff-note">… a diff túl hosszú, a vége le van vágva.</p>' : '');
 }
 
-// a hunk törölt sorának párja (`p`: a hunkbeli indexe)
-const partnerIn = h => l => (l.p != null ? h.lines[l.p] : null);
+/* A sor párja (a Python `pair_lines`-a: `p` a törölt sor párjának hunkbeli
+   indexe), mindkét irányban, és a megjelenése (`styles`): a diff betöltésekor
+   egyszer, hunkonként (`annotate`) — így minden nézet (egymás alatti,
+   side-by-side, markdown) ugyanazt látja, bármelyik szeletét rajzolja. A
+   sorokon kívül tárolva: az adat gyorstárazott, és az élő frissítés
+   JSON-összevetéssel nézi, változott-e. */
+const PAIR = new WeakMap(), LOOK = new WeakMap(), DONE = new WeakSet();
+export const partnerOf = l => PAIR.get(l) ?? null;
+export function annotate(d) {
+  for (const h of d.hunks) {
+    if (DONE.has(h)) continue;
+    DONE.add(h);
+    for (const l of h.lines) if (l.p != null) { PAIR.set(l, h.lines[l.p]); PAIR.set(h.lines[l.p], l); }
+    for (const [l, s] of styles(h.lines)) LOOK.set(l, s);
+  }
+}
 
 export const KIND = { ' ': '', '+': ' add', '-': ' del' };
 export const kindOf = l => KIND[l.t] + (l.only ? ' only' : '');
 
-/* A `t` jelű sorok minden szava megmaradt a másik oldalon: mind párosított
-   (van `hl`-je), és nincs kiemelt szakasza. A pár nélküli sor (`hl` nincs)
-   egészében változott. */
-export const untouched = (ls, t) => ls.every(l => l.t !== t || (l.hl && !l.hl.length));
+/* Változott-e a sor (a Python `w`-je): `same` — a szavai mind megvannak a
+   másik oldalon (vagy üres sor); `words` / `whole` — szavai változtak / egészében
+   új vagy törölt. `untouched`: a `t` oldalon egy sem változott. */
+export const changed = l => l.t !== ' ' && l.w !== 'same';
+export const untouched = (ls, t) => !ls.some(l => l.t === t && changed(l));
 
 /* Melyik változott sor érintetlen (`drop`: a szavai mind megvannak a másik
-   oldalon) és melyik a párja (`only`: a háttere semleges, csak a változott
-   szavai színesek, `kindOf`; `same`: ő sem változott, tiszta újratördelés). Egy futamban (törölt + hozzáadott sorok): ha az
-   egyik oldala egészében érintetlen (csak beszúrás / csak törlés), az az oldal;
-   különben páronként (`partner`: a törölt sor párja), pl. egy táblázat egyetlen
-   sorában csak törlés, a többiben csere. */
-function styles(lines, partner) {
+   oldalon), melyik a párja (`only`: a háttere semleges, csak a változott szavai
+   színesek, `kindOf`), és melyik nem változott maga sem (`same`: újratördelés).
+   Egy futamban (törölt + hozzáadott sorok): ha mindkét oldala érintetlen, tiszta
+   újratördelés; ha az egyik, az az oldal (csak beszúrás / csak törlés); különben
+   páronként, pl. egy táblázat egyetlen sorában csak törlés, a többiben csere. Az
+   egészében új / törölt sor (`whole`) teljes színű marad. */
+function styles(lines) {
   const st = new Map();
+  const kept = l => (l.w === 'words' ? 'only' : l.w === 'same' ? 'same' : null);
   for (let i = 0; i < lines.length;) {
     if (lines[i].t === ' ') { i++; continue; }
     let j = i; while (j < lines.length && lines[j].t !== ' ') j++;
     const run = lines.slice(i, j);
     i = j;
     if (!run.some(l => l.t === '+') || !run.some(l => l.t === '-')) continue;
-    // tiszta újratördelés (egyik oldalon sem változott szó): a régi sorok kimaradnak,
-    // az újak változatlanként (`same`) látszanak
-    if (untouched(run, '-') && untouched(run, '+')) {
-      for (const l of run) st.set(l, l.t === '-' ? 'drop' : 'same');
-      continue;
-    }
     const drop = untouched(run, '-') ? '-' : untouched(run, '+') ? '+' : null;
-    // a megmaradó oldalon: a szavanként változott sor `only`, a szó nélkül változott
-    // (újratördelt) `same`, az egészében új / törölt (nincs `hl`-je) teljes színű
     if (drop) {
-      for (const l of run) if (l.t === drop || l.hl) st.set(l, l.t === drop ? 'drop' : l.hl.length ? 'only' : 'same');
+      for (const l of run) st.set(l, l.t === drop ? 'drop' : kept(l));
       continue;
     }
     const inRun = new Set(run);
     for (const d of run) {
-      const a = d.t === '-' ? partner(d) : null;
+      const a = d.t === '-' ? partnerOf(d) : null;
       if (!a || !inRun.has(a)) continue;
-      const [x, y] = untouched([d], '-') ? [d, a] : untouched([a], '+') ? [a, d] : [];
-      if (x) { st.set(x, 'drop'); st.set(y, untouched([y], y.t) ? 'same' : 'only'); }
+      const [x, y] = !changed(d) ? [d, a] : !changed(a) ? [a, d] : [];
+      if (x) { st.set(x, 'drop'); st.set(y, kept(y)); }
     }
   }
   return st;
 }
 // a sor a `styles` szerint: az érintetlen (`drop`) és a változatlan (`same`) jel
 // nélkül, az `only` semleges háttérrel
-const look = (st, l) => {
-  const s = st.get(l);
+const look = l => {
+  const s = LOOK.get(l);
   return s === 'drop' || s === 'same' ? { ...l, t: ' ' } : s === 'only' ? { ...l, only: true } : l;
 };
 
-
-/* Az egymás alatti nézet sorai: az érintetlen oldal kimarad (`styles`) — a
-   másik oldal a kiemelt szavaival mindent elmond. */
-export function oneSide(lines, partner) {
-  const st = styles(lines, partner);
-  return lines.filter(l => st.get(l) !== 'drop').map(l => look(st, l));
+/* Az egymás alatti nézet sorai (`annotate` után): az érintetlen oldal kimarad —
+   a másik oldal a kiemelt szavaival mindent elmond. */
+export function oneSide(lines) {
+  return lines.filter(l => LOOK.get(l) !== 'drop').map(look);
 }
 
 const diffCell = (l, no, lang) => `<span class="no">${no ?? ''}</span>`
   + `<span class="sg">${l.t === ' ' ? '' : l.t === '-' ? '−' : '+'}</span>`
   + `<span class="tx">${highlight(l.s, l.hl, lang)}</span>`;
 
-/* Side-by-side sorai: [{ a: régi, b: új, ctx }]. A változatlan sor mindkét
-   oldalon (`ctx`), a törölt blokk és az utána jövő hozzáadott blokk párjai
-   (`partner`: a törölt sor párja, a Python `pair_lines`-a) egy sorba — ugyanaz
-   a párosítás, amiből a Python a szó-kiemelést számolja. A két pár közti pár
-   nélküli törölt és új sorok egymás mellé kerülnek (a többlet egyedül, a
-   másik oldal `null`). Csak beszúrásnál vagy csak törlésnél (mint
-   a `styles`-ban) az érintetlen sor változatlanként, a párja `only`. */
-export function alignRows(L, partner) {
+/* Side-by-side sorai (`annotate` után): [{ a: régi, b: új, ctx }]. A változatlan
+   sor mindkét oldalon (`ctx`), a törölt blokk és az utána jövő hozzáadott blokk
+   párjai (`partnerOf`) egy sorba — ugyanaz a párosítás, amiből a Python a
+   szó-kiemelést számolja. A két pár közti pár nélküli törölt és új sorok egymás
+   mellé kerülnek (a többlet egyedül, a másik oldal `null`). Egészében egyoldalú
+   futamban (csak beszúrás / csak törlés) az érintetlen oldal változatlanként
+   látszik, a párok nem számítanak: a két oldal felülről, lyuk nélkül. */
+export function alignRows(L) {
   const at = new Map(L.map((l, i) => [l, i]));
-  const st = styles(L, partner);
-  const see = l => (l ? look(st, l) : l);
+  const see = l => (l ? look(l) : l);
   const rows = [];
   for (let i = 0; i < L.length;) {
     if (L[i].t === ' ') { rows.push({ a: L[i], b: L[i], ctx: true }); i++; continue; }
     let j = i; while (j < L.length && L[j].t === '-') j++;
     let k = j; while (k < L.length && L[k].t === '+') k++;
     const row = (d, n) => rows.push({ a: see(d), b: see(n) });
-    const pair = d => { const x = at.get(partner(L[d])); return x >= j && x < k ? x : null; };
-    // a párok (sorrendtartóan), köztük a pár nélküli törölt és új sorok egymás mellett;
-    // egészében egyoldalú futamban (csak beszúrás / csak törlés) az érintetlen oldal
-    // változatlanként látszik, a párok nem számítanak: a két oldal felülről, lyuk nélkül
+    const pair = d => { const x = at.get(partnerOf(L[d])); return x >= j && x < k ? x : null; };
     const run = L.slice(i, k);
     const pairs = [];
     if (!untouched(run, '-') && !untouched(run, '+')) {
@@ -144,7 +148,7 @@ function splitRows(h, lang) {
   const side = (l, no) => (l ? `<div class="half${kindOf(l)}">${diffCell(l, no, lang)}</div>`
     : '<div class="half none"></div>');
   let old = h.old;
-  return alignRows(h.lines, partnerIn(h)).map(r => {
+  return alignRows(h.lines).map(r => {
     const left = side(r.a, r.ctx ? old : r.a?.n);
     if (r.a) old++;
     return `<div class="split-row mono">${left}${side(r.b, r.b?.n)}</div>`;

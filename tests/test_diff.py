@@ -28,6 +28,7 @@ class DiffTest(HomeTestCase):
         self.assertEqual(old["p"], 2)
         self.assertEqual(old["hl"], [[0, 4]])                         # „régi” → „új”
         self.assertEqual(new["hl"], [[0, 2]])
+        self.assertEqual([ln.get("w") for ln in hunk["lines"]], [None, "words", "words", None])
 
     def test_binary_and_truncated(self) -> None:
         gg = self.load()
@@ -126,6 +127,18 @@ class DiffTest(HomeTestCase):
         self.assertEqual([[ln["s"][a:b] for a, b in ln["hl"]] for ln in lines],
                          [["3", "sor", "; ~72 karakteres sorok"], [], ["200", "karakter"], []])
 
+    def test_line_state(self) -> None:
+        """A változott sor állapota (`w`): változatlan szavak, változott szavak, egészében új / üres."""
+        gg = self.load()
+        raw = ("@@ -1,2 +1,3 @@\n"
+               "-Egy mondat itt,\n"
+               "-ami folytatódik.\n"
+               "+Egy mondat itt, ami folytatódik.\n"
+               "+\n"
+               "+Teljesen más tartalom.\n")
+        lines = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
+        self.assertEqual([ln["w"] for ln in lines], ["same", "same", "same", "same", "whole"])
+
     def test_numstat_paths(self) -> None:
         """Átnevezés-alakok: `a => b` és `x/{a => b}/y`, az üres oldallal is."""
         gg = self.load()
@@ -145,13 +158,13 @@ class DiffTest(HomeTestCase):
         sha = git_in(repo, "rev-parse", "HEAD").strip()
         self.assertEqual(gg.diff.file_diff(sha, "a.txt => b.txt")["hunks"], [])   # tiszta átnevezés
         first = git_in(repo, "rev-parse", "HEAD~1").strip()
-        self.assertEqual(gg.diff.file_diff(first, "a.txt")["hunks"][0]["lines"], [{"t": "+", "n": 1, "s": "1"}])
+        self.assertEqual(gg.diff.file_diff(first, "a.txt")["hunks"][0]["lines"], [{"t": "+", "n": 1, "s": "1", "w": "whole"}])
         (repo / "uj.txt").write_text("x\ny\n", encoding="utf-8")
         (repo / "mappa").mkdir()
         (repo / "mappa" / "f.txt").write_text("z\n", encoding="utf-8")
         wip = f"*uncommitted:{gg.registry.slug_for(repo)}"
         self.assertEqual(len(gg.diff.file_diff(wip, "uj.txt")["hunks"][0]["lines"]), 2)
-        self.assertEqual(gg.diff.file_diff(wip, "mappa/f.txt")["hunks"][0]["lines"], [{"t": "+", "n": 1, "s": "z"}])
+        self.assertEqual(gg.diff.file_diff(wip, "mappa/f.txt")["hunks"][0]["lines"], [{"t": "+", "n": 1, "s": "z", "w": "whole"}])
         self.assertEqual(gg.diff.file_diff(wip, "nincs.txt")["hunks"], [])         # nem olvas tetszőleges fájlt
         for bad in ("--output=/tmp/x", "HEAD", "*uncommitted:nincs-ilyen-000000"):
             with self.assertRaises(ValueError, msg=bad):

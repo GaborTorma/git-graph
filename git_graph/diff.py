@@ -272,7 +272,8 @@ def parse_diff(raw: str, prose: bool = False) -> dict:
     """Egyfájlos unified diff → hunkok soronként, a lap ebből rajzol.
 
     Sor: `t` (` `/`+`/`-`), `n` (a törölt sornál a régi, máskor az új sorszám),
-    `s` (szöveg), cserélt sorpárnál `hl` (a változott szakaszok). A hunk `old`
+    `s` (szöveg), cserélt sorpárnál `hl` (a változott szakaszok), változott sornál
+    `w` (az állapota, `mark_state`). A hunk `old`
     kezdete adja a lapon a kihagyott („unmodified") sorok számát. `prose`:
     szöveges fájl: a csak üres sorral elválasztott változások egyben
     (`join_runs`), a bekezdések és a szavaik a `mark_prose` szerint.
@@ -335,7 +336,18 @@ def parse_diff(raw: str, prose: bool = False) -> dict:
                 if sim is None:
                     mark_words(lines[i + d], lines[j + a])
             i = k
+        for line in lines:
+            mark_state(line)
     return {"hunks": hunks, "binary": binary, "truncated": truncated}
+
+
+def mark_state(line: dict) -> None:
+    """A változott sor állapota a lapnak (`w`): `same` — a szavai mind megvannak a
+    másik oldalon (vagy üres sor), `words` — szavai változtak (`hl`), `whole` —
+    egészében új / törölt (pár és közös szó nélkül)."""
+    if line["t"] != " ":
+        line["w"] = ("same" if not line["s"].strip() or line.get("hl") == []
+                     else "words" if line.get("hl") else "whole")
 
 
 def untracked_diff(root: Path, path: str) -> dict:
@@ -347,6 +359,8 @@ def untracked_diff(root: Path, path: str) -> dict:
     lines = text.splitlines()
     truncated = len(lines) > DIFF_MAX_LINES
     rows = [{"t": "+", "n": i + 1, "s": s} for i, s in enumerate(lines[:DIFF_MAX_LINES])]
+    for row in rows:
+        mark_state(row)
     return {"hunks": [{"old": 0, "lines": rows}] if rows else [], "binary": False,
             "truncated": truncated}
 
