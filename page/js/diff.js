@@ -7,11 +7,24 @@ import { grow, shrink } from './anim.js';
 import { diffHtml } from './diff-html.js';
 import { drawGraph } from './graph.js';
 import { icon } from './icons.js';
-import { mdDiffHtml } from './md-diff.js';
+import { mdDiffHtml, syncRows } from './md-diff.js';
 import { revealCommit, revealFile } from './panel.js';
 import { expanded } from './state.js';
 import { langOf } from './syntax.js';
 import { esc } from './util.js';
+
+/* A markdown side-by-side sormagasságai (`syncRows`) a szélességtől függnek:
+   dobozonként egy méretfigyelő, csak szélességváltozásra (a magasságot a
+   szinkron maga is változtatja). A gráfot a sorok figyelője rajzolja újra. */
+const watched = new WeakSet();
+function watchWidth(box) {
+  if (watched.has(box)) return;
+  watched.add(box);
+  let width = box.clientWidth;
+  new ResizeObserver(() => {
+    if (box.clientWidth !== width) { width = box.clientWidth; syncRows(box); }
+  }).observe(box);
+}
 
 export const openFiles = new Set();   // sha + '\n' + út
 export const diffCache = new Map();   // ugyanígy kulcsolva → { data, stale }
@@ -37,7 +50,7 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
   // hozás a végső méretből számol.
   const show = html => {
     if (!fileEl.isConnected || fileEl.getAttribute('aria-expanded') !== 'true') return;
-    const fill = () => { box.hidden = false; box.innerHTML = html; };
+    const fill = () => { box.hidden = false; box.innerHTML = html; syncRows(box); watchWidth(box); };
     const settle = () => {
       if (reveal) revealCommit(fileEl.closest('.details'), true);
       if (reveal === true) revealFile(fileEl);
