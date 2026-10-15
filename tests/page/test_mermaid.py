@@ -34,6 +34,10 @@ OLD_LINES = f"{FENCE}mermaid\nflowchart LR\n  A[Marad] --> B[Is]\n  B --> T[Tör
 NEW_LINES = OLD_LINES.replace("  B --> T[Törölt]\n", "").replace("Régi mondat.", "Új mondat.")
 OLD_BAD = f"{FENCE}mermaid\nflowchart LR\n  A --> B\n{FENCE}\n"
 NEW_BAD = f"{FENCE}mermaid\nflowchart LR\n  A --> \n{FENCE}\n"
+# csak egy él célpontja változik (`D` → `T`): az azonosító betűje egyik feliratban sem jelölt
+OLD_TARGET = (f'{FENCE}mermaid\nflowchart LR\n  H{{"HEAD egy commit?"}}\n  D["deploy"]\n  T["STOP"]\n'
+              f'  H -->|igen| D\n  D --> T\n{FENCE}\n')
+NEW_TARGET = OLD_TARGET.replace("H -->|igen| D", "H -->|igen| T")
 # hosszú, fentről lefelé írt lánc: széles helyen vízszintesen fér el jobban
 CHAIN = f"{FENCE}mermaid\nflowchart TD\n  A[Első] --> B[Második] --> C[Harmadik] --> D[Negyedik] --> E[Ötödik]\n{FENCE}\n"
 
@@ -53,6 +57,7 @@ class MermaidTest(PageTestCase):
         (repo / "szoveg.md").write_text("Régi szöveg.\n", encoding="utf-8")
         (repo / "torles.md").write_text(OLD_ONLY, encoding="utf-8")
         (repo / "sorok.md").write_text(OLD_LINES, encoding="utf-8")
+        (repo / "cel.md").write_text(OLD_TARGET, encoding="utf-8")
         git("add", ".")
         git("commit", "-qm", "ábra")
         (repo / "abra.md").write_text(NEW, encoding="utf-8")
@@ -61,6 +66,7 @@ class MermaidTest(PageTestCase):
         (repo / "torles.md").write_text(NEW_ONLY, encoding="utf-8")
         (repo / "sorok.md").write_text(NEW_LINES, encoding="utf-8")
         (repo / "lanc.md").write_text(CHAIN, encoding="utf-8")
+        (repo / "cel.md").write_text(NEW_TARGET, encoding="utf-8")
         git("add", ".")
         git("commit", "-qam", "ábra: módosítva")
 
@@ -150,6 +156,17 @@ class MermaidTest(PageTestCase):
         self.assertIn("Parse error", err.text_content())
         shown = self.page.locator(".md-mmd .md-code").evaluate("c => getComputedStyle(c).display")
         self.assertEqual(shown, "block")
+
+    def test_new_edge_target(self) -> None:
+        """Ha csak egy él célpontja változik, az él színes, de a csomópontok nem: az azonosító
+        (`D`, `T`) betűje nem emelődik ki a `HEAD` / `STOP` feliratban."""
+        self.open_file("cel.md")
+        self.figs(".diff-uni")
+        marked = self.page.locator(".diff-uni .md-mmd-fig").evaluate_all(
+            "fs => fs.map(f => [[...f.querySelectorAll('.md-mmd-hl')].length,"
+            " [...f.querySelectorAll('.md-mmd-ch')].map(e => e.tagName).sort()])")
+        self.assertEqual([m[0] for m in marked], [0, 0])
+        self.assertTrue(all(m[1] and set(m[1]) <= {"path"} for m in marked), marked)
 
     def test_direction_fits_the_room(self) -> None:
         """A flowchart iránya a helyhez igazodik: széles nézetben a fentről lefelé írt lánc

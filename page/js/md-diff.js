@@ -279,8 +279,10 @@ function mdBlockHtml(b, side, partner) {
    különben a régi és az új. */
 function mermaidVersions(lines) {
   const without = t => lines.filter(l => l.t !== t).map(l => l.s).join('\n');
-  const marks = t => lines.filter(l => l.t === t).flatMap(l => (l.hl || []).map(([a, b]) => l.s.slice(a, b)));
   const old = without('+'), now = without('-');
+  const flow = [old, now].some(src => /^\s*(?:flowchart|graph)\b/m.test(src));
+  const marks = t => lines.filter(l => l.t === t)
+    .flatMap(l => (l.hl || []).filter(([a]) => !flow || inLabel(l.s, a)).map(([a, b]) => l.s.slice(a, b)));
   const versions = lines.every(l => l.t === ' ') ? [{ src: now, kind: '' }]
     : !now.trim() ? [{ src: old, kind: KIND['-'], whole: true }]
     : !old.trim() ? [{ src: now, kind: KIND['+'], whole: true }]
@@ -288,6 +290,20 @@ function mermaidVersions(lines) {
     : untouched(lines, '-') ? [{ src: now, kind: KIND['+'], marks: marks('+'), base: old }]
     : [{ src: old, kind: KIND['-'], marks: marks('-') }, { src: now, kind: KIND['+'], marks: marks('+') }];
   return versions;
+}
+/* A flowchart sorában csak a felirat látszik a rajzon (`["…"]`, `{…}`, `(…)`, `|…|`,
+   idézőjel); a csomópont-azonosító (`D`, `T`) nem. Egy él új célpontja így nem emel ki
+   egy betűt egy idegen feliratban — az él maga színes (`markChanges`). */
+function inLabel(s, at) {
+  let quote = false, depth = 0, pipe = false;
+  for (const c of s.slice(0, at)) {
+    if (c === '"') quote = !quote;
+    else if (quote) continue;
+    else if ('[({'.includes(c)) depth++;
+    else if (')]}'.includes(c)) depth = Math.max(0, depth - 1);
+    else if (c === '|' && !depth) pipe = !pipe;
+  }
+  return quote || depth > 0 || pipe;
 }
 function mermaidHtml(versions, code) {
   return `<div class="md-mmd" data-mmd="${esc(JSON.stringify(versions))}">${code}<div class="md-mmd-view"></div></div>`;
