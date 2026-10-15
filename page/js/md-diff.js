@@ -10,7 +10,7 @@
    az új változat). A kapcsoló (`mdRaw`) a nyers diffre vált, a lap
    megjegyzi. Ha a két változat blokkszerkezete eltér (pl. új kódkerítés), a
    renderelés pontatlan lehet — arra való a nyers nézet. */
-import { KIND, kindOf, oneSide, sideOf, untouched } from './diff-html.js';
+import { KIND, alignRows, kindOf, oneSide, sideOf, untouched } from './diff-html.js';
 import { LANGS, highlight } from './syntax.js';
 import { esc, ghLink } from './util.js';
 
@@ -198,12 +198,14 @@ function runsOf(keep) {
 
 /* Egy blokk: kódblokk és táblázat soronként színezve, a többi változatonként.
    `side` ('-' / '+'): a side-by-side egyik oldala (`sideOf`), az üres oldal
-   helyőrző; nélküle az egymás alatti nézet (`oneSide`). */
-function mdBlockHtml(b, side) {
+   helyőrző; nélküle az egymás alatti nézet (`oneSide`). A kódblokk és a
+   táblázat sorai a két oldalon párban (`alignRows`, `partner`: a törölt sor
+   párja), hogy egymás mellett ugyanazok a sorok látszódjanak. */
+function mdBlockHtml(b, side, partner) {
   const pick = side ? ls => sideOf(ls, side) : oneSide;
   if (side) {
     const ls = pick(b.lines);
-    if (!ls.length) return '<div class="md-blk md-none"></div>';
+    if (!ls.length && b.type !== 'code' && b.type !== 'table') return '<div class="md-blk md-none"></div>';
     if (b.type !== 'code' && b.type !== 'table') {
       const ch = ls.filter(l => l.t !== ' ');
       const kind = ch.length ? KIND[ch[0].t] + (ch.every(l => l.only) ? ' only' : '') : '';
@@ -214,26 +216,32 @@ function mdBlockHtml(b, side) {
   if (b.type === 'code') {
     // a kerítés sorai nem látszanak (a záró hiányozhat: a fájl vége vagy a levágás)
     const closed = b.fence && b.lines.length > 1 && b.lines.at(-1).s.trim().startsWith(b.fence);
-    // a változásnak csak az érintett oldala, mint a nyers diffben (`oneSide`)
-    const body = pick(b.fence ? b.lines.slice(1, closed ? -1 : undefined) : b.lines);
+    // a változásnak csak az érintett oldala, mint a nyers diffben (`oneSide`);
+    // side-by-side-ban a két oldal párban, a hiányzó sor helyőrző
+    const lines = b.fence ? b.lines.slice(1, closed ? -1 : undefined) : b.lines;
+    const rows = side ? alignRows(lines, l => partner.get(l)) : null;
+    const body = side ? rows.map(r => (side === '-' ? r.a : r.b)) : pick(lines);
     // Mint a nyers diffben: a változott sorok körül `MD_CODE_CONTEXT` sor, a
     // változatlan kódblokkból (környezetként) az eleje.
-    const changed = body.map(l => l.t !== ' ');
+    const changed = side ? rows.map(r => !r.ctx) : body.map(l => l.t !== ' ');
     const keep = changed.includes(true) ? near(changed, MD_CODE_CONTEXT) : body.map((_, i) => i < MD_CODE_CONTEXT);
     return '<pre class="md-code mono">' + runsOf(keep).map(r => (r.keep
-      ? body.slice(r.from, r.to).map(l =>
-        `<div class="md-cl${kindOf(l)}">${highlight(l.s, l.hl, b.lang) || ' '}</div>`).join('')
+      ? body.slice(r.from, r.to).map(l => (l
+        ? `<div class="md-cl${kindOf(l)}">${highlight(l.s, l.hl, b.lang) || ' '}</div>`
+        : '<div class="md-cl md-none"> </div>')).join('')
       : `<div class="md-cl md-skip" title="${r.to - r.from} változatlan sor">···</div>`)).join('') + '</pre>';
   }
   if (b.type === 'table') {
     // A fejléc mindig, a többi sorból csak a változott és a szomszédai (a többi `···`):
     // egy nagy táblázat (pl. a repó térképe) egy sor miatt ne nyíljon ki egészben.
-    const rows = pick(b.lines).filter(l => !MD_TABLE_SEP.test(l.s));
-    const keep = near(rows.map((l, i) => i > 0 && l.t !== ' '), MD_CONTEXT);
+    const pairs = side ? alignRows(b.lines, l => partner.get(l)).filter(r => !MD_TABLE_SEP.test((r.a || r.b).s)) : null;
+    const rows = side ? pairs.map(r => (side === '-' ? r.a : r.b)) : pick(b.lines).filter(l => !MD_TABLE_SEP.test(l.s));
+    const keep = near(side ? pairs.map((r, i) => i > 0 && !r.ctx) : rows.map((l, i) => i > 0 && l.t !== ' '), MD_CONTEXT);
     keep[0] = true;
     const cells = l => marked(l).trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/);
-    const width = cells(rows[0]).length;
+    const width = cells(rows.find(Boolean)).length;
     const row = (l, i) => {
+      if (!l) return `<tr class="md-none"><td colspan="${width}"> </td></tr>`;
       const cell = i ? 'td' : 'th';
       return `<tr class="${kindOf(l).trim()}">`
         + cells(l).map(c => `<${cell}>${mdInline(c.trim())}</${cell}>`).join('') + '</tr>';
@@ -275,8 +283,10 @@ function placeAdded(blocks, lines) {
 
 export function mdDiffHtml(d) {
   if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
-  const pairOf = new Map();          // hozzáadott sor → a törölt párja
-  for (const h of d.hunks) for (const l of h.lines) if (l.p != null) pairOf.set(h.lines[l.p], l);
+  const pairOf = new Map(), partner = new Map();     // hozzáadott → törölt párja, és fordítva
+  for (const h of d.hunks) {
+    for (const l of h.lines) if (l.p != null) { pairOf.set(h.lines[l.p], l); partner.set(l, h.lines[l.p]); }
+  }
   const blocks = placeAdded(mdBlocks(d.hunks.flatMap(h => h.lines), pairOf), d.hunks.flatMap(h => h.lines));
   const changed = blocks.map(b => b.lines.some(l => l.t !== ' '));
   if (!changed.includes(true)) {
@@ -298,7 +308,7 @@ export function mdDiffHtml(d) {
   const kinds = new Set(blocks.flatMap(b => oneSide(b.lines).map(l => l.t)));
   const out = kinds.has('+') && kinds.has('-')
     ? `<div class="diff-uni">${uni}</div><div class="diff-split">${view(b =>
-      `<div class="md-row"><div>${mdBlockHtml(b, '-')}</div><div>${mdBlockHtml(b, '+')}</div></div>`)}</div>`
+      `<div class="md-row"><div>${mdBlockHtml(b, '-', partner)}</div><div>${mdBlockHtml(b, '+', partner)}</div></div>`)}</div>`
     : `<div>${uni}</div>`;
   return mdMarks(out) + (d.truncated ? '<p class="diff-note">… a fájl túl hosszú, a vége le van vágva.</p>' : '');
 }

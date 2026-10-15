@@ -75,45 +75,49 @@ const diffCell = (l, no, lang) => `<span class="no">${no ?? ''}</span>`
   + `<span class="sg">${l.t === ' ' ? '' : l.t === '-' ? '−' : '+'}</span>`
   + `<span class="tx">${highlight(l.s, l.hl, lang)}</span>`;
 
-/* Side-by-side: a változatlan sor mindkét oldalon (balra a régi sorszámmal), a
-   törölt blokk és az utána jövő hozzáadott blokk párjai (`p`, a Python
-   `pair_lines`-a) egy sorba, a pár nélküliek egyedül, a párok közé —
-   ugyanaz a párosítás, amiből a Python a szó-kiemelést számolja. Csak
-   beszúrásnál vagy csak törlésnél (mint a `oneSide`-ban) az érintetlen oldal
-   változatlan sorként látszik, a másik `only`. */
-function splitRows(h, lang) {
-  let drop = null;
-  const look = l => (!drop || l.t === ' ' ? l : l.t === drop ? { ...l, t: ' ' } : { ...l, only: true });
-  const side = (l, no) => {
-    if (!l) return '<div class="half none"></div>';
-    const v = look(l);
-    return `<div class="half${kindOf(v)}">${diffCell(v, no, lang)}</div>`;
-  };
-  const L = h.lines;
-  let out = '', old = h.old, i = 0;
-  while (i < L.length) {
-    if (L[i].t === ' ') {
-      out += `<div class="split-row mono">${side(L[i], old)}${side(L[i], L[i].n)}</div>`;
-      old++; i++;
-      continue;
-    }
+/* Side-by-side sorai: [{ a: régi, b: új, ctx }]. A változatlan sor mindkét
+   oldalon (`ctx`), a törölt blokk és az utána jövő hozzáadott blokk párjai
+   (`partner`: a törölt sor párja, a Python `pair_lines`-a) egy sorba, a pár
+   nélküliek egyedül (a másik oldal `null`): a törölt a helyén, a hozzáadott a
+   megelőző pár alá (az első pár előttiek elé) — ugyanaz a párosítás, amiből a
+   Python a szó-kiemelést számolja. Csak beszúrásnál vagy csak törlésnél (mint
+   a `oneSide`-ban) az érintetlen oldal változatlan sorként, a másik `only`. */
+export function alignRows(L, partner) {
+  const at = new Map(L.map((l, i) => [l, i]));
+  const rows = [];
+  for (let i = 0; i < L.length;) {
+    if (L[i].t === ' ') { rows.push({ a: L[i], b: L[i], ctx: true }); i++; continue; }
     let j = i; while (j < L.length && L[j].t === '-') j++;
     let k = j; while (k < L.length && L[k].t === '+') k++;
     const run = L.slice(i, k);
-    drop = j === i || k === j ? null : untouched(run, '-') ? '-' : untouched(run, '+') ? '+' : null;
-    const row = (del, add) =>
-      out += `<div class="split-row mono">${side(del, del?.n)}${side(add, add?.n)}</div>`;
-    // a pár nélküli hozzáadott sor a megelőző pár alá kerül (az első pár előttiek elé)
+    const drop = j === i || k === j ? null : untouched(run, '-') ? '-' : untouched(run, '+') ? '+' : null;
+    const look = l => (!l || !drop ? l : l.t === drop ? { ...l, t: ' ' } : { ...l, only: true });
+    const row = (d, n) => rows.push({ a: look(d), b: look(n) });
+    const pair = d => { const x = at.get(partner(L[d])); return x >= j && x < k ? x : null; };
     let a = j;
     for (let d = i; d < j; d++) {
-      if (L[d].p == null) { row(L[d], null); continue; }
-      while (a < L[d].p) row(null, L[a++]);
+      const p = pair(d);
+      if (p == null || p < a) { row(L[d], null); continue; }
+      while (a < p) row(null, L[a++]);
       row(L[d], L[a++]);
-      const next = L.slice(d + 1, j).find(l => l.p != null)?.p ?? k;
+      let next = k;
+      for (let e = d + 1; e < j; e++) if (pair(e) != null) { next = pair(e); break; }
       while (a < next) row(null, L[a++]);
     }
     while (a < k) row(null, L[a++]);
-    old += j - i; i = k;
+    i = k;
   }
-  return out;
+  return rows;
+}
+
+/* A nyers side-by-side: balra a régi sorszámmal (a változatlan soré is). */
+function splitRows(h, lang) {
+  const side = (l, no) => (l ? `<div class="half${kindOf(l)}">${diffCell(l, no, lang)}</div>`
+    : '<div class="half none"></div>');
+  let old = h.old;
+  return alignRows(h.lines, l => (l.p != null ? h.lines[l.p] : null)).map(r => {
+    const left = side(r.a, r.ctx ? old : r.a?.n);
+    if (r.a) old++;
+    return `<div class="split-row mono">${left}${side(r.b, r.b?.n)}</div>`;
+  }).join('');
 }
