@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .gitio import git, numstat_new_path, numstat_old_path, worktree_list
 from .registry import slug_for
-from .worktrees import UNCOMMITTED_RE
+from .worktrees import UNCOMMITTED_RE, head_lines, read_lines
 
 HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 SHA_RE = re.compile(r"^[0-9a-f]{7,64}$")
@@ -348,6 +348,17 @@ def untracked_diff(root: Path, path: str) -> dict:
             "truncated": truncated}
 
 
+def renamed_diff(root: Path, old: str, new: str, full: bool) -> dict | None:
+    """Még nem stage-elt átnevezés (a HEAD-beli `old` → követetlen `new`, ahogy a WIP-sor
+    párosította): a két tartalom különbsége, a `difflib`-bel — a git ezt index nélkül
+    nem diffeli. Ha a pár nem áll (nincs a HEAD-ben, vagy bináris): `None`."""
+    a, b = head_lines(root, "HEAD", old), read_lines(root / new)
+    if a is None or b is None:
+        return None
+    raw = "\n".join(difflib.unified_diff(a, b, lineterm="", n=1000000 if full else 3))
+    return parse_diff(raw, Path(new).suffix.lower() in PROSE_SUFFIXES)
+
+
 def file_diff(sha: str, path: str, full: bool = False) -> dict:
     """Egy fájl diffje a commitban (vagy egy Uncommitted ál-sorban: a worktree HEAD-jéhez képest).
 
@@ -367,10 +378,14 @@ def file_diff(sha: str, path: str, full: bool = False) -> dict:
                      if slug in (None, slug_for(wt["path"]))), None)
         if root is None:
             raise ValueError(f"nincs ilyen worktree: {slug}")
+        untracked = git("ls-files", "--others", "--exclude-standard", "--", new, repo=root).splitlines()
+        if old != new and new in untracked:
+            paired = renamed_diff(root, old, new, full)
+            if paired is not None:
+                return paired
         raw = git("diff", "--no-color", "--no-ext-diff", "-M", *context, "HEAD", "--", old, new,
                   repo=root)
-        if not raw.strip() and path in git("ls-files", "--others", "--exclude-standard",
-                                           "--", path, repo=root).splitlines():
+        if not raw.strip() and path in untracked:
             return untracked_diff(root, path)
     elif SHA_RE.match(sha):
         raw = git("show", "--format=", "--no-color", "--no-ext-diff", "-M",

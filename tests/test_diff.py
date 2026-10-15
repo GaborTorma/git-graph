@@ -166,6 +166,21 @@ class DiffTest(HomeTestCase):
         (hunk,) = gg.diff.file_diff(sha, "doc.md", full=True)["hunks"]
         self.assertEqual(len(hunk["lines"]), 31)
 
+    def test_file_diff_unstaged_rename(self) -> None:
+        """A WIP-sor párosított átnevezése: a HEAD-beli régi és a követetlen új fájl különbsége."""
+        repo = self.plain_repo()
+        (repo / "regi.txt").write_text("".join(f"sor {i}\n" for i in range(10)), encoding="utf-8")
+        git_in(repo, "add", "regi.txt")
+        git_in(repo, "commit", "-qm", "alap")
+        (repo / "regi.txt").unlink()
+        (repo / "uj.txt").write_text("".join(f"sor {i}\n" for i in range(10)).replace("sor 5", "öt"), encoding="utf-8")
+        gg = self.load()
+        gg.gitio.set_repo(repo)
+        wip = f"*uncommitted:{gg.registry.slug_for(repo)}"
+        (hunk,) = gg.diff.file_diff(wip, "regi.txt => uj.txt")["hunks"]
+        self.assertEqual([(ln["t"], ln["s"]) for ln in hunk["lines"] if ln["t"] != " "], [("-", "sor 5"), ("+", "öt")])
+        self.assertEqual(len(gg.diff.file_diff(wip, "regi.txt => uj.txt", full=True)["hunks"][0]["lines"]), 11)
+
     def test_untracked_binary(self) -> None:
         gg = self.load()
         (self.home / "kep.bin").write_bytes(b"\xff\xfe\x00")

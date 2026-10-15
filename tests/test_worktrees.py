@@ -43,3 +43,34 @@ class WorktreesTest(HomeTestCase):
         self.assertEqual([(f["path"], f["add"], f["bin"]) for f in churn["files"]],
                          [("0.bin", 0, True), ("0.txt", 3, False), ("a.txt", 1, False)])
         self.assertEqual(churn["add"], 4)
+
+    def test_unstaged_rename(self) -> None:
+        """A még nem stage-elt átnevezés (`mv` + kis módosítás) egy `R` sor; eltérő tartalom: `D` + `A`."""
+        gg = self.load()
+        repo = self.plain_repo()
+        body = "".join(f"sor {i}\n" for i in range(10))
+        (repo / "regi").mkdir()
+        (repo / "regi" / "SKILL.md").write_text(body, encoding="utf-8")
+        (repo / "mas.txt").write_text("egy\nketto\n", encoding="utf-8")
+        git_in(repo, "add", ".")
+        git_in(repo, "commit", "-qm", "alap")
+        (repo / "regi").rename(repo / "uj")
+        (repo / "uj" / "SKILL.md").write_text(body.replace("sor 3", "harmadik"), encoding="utf-8")
+        (repo / "mas.txt").unlink()
+        (repo / "teljesen-mas.txt").write_text("alma\nkorte\n", encoding="utf-8")
+        gg.gitio.set_repo(repo)
+        _, churn = gg.worktrees.collect_uncommitted(gg.worktrees.collect_worktrees()[0])
+        self.assertEqual([(f["path"], f["add"], f["del"], f.get("status")) for f in churn["files"]],
+                         [("mas.txt", 0, 2, "D"), ("teljesen-mas.txt", 2, 0, "A"),
+                          ("{regi => uj}/SKILL.md", 1, 1, None)])
+        self.assertEqual((churn["add"], churn["del"]), (3, 3))
+        self.assertEqual(git_in(repo, "status", "--porcelain").count("??"), 2)    # az index érintetlen
+
+    def test_rename_path(self) -> None:
+        """Az átnevezés a git `--numstat` alakjában: a közös mappák a kapcsos zárójelen kívül."""
+        gg = self.load()
+        for old, new, want in (("a/x/f.md", "a/y/f.md", "a/{x => y}/f.md"), ("a.txt", "b.txt", "a.txt => b.txt"),
+                               ("d/a.txt", "d/b.txt", "d/{a.txt => b.txt}"), ("f.md", "sub/f.md", "f.md => sub/f.md")):
+            self.assertEqual(gg.worktrees.rename_path(old, new), want)
+            self.assertEqual(gg.gitio.numstat_new_path(want), new)
+            self.assertEqual(gg.gitio.numstat_old_path(want), old)
