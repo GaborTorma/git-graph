@@ -342,6 +342,24 @@ function placeAdded(blocks, lines) {
   return blocks.filter(b => !moved.has(b)).flatMap(b => [...(before.get(b) || []), b]);
 }
 
+/* A side-by-side sorai: [régi, új] blokkpárok. A legtöbb blokk mindkét oldalon
+   ugyanaz (a két változata); a pár nélküli törölt blokkok és az utánuk jövő
+   új blokkok (két párosított vagy változatlan blokk közt) egymás mellé
+   kerülnek, mint a nyers diffben (`alignRows`); a többlet egyedül. A
+   `whole` blokk (diagram) magában marad. */
+function splitPairs(list, whole) {
+  const only = (b, t) => !whole(b) && b.lines.every(l => l.t === t);
+  const out = [];
+  for (let i = 0; i < list.length;) {
+    if (!only(list[i], '-') && !only(list[i], '+')) { out.push([list[i], list[i]]); i++; continue; }
+    let j = i; while (j < list.length && only(list[j], '-')) j++;
+    let k = j; while (k < list.length && only(list[k], '+')) k++;
+    for (let x = 0; x < Math.max(j - i, k - j); x++) out.push([i + x < j ? list[i + x] : null, j + x < k ? list[j + x] : null]);
+    i = k;
+  }
+  return out;
+}
+
 /* A diagram előtti változatlan címsor side-by-side-ban is egyszer, a diagrammal együtt
    a teljes szélességen — különben a másik oszlopban árván maradna. */
 const aboveMermaid = (b, next) => b.type === 'h' && next?.mermaid && b.lines.every(l => l.t === ' ');
@@ -366,15 +384,19 @@ export function mdDiffHtml(d) {
   // Egy blokk (hunk) a `···`-ig: fókuszálható, a nyilak blokkról blokkra lépnek.
   // Mint a nyers diffnél: egymás alatti és side-by-side nézet, a szélesség dönt;
   // a side-by-side-ban blokkonként egy sor, balra a régi, jobbra az új változat.
-  const view = one => runsOf(shown).map(r => (r.keep
-    ? `<div class="hunk md-doc" tabindex="-1">${blocks.slice(r.from, r.to).map((b, i) => one(b, blocks[r.from + i + 1])).join('')}</div>`
+  const view = html => runsOf(shown).map(r => (r.keep
+    ? `<div class="hunk md-doc" tabindex="-1">${html(blocks.slice(r.from, r.to))}</div>`
     : `<p class="diff-gap" title="${r.to - r.from} változatlan blokk">···</p>`)).join('');
-  const uni = view(b => mdBlockHtml(b, null, partner));
+  const uni = view(list => list.map(b => mdBlockHtml(b, null, partner)).join(''));
   const kinds = new Set(blocks.flatMap(b => oneSide(b.lines, l => partner.get(l)).map(l => l.t)));
+  const next = new Map(blocks.map((b, i) => [b, blocks[i + 1]]));
+  const half = (b, side) => (b ? mdBlockHtml(b, side, partner) : '<div class="md-blk md-none"></div>');
+  const split = list => splitPairs(list, b => b.mermaid || aboveMermaid(b, next.get(b))).map(([a, b]) => (a === b
+    && (a.mermaid || aboveMermaid(a, next.get(a)))
+    ? `<div class="md-mmd-row">${mdBlockHtml(a)}</div>`             // a diagram és a címsora a teljes szélességen
+    : `<div class="md-row"><div>${half(a, '-')}</div><div>${half(b, '+')}</div></div>`)).join('');
   const out = kinds.has('+') && kinds.has('-')
-    ? `<div class="diff-uni">${uni}</div><div class="diff-split">${view((b, next) => (b.mermaid || aboveMermaid(b, next)
-      ? `<div class="md-mmd-row">${mdBlockHtml(b)}</div>`         // a diagram és a címsora a teljes szélességen
-      : `<div class="md-row"><div>${mdBlockHtml(b, '-', partner)}</div><div>${mdBlockHtml(b, '+', partner)}</div></div>`))}</div>`
+    ? `<div class="diff-uni">${uni}</div><div class="diff-split">${view(split)}</div>`
     : `<div>${uni}</div>`;
   return mdMarks(out) + (d.truncated ? '<p class="diff-note">… a fájl túl hosszú, a vége le van vágva.</p>' : '');
 }

@@ -81,10 +81,10 @@ const diffCell = (l, no, lang) => `<span class="no">${no ?? ''}</span>`
 
 /* Side-by-side sorai: [{ a: régi, b: új, ctx }]. A változatlan sor mindkét
    oldalon (`ctx`), a törölt blokk és az utána jövő hozzáadott blokk párjai
-   (`partner`: a törölt sor párja, a Python `pair_lines`-a) egy sorba, a pár
-   nélküliek egyedül (a másik oldal `null`): a törölt a helyén, a hozzáadott a
-   megelőző pár alá (az első pár előttiek elé) — ugyanaz a párosítás, amiből a
-   Python a szó-kiemelést számolja. Csak beszúrásnál vagy csak törlésnél (mint
+   (`partner`: a törölt sor párja, a Python `pair_lines`-a) egy sorba — ugyanaz
+   a párosítás, amiből a Python a szó-kiemelést számolja. A két pár közti pár
+   nélküli törölt és új sorok egymás mellé kerülnek (a többlet egyedül, a
+   másik oldal `null`). Csak beszúrásnál vagy csak törlésnél (mint
    a `styles`-ban) az érintetlen sor változatlanként, a párja `only`. */
 export function alignRows(L, partner) {
   const at = new Map(L.map((l, i) => [l, i]));
@@ -97,17 +97,20 @@ export function alignRows(L, partner) {
     let k = j; while (k < L.length && L[k].t === '+') k++;
     const row = (d, n) => rows.push({ a: look(d), b: look(n) });
     const pair = d => { const x = at.get(partner(L[d])); return x >= j && x < k ? x : null; };
-    let a = j;
-    for (let d = i; d < j; d++) {
+    // a párok (sorrendtartóan), köztük a pár nélküli törölt és új sorok egymás mellett
+    const pairs = [];
+    for (let d = i, last = j; d < j; d++) {
       const p = pair(d);
-      if (p == null || p < a) { row(L[d], null); continue; }
-      while (a < p) row(null, L[a++]);
-      row(L[d], L[a++]);
-      let next = k;
-      for (let e = d + 1; e < j; e++) if (pair(e) != null) { next = pair(e); break; }
-      while (a < next) row(null, L[a++]);
+      if (p != null && p >= last) { pairs.push([d, p]); last = p + 1; }
     }
-    while (a < k) row(null, L[a++]);
+    let d0 = i, a0 = j;
+    for (const [d, p] of [...pairs, [j, k]]) {
+      for (let x = 0; x < Math.max(d - d0, p - a0); x++) {
+        row(d0 + x < d ? L[d0 + x] : null, a0 + x < p ? L[a0 + x] : null);
+      }
+      if (d < j) row(L[d], L[p]);
+      d0 = d + 1; a0 = p + 1;
+    }
     i = k;
   }
   return rows;

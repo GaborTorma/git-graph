@@ -142,11 +142,9 @@ class MdDiffTest(PageTestCase):
             "rs => rs.map(r => [...r.children].map(c => c.textContent.trim()))")
         self.assertEqual(rows, [
             ["1. Alfa szakasz", "1. Alfa szakasz!"],
-            ["Régi egy szöveg.", ""],
-            ["", "Új első tartalom."],            # nem a törölt rész végén
+            ["Régi egy szöveg.", "Új első tartalom."],     # a pár nélküliek egymás mellett, a helyükön
             ["2. Béta szakasz", "2. Béta szakasz!"],
-            ["Régi kettő szöveg.", ""],
-            ["", "Új második tartalom."],
+            ["Régi kettő szöveg.", "Új második tartalom."],
         ])
 
     def test_md_table_rows_aligned(self) -> None:
@@ -200,6 +198,18 @@ class MdDiffTest(PageTestCase):
         ])
         uni = self.page.locator(".diff-uni .md-blk").evaluate_all(f"bs => bs.map({blk})")
         self.assertEqual(uni[2], ["del only", "Első mondat.\nMásodik mondat.\nHarmadik mondat.", ["Második mondat."]])
+
+    def test_raw_unpaired_side_by_side(self) -> None:
+        """Nyers side-by-side: a két pár közti pár nélküli törölt és új sor egy sorban."""
+        self.resize(1400)
+        self.open_file("rend.md")
+        self.page.locator("[data-md-mode]").first.click()          # nyers diff
+        self.page.wait_for_selector(".diff-split .split-row")
+        rows = self.page.locator(".diff-split .split-row").evaluate_all(
+            "rs => rs.map(r => [...r.querySelectorAll('.half')].map(h => h.querySelector('.tx')?.textContent ?? null))")
+        self.assertIn(["Régi egy szöveg.", "Új első tartalom."], rows)
+        self.assertIn(["Régi kettő szöveg.", "Új második tartalom."], rows)
+        self.page.locator("[data-md-mode]").first.click()          # vissza (a lap megjegyzi)
 
     def test_one_sided_code_line(self) -> None:
         self.open_file("kod.py")
