@@ -38,19 +38,20 @@ const MD_HTML = /^\s{0,3}<[!/a-zA-Z]/;
    egy helyen látszik — akkor is, ha a git a párt egy törölt bekezdés mögé
    tette (a táblázat utolsó sora és utána egy kivett bekezdés). */
 function mdBlocks(lines, pairOf) {
-  const blocks = [];
+  const blocks = [], blockOf = new Map();
   let cur = null;
+  const add = (b, l) => { b.lines.push(l); blockOf.set(l, b); };
   const start = (type, l, extra) => {
-    const pair = pairOf.get(l);
-    const own = pair && blocks.findLast(b => b.lines.includes(pair));
-    if (own?.type === type && type !== 'code' && !own.lines.some(x => x.t === '+')) { own.lines.push(l); cur = own; return; }
-    cur = { type, lines: [l], ...extra };
+    const own = blockOf.get(pairOf.get(l));
+    if (own?.type === type && type !== 'code' && !own.lines.some(x => x.t === '+')) { add(own, l); cur = own; return; }
+    cur = { type, lines: [], ...extra };
     blocks.push(cur);
+    add(cur, l);
   };
   lines.forEach((l, i) => {
     const s = l.s;
     if (cur?.type === 'code' && cur.fence) {          // kódblokk belseje: a záró kerítésig
-      cur.lines.push(l);
+      add(cur, l);
       const t = s.trim();
       if (t.startsWith(cur.fence) && /^([`~]+|-{3,})$/.test(t)) cur = null;
       return;
@@ -68,22 +69,22 @@ function mdBlocks(lines, pairOf) {
       cur.type = 'h';
       cur.level = s.trim()[0] === '=' ? 1 : 2;
       cur.setext = true;
-      cur.lines.push(l);
+      add(cur, l);
       cur = null;
       return;
     }
     const head = MD_HEAD.exec(s);
     if (head) { start('h', l, { level: head[1].length }); cur = null; return; }
     if (MD_HR.test(s)) { start('hr', l); cur = null; return; }
-    if (MD_TABLE.test(s)) { if (cur?.type === 'table') cur.lines.push(l); else start('table', l); return; }
-    if (MD_QUOTE.test(s)) { if (cur?.type === 'quote') cur.lines.push(l); else start('quote', l); return; }
+    if (MD_TABLE.test(s)) { if (cur?.type === 'table') add(cur, l); else start('table', l); return; }
+    if (MD_QUOTE.test(s)) { if (cur?.type === 'quote') add(cur, l); else start('quote', l); return; }
     const li = MD_LI.exec(s);
     if (li) { start('li', l, { indent: li[1].length }); return; }
     if (MD_HTML.test(s) && cur?.type !== 'p' && cur?.type !== 'li') {   // HTML-blokk: forrásként
-      if (cur?.type === 'code') cur.lines.push(l); else start('code', l, { lang: 'html' });
+      if (cur?.type === 'code') add(cur, l); else start('code', l, { lang: 'html' });
       return;
     }
-    if (cur && ['p', 'li', 'quote', 'code'].includes(cur.type)) cur.lines.push(l);
+    if (cur && ['p', 'li', 'quote', 'code'].includes(cur.type)) add(cur, l);
     else start('p', l);
   });
   return blocks;
