@@ -423,13 +423,13 @@ export function mdDiffHtml(d) {
 /* A side-by-side két oldalán a párban álló táblázatsorok és kódsorok magassága
    egyforma: a kettő közül a magasabb (a tördelés oldalanként más). Kirajzolás
    után és szélességváltozáskor fut; ha a side-by-side nem látszik (keskeny
-   panel), csak visszaáll. */
+   panel), nincs dolga — megjelenéskor a szélességváltozás újra futtatja. */
 export function syncRows(root) {
+  if (!root.querySelector('.diff-split')?.getClientRects().length) return;   // rejtve a magasság nem számít
   const pairs = [...root.querySelectorAll('.diff-split .md-row')]
     .map(r => [...r.children].map(c => [...c.querySelectorAll('tr, .md-cl')]))
     .filter(([a, b]) => a.length && a.length === b.length);
   for (const [a, b] of pairs) for (const el of [...a, ...b]) el.style.height = '';
-  if (!root.querySelector('.diff-split')?.getClientRects().length) return;
   const heights = pairs.map(([a, b]) => a.map((x, i) =>
     Math.max(x.getBoundingClientRect().height, b[i].getBoundingClientRect().height)));
   pairs.forEach(([a, b], k) => a.forEach((x, i) => { x.style.height = b[i].style.height = `${heights[k][i]}px`; }));

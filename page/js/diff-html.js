@@ -54,7 +54,7 @@ export const kindOf = l => KIND[l.t] + (l.only ? ' only' : '');
 /* Változott-e a sor (a Python `w`-je): `same` — a szavai mind megvannak a
    másik oldalon (vagy üres sor); `words` / `whole` — szavai változtak / egészében
    új vagy törölt. `untouched`: a `t` oldalon egy sem változott. */
-export const changed = l => l.t !== ' ' && l.w !== 'same';
+const changed = l => l.t !== ' ' && l.w !== 'same';
 export const untouched = (ls, t) => !ls.some(l => l.t === t && changed(l));
 
 /* Melyik változott sor érintetlen (`drop`: a szavai mind megvannak a másik
@@ -114,7 +114,7 @@ const diffCell = (l, no, lang) => `<span class="no">${no ?? ''}</span>`
    látszik, a párok nem számítanak: a két oldal felülről, lyuk nélkül. */
 export function alignRows(L) {
   const at = new Map(L.map((l, i) => [l, i]));
-  const see = l => (l ? look(l) : l);
+  const see = l => l && look(l);
   const rows = [];
   for (let i = 0; i < L.length;) {
     if (L[i].t === ' ') { rows.push({ a: L[i], b: L[i], ctx: true }); i++; continue; }
