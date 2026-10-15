@@ -29,6 +29,8 @@ class McpServerTest(HomeTestCase):
             self.assertIn("<style>", code["head"])
             self.assertIn('id="rows"', code["body"])
             self.assertIn("globalThis.GIT_GRAPH", code["js"])
+            mermaid = client.call("page_code", repo=SLUG, api=1, part="mermaid")
+            self.assertIn('globalThis["mermaid"]', mermaid["js"])
             with self.assertRaises(AssertionError):            # eltérő betöltő-szerződés
                 client.call("page_code", repo=SLUG, api=0)
 

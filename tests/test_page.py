@@ -54,6 +54,11 @@ class PageTest(HomeTestCase):
         self.assertIn("indítsd újra", gg.page.page_api_mismatch(None))
         code = gg.page.page_code()
         self.assertEqual(set(code), {"head", "body", "js"})
+        mermaid = gg.page.page_code("mermaid")             # lustán kért darab: csak a JS-e
+        self.assertEqual(set(mermaid), {"js"})
+        self.assertIn('globalThis["mermaid"]', mermaid["js"])
+        with self.assertRaises(ValueError):
+            gg.page.page_code("nincs")
 
     def test_page_modules(self) -> None:
         """A lap moduljai a függőségeik után jönnek, a szakaszokból a forrás áll össze."""

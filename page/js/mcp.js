@@ -7,7 +7,8 @@ export function mcpSource() {
     signal ? { cache: false, signal } : { cache: false }).then(r => r.payload);
   return { changes: (since, wait, signal) => /** @type {Promise<Changes>} */ (call('changes', { since, wait }, signal)),
            data: () => /** @type {Promise<GraphData>} */ (call('graph_data')),
-           diff: (sha, path, full) => call('file_diff', { sha, path, full }) };
+           diff: (sha, path, full) => call('file_diff', { sha, path, full }),
+           mermaid: () => /** @type {Promise<{ js: string }>} */ (call('page_code', { api: CTX.api, part: 'mermaid' })) };
 }
 
 /* MCP-hibakód → teendő. A nem `retryable` hibák nem múlnak el maguktól:

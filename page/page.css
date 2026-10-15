@@ -776,6 +776,20 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 }
 .md-cl { padding: 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; border-left: 3px solid transparent; }
 .md-cl.md-skip { color: var(--code-no); font-family: var(--font-ui); font-size: 11.5px; }
+/* Mermaid: kirajzolva a kódnézet rejtve; a változott diagram kerete a diff színével */
+.md-mmd.md-mmd-on > .md-code { display: none; }
+.md-mmd-view:empty { display: none; }
+.md-mmd-fig {
+  margin: 4px 0 4px 17px; padding: 8px; border-radius: 6px; border: 1px solid var(--border-soft);
+  overflow-x: auto;
+}
+.md-mmd-fig.add { border: 2px solid var(--add); }
+.md-mmd-fig.del { border: 2px solid var(--del); }
+.md-mmd-fig svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.md-mmd-err {
+  margin: 0 0 4px 17px; font-family: var(--font-mono); font-size: 11.5px; color: var(--del);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
 .md-table { margin: 4px 0 4px 17px; }
 .md-table table { border-collapse: collapse; font-size: 12.5px; max-width: 100%; }
 .md-table th, .md-table td {

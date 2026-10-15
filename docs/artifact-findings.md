@@ -339,8 +339,10 @@ Eldobható mérőlap, a build szövegével beágyazva; az eredményt a lap a saj
 - Ugyanez helyben, az Artifact CSP-jével kiszolgálva headless Chromiumban is
   zöld — a lap-teszt (`tests/page/`) így a CSP-t is lefedheti.
 - A 12.x build nagyobb (12.1.0: 5,5 MB), a 11.17.2 a legutolsó 11-es.
-- Nem mértük még: a 3,6 MB-os szöveg átmegy-e egy `page_code`-válaszban a
-  host-hídon (eddig a legnagyobb válasz a `graph_data` volt).
+- **A host-híd átviszi**: a `page_code` `part: "mermaid"` (3 572 520 karakter) a
+  második mérőlapon, `host:git-graph`-on át: a gépen 32–46 ms, a lapon az
+  ismételt hívás 271 ms (az első 7 s-ában az engedélykérés is benne van), utána
+  blobból renderel. Az app naplója `outcome: 'ok'`-t írt.
 
 ## Közös Artifact a worktree-knek (mérve, 2026-10-04, Claude Code 2.1.286, contract 0.2.67)
 

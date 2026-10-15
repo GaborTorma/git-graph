@@ -9,7 +9,9 @@
    látszik, a többi `···`. Széles nézetben side-by-side (balra a régi, jobbra
    az új változat). A kapcsoló (`mdRaw`) a nyers diffre vált, a lap
    megjegyzi. Ha a két változat blokkszerkezete eltér (pl. új kódkerítés), a
-   renderelés pontatlan lehet — arra való a nyers nézet. */
+   renderelés pontatlan lehet — arra való a nyers nézet. A ```mermaid blokk
+   diagramként jelenik meg (`mermaid.js`): a változott régi változata piros, az
+   új zöld keretben; amíg nincs kirajzolva, vagy ha hibás, a kódnézet látszik. */
 import { KIND, alignRows, kindOf, oneSide, sideOf, untouched } from './diff-html.js';
 import { LANGS, highlight } from './syntax.js';
 import { esc, ghLink } from './util.js';
@@ -54,7 +56,11 @@ function mdBlocks(lines, pairOf) {
     // YAML front matter (pl. SKILL.md): kódként, különben a záró `---` címsort csinálna
     if (i === 0 && s === '---') { start('code', l, { fence: '---', lang: '' }); return; }
     const fence = MD_FENCE.exec(s);
-    if (fence) { start('code', l, { fence: fence[1], lang: LANGS[fence[2].toLowerCase()] || '' }); return; }
+    if (fence) {
+      const info = fence[2].toLowerCase();
+      start('code', l, { fence: fence[1], lang: LANGS[info] || '', mermaid: info === 'mermaid' });
+      return;
+    }
     if (cur?.type === 'p' && MD_SETEXT.test(s)) {    // aláhúzott címsor
       cur.type = 'h';
       cur.level = s.trim()[0] === '=' ? 1 : 2;
@@ -225,11 +231,12 @@ function mdBlockHtml(b, side, partner) {
     // változatlan kódblokkból (környezetként) az eleje.
     const changed = side ? rows.map(r => !r.ctx) : body.map(l => l.t !== ' ');
     const keep = changed.includes(true) ? near(changed, MD_CODE_CONTEXT) : body.map((_, i) => i < MD_CODE_CONTEXT);
-    return '<pre class="md-code mono">' + runsOf(keep).map(r => (r.keep
+    const code = '<pre class="md-code mono">' + runsOf(keep).map(r => (r.keep
       ? body.slice(r.from, r.to).map(l => (l
         ? `<div class="md-cl${kindOf(l)}">${highlight(l.s, l.hl, b.lang) || ' '}</div>`
         : '<div class="md-cl md-none"> </div>')).join('')
       : `<div class="md-cl md-skip" title="${r.to - r.from} változatlan sor">···</div>`)).join('') + '</pre>';
+    return b.mermaid ? mermaidHtml(lines, side, code) : code;
   }
   if (b.type === 'table') {
     // A fejléc mindig, a többi sorból csak a változott és a szomszédai (a többi `···`):
@@ -259,6 +266,20 @@ function mdBlockHtml(b, side, partner) {
   if (untouched(b.lines, '-')) return `<div class="md-blk add only">${mdText(b, add)}</div>`;
   if (untouched(b.lines, '+')) return `<div class="md-blk del only">${mdText(b, del)}</div>`;
   return `<div class="md-blk del">${mdText(b, del)}</div><div class="md-blk add">${mdText(b, add)}</div>`;
+}
+
+/* Mermaid-blokk: a kódnézet (tartalék) és a kirajzolandó változatok (`data-mmd`:
+   forrás és keretszín), a `renderMermaid` rajzolja ki. Változatlanul a mostani,
+   különben a régi (piros) és az új (zöld) — ami üres, az elmarad (csak beszúrt
+   vagy csak törölt blokk); side-by-side-ban oldalanként a saját változata. */
+function mermaidHtml(lines, side, code) {
+  const without = t => lines.filter(l => l.t !== t).map(l => l.s).join('\n');
+  const changed = lines.some(l => l.t !== ' ');
+  const versions = side ? [{ src: without(side === '-' ? '+' : '-'), kind: changed ? KIND[side] : '' }]
+    : !changed ? [{ src: without('-'), kind: '' }]
+    : [{ src: without('+'), kind: KIND['-'] }, { src: without('-'), kind: KIND['+'] }];
+  const shown = versions.filter(v => v.src.trim());
+  return `<div class="md-mmd" data-mmd="${esc(JSON.stringify(shown))}">${code}<div class="md-mmd-view"></div></div>`;
 }
 
 /* A csak hozzáadott blokk helye. A változásban előbb az összes törölt, aztán
