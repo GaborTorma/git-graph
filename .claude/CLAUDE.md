@@ -98,6 +98,9 @@ telepítés kézi próbája: [architecture.md](../docs/architecture.md#fejleszt�
 - **Verziókezelés**: SemVer, a verzió egyetlen forrása a
   `.claude-plugin/plugin.json` (a `marketplace.json` nem ismétli); kézi
   `vX.Y.Z` tag, Conventional Commits.
+- **Commit**: bár ez plugin-repó (`.claude-plugin/` a gyökérben), az auto-commit
+  (`RULE:git`) itt is megy — a kész, ellenőrzött munka kérdés nélkül commitolódik; a
+  plugin-repó kivétel itt nem érvényes.
 - **Deploy**: a marketplace forrása a repó `main`-je, tehát a merge már
   élesít; a `/release` deploy-lépése a helyi frissítés:
   `claude plugin marketplace update git-graph && claude plugin update git-graph@git-graph`.
