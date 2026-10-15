@@ -34,6 +34,8 @@ OLD_LINES = f"{FENCE}mermaid\nflowchart LR\n  A[Marad] --> B[Is]\n  B --> T[Tör
 NEW_LINES = OLD_LINES.replace("  B --> T[Törölt]\n", "").replace("Régi mondat.", "Új mondat.")
 OLD_BAD = f"{FENCE}mermaid\nflowchart LR\n  A --> B\n{FENCE}\n"
 NEW_BAD = f"{FENCE}mermaid\nflowchart LR\n  A --> \n{FENCE}\n"
+# hosszú, fentről lefelé írt lánc: széles helyen vízszintesen fér el jobban
+CHAIN = f"{FENCE}mermaid\nflowchart TD\n  A[Első] --> B[Második] --> C[Harmadik] --> D[Negyedik] --> E[Ötödik]\n{FENCE}\n"
 
 # A kirajzolt diagramok: [keret, szövegek] — a keret a diff színe (`add` / `del`), vagy üres.
 FIGS = ("fs => fs.map(f => [f.className.replace(/md-mmd-(fig|)/g, '').trim(),"
@@ -58,6 +60,8 @@ class MermaidTest(PageTestCase):
         (repo / "szoveg.md").write_text("Új szöveg.\n", encoding="utf-8")
         (repo / "torles.md").write_text(NEW_ONLY, encoding="utf-8")
         (repo / "sorok.md").write_text(NEW_LINES, encoding="utf-8")
+        (repo / "lanc.md").write_text(CHAIN, encoding="utf-8")
+        git("add", ".")
         git("commit", "-qam", "ábra: módosítva")
 
     def open_file(self, name: str) -> None:
@@ -146,6 +150,18 @@ class MermaidTest(PageTestCase):
         self.assertIn("Parse error", err.text_content())
         shown = self.page.locator(".md-mmd .md-code").evaluate("c => getComputedStyle(c).display")
         self.assertEqual(shown, "block")
+
+    def test_direction_fits_the_room(self) -> None:
+        """A flowchart iránya a helyhez igazodik: széles nézetben a fentről lefelé írt lánc
+        vízszintes, keskenyre váltva — újrarajzolás nélkül — visszafordul függőlegesre."""
+        aspect = "f => { const s = f.querySelector('svg').viewBox.baseVal; return s.width / s.height; }"
+        self.resize(1400)
+        self.open_file("lanc.md")
+        fig = self.page.locator(".md-mmd-on .md-mmd-fig:visible")
+        fig.wait_for()
+        self.assertGreater(fig.evaluate(aspect), 1)
+        self.resize(700)
+        self.assertLess(fig.evaluate(aspect), 1)
 
     def test_lazy_load_and_theme(self) -> None:
         """A Mermaid csak az első diagramnál töltődik be; témaváltáskor a diagram újrarajzolódik."""

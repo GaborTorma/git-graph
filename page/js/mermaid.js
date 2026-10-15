@@ -63,13 +63,51 @@ function fail(box, e) {
     esc(String(e?.message || e?.code || e).trim())}</p>`;
 }
 
+/* Az irány a helyhez: a flowchart a forrás tengelyén és elforgatva (TB ↔ LR, BT ↔ RL)
+   is kirajzolódik, és az kerül a lapra, amelyik jobban elfér (`fit`). A forrás
+   első sora adja az irányt (`flowchart LR`, `graph TD`); a front matter és a `%%`
+   komment előtte lehet. Más diagram (szekvencia, state, …) marad, ahogy írták. */
+const FLIP = { TB: 'LR', TD: 'LR', BT: 'RL', LR: 'TB', RL: 'BT' };
+function turned(src) {
+  const lines = src.split('\n');
+  let i = lines[0]?.trim() === '---' ? lines.findIndex((l, k) => k > 0 && l.trim() === '---') + 1 : 0;
+  while (i < lines.length && (!lines[i].trim() || lines[i].trim().startsWith('%%'))) i++;
+  const m = /^(\s*(?:flowchart|graph))(?:[ \t]+(TB|TD|BT|RL|LR))?(?![\w-])/.exec(lines[i] || '');
+  if (!m) return null;
+  lines[i] = `${m[1]} ${FLIP[m[2] || 'TB']}${lines[i].slice(m[0].length)}`;
+  return lines.join('\n');
+}
+
+/* A kirajzolt változat természetes mérete (a Mermaid a `max-width`-be és a
+   `viewBox`-ba írja). */
+function size(svg) {
+  const w = parseFloat(/max-width:\s*([\d.]+)px/.exec(svg)?.[1] || '0');
+  const box = /viewBox="[-\d.]+ [-\d.]+ ([\d.]+) ([\d.]+)"/.exec(svg);
+  return { w: w || parseFloat(box?.[1] || '0'), h: parseFloat(box?.[2] || '0') };
+}
+
+/* Mennyire fér el a `figs` a `room` szélességen: előbb az számít, hogy két változat
+   egymás mellé kerül-e, aztán a kicsinyítés (minél kevesebb), végül a magasság. */
+const GAP = 6;               // a változatok köze (`.md-mmd-view`)
+function fit(figs, room) {
+  const outer = figs.map(({ w, h }) => ({ w: w * SCALE + FRAME, h: h * SCALE + FRAME }));
+  const side = outer.length < 2 || outer.reduce((a, o) => a + o.w, 0) + GAP * (outer.length - 1) <= room;
+  const scales = outer.map(o => side && outer.length > 1 ? 1 : Math.min(1, room / o.w));
+  const heights = outer.map((o, i) => o.h * scales[i]);
+  return [side ? 1 : 0, Math.round(Math.min(...scales) * 100),
+          -(side ? Math.max(...heights) : heights.reduce((a, b) => a + b, 0))];
+}
+const better = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i]; return false; };
+
+const drawn = new WeakMap();   // doboz → a változatok rajzai mindkét irányban, az összevetési alappal
+
 async function draw(boxes, mermaid) {
   mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', suppressErrorRendering: true,
                        theme: 'base', themeVariables: themeVariables(), look: 'neo' });
   for (const box of boxes) {
     if (!box.isConnected) continue;
     try {
-      const versions = JSON.parse(box.dataset.mmd), figs = [], bases = [];
+      const versions = JSON.parse(box.dataset.mmd), out = [];
       const svgOf = async src => {
         const id = `gg-mmd-${++seq}`;
         try {
@@ -78,36 +116,67 @@ async function draw(boxes, mermaid) {
           document.getElementById('d' + id)?.remove();     // a Mermaid ideiglenes eleme
         }
       };
-      for (const v of versions) {
-        const kind = (v.kind ? ` md-mmd-${v.kind.trim()}` : '') + (v.whole ? ' md-mmd-whole' : '');
-        figs.push(`<div class="md-mmd-half"><div class="md-mmd-fig${kind}">${await svgOf(v.src)}</div></div>`);
+      const flips = versions.map(v => turned(v.src));
+      const flip = flips.every(Boolean);                  // a két változat egy irányban
+      for (const [i, v] of versions.entries()) {
         // az egyetlen változat összevetési alapja: csak a változott elemek kereséséhez, nem látszik
-        const base = document.createElement('div');
-        if (v.base?.trim()) base.innerHTML = await svgOf(v.base);
-        bases.push(base.querySelector('svg'));
+        out.push({ as: await svgOf(v.src), flipped: flip ? await svgOf(flips[i]) : '',
+                   base: v.base?.trim() ? await svgOf(v.base) : '' });
       }
-      const view = box.querySelector('.md-mmd-view');
-      view.innerHTML = figs.join('');
-      const svgs = [...view.querySelectorAll('.md-mmd-fig > svg')];
-      svgs.forEach((svg, i) => {
-        if (bases[i]) markChanges(svg, bases[i]);
-        markText(svg, versions[i].marks || []);
-      });
-      if (svgs.length === 2) markChanges(svgs[0], svgs[1]);
-      // A keret a diagram (kicsinyített) szélességét kapja, a fele legalább ekkora: két
-      // változat így egymás mellé kerül, ha elfér, különben egymás alá.
-      for (const svg of svgs) {
-        const width = parseFloat(svg.style.maxWidth);
-        if (!width) continue;
-        const fig = svg.parentElement, outer = width * SCALE + FRAME;
-        fig.style.width = `${outer}px`;
-        fig.parentElement.style.minWidth = `min(100%, ${outer}px)`;
-      }
-      box.classList.add('md-mmd-on');
+      drawn.set(box, { versions, out });
+      delete box.dataset.mmdDir;
+      place(box);
     } catch (e) {
+      drawn.delete(box);
       fail(box, e);
     }
   }
+}
+
+/* A rajzok közül a helyhez illő irány a lapra: a változott elemek színesek, a keret a
+   diagram (kicsinyített) szélességét kapja, a fele legalább ekkorát — két változat így
+   egymás mellé kerül, ha elfér, különben egymás alá. Rejtett nézetben (nincs
+   szélessége) a forrás iránya marad, amíg meg nem jelenik. */
+function place(box) {
+  const d = drawn.get(box);
+  if (!d) return;
+  const room = box.clientWidth - 17;                  // a `.md-mmd-view` bal margója
+  let dir = box.dataset.mmdDir || 'as';
+  if (room > 0 && d.out.every(o => o.flipped)) {
+    const as = fit(d.out.map(o => size(o.as)), room), flipped = fit(d.out.map(o => size(o.flipped)), room);
+    dir = better(flipped, as) ? 'flipped' : 'as';
+  }
+  if (box.dataset.mmdDir === dir && box.classList.contains('md-mmd-on')) return;
+  box.dataset.mmdDir = dir;
+  const view = box.querySelector('.md-mmd-view');
+  view.innerHTML = d.versions.map((v, i) => {
+    const kind = (v.kind ? ` md-mmd-${v.kind.trim()}` : '') + (v.whole ? ' md-mmd-whole' : '');
+    return `<div class="md-mmd-half"><div class="md-mmd-fig${kind}">${d.out[i][dir]}</div></div>`;
+  }).join('');
+  const svgs = [...view.querySelectorAll('.md-mmd-fig > svg')];
+  svgs.forEach((svg, i) => {
+    if (d.out[i].base) {
+      const base = document.createElement('div');
+      base.innerHTML = d.out[i].base;
+      markChanges(svg, base.querySelector('svg'));
+    }
+    markText(svg, d.versions[i].marks || []);
+  });
+  if (svgs.length === 2) markChanges(svgs[0], svgs[1]);
+  for (const svg of svgs) {
+    const width = parseFloat(svg.style.maxWidth);
+    if (!width) continue;
+    const fig = svg.parentElement, outer = width * SCALE + FRAME;
+    fig.style.width = `${outer}px`;
+    fig.parentElement.style.minWidth = `min(100%, ${outer}px)`;
+  }
+  box.classList.add('md-mmd-on');
+}
+
+/* Szélességváltáskor (panel, ablak, side-by-side ↔ egymás alatt) a kirajzolt
+   diagramok iránya újra: rajzolás nélkül, a meglévő két rajz közül. */
+export function refitMermaid(root) {
+  for (const box of root.querySelectorAll('.md-mmd-on')) place(box);
 }
 
 /* A diagram elemei a változatok összevetéséhez. Az azonosítós elemek (csomópont,

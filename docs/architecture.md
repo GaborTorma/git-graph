@@ -248,6 +248,11 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   ezeknél a kódnézet marad, alatta a hibával. Az ELK (a 12-ben beépített,
   alapértelmezett elrendezés) benne van: 3,7 MB-ból 1,44 MB az `elkjs`. A rajz a
   `base` témán, a lap palettáján (`PALETTE` a `mermaid.js`-ben), `neo` stílusban.
+  **Az irány a helyhez igazodik**: a flowchart a forrás irányában és elforgatva
+  (TB ↔ LR) is kirajzolódik, és az kerül a lapra, amelyik jobban elfér — két
+  változatnál előbb, hogy egymás mellé kerüljenek, aztán a kisebb kicsinyítés, végül
+  a kisebb magasság (`fit`). Szélességváltáskor (`watchWidth`) a két meglévő rajz
+  közül választ újra, rajzolás nélkül (`refitMermaid`).
   Frissítés: a szkriptben a verzió, futtatás, a verzió a `page.py` kommentjében is;
   a buildnek a mért határ alatt kell maradnia.
 - **Host-híd (`host:git-graph`)** — mérve, docs/artifact-findings.md:

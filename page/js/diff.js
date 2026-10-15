@@ -8,7 +8,7 @@ import { diffHtml } from './diff-html.js';
 import { drawGraph } from './graph.js';
 import { icon } from './icons.js';
 import { mdDiffHtml, syncRows } from './md-diff.js';
-import { renderMermaid } from './mermaid.js';
+import { refitMermaid, renderMermaid } from './mermaid.js';
 import { revealCommit, revealFile } from './panel.js';
 import { expanded } from './state.js';
 import { langOf } from './syntax.js';
@@ -23,7 +23,7 @@ function watchWidth(box) {
   watched.add(box);
   let width = box.clientWidth;
   new ResizeObserver(() => {
-    if (box.clientWidth !== width) { width = box.clientWidth; syncRows(box); }
+    if (box.clientWidth !== width) { width = box.clientWidth; refitMermaid(box); syncRows(box); }
   }).observe(box);
 }
 
