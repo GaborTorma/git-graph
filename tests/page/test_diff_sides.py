@@ -77,7 +77,7 @@ class MdDiffTest(PageTestCase):
     def test_one_sided_paragraph(self) -> None:
         self.open_file("doksi.md")
         self.page.wait_for_selector(".md-doc")
-        blocks = self.page.locator(".md-doc .md-blk").evaluate_all(
+        blocks = self.page.locator(".diff-uni .md-blk").evaluate_all(
             "bs => bs.map(b => [b.className.replace('md-blk', '').trim(), b.textContent,"
             " [...b.querySelectorAll('mark')].map(m => m.textContent)])")
         self.assertEqual(blocks[2:], [            # előtte a címsor és a környezet
@@ -90,16 +90,33 @@ class MdDiffTest(PageTestCase):
             ["add only", "Régi címsor, kiegészítve", [", kiegészítve"]],
         ])
         # a front matter (kódblokk): csak a törölt sor, a kiemelt szóval
-        lines = self.page.locator(".md-doc .md-cl").evaluate_all(
+        lines = self.page.locator(".diff-uni .md-cl").evaluate_all(
             "ls => ls.map(l => [l.className.replace('md-cl', '').trim(), l.textContent,"
             " [...l.querySelectorAll('mark')].map(m => m.textContent)])")
         self.assertEqual(lines, [["", "leiras: régi", []], ["del only", "eszkozok: egy, ketto, harom", ["ketto, "]]])
         # az `only` sor háttere semleges, a szó kiemelése ugyanaz, mint a vegyes sorban
-        bg = self.page.locator(".md-blk.del.only").first.evaluate(
+        bg = self.page.locator(".diff-uni .md-blk.del.only").first.evaluate(
             "b => [getComputedStyle(b).backgroundColor, getComputedStyle(b.querySelector('mark')).backgroundColor,"
             " getComputedStyle(document.querySelector('.md-blk.del:not(.only) mark')).backgroundColor]")
         self.assertEqual(bg[0], "rgba(0, 0, 0, 0)")
         self.assertEqual(bg[1], bg[2])
+
+    def test_md_split(self) -> None:
+        """Széles nézetben a markdown is side-by-side: blokkonként egy sor, balra a régi, jobbra az új."""
+        self.resize(1400)
+        self.open_file("doksi.md")
+        self.page.wait_for_selector(".diff-split .md-row")
+        rows = self.page.locator(".diff-split .md-row:has(.md-blk)").evaluate_all(
+            "rs => rs.map(r => [...r.children].map(c => { const b = c.querySelector('.md-blk');"
+            " return b ? b.className.replace(/md-blk/, '').trim() : '-'; }))")
+        self.assertEqual(rows[2:], [               # előtte a címsor és a környezet
+            ["", "add only"],                       # csak beszúrás: a régi oldal változatlan
+            ["del only", ""],
+            ["del", "add"],
+            ["", "add only"],
+            ["del only", ""],
+            ["", "add only"],
+        ])
 
     def test_one_sided_code_line(self) -> None:
         self.open_file("kod.py")

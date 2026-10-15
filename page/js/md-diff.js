@@ -6,10 +6,11 @@
    változatával pirosan, alatta az újjal zölden, a cserélt szavak kiemelve. A
    táblázat és a kódblokk soronként színezett. A változatlan blokkokból csak a
    változás körüli (`MD_CONTEXT`) és az előtte álló legközelebbi címsor
-   látszik, a többi `···`. A kapcsoló (`mdRaw`) a nyers diffre vált, a lap
+   látszik, a többi `···`. Széles nézetben side-by-side (balra a régi, jobbra
+   az új változat). A kapcsoló (`mdRaw`) a nyers diffre vált, a lap
    megjegyzi. Ha a két változat blokkszerkezete eltér (pl. új kódkerítés), a
    renderelés pontatlan lehet — arra való a nyers nézet. */
-import { KIND, kindOf, oneSide, untouched } from './diff-html.js';
+import { KIND, kindOf, oneSide, sideOf, untouched } from './diff-html.js';
 import { LANGS, highlight } from './syntax.js';
 import { esc, ghLink } from './util.js';
 
@@ -195,14 +196,26 @@ function runsOf(keep) {
   return runs;
 }
 
-/* Egy blokk: kódblokk és táblázat soronként színezve, a többi változatonként. */
-function mdBlockHtml(b) {
+/* Egy blokk: kódblokk és táblázat soronként színezve, a többi változatonként.
+   `side` ('-' / '+'): a side-by-side egyik oldala (`sideOf`), az üres oldal
+   helyőrző; nélküle az egymás alatti nézet (`oneSide`). */
+function mdBlockHtml(b, side) {
+  const pick = side ? ls => sideOf(ls, side) : oneSide;
+  if (side) {
+    const ls = pick(b.lines);
+    if (!ls.length) return '<div class="md-blk md-none"></div>';
+    if (b.type !== 'code' && b.type !== 'table') {
+      const ch = ls.filter(l => l.t !== ' ');
+      const kind = ch.length ? KIND[ch[0].t] + (ch.every(l => l.only) ? ' only' : '') : '';
+      return `<div class="md-blk${kind}">${b.type === 'hr' ? '<hr>' : mdText(b, ls)}</div>`;
+    }
+  }
   if (b.type === 'hr') return `<div class="md-blk${linesKind(b.lines) ?? ''}"><hr></div>`;
   if (b.type === 'code') {
     // a kerítés sorai nem látszanak (a záró hiányozhat: a fájl vége vagy a levágás)
     const closed = b.fence && b.lines.length > 1 && b.lines.at(-1).s.trim().startsWith(b.fence);
     // a változásnak csak az érintett oldala, mint a nyers diffben (`oneSide`)
-    const body = oneSide(b.fence ? b.lines.slice(1, closed ? -1 : undefined) : b.lines);
+    const body = pick(b.fence ? b.lines.slice(1, closed ? -1 : undefined) : b.lines);
     // Mint a nyers diffben: a változott sorok körül `MD_CODE_CONTEXT` sor, a
     // változatlan kódblokkból (környezetként) az eleje.
     const changed = body.map(l => l.t !== ' ');
@@ -215,7 +228,7 @@ function mdBlockHtml(b) {
   if (b.type === 'table') {
     // A fejléc mindig, a többi sorból csak a változott és a szomszédai (a többi `···`):
     // egy nagy táblázat (pl. a repó térképe) egy sor miatt ne nyíljon ki egészben.
-    const rows = oneSide(b.lines).filter(l => !MD_TABLE_SEP.test(l.s));
+    const rows = pick(b.lines).filter(l => !MD_TABLE_SEP.test(l.s));
     const keep = near(rows.map((l, i) => i > 0 && l.t !== ' '), MD_CONTEXT);
     keep[0] = true;
     const cells = l => marked(l).trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/);
@@ -256,8 +269,16 @@ export function mdDiffHtml(d) {
     if (b.type === 'h') heading = i;
   });
   // Egy blokk (hunk) a `···`-ig: fókuszálható, a nyilak blokkról blokkra lépnek.
-  const out = runsOf(shown).map(r => (r.keep
-    ? `<div class="hunk md-doc" tabindex="-1">${blocks.slice(r.from, r.to).map(mdBlockHtml).join('')}</div>`
+  // Mint a nyers diffnél: egymás alatti és side-by-side nézet, a szélesség dönt;
+  // a side-by-side-ban blokkonként egy sor, balra a régi, jobbra az új változat.
+  const view = one => runsOf(shown).map(r => (r.keep
+    ? `<div class="hunk md-doc" tabindex="-1">${blocks.slice(r.from, r.to).map(one).join('')}</div>`
     : `<p class="diff-gap" title="${r.to - r.from} változatlan blokk">···</p>`)).join('');
+  const uni = view(b => mdBlockHtml(b));
+  const kinds = new Set(blocks.flatMap(b => oneSide(b.lines).map(l => l.t)));
+  const out = kinds.has('+') && kinds.has('-')
+    ? `<div class="diff-uni">${uni}</div><div class="diff-split">${view(b =>
+      `<div class="md-row"><div>${mdBlockHtml(b, '-')}</div><div>${mdBlockHtml(b, '+')}</div></div>`)}</div>`
+    : `<div>${uni}</div>`;
   return mdMarks(out) + (d.truncated ? '<p class="diff-note">… a fájl túl hosszú, a vége le van vágva.</p>' : '');
 }

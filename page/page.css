@@ -749,6 +749,10 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .md-doc { font-family: var(--font-ui); font-size: 13px; line-height: 1.55; color: var(--fg-0); padding: 0 14px 0 0; }
 .md-blk { padding: 1px 0 1px 14px; border-left: 3px solid transparent; }
 /* a háttér és a `mark` a nyers diff `.add` / `.del` szabályaiból jön, itt csak a csík */
+/* side-by-side: blokkonként egy sor, a két változat egymás mellett */
+.md-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.md-row > * { min-width: 0; }
+.md-row > * + * { border-left: 1px solid var(--border-soft); }
 .md-blk.add, .md-cl.add { border-left-color: var(--add); }
 .md-blk.del, .md-cl.del { border-left-color: var(--del); }
 .md-doc p, .md-doc blockquote { margin: 4px 0; }

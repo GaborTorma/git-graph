@@ -53,6 +53,24 @@ export function oneSide(lines) {
   }
   return out;
 }
+/* A side-by-side egyik oldala (`keep`: '-' a régi, '+' az új): a változatlan
+   sorok és a `keep` jelűek. Csak beszúrásnál vagy csak törlésnél (mint a
+   `oneSide`-ban) az érintetlen oldal sorai változatlanként, a másikéi `only`. */
+export function sideOf(lines, keep) {
+  const out = [];
+  for (let i = 0; i < lines.length;) {
+    if (lines[i].t === ' ') { out.push(lines[i++]); continue; }
+    let j = i; while (j < lines.length && lines[j].t !== ' ') j++;
+    const run = lines.slice(i, j);
+    const both = run.some(l => l.t === '+') && run.some(l => l.t === '-');
+    const drop = !both ? null : untouched(run, '-') ? '-' : untouched(run, '+') ? '+' : null;
+    for (const l of run) {
+      if (l.t === keep) out.push(!drop ? l : drop === keep ? { ...l, t: ' ' } : { ...l, only: true });
+    }
+    i = j;
+  }
+  return out;
+}
 const diffCell = (l, no, lang) => `<span class="no">${no ?? ''}</span>`
   + `<span class="sg">${l.t === ' ' ? '' : l.t === '-' ? '−' : '+'}</span>`
   + `<span class="tx">${highlight(l.s, l.hl, lang)}</span>`;
