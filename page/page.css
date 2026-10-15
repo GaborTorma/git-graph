@@ -776,18 +776,44 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 }
 .md-cl { padding: 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; border-left: 3px solid transparent; }
 .md-cl.md-skip { color: var(--code-no); font-family: var(--font-ui); font-size: 11.5px; }
-/* Mermaid: kirajzolva a kódnézet rejtve; a változott diagram kerete a diff színével */
+/* Mermaid: kirajzolva a kódnézet rejtve. A diagramok egymás mellett, ha elférnek
+   (a keret a diagram szélességét kapja); a változatot a bal csík jelzi, a
+   változott elemet (`md-mmd-ch`) a diff színe — a Mermaid saját, azonosítós
+   szabályai fölött (`!important`). */
 .md-mmd.md-mmd-on > .md-code { display: none; }
+/* Két változat két egyforma félen: a régi jobbra, az új balra igazítva, a
+   középvonalon találkoznak; ha nem férnek el, egymás alá. Egy változat balra. */
+.md-mmd-view { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 4px 17px; }
 .md-mmd-view:empty { display: none; }
+.md-mmd-row .md-mmd-view:has(> :nth-child(2)) { margin-left: 0; }   /* a side-by-side középvonalán */
+.md-mmd-half { flex: 1 1 0; display: flex; min-width: 0; }
+.md-mmd-half:first-child:not(:only-child) { justify-content: flex-end; }
 .md-mmd-fig {
-  margin: 4px 0 4px 17px; padding: 8px; border-radius: 6px; border: 1px solid var(--border-soft);
+  box-sizing: border-box; max-width: 100%; padding: 8px;
+  border: 1px solid var(--border-soft); border-radius: 6px;
   overflow-x: auto;
 }
-.md-mmd-fig.add { border: 2px solid var(--add); }
-.md-mmd-fig.del { border: 2px solid var(--del); }
+/* a bal csík csak az egészében új / törölt diagramé; nem `.add` / `.del`: azokat a
+   diff sorai színezik, a keret háttere semleges marad */
+.md-mmd-whole.md-mmd-add { border-left: 3px solid var(--add); }
+.md-mmd-whole.md-mmd-del { border-left: 3px solid var(--del); }
 .md-mmd-fig svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.md-mmd-add { --mmd-ch: var(--add); --mmd-bg: var(--diff-add); --mmd-hl: var(--diff-add-hl); }
+.md-mmd-del { --mmd-ch: var(--del); --mmd-bg: var(--diff-del); --mmd-hl: var(--diff-del-hl); }
+.md-mmd-fig .md-mmd-ch:is(path, line, rect, circle, ellipse, polygon),
+.md-mmd-fig .md-mmd-ch :is(path, line, rect, circle, ellipse, polygon) {
+  stroke: var(--mmd-ch) !important; stroke-width: 2px !important;
+}
+.md-mmd-fig .md-mmd-ch.node :is(rect, circle, ellipse, polygon, path) {
+  fill: var(--mmd-bg) !important;
+}
+.md-mmd-fig text.md-mmd-ch, .md-mmd-fig .md-mmd-ch text { fill: var(--mmd-ch) !important; font-weight: 600; }
+.md-mmd-fig span.md-mmd-ch { color: var(--mmd-ch) !important; font-weight: 600; }
+/* a változott szöveg: mint a diff szó-kiemelése (HTML-felirat), SVG-szövegben a színe */
+.md-mmd-fig mark.md-mmd-hl { background: var(--mmd-hl); color: inherit; border-radius: 3px; }
+.md-mmd-fig tspan.md-mmd-hl { fill: var(--mmd-ch) !important; font-weight: 700; }
 .md-mmd-err {
-  margin: 0 0 4px 17px; font-family: var(--font-mono); font-size: 11.5px; color: var(--del);
+  flex: 1 1 100%; margin: 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--del);
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .md-table { margin: 4px 0 4px 17px; }
