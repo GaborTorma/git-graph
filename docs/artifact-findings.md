@@ -42,7 +42,8 @@ milyen utak vannak, és melyik járható.
 
 | Mechanizmus | Állapot | Bizonyíték |
 | --- | --- | --- |
-| Külső `fetch` / CDN / saját szerver | **blokkolva** | szigorú CSP, egyetlen kivétel a Google Fonts |
+| Külső `fetch` / saját szerver | **blokkolva** | szigorú CSP, egyetlen kivétel a Google Fonts |
+| `<script src>` a CDN-listáról (jsdelivr, cdnjs, unpkg) | **megy** | lásd: *Mermaid a lapon* (2026-10-15) |
 | `assets` → `_blob/{id}` relatív fájl | **nem elérhető** | `list_assets` → `unavailable_to_account` |
 | `mcp` + `host:` (helyi MCP szerver) | **elutasítva** | deploy `422: capabilities.mcp: unavailable` |
 | `mcp` + valódi claude.ai konnektor | **működik** | deploy átment `{"server":"Google Calendar",…}`-val |
@@ -315,6 +316,31 @@ A CSP HTTP-headerben jön (`<meta>` nincs). A lényeges része:
 `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
 `connect-src 'self' <Google Fonts>`. A külső `fetch` tehát továbbra is tiltott,
 de az MCP-ből kapott szöveg futtatható.
+
+## Mermaid a lapon (mérve, 2026-10-15, Claude 2.37337.1, contract 0.2.80)
+
+Kérdés (#45): fut-e a mermaid egyfájlos buildje (`dist/mermaid.min.js`, IIFE,
+a `globalThis.mermaid`-ot állítja) az Artifact keretében, a CSP alatt?
+Eldobható mérőlap, a build szövegével beágyazva; az eredményt a lap a saját
+`db`-jébe írta, onnan olvastuk ki. Mermaid 11.17.2 (MIT), 3,57 MB (gzip 0,98 MB).
+
+| Mód | Betöltés | Render (`default` / `dark` téma) |
+| --- | --- | --- |
+| szöveg → `<script src=blob:>` | **megy**, 261 ms | **megy**, 205 / 88 ms |
+| szöveg → `new Function` | **megy**, 290 ms | **megy**, 167 / 82 ms |
+| `<script src="https://cdn.jsdelivr.net/npm/mermaid@11.17.2/…">` | **megy**, 300 ms | **megy**, 229 / 107 ms |
+
+- **CSP-sértés nincs** (`securitypolicyviolation` üres): a mermaid az SVG-be
+  `<style>`-t ír (a `style-src 'unsafe-inline'` engedi), `eval`-t nem használ.
+- **A hibás diagram dob** (`parse` / `render`: `Parse error on line 3: …`) — erre
+  épülhet a kódnézetre visszaeső ág.
+- **A CDN-ről töltött script is fut**: a `script-src` CDN-listája valódi, a
+  fenti táblázat „CDN blokkolva” sora csak a `fetch`-re igaz.
+- Ugyanez helyben, az Artifact CSP-jével kiszolgálva headless Chromiumban is
+  zöld — a lap-teszt (`tests/page/`) így a CSP-t is lefedheti.
+- A 12.x build nagyobb (12.1.0: 5,5 MB), a 11.17.2 a legutolsó 11-es.
+- Nem mértük még: a 3,6 MB-os szöveg átmegy-e egy `page_code`-válaszban a
+  host-hídon (eddig a legnagyobb válasz a `graph_data` volt).
 
 ## Közös Artifact a worktree-knek (mérve, 2026-10-04, Claude Code 2.1.286, contract 0.2.67)
 
