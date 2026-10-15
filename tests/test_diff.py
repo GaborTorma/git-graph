@@ -15,7 +15,16 @@ RAW = """diff --git a/x b/x
 """
 
 
+def marks(line: dict) -> list:
+    """A sor kiemelt (`hl`) szakaszai szövegként."""
+    return [line["s"][a:b] for a, b in line["hl"]]
+
+
 class DiffTest(HomeTestCase):
+    def prose_lines(self, raw: str) -> list:
+        """Egy szöveges fájl egyhunkos diffjének sorai."""
+        return self.load().diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
+
     def test_parse_diff(self) -> None:
         """Sorszámok, a cserélt sorpár (`p`) és a szó-szintű különbség (`hl`)."""
         gg = self.load()
@@ -55,8 +64,8 @@ class DiffTest(HomeTestCase):
                "-összefoglaló nélkül.\n"
                "+Egyszerűen fogalmazz. Tömör válaszok.\n"
                "+A felesleges udvariaskodás és záró összefoglaló nélkül.\n")
-        lines = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
-        hl = [[ln["s"][a:b] for a, b in ln["hl"]] for ln in lines]
+        lines = self.prose_lines(raw)
+        hl = [marks(ln) for ln in lines]
         self.assertEqual(hl, [[], [], ["Egyszerűen fogalmazz. "], []])
         self.assertEqual([ln.get("p") for ln in lines[:2]], [2, 3])
         # kódban marad a soronkénti összevetés
@@ -64,13 +73,12 @@ class DiffTest(HomeTestCase):
 
     def test_prose_repeated_word(self) -> None:
         """Az ismétlődő szó a vele egy sorban álló párjához illeszkedik, nem az első előfordulásához."""
-        gg = self.load()
         raw = ("@@ -1,2 +1,2 @@\n"
                "-`commit` (`ARGS`), majd `push`.\n"
                "-Ha a `commit` megállt, a `push` elmarad.\n"
                "+1. `commit` (`ARGS`)\n"
                "+2. `push`\n")
-        lines = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
+        lines = self.prose_lines(raw)
         kept = [[ln["s"][a:b] for a, b in zip([0] + [e for _, e in ln["hl"]], [s for s, _ in ln["hl"]] + [len(ln["s"])])]
                 for ln in lines]
         self.assertEqual("".join(kept[0]).strip(), "`commit` (`ARGS`)")
@@ -79,7 +87,6 @@ class DiffTest(HomeTestCase):
 
     def test_prose_paragraphs(self) -> None:
         """Az üres sor bekezdéshatár: más bekezdés szavai nem illeszkednek, a közös szó nélküli sor nem pár."""
-        gg = self.load()
         raw = ("@@ -1,5 +1,2 @@\n"
                "-A `commit` és a `push` lépés.\n"
                "-Második sor.\n"
@@ -88,55 +95,52 @@ class DiffTest(HomeTestCase):
                "-`release` után.\n"
                "+1. `commit`\n"
                "+2. `push`\n")
-        lines = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
+        lines = self.prose_lines(raw)
         self.assertEqual([ln.get("p") for ln in lines[:5]], [5, None, None, None, None])
         first = lines[0]
-        self.assertEqual([first["s"][a:b] for a, b in first["hl"]], ["A", "és a", " lépés."])
+        self.assertEqual(marks(first), ["A", "és a", " lépés."])
         for ln in lines[1:5]:
             if ln["s"]:                                  # az üres sor nem változás
                 self.assertNotIn("hl", ln)               # egészében törölt: nincs szó-kiemelés
         second = lines[6]
-        self.assertEqual([second["s"][a:b] for a, b in second["hl"]], ["2."])   # a `push` az első bekezdésből
+        self.assertEqual(marks(second), ["2."])   # a `push` az első bekezdésből
 
     def test_prose_renumbered(self) -> None:
         """A csak üres sorral elválasztott változások egyben: az átszámozott címsor a párjára talál."""
-        gg = self.load()
         raw = ("@@ -1,3 +1,3 @@\n"
                "-## 4. Issue\n"
                "+Új bekezdés itt.\n"
                " \n"
                "-Az üzenet formája.\n"
                "+## 3. Issue\n")
-        lines = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
+        lines = self.prose_lines(raw)
         self.assertEqual([(ln["t"], ln["n"], ln["s"]) for ln in lines], [
             ("-", 1, "## 4. Issue"), ("-", 2, ""), ("-", 3, "Az üzenet formája."),
             ("+", 1, "Új bekezdés itt."), ("+", 2, ""), ("+", 3, "## 3. Issue")])
         self.assertEqual(lines[0]["p"], 5)
-        self.assertEqual([lines[5]["s"][a:b] for a, b in lines[5]["hl"]], ["3"])
+        self.assertEqual(marks(lines[5]), ["3"])
         self.assertNotIn("o", lines[1])
 
     def test_prose_indented_continuation(self) -> None:
         """A listaelem folytatósorának behúzása a sortöréshez tartozik: az átkerült szó nem változás."""
-        gg = self.load()
         raw = ("@@ -1,2 +1,2 @@\n"
                "-- **Forma**: egy rövid bekezdés (max. 3 sor); ~72 karakteres sorok.\n"
                "-  Ennél hosszabb csak indokolt esetben.\n"
                "+- **Forma**: egy rövid bekezdés (max. 200 karakter). Ennél\n"
                "+  hosszabb csak indokolt esetben.\n")
-        lines = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
-        self.assertEqual([[ln["s"][a:b] for a, b in ln["hl"]] for ln in lines],
+        lines = self.prose_lines(raw)
+        self.assertEqual([marks(ln) for ln in lines],
                          [["3", "sor", "; ~72 karakteres sorok"], [], ["200", "karakter"], []])
 
     def test_line_state(self) -> None:
         """A változott sor állapota (`w`): változatlan szavak, változott szavak, egészében új / üres."""
-        gg = self.load()
         raw = ("@@ -1,2 +1,3 @@\n"
                "-Egy mondat itt,\n"
                "-ami folytatódik.\n"
                "+Egy mondat itt, ami folytatódik.\n"
                "+\n"
                "+Teljesen más tartalom.\n")
-        lines = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
+        lines = self.prose_lines(raw)
         self.assertEqual([ln["w"] for ln in lines], ["same", "same", "same", "same", "whole"])
 
     def test_numstat_paths(self) -> None:
