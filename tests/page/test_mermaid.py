@@ -37,6 +37,12 @@ NEW_BAD = f"{FENCE}mermaid\nflowchart LR\n  A --> \n{FENCE}\n"
 OLD_TARGET = (f'{FENCE}mermaid\nflowchart LR\n  H{{"HEAD egy commit?"}}\n  D["deploy"]\n  T["STOP"]\n'
               f'  H -->|igen| D\n  D --> T\n{FENCE}\n')
 NEW_TARGET = OLD_TARGET.replace("H -->|igen| D", "H -->|igen| T")
+# egy csomópont felirata változik, a kiemelt vessző egy korábbi csomópontban is előfordul
+OLD_COMMA = (f'{FENCE}mermaid\nflowchart TD\n  S["merge-dev"] --> P{{"dev branch,<br/>tiszta munkakönyvtár?"}}\n'
+             f'  P -->|igen| F{{"a main a dev őse?"}}\n'
+             f'  F -->|igen| B["merge-body --commits main..dev<br/>tárgysor a commitokból"]\n{FENCE}\n')
+NEW_COMMA = OLD_COMMA.replace('B["merge-body --commits main..dev<br/>tárgysor a commitokból"]',
+                              'B["üzenet: tárgysor a commitokból,<br/>## Deploy, ha kell"]')
 # hosszú, fentről lefelé írt lánc: széles helyen vízszintesen fér el jobban
 CHAIN = f"{FENCE}mermaid\nflowchart TD\n  A[Első] --> B[Második] --> C[Harmadik] --> D[Negyedik] --> E[Ötödik]\n{FENCE}\n"
 
@@ -53,7 +59,7 @@ class MermaidTest(PageTestCase):
         commit_versions(repo, {
             "abra.md": (OLD, NEW), "hibas.md": (OLD_BAD, NEW_BAD), "szoveg.md": ("Régi szöveg.\n", "Új szöveg.\n"),
             "torles.md": (OLD_ONLY, NEW_ONLY), "sorok.md": (OLD_LINES, NEW_LINES), "lanc.md": (None, CHAIN),
-            "cel.md": (OLD_TARGET, NEW_TARGET),
+            "cel.md": (OLD_TARGET, NEW_TARGET), "vesszo.md": (OLD_COMMA, NEW_COMMA),
         }, cls.SUBJECT)
 
     def figs(self, scope: str) -> list:
@@ -148,6 +154,16 @@ class MermaidTest(PageTestCase):
             " [...f.querySelectorAll('.md-mmd-ch')].map(e => e.tagName).sort()])")
         self.assertEqual([m[0] for m in marked], [0, 0])
         self.assertTrue(all(m[1] and set(m[1]) <= {"path"} for m in marked), marked)
+
+    def test_mark_in_its_own_node(self) -> None:
+        """A kiemelt szöveg a saját csomópontjában: az új felirat vesszője nem színezi a korábbi
+        „dev branch,” csomópontot."""
+        self.open_file("vesszo.md")
+        self.figs(".diff-uni")
+        marked = self.page.locator(".diff-uni .md-mmd-fig").evaluate_all(
+            "fs => fs.map(f => [...f.querySelectorAll('g.node.md-mmd-ch')].map(e => e.textContent.trim()))")
+        self.assertTrue(all(not any("dev branch" in t for t in m) for m in marked), marked)
+        self.assertTrue(any(any("üzenet" in t for t in m) for m in marked), marked)
 
     def test_direction_fits_the_room(self) -> None:
         """A flowchart iránya a helyhez igazodik: széles nézetben a fentről lefelé írt lánc

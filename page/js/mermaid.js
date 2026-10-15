@@ -199,15 +199,18 @@ function parts(svg) {
   return { keyed, texts };
 }
 
-/* A változott szövegek (`marks`: a diff szó-kiemelései a forrásban) a rajzon is
-   kiemelve, és az elemük is színes. A forrás jelölése (idézőjel, zárójel,
-   `<br/>`) a rajzon nincs: a darabok ezek nélkül, az első előfordulásuk. */
+/* A változott szövegek (`marks`: a diff szó-kiemelései a forrásban, `{ text, node }`)
+   a rajzon is kiemelve, és az elemük is színes. A forrás jelölése (idézőjel, zárójel,
+   `<br/>`) a rajzon nincs: a darabok ezek nélkül, az első előfordulásuk — a
+   csomópontjukban, ha ismert (flowchart), különben az egész rajzban. */
 const SVG_NS = 'http://www.w3.org/2000/svg';
 function markText(svg, marks) {
-  const pieces = marks.flatMap(m => m.split(/<br\s*\/?>/i))
-    .map(p => p.replace(/^[\s"'[\](){}<>|]+|[\s"'[\](){}<>|]+$/g, '')).filter(Boolean);
-  for (const piece of pieces) {
-    const walker = document.createTreeWalker(svg, NodeFilter.SHOW_TEXT);
+  const nodeEl = node => [...svg.querySelectorAll('[id]')]
+    .find(el => el.id.startsWith(`${svg.id}-flowchart-${node}-`) && /^\d+$/.test(el.id.slice(`${svg.id}-flowchart-${node}-`.length)));
+  const pieces = marks.flatMap(m => m.text.split(/<br\s*\/?>/i).map(text => ({ text, node: m.node })))
+    .map(p => ({ ...p, text: p.text.replace(/^[\s"'[\](){}<>|]+|[\s"'[\](){}<>|]+$/g, '') })).filter(p => p.text);
+  for (const { text: piece, node } of pieces) {
+    const walker = document.createTreeWalker((node && nodeEl(node)) || svg, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) {
       const n = /** @type {Text} */ (walker.currentNode);
       const at = n.data.indexOf(piece);

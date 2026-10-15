@@ -346,8 +346,11 @@ function mermaidVersions(lines) {
   const without = t => lines.filter(l => l.t !== t).map(l => l.s).join('\n');
   const old = without('+'), now = without('-');
   const flow = [old, now].some(src => /^\s*(?:flowchart|graph)\b/m.test(src));
-  const marks = t => lines.filter(l => l.t === t)
-    .flatMap(l => (l.hl || []).filter(([a]) => !flow || inLabel(l.s, a)).map(([a, b]) => l.s.slice(a, b)));
+  // a kiemelt szöveg, flowchartban csak felirat, a csomópontjával (ahol a rajzon keresni kell)
+  const marks = t => lines.filter(l => l.t === t).flatMap(l => (l.hl || []).flatMap(([a, b]) => {
+    const label = flow ? labelOf(l.s, a) : { node: null };
+    return label ? [{ text: l.s.slice(a, b), node: label.node }] : [];
+  }));
   const [hasDel, hasAdd] = sides(lines);
   const versions = lines.every(l => l.t === ' ') ? [{ src: now, kind: '' }]
     : !now.trim() ? [{ src: old, kind: KIND['-'], whole: true }]
@@ -359,17 +362,21 @@ function mermaidVersions(lines) {
 }
 /* A flowchart sorában csak a felirat látszik a rajzon (`["…"]`, `{…}`, `(…)`, `|…|`,
    idézőjel); a csomópont-azonosító (`D`, `T`) nem. Egy él új célpontja így nem emel ki
-   egy betűt egy idegen feliratban — az él maga színes (`markChanges`). */
-function inLabel(s, at) {
-  let quote = false, depth = 0, pipe = false;
-  for (const c of s.slice(0, at)) {
+   egy betűt egy idegen feliratban — az él maga színes (`markChanges`). A felirat
+   csomópontja (a nyitó zárójel előtti azonosító; élcímkénél `null`): a rajzon csak
+   abban keresünk, különben egy vessző az első vesszős csomópontot színezné. */
+function labelOf(s, at) {
+  let quote = false, depth = 0, pipe = false, open = -1;
+  for (let i = 0; i < at; i++) {
+    const c = s[i];
     if (c === '"') quote = !quote;
     else if (quote) continue;
-    else if ('[({'.includes(c)) depth++;
+    else if ('[({'.includes(c)) { if (!depth++) open = i; }
     else if (')]}'.includes(c)) depth = Math.max(0, depth - 1);
     else if (c === '|' && !depth) pipe = !pipe;
   }
-  return quote || depth > 0 || pipe;
+  if (depth > 0) return { node: /([\w-]+)\s*$/.exec(s.slice(0, open))?.[1] ?? null };
+  return quote || pipe ? { node: null } : null;
 }
 function mermaidHtml(versions, code) {
   return `<div class="md-mmd" data-mmd="${esc(JSON.stringify(versions))}">${code}<div class="md-mmd-view"></div></div>`;
