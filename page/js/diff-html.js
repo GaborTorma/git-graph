@@ -12,16 +12,18 @@ export function diffHtml(d, lang) {
   if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
   if (!d.hunks.length) return '<p class="diff-note">Nincs megjeleníthető változás.</p>';
   let uni = '', split = '', oldEnd = 1;
+  const kinds = new Set();
   for (const h of d.hunks) {
     const gap = h.old - oldEnd;
     const gapHtml = gap > 0 ? `<p class="diff-gap" title="${gap} változatlan sor">···</p>` : '';
+    const lines = oneSide(h.lines, partnerIn(h));
+    for (const l of lines) kinds.add(l.t);
     // Egy blokk (hunk) a `···`-ig: fókuszálható, a nyilak blokkról blokkra lépnek.
-    uni += gapHtml + '<div class="hunk" tabindex="-1">' + oneSide(h.lines, partnerIn(h)).map(l => `<div class="diff-line mono${kindOf(l)}">`
+    uni += gapHtml + '<div class="hunk" tabindex="-1">' + lines.map(l => `<div class="diff-line mono${kindOf(l)}">`
       + diffCell(l, l.n, lang) + '</div>').join('') + '</div>';
     split += gapHtml + '<div class="hunk" tabindex="-1">' + splitRows(h, lang) + '</div>';
     oldEnd = h.old + h.lines.filter(l => l.t !== '+').length;
   }
-  const kinds = new Set(d.hunks.flatMap(h => oneSide(h.lines, partnerIn(h)).map(l => l.t)));
   const oneSided = !(kinds.has('+') && kinds.has('-'));   // a változatlan sor nem számít
   return (oneSided ? `<div>${uni}</div>`
     : `<div class="diff-uni">${uni}</div><div class="diff-split">${split}</div>`)
@@ -45,7 +47,7 @@ export const untouched = (ls, t) => ls.every(l => l.t !== t || (l.hl && !l.hl.le
    egyik oldala egészében érintetlen (csak beszúrás / csak törlés), az az oldal;
    különben páronként (`partner`: a törölt sor párja), pl. egy táblázat egyetlen
    sorában csak törlés, a többiben csere. */
-export function styles(lines, partner) {
+function styles(lines, partner) {
   const st = new Map();
   for (let i = 0; i < lines.length;) {
     if (lines[i].t === ' ') { i++; continue; }
@@ -76,17 +78,17 @@ export function styles(lines, partner) {
   }
   return st;
 }
-/** @type {(l: any) => any} */
-const noPartner = () => null;
 // a sor a `styles` szerint: az érintetlen (`drop`) és a változatlan (`same`) jel
 // nélkül, az `only` semleges háttérrel
-const look = (st, l) => (st.get(l) === 'drop' || st.get(l) === 'same' ? { ...l, t: ' ' }
-  : st.get(l) === 'only' ? { ...l, only: true } : l);
+const look = (st, l) => {
+  const s = st.get(l);
+  return s === 'drop' || s === 'same' ? { ...l, t: ' ' } : s === 'only' ? { ...l, only: true } : l;
+};
 
 
 /* Az egymás alatti nézet sorai: az érintetlen oldal kimarad (`styles`) — a
    másik oldal a kiemelt szavaival mindent elmond. */
-export function oneSide(lines, partner = noPartner) {
+export function oneSide(lines, partner) {
   const st = styles(lines, partner);
   return lines.filter(l => st.get(l) !== 'drop').map(l => look(st, l));
 }
