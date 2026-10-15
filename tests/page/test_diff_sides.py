@@ -49,6 +49,8 @@ Itt egy kifejezés cserélődik.
 
 ## Régi címsor, kiegészítve
 """
+OLD_REORDER = "## 1. Alfa szakasz\n\nRégi egy szöveg.\n\n## 2. Béta szakasz\n\nRégi kettő szöveg.\n"
+NEW_REORDER = "## 1. Alfa szakasz!\n\nÚj első tartalom.\n\n## 2. Béta szakasz!\n\nÚj második tartalom.\n"
 OLD_PY = "x = hivas(a)\ny = 1\nz = masik(a, b, c)\nw = 2\nv = csere(a)\n"
 NEW_PY = "x = hivas(a, b)\ny = 1\nz = masik(a)\nw = 2\nv = mas(a)\n"
 
@@ -61,12 +63,14 @@ class MdDiffTest(PageTestCase):
                             "-C", str(repo), *args], check=True, capture_output=True)
         doc = repo / "doksi.md"
         code = repo / "kod.py"
+        (repo / "rend.md").write_text(OLD_REORDER, encoding="utf-8")
         doc.write_text(OLD, encoding="utf-8")
         code.write_text(OLD_PY, encoding="utf-8")
         git("add", ".")
         git("commit", "-qm", "doksi")
         doc.write_text(NEW, encoding="utf-8")
         code.write_text(NEW_PY, encoding="utf-8")
+        (repo / "rend.md").write_text(NEW_REORDER, encoding="utf-8")
         git("commit", "-qam", "doksi: módosítva")
 
     def open_file(self, name: str) -> None:
@@ -116,6 +120,23 @@ class MdDiffTest(PageTestCase):
             ["", "add only"],
             ["del only", ""],
             ["", "add only"],
+        ])
+
+    def test_md_new_block_in_place(self) -> None:
+        """Átrendezett szövegben a pár nélküli új bekezdés a helyén: a köztes törölt blokkok után, a következő
+        párosított (vagy változatlan) blokk előtt — nem a törölt rész végén."""
+        self.resize(1400)
+        self.open_file("rend.md")
+        self.page.wait_for_selector(".diff-split .md-row")
+        rows = self.page.locator(".diff-split .md-row").evaluate_all(
+            "rs => rs.map(r => [...r.children].map(c => c.textContent.trim()))")
+        self.assertEqual(rows, [
+            ["1. Alfa szakasz", "1. Alfa szakasz!"],
+            ["Régi egy szöveg.", ""],
+            ["", "Új első tartalom."],            # nem a törölt rész végén
+            ["2. Béta szakasz", "2. Béta szakasz!"],
+            ["Régi kettő szöveg.", ""],
+            ["", "Új második tartalom."],
         ])
 
     def test_one_sided_code_line(self) -> None:

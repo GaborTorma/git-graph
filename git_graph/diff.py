@@ -12,11 +12,11 @@ from .worktrees import UNCOMMITTED_RE
 HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 SHA_RE = re.compile(r"^[0-9a-f]{7,64}$")
 TOKEN_RE = re.compile(r"\w+|\s+|[^\w\s]")
-PARAGRAPH = "\n\n"              # a szöveges blokk bekezdéshatára (üres sor) tokenként
 DIFF_MAX_LINES = 3000           # egy lockfile ne fagyassza meg a lapot
 FULL_CONTEXT = "-U1000000"      # a teljes fájl egy hunkban (a renderelt Markdown-diffhez)
 PAIR_MAX_CELLS = 10000          # e fölött (pl. 100×100-as blokk) nincs hasonlóság-illesztés
 PAIR_MIN_RATIO = 0.6            # ennél hasonlóbb sorpár számít „ugyanannak a sornak"
+PARA_MIN_RATIO = 0.4            # ennél hasonlóbb bekezdéspár (a szavaik szerint) párosodik
 PROSE_SUFFIXES = {".md", ".markdown", ".mdx", ".txt", ".rst", ".adoc"}
 PROSE_MAX_TOKENS = 20000        # e fölött a szöveges blokk is soronként párosodik
 
@@ -41,7 +41,7 @@ def mark_words(old: dict, new: dict) -> None:
             new["hl"].append([pos_b[j1], pos_b[j2]])
 
 
-def match_blocks(a: list, b: list, row_a: list, row_b: list, par_a: list, par_b: list) -> list:
+def match_blocks(a: list, b: list, row_a: list, row_b: list) -> list:
     """A két tokensor közös szakaszai: [(i, j, hossz), …], sorrendben.
 
     Mint a `SequenceMatcher` (a leghosszabb közös szakasz, majd két oldalán
@@ -49,9 +49,7 @@ def match_blocks(a: list, b: list, row_a: list, row_b: list, par_a: list, par_b:
     előző egyezéstől mindkét oldalon ugyanannyi sorra van (`row_*`: a token
     sora). Egy ismétlődő szó (pl. két sorban ugyanaz a hivatkozás) így a vele
     egy sorban álló párjához illeszkedik. A más sorra eső, szó nélküli egyezés
-    (pl. egy pont) nem számít, és az sem, amelyik az előző egyezéstől a két
-    oldalon más bekezdésre (`par_*`: az üres sorok száma) esik — a bekezdés
-    egység, a szavai nem vándorolnak át egy másikba.
+    (pl. egy pont) nem számít.
     """
     b2j: dict = {}
     for j, t in enumerate(b):
@@ -61,7 +59,6 @@ def match_blocks(a: list, b: list, row_a: list, row_b: list, par_a: list, par_b:
         alo, ahi, blo, bhi = queue.pop()
         # a viszonyítási pont az előző egyezés vége (a tartomány előtti token)
         ref_a, ref_b = row_a[alo - 1] if alo else 0, row_b[blo - 1] if blo else 0
-        pref_a, pref_b = par_a[alo - 1] if alo else 0, par_b[blo - 1] if blo else 0
         best, size, j2len = (0, 0, 0), 0, {}
         for i in range(alo, ahi):
             grown = {}
@@ -71,7 +68,7 @@ def match_blocks(a: list, b: list, row_a: list, row_b: list, par_a: list, par_b:
                 if j >= bhi:
                     break
                 k = grown[j] = j2len.get(j - 1, 0) + 1
-                if k >= size and par_a[i - k + 1] - pref_a == par_b[j - k + 1] - pref_b:
+                if k >= size:
                     off = abs((row_a[i - k + 1] - ref_a) - (row_b[j - k + 1] - ref_b))
                     if k > size or off < best[2]:
                         best, size = (i - k + 1, j - k + 1, off), k
@@ -99,44 +96,48 @@ def opcodes(blocks: list, n: int, m: int) -> list:
     return ops
 
 
-def mark_prose(dels: list, adds: list) -> list | None:
-    """Szöveges fájl cserélt blokkja egyben, szó-szinten: a sortörés csak szóköz, az üres sor bekezdéshatár.
+def paragraphs(lines: list) -> list:
+    """A sorok bekezdései (az üres sor határ, magában nem bekezdés): [[sorindex, …], …]."""
+    out: list = [[]]
+    for i, line in enumerate(lines):
+        if line["s"].strip():
+            out[-1].append(i)
+        elif out[-1]:
+            out.append([])
+    return [p for p in out if p]
 
-    Egy bekezdés újratördelése így nem változás — csak a valóban cserélt szavak
-    kapnak `hl`-t, soronként. A visszaadott mátrix a sorpárok közös
-    (nem szóköz) karaktereinek száma: ebből párosít a `pair_lines`. Túl nagy
-    blokknál `None` (marad a soronkénti összevetés).
+
+def mark_prose(dels: list, adds: list) -> list | None:
+    """Szöveges fájl cserélt blokkja bekezdésenként, szó-szinten: a sortörés csak szóköz.
+
+    Előbb a bekezdések párosodnak (a szavaik hasonlósága szerint, sorrendtartóan,
+    mint a `pair_lines`) — így egy átszámozás vagy egy törölt bekezdés nem
+    csúsztatja el a többit —, aztán a párok szavai illeszkednek (`match_blocks`).
+    Egy bekezdés újratördelése így nem változás: csak a valóban cserélt szavak
+    kapnak `hl`-t, soronként; a pár nélküli bekezdés, és amelyik sorból egy szó
+    sem maradt, egészében változott (nincs `hl`). A visszaadott mátrix a
+    sorpárok közös (nem szóköz) karaktereinek száma: ebből párosít a
+    `pair_lines`. Túl nagy blokknál `None` (marad a soronkénti összevetés).
     """
-    def tokens(lines: list) -> tuple:
-        toks, line_of, pos, row, par = [], [], [], [], []
-        blank = [not line["s"].strip() for line in lines]
-        pars = [sum(blank[:i + 1]) for i in range(len(lines))]      # az üres sorok száma eddig
-        for i, line in enumerate(lines):
-            if i:
-                # az üres sor körüli sortörés bekezdéshatár: nem szóköz, csak önmagával egyezik
-                toks.append(PARAGRAPH if blank[i] or blank[i - 1] else "\n")
+    if sum(len(TOKEN_RE.findall(line["s"])) for line in dels + adds) > 2 * PROSE_MAX_TOKENS:
+        return None
+
+    def tokens(lines: list, idx: list) -> tuple:
+        toks, line_of, pos, row = [], [], [], []
+        for r, i in enumerate(idx):
+            if r:
+                toks.append("\n")
                 line_of.append(None)
                 pos.append(None)
-                row.append(i - 1)           # a sortörés az előző sor vége
-                par.append(pars[i - 1])
+                row.append(r - 1)           # a sortörés az előző sor vége
             at = 0
-            for t in TOKEN_RE.findall(line["s"]):
+            for t in TOKEN_RE.findall(lines[i]["s"]):
                 toks.append(t)
                 line_of.append(i)
                 pos.append(at)
-                row.append(i)
-                par.append(pars[i])
+                row.append(r)
                 at += len(t)
-        return toks, line_of, pos, row, par
-
-    a, line_a, pos_a, row_a, par_a = tokens(dels)
-    b, line_b, pos_b, row_b, par_b = tokens(adds)
-    if len(a) > PROSE_MAX_TOKENS or len(b) > PROSE_MAX_TOKENS:
-        return None
-    norm = lambda toks: [" " if t.isspace() and t != PARAGRAPH else t for t in toks]   # noqa: E731
-    for line in dels + adds:
-        line["hl"] = []
-    sim = [[0] * len(adds) for _ in dels]
+        return toks, line_of, pos, row
 
     def mark(lines: list, line_of: list, pos: list, toks: list, i1: int, i2: int) -> None:
         for k in range(i1, i2):
@@ -148,21 +149,41 @@ def mark_prose(dels: list, adds: list) -> list | None:
             else:
                 hl.append([pos[k], end])
 
-    blocks = match_blocks(norm(a), norm(b), row_a, row_b, par_a, par_b)
-    for op, i1, i2, j1, j2 in opcodes(blocks, len(a), len(b)):
-        if op == "equal":
-            for k in range(i2 - i1):
-                if not a[i1 + k].isspace():
-                    sim[line_a[i1 + k]][line_b[j1 + k]] += len(a[i1 + k])
-            continue
-        mark(dels, line_a, pos_a, a, i1, i2)
-        mark(adds, line_b, pos_b, b, j1, j2)
-    # amelyik sorból egy szó sem maradt meg, az egészében változott: nincs `hl`-je
+    norm = lambda toks: [" " if t.isspace() else t for t in toks]   # noqa: E731
+    words = lambda lines, idx: [t for i in idx for t in TOKEN_RE.findall(lines[i]["s"]) if not t.isspace()]  # noqa: E731
+    for line in dels + adds:
+        line["hl"] = []
+    sim = [[0] * len(adds) for _ in dels]
+    pa, pb = paragraphs(dels), paragraphs(adds)
+    wa, wb = [words(dels, p) for p in pa], [words(adds, p) for p in pb]
+    psim = [[0.0] * len(pb) for _ in pa]
+    if len(pa) * len(pb) <= PAIR_MAX_CELLS:
+        for x, ws in enumerate(wa):
+            sm = difflib.SequenceMatcher(None, autojunk=False)
+            sm.set_seq2(ws)
+            for y, wt in enumerate(wb):
+                sm.set_seq1(wt)
+                if sm.quick_ratio() >= PARA_MIN_RATIO:
+                    r = sm.ratio()
+                    psim[x][y] = r if r >= PARA_MIN_RATIO else 0.0
+    for x, y in pair_lines(pa, pb, psim):
+        a, line_a, pos_a, row_a = tokens(dels, pa[x])
+        b, line_b, pos_b, row_b = tokens(adds, pb[y])
+        for op, i1, i2, j1, j2 in opcodes(match_blocks(norm(a), norm(b), row_a, row_b), len(a), len(b)):
+            if op == "equal":
+                for k in range(i2 - i1):
+                    if not a[i1 + k].isspace():
+                        sim[line_a[i1 + k]][line_b[j1 + k]] += len(a[i1 + k])
+                continue
+            mark(dels, line_a, pos_a, a, i1, i2)
+            mark(adds, line_b, pos_b, b, j1, j2)
+    # amelyik sorból egy szó sem maradt meg (vagy a bekezdése pár nélküli), az
+    # egészében változott: nincs `hl`-je; az üres sor nem változás
     for d, line in enumerate(dels):
-        if not any(sim[d]):
+        if not any(sim[d]) and line["s"].strip():
             del line["hl"]
     for j, line in enumerate(adds):
-        if not any(row[j] for row in sim):
+        if not any(row[j] for row in sim) and line["s"].strip():
             del line["hl"]
     return sim
 
@@ -216,13 +237,42 @@ def pair_lines(dels: list, adds: list, sim: list | None = None) -> list:
     return pairs
 
 
+def join_runs(lines: list) -> list:
+    """Szöveges fájlban a csak üres sorokkal elválasztott változások egybe.
+
+    A git az üres sorok mentén apró darabokra vágja a változást; egy átszámozott
+    vagy átrendezett szövegnél így a bekezdés és a párja más darabba kerül. Az
+    összevont darab: előbb a régi oldal (a köztes üres sor törölt), aztán az új
+    (ugyanaz az üres sor hozzáadott) — ezen párosodnak a bekezdések.
+    """
+    out, i = [], 0
+    while i < len(lines):
+        if lines[i]["t"] == " ":
+            out.append(lines[i])
+            i += 1
+            continue
+        j = end = i
+        while j < len(lines) and (lines[j]["t"] != " " or not lines[j]["s"].strip()):
+            j += 1
+            if lines[j - 1]["t"] != " ":
+                end = j                       # a záró üres sorok környezetek maradnak
+        seg = lines[i:end]
+        if any(ln["t"] == " " for ln in seg):
+            seg = ([ln if ln["t"] == "-" else {"t": "-", "n": ln["o"], "s": ln["s"]} for ln in seg if ln["t"] != "+"]
+                   + [ln if ln["t"] == "+" else {"t": "+", "n": ln["n"], "s": ln["s"]} for ln in seg if ln["t"] != "-"])
+        out += seg
+        i = end
+    return out
+
+
 def parse_diff(raw: str, prose: bool = False) -> dict:
     """Egyfájlos unified diff → hunkok soronként, a lap ebből rajzol.
 
     Sor: `t` (` `/`+`/`-`), `n` (a törölt sornál a régi, máskor az új sorszám),
     `s` (szöveg), cserélt sorpárnál `hl` (a változott szakaszok). A hunk `old`
     kezdete adja a lapon a kihagyott („unmodified") sorok számát. `prose`:
-    szöveges fájl, a cserélt blokk szavai egyben (`mark_prose`).
+    szöveges fájl: a csak üres sorral elválasztott változások egyben
+    (`join_runs`), a bekezdések és a szavaik a `mark_prose` szerint.
     """
     hunks: list[dict] = []
     binary = truncated = False
@@ -251,6 +301,15 @@ def parse_diff(raw: str, prose: bool = False) -> dict:
         else:
             n, old_no, new_no = new_no, old_no + 1, new_no + 1
         hunks[-1]["lines"].append({"t": tag, "n": n, "s": line[1:]})
+        if tag == " ":
+            hunks[-1]["lines"][-1]["o"] = old_no - 1      # a régi sorszám (`join_runs`-nak)
+
+    if prose:
+        for h in hunks:
+            h["lines"] = join_runs(h["lines"])
+    for h in hunks:
+        for ln in h["lines"]:
+            ln.pop("o", None)
 
     # Egy törölt blokk és a rá következő hozzáadott blokk sorait párba állítjuk
     # (`pair_lines`): a pár a side-by-side nézetben egy sorba kerül (`p` a

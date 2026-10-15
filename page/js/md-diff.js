@@ -253,11 +253,31 @@ function mdBlockHtml(b, side) {
   return `<div class="md-blk del">${mdText(b, del)}</div><div class="md-blk add">${mdText(b, add)}</div>`;
 }
 
+/* A csak hozzáadott blokk helye. A változásban előbb az összes törölt, aztán
+   az összes hozzáadott sor jön (egy átrendezett szövegnél sok bekezdésnyi), a
+   párosított hozzáadott sorok pedig a párjuk blokkjába kerülnek: a pár nélküli
+   új blokk így a törölt rész végére csúszna. Helyette a következő párosított
+   blokk elé kerül (a köztes törölt blokkok után); ha nincs ilyen, a helyén marad. */
+function placeAdded(blocks, lines) {
+  const at = new Map(lines.map((l, i) => [l, i]));
+  const blockOf = new Map(blocks.flatMap(b => b.lines.map(l => [l, b])));
+  const added = b => b.lines.every(l => l.t === '+');
+  const before = new Map();
+  for (const b of blocks.filter(added)) {
+    for (let i = at.get(b.lines.at(-1)) + 1; i < lines.length && lines[i].t !== ' '; i++) {
+      const o = blockOf.get(lines[i]);
+      if (lines[i].t === '+' && o && !added(o)) { before.set(o, [...(before.get(o) || []), b]); break; }
+    }
+  }
+  const moved = new Set([...before.values()].flat());
+  return blocks.filter(b => !moved.has(b)).flatMap(b => [...(before.get(b) || []), b]);
+}
+
 export function mdDiffHtml(d) {
   if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
   const pairOf = new Map();          // hozzáadott sor → a törölt párja
   for (const h of d.hunks) for (const l of h.lines) if (l.p != null) pairOf.set(h.lines[l.p], l);
-  const blocks = mdBlocks(d.hunks.flatMap(h => h.lines), pairOf);
+  const blocks = placeAdded(mdBlocks(d.hunks.flatMap(h => h.lines), pairOf), d.hunks.flatMap(h => h.lines));
   const changed = blocks.map(b => b.lines.some(l => l.t !== ' '));
   if (!changed.includes(true)) {
     return `<p class="diff-note">${d.hunks.length ? 'Csak üres sorok változtak.' : 'Nincs megjeleníthető változás.'}</p>`;

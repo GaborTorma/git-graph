@@ -92,9 +92,27 @@ class DiffTest(HomeTestCase):
         first = lines[0]
         self.assertEqual([first["s"][a:b] for a, b in first["hl"]], ["A", "és a", " lépés."])
         for ln in lines[1:5]:
-            self.assertNotIn("hl", ln)                   # egészében törölt: nincs szó-kiemelés
+            if ln["s"]:                                  # az üres sor nem változás
+                self.assertNotIn("hl", ln)               # egészében törölt: nincs szó-kiemelés
         second = lines[6]
         self.assertEqual([second["s"][a:b] for a, b in second["hl"]], ["2."])   # a `push` az első bekezdésből
+
+    def test_prose_renumbered(self) -> None:
+        """A csak üres sorral elválasztott változások egyben: az átszámozott címsor a párjára talál."""
+        gg = self.load()
+        raw = ("@@ -1,3 +1,3 @@\n"
+               "-## 4. Issue\n"
+               "+Új bekezdés itt.\n"
+               " \n"
+               "-Az üzenet formája.\n"
+               "+## 3. Issue\n")
+        lines = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
+        self.assertEqual([(ln["t"], ln["n"], ln["s"]) for ln in lines], [
+            ("-", 1, "## 4. Issue"), ("-", 2, ""), ("-", 3, "Az üzenet formája."),
+            ("+", 1, "Új bekezdés itt."), ("+", 2, ""), ("+", 3, "## 3. Issue")])
+        self.assertEqual(lines[0]["p"], 5)
+        self.assertEqual([lines[5]["s"][a:b] for a, b in lines[5]["hl"]], ["3"])
+        self.assertNotIn("o", lines[1])
 
     def test_numstat_paths(self) -> None:
         """Átnevezés-alakok: `a => b` és `x/{a => b}/y`, az üres oldallal is."""
