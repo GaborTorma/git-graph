@@ -143,6 +143,46 @@ class DiffTest(HomeTestCase):
         lines = self.prose_lines(raw)
         self.assertEqual([ln["w"] for ln in lines], ["same", "same", "same", "same", "whole"])
 
+    def test_line_looks(self) -> None:
+        """A sorok megjelenése (`v`): csak beszúrás, tiszta újratördelés, és páronként egy vegyes változásban."""
+        gg = self.load()
+        looks = lambda raw, prose=False: [(ln["t"], ln.get("v")) for ln in gg.diff.parse_diff(raw, prose)["hunks"][0]["lines"]]  # noqa: E731
+        # csak beszúrás: a régi sor kimarad, az új semleges; az egészében új sor teljes színű
+        self.assertEqual(looks("@@ -1,1 +1,2 @@\n-x = f(a)\n+x = f(a, b)\n+y = 2\n"),
+                         [("-", "drop"), ("+", "only"), ("+", None)])
+        # tiszta újratördelés: a régi kimarad, az új változatlan
+        self.assertEqual(looks("@@ -1,2 +1,1 @@\n-Egy mondat\n-itt.\n+Egy mondat itt.\n", prose=True),
+                         [("-", "drop"), ("-", "drop"), ("+", "same")])
+        # vegyes változás: az első pár csak törlés, a második csere
+        self.assertEqual(looks("@@ -1,2 +1,2 @@\n-| s2 | sor szövege |\n-| s3 | régi |\n+| s2 | sor |\n+| s3 | új |\n"),
+                         [("-", "only"), ("-", None), ("+", "drop"), ("+", None)])
+
+    def test_pair_both_ways(self) -> None:
+        """A pár mindkét irányban (`p`): a törölt sor az újra, az új a törölt sorra mutat."""
+        gg = self.load()
+        lines = gg.diff.parse_diff("@@ -1,2 +1,2 @@\n-a = 1\n-b = 2\n+a = 10\n+b = 20\n")["hunks"][0]["lines"]
+        self.assertEqual([ln["p"] for ln in lines], [2, 3, 0, 1])
+
+    def test_md_order(self) -> None:
+        """A markdown-nézet adata (`md`) a blokkok sorrendjében: a törölt bekezdés után a párja, a pár nélküli
+        új bekezdés a helyén — a `p` az új sorrendhez igazodik; a nyers nézeté változatlan."""
+        gg = self.load()
+        raw = ("@@ -1,7 +1,7 @@\n"
+               "-## 1. Alfa szakasz\n-\n-Régi egy szöveg.\n-\n-## 2. Béta szakasz\n-\n-Régi kettő szöveg.\n"
+               "+## 1. Alfa szakasz!\n+\n+Új első tartalom.\n+\n+## 2. Béta szakasz!\n+\n+Új második tartalom.\n")
+        md = gg.diff.parse_diff(raw, prose=True, md=True)["hunks"][0]["lines"]
+        self.assertEqual([(ln["t"], ln["s"]) for ln in md if ln["s"]], [
+            ("-", "## 1. Alfa szakasz"), ("+", "## 1. Alfa szakasz!"),
+            ("-", "Régi egy szöveg."), ("+", "Új első tartalom."),
+            ("-", "## 2. Béta szakasz"), ("+", "## 2. Béta szakasz!"),
+            ("-", "Régi kettő szöveg."), ("+", "Új második tartalom."),
+        ])
+        for i, ln in enumerate(md):
+            if "p" in ln:
+                self.assertEqual(md[ln["p"]]["p"], i)
+        raw_view = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
+        self.assertEqual([ln["t"] for ln in raw_view], ["-"] * 7 + ["+"] * 7)
+
     def test_numstat_paths(self) -> None:
         """Átnevezés-alakok: `a => b` és `x/{a => b}/y`, az üres oldallal is."""
         gg = self.load()

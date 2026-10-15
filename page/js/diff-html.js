@@ -31,21 +31,13 @@ export function diffHtml(d, lang) {
     + (d.truncated ? '<p class="diff-note">… a diff túl hosszú, a vége le van vágva.</p>' : '');
 }
 
-/* A sor párja (a Python `pair_lines`-a: `p` a törölt sor párjának hunkbeli
-   indexe), mindkét irányban, és a megjelenése (`styles`): a diff betöltésekor
-   egyszer, hunkonként (`annotate`) — így minden nézet (egymás alatti,
-   side-by-side, markdown) ugyanazt látja, bármelyik szeletét rajzolja. A
-   sorokon kívül tárolva: az adat gyorstárazott, és az élő frissítés
-   JSON-összevetéssel nézi, változott-e. */
-const PAIR = new WeakMap(), LOOK = new WeakMap(), DONE = new WeakSet();
+/* A sor párja: a Python `p`-je (a párja indexe a hunkban, mindkét irányban)
+   sorobjektumként — a diff betöltésekor (`annotate`), hogy a nézetek a saját
+   szeletükön (kódblokk, táblázat, blokkok) is megtalálják. */
+const PAIR = new WeakMap();
 export const partnerOf = l => PAIR.get(l) ?? null;
 export function annotate(d) {
-  for (const h of d.hunks) {
-    if (DONE.has(h)) continue;
-    DONE.add(h);
-    for (const l of h.lines) if (l.p != null) { PAIR.set(l, h.lines[l.p]); PAIR.set(h.lines[l.p], l); }
-    for (const [l, s] of styles(h.lines)) LOOK.set(l, s);
-  }
+  for (const h of d.hunks) for (const l of h.lines) if (l.p != null) PAIR.set(l, h.lines[l.p]);
 }
 
 export const KIND = { ' ': '', '+': ' add', '-': ' del' };
@@ -57,48 +49,15 @@ export const kindOf = l => KIND[l.t] + (l.only ? ' only' : '');
 const changed = l => l.t !== ' ' && l.w !== 'same';
 export const untouched = (ls, t) => !ls.some(l => l.t === t && changed(l));
 
-/* Melyik változott sor érintetlen (`drop`: a szavai mind megvannak a másik
-   oldalon), melyik a párja (`only`: a háttere semleges, csak a változott szavai
-   színesek, `kindOf`), és melyik nem változott maga sem (`same`: újratördelés).
-   Egy futamban (törölt + hozzáadott sorok): ha mindkét oldala érintetlen, tiszta
-   újratördelés; ha az egyik, az az oldal (csak beszúrás / csak törlés); különben
-   páronként, pl. egy táblázat egyetlen sorában csak törlés, a többiben csere. Az
-   egészében új / törölt sor (`whole`) teljes színű marad. */
-function styles(lines) {
-  const st = new Map();
-  const kept = l => (l.w === 'words' ? 'only' : l.w === 'same' ? 'same' : null);
-  for (let i = 0; i < lines.length;) {
-    if (lines[i].t === ' ') { i++; continue; }
-    let j = i; while (j < lines.length && lines[j].t !== ' ') j++;
-    const run = lines.slice(i, j);
-    i = j;
-    if (!run.some(l => l.t === '+') || !run.some(l => l.t === '-')) continue;
-    const drop = untouched(run, '-') ? '-' : untouched(run, '+') ? '+' : null;
-    if (drop) {
-      for (const l of run) st.set(l, l.t === drop ? 'drop' : kept(l));
-      continue;
-    }
-    const inRun = new Set(run);
-    for (const d of run) {
-      const a = d.t === '-' ? partnerOf(d) : null;
-      if (!a || !inRun.has(a)) continue;
-      const [x, y] = !changed(d) ? [d, a] : !changed(a) ? [a, d] : [];
-      if (x) { st.set(x, 'drop'); st.set(y, kept(y)); }
-    }
-  }
-  return st;
-}
-// a sor a `styles` szerint: az érintetlen (`drop`) és a változatlan (`same`) jel
-// nélkül, az `only` semleges háttérrel
-const look = l => {
-  const s = LOOK.get(l);
-  return s === 'drop' || s === 'same' ? { ...l, t: ' ' } : s === 'only' ? { ...l, only: true } : l;
-};
+/* A sor a Python `v`-je (a megjelenése) szerint: az érintetlen (`drop`) és a
+   változatlan (`same`) jel nélkül, a szavanként változott párja (`only`)
+   semleges háttérrel; az egészében új / törölt (nincs `v`) teljes színű. */
+const look = l => (l.v === 'drop' || l.v === 'same' ? { ...l, t: ' ' } : l.v === 'only' ? { ...l, only: true } : l);
 
-/* Az egymás alatti nézet sorai (`annotate` után): az érintetlen oldal kimarad —
+/* Az egymás alatti nézet sorai: az érintetlen oldal (`drop`) kimarad —
    a másik oldal a kiemelt szavaival mindent elmond. */
 export function oneSide(lines) {
-  return lines.filter(l => LOOK.get(l) !== 'drop').map(look);
+  return lines.filter(l => l.v !== 'drop').map(look);
 }
 
 const diffCell = (l, no, lang) => `<span class="no">${no ?? ''}</span>`
