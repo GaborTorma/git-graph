@@ -85,11 +85,14 @@ function splitRows(h, lang) {
     drop = j === i || k === j ? null : untouched(run, '-') ? '-' : untouched(run, '+') ? '+' : null;
     const row = (del, add) =>
       out += `<div class="split-row mono">${side(del, del?.n)}${side(add, add?.n)}</div>`;
+    // a pár nélküli hozzáadott sor a megelőző pár alá kerül (az első pár előttiek elé)
     let a = j;
     for (let d = i; d < j; d++) {
       if (L[d].p == null) { row(L[d], null); continue; }
       while (a < L[d].p) row(null, L[a++]);
       row(L[d], L[a++]);
+      const next = L.slice(d + 1, j).find(l => l.p != null)?.p ?? k;
+      while (a < next) row(null, L[a++]);
     }
     while (a < k) row(null, L[a++]);
     old += j - i; i = k;

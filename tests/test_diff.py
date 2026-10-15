@@ -61,6 +61,41 @@ class DiffTest(HomeTestCase):
         # kódban marad a soronkénti összevetés
         self.assertNotEqual(gg.diff.parse_diff(raw)["hunks"][0]["lines"][0]["hl"], [])
 
+    def test_prose_repeated_word(self) -> None:
+        """Az ismétlődő szó a vele egy sorban álló párjához illeszkedik, nem az első előfordulásához."""
+        gg = self.load()
+        raw = ("@@ -1,2 +1,2 @@\n"
+               "-`commit` (`ARGS`), majd `push`.\n"
+               "-Ha a `commit` megállt, a `push` elmarad.\n"
+               "+1. `commit` (`ARGS`)\n"
+               "+2. `push`\n")
+        lines = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
+        kept = [[ln["s"][a:b] for a, b in zip([0] + [e for _, e in ln["hl"]], [s for s, _ in ln["hl"]] + [len(ln["s"])])]
+                for ln in lines]
+        self.assertEqual("".join(kept[0]).strip(), "`commit` (`ARGS`)")
+        self.assertEqual("".join(kept[1]).strip(), "`push`")
+        self.assertEqual([ln.get("p") for ln in lines[:2]], [2, 3])
+
+    def test_prose_paragraphs(self) -> None:
+        """Az üres sor bekezdéshatár: más bekezdés szavai nem illeszkednek, a közös szó nélküli sor nem pár."""
+        gg = self.load()
+        raw = ("@@ -1,5 +1,2 @@\n"
+               "-A `commit` és a `push` lépés.\n"
+               "-Második sor.\n"
+               "-\n"
+               "-## 1. Merge\n"
+               "-`release` után.\n"
+               "+1. `commit`\n"
+               "+2. `push`\n")
+        lines = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
+        self.assertEqual([ln.get("p") for ln in lines[:5]], [5, None, None, None, None])
+        first = lines[0]
+        self.assertEqual([first["s"][a:b] for a, b in first["hl"]], ["A", "és a", " lépés."])
+        for ln in lines[1:5]:
+            self.assertNotIn("hl", ln)                   # egészében törölt: nincs szó-kiemelés
+        second = lines[6]
+        self.assertEqual([second["s"][a:b] for a, b in second["hl"]], ["2."])   # a `push` az első bekezdésből
+
     def test_numstat_paths(self) -> None:
         """Átnevezés-alakok: `a => b` és `x/{a => b}/y`, az üres oldallal is."""
         gg = self.load()
