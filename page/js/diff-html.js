@@ -54,7 +54,8 @@ export function styles(lines, partner) {
     i = j;
     if (!run.some(l => l.t === '+') || !run.some(l => l.t === '-')) continue;
     const drop = untouched(run, '-') ? '-' : untouched(run, '+') ? '+' : null;
-    if (drop) { for (const l of run) st.set(l, l.t === drop ? 'drop' : 'only'); continue; }
+    // az egészében új / törölt sor (nincs szó-kiemelése) teljes színű marad
+    if (drop) { for (const l of run) if (l.t === drop || l.hl) st.set(l, l.t === drop ? 'drop' : 'only'); continue; }
     const inRun = new Set(run);
     for (const d of run) {
       const a = d.t === '-' ? partner(d) : null;
@@ -67,6 +68,7 @@ export function styles(lines, partner) {
 }
 /** @type {(l: any) => any} */
 const noPartner = () => null;
+
 
 /* Az egymás alatti nézet sorai: az érintetlen oldal kimarad (`styles`) — a
    másik oldal a kiemelt szavaival mindent elmond. */

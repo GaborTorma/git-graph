@@ -57,6 +57,14 @@ OLD_LAST = "| Lépés | Mit |\n| --- | --- |\n| 1. | első |\n| 2. | verzió, de
 NEW_LAST = "| Lépés | Mit |\n| --- | --- |\n| 1. | másik |\n| 2. | verzió, tag |\n"
 OLD_GAP = "Első.\n\nMásodik.\n\nHarmadik.\n\nNegyedik régi szöveg.\n"
 NEW_GAP = "Első.\n\nMásodik.\n\nHarmadik.\n\nNegyedik más szöveg.\n"
+OLD_WRAP = ("- **Egy**: első pont.\n- **Kivétel**: doksi, config, egyeztetés alatt álló finomítás. Ha\n"
+            "  tesztelhető, kimondja.\n\nA runner a stackből, az első teszt a változásra.\n\nKöztes bekezdés.\n\nRégi zárás.\n")
+NEW_WRAP = ("- **Egy**: első pont.\n- **Kivétel**: doksi, config, az AI-nak szóló szöveg,\n"
+            "  egyeztetés alatt álló finomítás. Új mondat itt. Ha\n  tesztelhető, kimondja.\n\n"
+            "A runner a stackből, az első teszt a változásra. Az új runner a check\n"
+            "része lesz, különben nem fut.\n\nKöztes bekezdés.\n\nÚj zárás.\n")
+OLD_JSON = '[\n  "Bash(git reset --hard*)"\n]\n'
+NEW_JSON = '[\n  "Bash(git reset --hard*)",\n  "Bash(git mv *)",\n  "Bash(git rm *)"\n]\n'
 TABLE_ROWS = [f"| s{i} | sor {i} szövege |" for i in range(10)]
 OLD_TABLE = "| Név | Mi |\n| --- | --- |\n" + "\n".join(TABLE_ROWS) + "\n"
 NEW_TABLE = ("| Név | Mi |\n| --- | --- |\n"
@@ -75,6 +83,8 @@ class MdDiffTest(PageTestCase):
         code = repo / "kod.py"
         (repo / "rend.md").write_text(OLD_REORDER, encoding="utf-8")
         (repo / "tabla.md").write_text(OLD_TABLE, encoding="utf-8")
+        (repo / "jog.json").write_text(OLD_JSON, encoding="utf-8")
+        (repo / "tordel.md").write_text(OLD_WRAP, encoding="utf-8")
         (repo / "kihagy.md").write_text(OLD_GAP, encoding="utf-8")
         (repo / "utolso.md").write_text(OLD_LAST, encoding="utf-8")
         (repo / "bekezdes.md").write_text(OLD_PARA, encoding="utf-8")
@@ -86,6 +96,8 @@ class MdDiffTest(PageTestCase):
         code.write_text(NEW_PY, encoding="utf-8")
         (repo / "rend.md").write_text(NEW_REORDER, encoding="utf-8")
         (repo / "tabla.md").write_text(NEW_TABLE, encoding="utf-8")
+        (repo / "jog.json").write_text(NEW_JSON, encoding="utf-8")
+        (repo / "tordel.md").write_text(NEW_WRAP, encoding="utf-8")
         (repo / "kihagy.md").write_text(NEW_GAP, encoding="utf-8")
         (repo / "utolso.md").write_text(NEW_LAST, encoding="utf-8")
         (repo / "bekezdes.md").write_text(NEW_PARA, encoding="utf-8")
@@ -248,6 +260,19 @@ class MdDiffTest(PageTestCase):
                 ".map(e => e.getBoundingClientRect().top)")
             self.assertLess(first - box, 10, view)        # csak a doboz belső margója, nincs üres sor
         self.assertEqual(self.page.locator(".md-mode").evaluate("b => getComputedStyle(b).position"), "absolute")
+
+    def test_whole_new_line_stays_green(self) -> None:
+        """Csak beszúrásos futamban az egészében új sor teljes zöld, csak a szavas változás semleges."""
+        self.open_file("jog.json")
+        self.page.wait_for_selector(".diff .diff-line")
+        lines = self.page.locator(".diff .diff-line").evaluate_all(
+            "ls => ls.filter(l => /add|del/.test(l.className)).map(l => [l.className.replace(/diff-line|mono/g, '').trim(),"
+            " l.querySelector('.tx').textContent.trim(), [...l.querySelectorAll('mark')].map(m => m.textContent)])")
+        self.assertEqual(lines, [
+            ["add only", '"Bash(git reset --hard*)",', [","]],
+            ["add", '"Bash(git mv *)",', []],
+            ["add", '"Bash(git rm *)"', []],
+        ])
 
     def test_one_sided_code_line(self) -> None:
         self.open_file("kod.py")
