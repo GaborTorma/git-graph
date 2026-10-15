@@ -75,13 +75,6 @@ export function oneSide(lines, partner = noPartner) {
   return lines.filter(l => st.get(l) !== 'drop').map(l => (st.get(l) === 'only' ? { ...l, only: true } : l));
 }
 
-/* A side-by-side egyik oldala (`keep`: '-' a régi, '+' az új): a változatlan
-   sorok és a `keep` jelűek; az érintetlen sor (`styles`) változatlanként. */
-export function sideOf(lines, keep, partner = noPartner) {
-  const st = styles(lines, partner);
-  return lines.filter(l => l.t === ' ' || l.t === keep).map(l => (st.get(l) === 'drop' ? { ...l, t: ' ' }
-    : st.get(l) === 'only' ? { ...l, only: true } : l));
-}
 const diffCell = (l, no, lang) => `<span class="no">${no ?? ''}</span>`
   + `<span class="sg">${l.t === ' ' ? '' : l.t === '-' ? '−' : '+'}</span>`
   + `<span class="tx">${highlight(l.s, l.hl, lang)}</span>`;

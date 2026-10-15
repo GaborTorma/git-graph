@@ -51,6 +51,8 @@ Itt egy kifejezés cserélődik.
 """
 OLD_REORDER = "## 1. Alfa szakasz\n\nRégi egy szöveg.\n\n## 2. Béta szakasz\n\nRégi kettő szöveg.\n"
 NEW_REORDER = "## 1. Alfa szakasz!\n\nÚj első tartalom.\n\n## 2. Béta szakasz!\n\nÚj második tartalom.\n"
+OLD_PARA = "Bevezető mondat.\nFontos rész itt.\n\nElső mondat.\nMásodik mondat.\nHarmadik mondat.\n"
+NEW_PARA = "Fontos rész itt, bővítve.\n\nElső mondat.\nHarmadik mondat.\n"
 TABLE_ROWS = [f"| s{i} | sor {i} szövege |" for i in range(10)]
 OLD_TABLE = "| Név | Mi |\n| --- | --- |\n" + "\n".join(TABLE_ROWS) + "\n"
 NEW_TABLE = ("| Név | Mi |\n| --- | --- |\n"
@@ -69,6 +71,7 @@ class MdDiffTest(PageTestCase):
         code = repo / "kod.py"
         (repo / "rend.md").write_text(OLD_REORDER, encoding="utf-8")
         (repo / "tabla.md").write_text(OLD_TABLE, encoding="utf-8")
+        (repo / "bekezdes.md").write_text(OLD_PARA, encoding="utf-8")
         doc.write_text(OLD, encoding="utf-8")
         code.write_text(OLD_PY, encoding="utf-8")
         git("add", ".")
@@ -77,6 +80,7 @@ class MdDiffTest(PageTestCase):
         code.write_text(NEW_PY, encoding="utf-8")
         (repo / "rend.md").write_text(NEW_REORDER, encoding="utf-8")
         (repo / "tabla.md").write_text(NEW_TABLE, encoding="utf-8")
+        (repo / "bekezdes.md").write_text(NEW_PARA, encoding="utf-8")
         git("commit", "-qam", "doksi: módosítva")
 
     def open_file(self, name: str) -> None:
@@ -129,8 +133,8 @@ class MdDiffTest(PageTestCase):
         ])
 
     def test_md_new_block_in_place(self) -> None:
-        """Átrendezett szövegben a pár nélküli új bekezdés a helyén: a köztes törölt blokkok után, a következő
-        párosított (vagy változatlan) blokk előtt — nem a törölt rész végén."""
+        """Átrendezett szövegben a pár nélküli új bekezdés a helyén (nem a törölt rész végén), a két pár
+        közti pár nélküli törölt bekezdés mellett."""
         self.resize(1400)
         self.open_file("rend.md")
         self.page.wait_for_selector(".diff-split .md-row")
@@ -179,6 +183,23 @@ class MdDiffTest(PageTestCase):
             "ts => ts.filter(t => /^s[23]$/.test(t.cells[0].textContent.trim()))"
             ".map(t => [t.cells[0].textContent.trim(), t.className])")
         self.assertEqual(uni, [["s2", "del only"], ["s3", "del"], ["s3", "add"]])
+
+    def test_md_paragraph_as_unit(self) -> None:
+        """A bekezdés egy egység: a bővített bekezdés két változata egy sorban, a törölt sor kiemelt."""
+        self.resize(1400)
+        self.open_file("bekezdes.md")
+        self.page.wait_for_selector(".diff-split .md-row")
+        blk = "b => b ? [b.className.replace('md-blk', '').trim(), b.textContent, [...b.querySelectorAll('mark')].map(m => m.textContent)] : null"
+        rows = self.page.locator(".diff-split .md-row").evaluate_all(
+            f"rs => rs.map(r => [...r.children].map(c => ({blk})(c.querySelector('.md-blk:not(.md-none)'))))")
+        self.assertEqual(rows, [
+            [["del", "Bevezető mondat.\nFontos rész itt.", ["Bevezető mondat."]],
+             ["add", "Fontos rész itt, bővítve.", [", bővítve"]]],
+            [["del only", "Első mondat.\nMásodik mondat.\nHarmadik mondat.", ["Második mondat."]],
+             ["", "Első mondat.\nHarmadik mondat.", []]],
+        ])
+        uni = self.page.locator(".diff-uni .md-blk").evaluate_all(f"bs => bs.map({blk})")
+        self.assertEqual(uni[2], ["del only", "Első mondat.\nMásodik mondat.\nHarmadik mondat.", ["Második mondat."]])
 
     def test_one_sided_code_line(self) -> None:
         self.open_file("kod.py")
