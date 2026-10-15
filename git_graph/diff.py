@@ -131,7 +131,10 @@ def mark_prose(dels: list, adds: list) -> list | None:
                 pos.append(None)
                 row.append(r - 1)           # a sortörés az előző sor vége
             at = 0
-            for t in TOKEN_RE.findall(lines[i]["s"]):
+            for n, t in enumerate(TOKEN_RE.findall(lines[i]["s"])):
+                if r and not n and t.isspace():  # a folytatósor behúzása a sortöréshez tartozik
+                    at += len(t)
+                    continue
                 toks.append(t)
                 line_of.append(i)
                 pos.append(at)

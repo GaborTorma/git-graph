@@ -114,6 +114,18 @@ class DiffTest(HomeTestCase):
         self.assertEqual([lines[5]["s"][a:b] for a, b in lines[5]["hl"]], ["3"])
         self.assertNotIn("o", lines[1])
 
+    def test_prose_indented_continuation(self) -> None:
+        """A listaelem folytatósorának behúzása a sortöréshez tartozik: az átkerült szó nem változás."""
+        gg = self.load()
+        raw = ("@@ -1,2 +1,2 @@\n"
+               "-- **Forma**: egy rövid bekezdés (max. 3 sor); ~72 karakteres sorok.\n"
+               "-  Ennél hosszabb csak indokolt esetben.\n"
+               "+- **Forma**: egy rövid bekezdés (max. 200 karakter). Ennél\n"
+               "+  hosszabb csak indokolt esetben.\n")
+        lines = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
+        self.assertEqual([[ln["s"][a:b] for a, b in ln["hl"]] for ln in lines],
+                         [["3", "sor", "; ~72 karakteres sorok"], [], ["200", "karakter"], []])
+
     def test_numstat_paths(self) -> None:
         """Átnevezés-alakok: `a => b` és `x/{a => b}/y`, az üres oldallal is."""
         gg = self.load()
