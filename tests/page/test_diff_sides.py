@@ -55,6 +55,8 @@ OLD_PARA = "Bevezető mondat.\nFontos rész itt.\n\nElső mondat.\nMásodik mond
 NEW_PARA = "Fontos rész itt, bővítve.\n\nElső mondat.\nHarmadik mondat.\n"
 OLD_LAST = "| Lépés | Mit |\n| --- | --- |\n| 1. | első |\n| 2. | verzió, deploy, tag |\n\nKivett bekezdés.\n"
 NEW_LAST = "| Lépés | Mit |\n| --- | --- |\n| 1. | másik |\n| 2. | verzió, tag |\n"
+OLD_GAP = "Első.\n\nMásodik.\n\nHarmadik.\n\nNegyedik régi szöveg.\n"
+NEW_GAP = "Első.\n\nMásodik.\n\nHarmadik.\n\nNegyedik más szöveg.\n"
 TABLE_ROWS = [f"| s{i} | sor {i} szövege |" for i in range(10)]
 OLD_TABLE = "| Név | Mi |\n| --- | --- |\n" + "\n".join(TABLE_ROWS) + "\n"
 NEW_TABLE = ("| Név | Mi |\n| --- | --- |\n"
@@ -73,6 +75,7 @@ class MdDiffTest(PageTestCase):
         code = repo / "kod.py"
         (repo / "rend.md").write_text(OLD_REORDER, encoding="utf-8")
         (repo / "tabla.md").write_text(OLD_TABLE, encoding="utf-8")
+        (repo / "kihagy.md").write_text(OLD_GAP, encoding="utf-8")
         (repo / "utolso.md").write_text(OLD_LAST, encoding="utf-8")
         (repo / "bekezdes.md").write_text(OLD_PARA, encoding="utf-8")
         doc.write_text(OLD, encoding="utf-8")
@@ -83,6 +86,7 @@ class MdDiffTest(PageTestCase):
         code.write_text(NEW_PY, encoding="utf-8")
         (repo / "rend.md").write_text(NEW_REORDER, encoding="utf-8")
         (repo / "tabla.md").write_text(NEW_TABLE, encoding="utf-8")
+        (repo / "kihagy.md").write_text(NEW_GAP, encoding="utf-8")
         (repo / "utolso.md").write_text(NEW_LAST, encoding="utf-8")
         (repo / "bekezdes.md").write_text(NEW_PARA, encoding="utf-8")
         git("commit", "-qam", "doksi: módosítva")
@@ -233,6 +237,17 @@ class MdDiffTest(PageTestCase):
              [["TH", "Lépés", ""], ["TD", "1.", "add"], ["TD", "2.", ""]]],
             [[["P", "Kivett bekezdés.", "del"]], [["P", "", "md-none"]]],
         ])
+
+    def test_md_split_gap_beside_toggle(self) -> None:
+        """Ha a side-by-side egy `···`-vel kezdődik, az a nézetváltó gomb mellett marad (nincs üres sor)."""
+        self.resize(1400)
+        self.open_file("kihagy.md")
+        self.page.wait_for_selector(".diff-split .md-row")
+        gap, mode, row = self.page.evaluate(
+            "[...['.diff-split > .diff-gap', '.md-mode', '.diff-split .md-row']].map(q => {"
+            " const r = document.querySelector(q).getBoundingClientRect(); return [r.top, r.bottom]; })")
+        self.assertLess(gap[0], mode[1])               # a gomb sorában
+        self.assertGreaterEqual(row[0], mode[1])       # a rácssor a gomb alatt
 
     def test_one_sided_code_line(self) -> None:
         self.open_file("kod.py")
