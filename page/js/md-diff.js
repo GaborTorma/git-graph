@@ -9,7 +9,7 @@
    látszik, a többi `···`. A kapcsoló (`mdRaw`) a nyers diffre vált, a lap
    megjegyzi. Ha a két változat blokkszerkezete eltér (pl. új kódkerítés), a
    renderelés pontatlan lehet — arra való a nyers nézet. */
-import { KIND } from './diff-html.js';
+import { KIND, kindOf, oneSide, untouched } from './diff-html.js';
 import { LANGS, highlight } from './syntax.js';
 import { esc, ghLink } from './util.js';
 
@@ -27,11 +27,20 @@ const MD_TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 const MD_HTML = /^\s{0,3}<[!/a-zA-Z]/;
 
 /* Az összefésült sorok blokkjai: { type, lines, … }. Az üres sor blokkhatár,
-   magában nem blokk (az üres sorok változása így nem látszik). */
-function mdBlocks(lines) {
-  const blocks = [];
+   magában nem blokk (az üres sorok változása így nem látszik). A hozzáadott
+   sor, ha a párja (`pairOf`) egy csak törölt, azonos fajta blokk első sora,
+   nem nyit újat (pl. listaelem, címsor; kódblokk igen): a párja blokkjába kerül, így a
+   blokk vegyes, és a szó-kiemelés egy helyen látszik. */
+function mdBlocks(lines, pairOf) {
+  const blocks = [], first = new Map();
   let cur = null;
-  const start = (type, l, extra) => { cur = { type, lines: [l], ...extra }; blocks.push(cur); };
+  const start = (type, l, extra) => {
+    const own = first.get(pairOf.get(l));
+    if (own?.type === type && type !== 'code' && own.lines.every(x => x.t === '-')) { own.lines.push(l); cur = own; return; }
+    cur = { type, lines: [l], ...extra };
+    blocks.push(cur);
+    first.set(l, cur);
+  };
   lines.forEach((l, i) => {
     const s = l.s;
     if (cur?.type === 'code' && cur.fence) {          // kódblokk belseje: a záró kerítésig
@@ -192,27 +201,28 @@ function mdBlockHtml(b) {
   if (b.type === 'code') {
     // a kerítés sorai nem látszanak (a záró hiányozhat: a fájl vége vagy a levágás)
     const closed = b.fence && b.lines.length > 1 && b.lines.at(-1).s.trim().startsWith(b.fence);
-    const body = b.fence ? b.lines.slice(1, closed ? -1 : undefined) : b.lines;
+    // a változásnak csak az érintett oldala, mint a nyers diffben (`oneSide`)
+    const body = oneSide(b.fence ? b.lines.slice(1, closed ? -1 : undefined) : b.lines);
     // Mint a nyers diffben: a változott sorok körül `MD_CODE_CONTEXT` sor, a
     // változatlan kódblokkból (környezetként) az eleje.
     const changed = body.map(l => l.t !== ' ');
     const keep = changed.includes(true) ? near(changed, MD_CODE_CONTEXT) : body.map((_, i) => i < MD_CODE_CONTEXT);
     return '<pre class="md-code mono">' + runsOf(keep).map(r => (r.keep
       ? body.slice(r.from, r.to).map(l =>
-        `<div class="md-cl${KIND[l.t]}">${highlight(l.s, l.hl, b.lang) || ' '}</div>`).join('')
+        `<div class="md-cl${kindOf(l)}">${highlight(l.s, l.hl, b.lang) || ' '}</div>`).join('')
       : `<div class="md-cl md-skip" title="${r.to - r.from} változatlan sor">···</div>`)).join('') + '</pre>';
   }
   if (b.type === 'table') {
     // A fejléc mindig, a többi sorból csak a változott és a szomszédai (a többi `···`):
     // egy nagy táblázat (pl. a repó térképe) egy sor miatt ne nyíljon ki egészben.
-    const rows = b.lines.filter(l => !MD_TABLE_SEP.test(l.s));
+    const rows = oneSide(b.lines).filter(l => !MD_TABLE_SEP.test(l.s));
     const keep = near(rows.map((l, i) => i > 0 && l.t !== ' '), MD_CONTEXT);
     keep[0] = true;
     const cells = l => marked(l).trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/);
     const width = cells(rows[0]).length;
     const row = (l, i) => {
       const cell = i ? 'td' : 'th';
-      return `<tr class="${KIND[l.t].trim()}">`
+      return `<tr class="${kindOf(l).trim()}">`
         + cells(l).map(c => `<${cell}>${mdInline(c.trim())}</${cell}>`).join('') + '</tr>';
     };
     return '<div class="md-table"><table>' + runsOf(keep).map(r => (r.keep
@@ -222,13 +232,19 @@ function mdBlockHtml(b) {
   }
   const kind = linesKind(b.lines);
   if (kind !== null) return `<div class="md-blk${kind}">${mdText(b, b.lines)}</div>`;
-  return `<div class="md-blk del">${mdText(b, b.lines.filter(l => l.t !== '+'))}</div>`
-    + `<div class="md-blk add">${mdText(b, b.lines.filter(l => l.t !== '-'))}</div>`;
+  // Ha az egyik oldalon egy szó sem változott (csak beszúrás vagy csak törlés),
+  // az a változat a másikban benne van: elég a másik, a kiemelt szavaival.
+  const del = b.lines.filter(l => l.t !== '+'), add = b.lines.filter(l => l.t !== '-');
+  if (untouched(b.lines, '-')) return `<div class="md-blk add only">${mdText(b, add)}</div>`;
+  if (untouched(b.lines, '+')) return `<div class="md-blk del only">${mdText(b, del)}</div>`;
+  return `<div class="md-blk del">${mdText(b, del)}</div><div class="md-blk add">${mdText(b, add)}</div>`;
 }
 
 export function mdDiffHtml(d) {
   if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
-  const blocks = mdBlocks(d.hunks.flatMap(h => h.lines));
+  const pairOf = new Map();          // hozzáadott sor → a törölt párja
+  for (const h of d.hunks) for (const l of h.lines) if (l.p != null) pairOf.set(h.lines[l.p], l);
+  const blocks = mdBlocks(d.hunks.flatMap(h => h.lines), pairOf);
   const changed = blocks.map(b => b.lines.some(l => l.t !== ' '));
   if (!changed.includes(true)) {
     return `<p class="diff-note">${d.hunks.length ? 'Csak üres sorok változtak.' : 'Nincs megjeleníthető változás.'}</p>`;

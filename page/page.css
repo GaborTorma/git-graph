@@ -724,6 +724,8 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .diff .del .no, .diff .del .sg { color: var(--diff-del-no); }
 .diff .add mark { background: var(--diff-add-hl); color: inherit; border-radius: 3px; }
 .diff .del mark { background: var(--diff-del-hl); color: inherit; border-radius: 3px; }
+/* csak beszúrás / csak törlés (`only`): a sor háttere semleges, csak a szó színes */
+.diff .add.only, .diff .del.only { background: none; }
 .split-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .split-row .half + .half { border-left: 1px solid var(--border-soft); }
 .half.none { background: var(--bg-1); }
