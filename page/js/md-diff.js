@@ -210,6 +210,9 @@ function runsOf(keep) {
    oldal helyőrző; nélküle az egymás alatti nézet (`oneSide`). A kódblokk és a
    táblázat sorai a két oldalon párban (`alignRows`, `partner`: a törölt sor
    párja), hogy egymás mellett ugyanazok a sorok látszódjanak. */
+// side-by-side sor, ami tényleg változott (az újratördelt sor változatlan jelű, `styles`)
+const moved = r => !r.ctx && [r.a, r.b].some(l => l && l.t !== ' ');
+
 function mdBlockHtml(b, side, partner = new Map()) {
   const pf = l => partner.get(l);
   const pick = ls => oneSide(ls, pf);
@@ -224,7 +227,7 @@ function mdBlockHtml(b, side, partner = new Map()) {
     const body = side ? rows.map(r => (side === '-' ? r.a : r.b)) : pick(lines);
     // Mint a nyers diffben: a változott sorok körül `MD_CODE_CONTEXT` sor, a
     // változatlan kódblokkból (környezetként) az eleje.
-    const changed = side ? rows.map(r => !r.ctx) : body.map(l => l.t !== ' ');
+    const changed = side ? rows.map(moved) : body.map(l => l.t !== ' ');
     const keep = changed.includes(true) ? near(changed, MD_CODE_CONTEXT) : body.map((_, i) => i < MD_CODE_CONTEXT);
     const code = '<pre class="md-code mono">' + runsOf(keep).map(r => (r.keep
       ? body.slice(r.from, r.to).map(l => (l
@@ -239,7 +242,7 @@ function mdBlockHtml(b, side, partner = new Map()) {
     // egy nagy táblázat (pl. a repó térképe) egy sor miatt ne nyíljon ki egészben.
     const pairs = side ? alignRows(b.lines, pf).filter(r => !MD_TABLE_SEP.test((r.a || r.b).s)) : null;
     const rows = side ? pairs.map(r => (side === '-' ? r.a : r.b)) : pick(b.lines).filter(l => !MD_TABLE_SEP.test(l.s));
-    const keep = near(side ? pairs.map((r, i) => i > 0 && !r.ctx) : rows.map((l, i) => i > 0 && l.t !== ' '), MD_CONTEXT);
+    const keep = near(side ? pairs.map((r, i) => i > 0 && moved(r)) : rows.map((l, i) => i > 0 && l.t !== ' '), MD_CONTEXT);
     keep[0] = true;
     const cells = l => marked(l).trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/);
     const width = cells(rows.find(Boolean)).length;
@@ -373,9 +376,11 @@ export function mdDiffHtml(d) {
     for (const l of h.lines) if (l.p != null) { pairOf.set(h.lines[l.p], l); partner.set(l, h.lines[l.p]); }
   }
   const blocks = placeAdded(mdBlocks(d.hunks.flatMap(h => h.lines), pairOf), d.hunks.flatMap(h => h.lines));
-  const changed = blocks.map(b => b.lines.some(l => l.t !== ' '));
+  // a tiszta újratördelés (`styles`: `same` / `drop`) nem változás
+  const changed = blocks.map(b => oneSide(b.lines, l => partner.get(l)).some(l => l.t !== ' '));
   if (!changed.includes(true)) {
-    return `<p class="diff-note">${d.hunks.length ? 'Csak üres sorok változtak.' : 'Nincs megjeleníthető változás.'}</p>`;
+    return `<p class="diff-note">${d.hunks.length ? 'Csak a tördelés vagy üres sorok változtak.'
+      : 'Nincs megjeleníthető változás.'}</p>`;
   }
   const shown = near(changed, MD_CONTEXT);
   let heading = -1;          // a változás előtti legközelebbi címsor is látszik: hol járunk a doksiban
