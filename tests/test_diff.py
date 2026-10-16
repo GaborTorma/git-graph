@@ -132,6 +132,40 @@ class DiffTest(HomeTestCase):
         self.assertEqual([marks(ln) for ln in lines],
                          [["3", "sor", "; ~72 karakteres sorok"], [], ["200", "karakter"], []])
 
+    def test_prose_list_items(self) -> None:
+        """A listaelem saját bekezdés: a közéjük szúrt hosszú új elem mellett is a párjukra találnak."""
+        raw = ("@@ -1,4 +1,20 @@\n"
+               "-- **`## STOP`** — hiba: ha egy sora teljesül, mutasd, amit a nyíl után ír, és **állj meg**.\n"
+               "-- **`## SKIP`** — nincs dolga, nem hiba: ha egy sora teljesül, **állj meg**; önállóan futva\n"
+               "-  mutasd, amit a nyíl után ír, láncban nincs válasza. A `## STOP` után áll, és utána is\n"
+               "-  értékelődik. Menet közben kiderülő kihagyás: `→ SKIP` (a szöveg, ha van, utána).\n"
+               "+- **`## STOP`** — hiba: ha egy sora teljesül, mutasd, amit a nyíl után ír, és **STOP**: a futás véget ér.\n"
+               "+- **`## ASK`** — hiányzó előfeltétel, a *Fejlesztő* dönt: ha egy sora teljesül, kérdezz\n"
+               "+  `AskUserQuestion`-nel (a nyíl utáni helyzet a kérdés, az alatta álló számozott sorok az\n"
+               "+  opciók, az első az ajánlott), és a válasz szerint folytasd. A teljesülő sorok egy hívásban,\n"
+               "+  soronként egy kérdés; ha több sor ugyanazt az előző lépést ajánlja, csak az első kérdez. A\n"
+               "+  `## STOP` után áll, a `## SKIP` előtt: az előző lépés új munkát hozhat.\n"
+               "+  - **Opció**: egy előző lépés commandja — lefut, utána a command folytatódik; „<valami>\n"
+               "+    nélküle” — továbbmegy; `STOP` — mint a `## STOP`. Az utolsó opció mindig `STOP`.\n"
+               "+  - **Előző lépés után** a konstansok elavultak: amire a további feltételek épülnek, annak a\n"
+               "+    parancsát futtasd újra.\n"
+               "+  - **Ajánlott út egyszer**: ha a *Fejlesztő* az ajánlott opcióval egy előző lépést hívat, a\n"
+               "+    hívott lépés ASK-jai ugyanebben a futásban kérdés nélkül az ajánlottal mennek — de csak\n"
+               "+    azok a sorok, amelyek ajánlott opciója is egy előző lépés; a „nélküle” vagy `STOP`\n"
+               "+    ajánlású sor ilyenkor is kérdez.\n"
+               "+  - **Előre jóváhagyva**: ha a hívó ezt írja (gomb, command, amelynek a hívása maga a\n"
+               "+    jóváhagyás), az ASK-ok ugyanígy mennek.\n"
+               "+  - Menet közben kiderülő kérdés: `→ ASK` (a helyzet és az opciók utána).\n"
+               "+- **`## SKIP`** — nincs dolga, nem hiba: ha egy sora teljesül, **STOP**; önállóan futva\n"
+               "+  mutasd, amit a nyíl után ír, láncban nincs válasza. A `## STOP` és a `## ASK` után áll,\n"
+               "+  és utánuk is értékelődik. Menet közben kiderülő kihagyás: `→ SKIP` (a szöveg, ha van, utána).\n")
+        lines = self.prose_lines(raw)
+        self.assertEqual([ln.get("p") for ln in lines[:4]], [4, 21, 22, 23])
+        self.assertEqual(marks(lines[0]), ["állj meg"])
+        self.assertEqual(marks(lines[4]), ["STOP", ": a futás véget ér"])
+        self.assertEqual(marks(lines[21]), ["STOP"])
+        self.assertEqual({ln.get("w") for ln in lines[5:21]}, {"whole"})
+
     def test_line_state(self) -> None:
         """A változott sor állapota (`w`): változatlan szavak, változott szavak, egészében új / üres."""
         raw = ("@@ -1,2 +1,3 @@\n"

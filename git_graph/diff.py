@@ -12,6 +12,7 @@ from .worktrees import UNCOMMITTED_RE, head_lines, read_lines
 HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 SHA_RE = re.compile(r"^[0-9a-f]{7,64}$")
 TOKEN_RE = re.compile(r"\w+|\s+|[^\w\s]")
+LIST_RE = re.compile(r"\s*(?:[-*+]|\d+[.)])\s")    # listaelem eleje
 DIFF_MAX_LINES = 3000           # egy lockfile ne fagyassza meg a lapot
 FULL_CONTEXT = "-U1000000"      # a teljes fájl egy hunkban (a renderelt Markdown-diffhez)
 PAIR_MAX_CELLS = 10000          # e fölött (pl. 100×100-as blokk) nincs hasonlóság-illesztés
@@ -107,12 +108,50 @@ def paragraphs(lines: list) -> list:
     return [p for p in out if p]
 
 
+def list_items(lines: list, para: list) -> list:
+    """Egy bekezdés listaelemei (a listaelemek közt nincs üres sor): [[sorindex, …], …]."""
+    out: list = []
+    for i in para:
+        if not out or LIST_RE.match(lines[i]["s"]):
+            out.append([])
+        out[-1].append(i)
+    return out
+
+
+def pair_paragraphs(wa: list, wb: list) -> list:
+    """Bekezdéspárok a szavaik hasonlósága szerint, sorrendtartóan (`pair_lines`)."""
+    psim = [[0.0] * len(wb) for _ in wa]
+    if len(wa) * len(wb) <= PAIR_MAX_CELLS:
+        for x, ws in enumerate(wa):
+            sm = difflib.SequenceMatcher(None, autojunk=False)
+            sm.set_seq2(ws)
+            for y, wt in enumerate(wb):
+                sm.set_seq1(wt)
+                if sm.real_quick_ratio() >= PARA_MIN_RATIO and sm.quick_ratio() >= PARA_MIN_RATIO:
+                    r = sm.ratio()
+                    psim[x][y] = r if r >= PARA_MIN_RATIO else 0.0
+    return pair_lines(wa, wb, psim)
+
+
+def by_items(dels: list, adds: list, pa: list, pb: list, words) -> list:
+    """A pár nélküli bekezdések listaelemenként párosítva: [(törölt sorok, hozzáadott sorok), …].
+
+    Egy listában az elemek közé szúrt új elemek a bekezdést annyira
+    megváltoztatják, hogy nincs párja; az elemei viszont párosodnak.
+    """
+    ia = [it for p in pa for it in list_items(dels, p)]
+    ib = [it for p in pb for it in list_items(adds, p)]
+    pairs = pair_paragraphs([words(0, it) for it in ia], [words(1, it) for it in ib])
+    return [(ia[x], ib[y]) for x, y in pairs]
+
+
 def mark_prose(dels: list, adds: list) -> list | None:
     """Szöveges fájl cserélt blokkja bekezdésenként, szó-szinten: a sortörés csak szóköz.
 
     Előbb a bekezdések párosodnak (a szavaik hasonlósága szerint, sorrendtartóan,
     mint a `pair_lines`) — így egy átszámozás vagy egy törölt bekezdés nem
-    csúsztatja el a többit —, aztán a párok szavai illeszkednek (`match_blocks`).
+    csúsztatja el a többit; a pár nélküli bekezdések listaelemenként is
+    (`by_items`) —, aztán a párok szavai illeszkednek (`match_blocks`).
     Egy bekezdés újratördelése így nem változás: csak a valóban cserélt szavak
     kapnak `hl`-t, soronként; a pár nélküli bekezdés, és amelyik sorból egy szó
     sem maradt, egészében változott (nincs `hl`). A visszaadott mátrix a
@@ -154,25 +193,22 @@ def mark_prose(dels: list, adds: list) -> list | None:
                 hl.append([pos[k], end])
 
     norm = lambda toks: [" " if t.isspace() else t for t in toks]   # noqa: E731
-    words = lambda found, idx: [t for i in idx for t in found[i] if not t.isspace()]  # noqa: E731
     for line in dels + adds:
         line["hl"] = []
     sim = [[0] * len(adds) for _ in dels]
     pa, pb = paragraphs(dels), paragraphs(adds)
-    wa, wb = [words(ta, p) for p in pa], [words(tb, p) for p in pb]
-    psim = [[0.0] * len(pb) for _ in pa]
-    if len(pa) * len(pb) <= PAIR_MAX_CELLS:
-        for x, ws in enumerate(wa):
-            sm = difflib.SequenceMatcher(None, autojunk=False)
-            sm.set_seq2(ws)
-            for y, wt in enumerate(wb):
-                sm.set_seq1(wt)
-                if sm.real_quick_ratio() >= PARA_MIN_RATIO and sm.quick_ratio() >= PARA_MIN_RATIO:
-                    r = sm.ratio()
-                    psim[x][y] = r if r >= PARA_MIN_RATIO else 0.0
-    for x, y in pair_lines(pa, pb, psim):
-        a, line_a, pos_a, row_a = tokens(ta, pa[x])
-        b, line_b, pos_b, row_b = tokens(tb, pb[y])
+    side = (ta, tb)
+    words = lambda s, idx: [t for i in idx for t in side[s][i] if not t.isspace()]  # noqa: E731
+    pairs = pair_paragraphs([words(0, p) for p in pa], [words(1, p) for p in pb])
+    units = [(pa[x], pb[y]) for x, y in pairs]
+    done_a, done_b = {x for x, _ in pairs}, {y for _, y in pairs}
+    left_a = [p for x, p in enumerate(pa) if x not in done_a]
+    left_b = [p for y, p in enumerate(pb) if y not in done_b]
+    if left_a and left_b:
+        units += by_items(dels, adds, left_a, left_b, words)
+    for ua, ub in units:
+        a, line_a, pos_a, row_a = tokens(ta, ua)
+        b, line_b, pos_b, row_b = tokens(tb, ub)
         for op, i1, i2, j1, j2 in opcodes(match_blocks(norm(a), norm(b), row_a, row_b), len(a), len(b)):
             if op == "equal":
                 for k in range(i2 - i1):
