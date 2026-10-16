@@ -81,9 +81,11 @@ kéri. A telepítésé (`ensure_installed`, `uninstall`, `watch_plugin`): kamu
   (`z-index: 2`) saját rétegkontextust nyit, így a benne lévő `.details` sosem
   kerülhet a testvér `#lanes` fölé — a kinyitott panelen átlógnának a vonalak.
 - **A „Nem commitolt változások” ál-sorok a `commits` lista elején** (worktree-nként
-  egy, `sha`: `*uncommitted:<worktree-slug>` — ebből tudja a `file_diff`, melyik
-  mappát diffelje; a slugnak élő worktree-é kell lennie), a szülőjük a worktree
-  HEAD-je. Az `assign_lanes` magától kezeli, de az `edges` **sorindexeket**
+  legfeljebb kettő: felül a még nem stage-elt, `*uncommitted:<worktree-slug>`, az
+  indexhez mérve, a követetlen fájlokkal; alatta a stage-elt, `*staged:<worktree-slug>`,
+  a HEAD-hez mérve — ebből tudja a `file_diff`, melyik mappát és oldalt diffelje; a
+  slugnak élő worktree-é kell lennie). Láncban állnak: a felső szülője az alsó, az
+  alsóé a worktree HEAD-je. Az `assign_lanes` magától kezeli, de az `edges` **sorindexeket**
   használ — ezért az ál-sorokat a lane-kiosztás ELŐTT kell beszúrni, a `meta`
   viszont még a valódi commitokból készül (különben a „N commit látszik"
   hazudna). A szerzőjük a worktree `user.name`-je, az idejük a fájlok `mtime`-ja.

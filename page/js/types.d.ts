@@ -10,7 +10,7 @@ interface Ref {
   default?: boolean;
 }
 
-/** Egy commit, vagy egy worktree commitolatlan ál-sora (`uncommitted`). */
+/** Egy commit, vagy egy worktree commitolatlan ál-sora (`uncommitted`; a stage-elté `staged` is). */
 interface Commit {
   sha: string;
   short: string;
@@ -29,6 +29,7 @@ interface Commit {
   branch?: string | null;
   owner?: string | null;
   uncommitted?: boolean;
+  staged?: boolean;
   worktree?: string;
   changed?: number;
 }

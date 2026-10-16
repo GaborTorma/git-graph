@@ -22,14 +22,41 @@ class WorktreesTest(HomeTestCase):
         git_in(repo, "config", "user.name", "Teszt Elek")
         gg.gitio.set_repo(repo)
         wt = gg.worktrees.collect_worktrees()[0]
-        self.assertIsNone(gg.worktrees.collect_uncommitted(wt))
+        self.assertEqual(gg.worktrees.collect_uncommitted(wt), [])
         (repo / "a.txt").write_text("1\n2\n", encoding="utf-8")
         wt = gg.worktrees.collect_worktrees()[0]
-        commit, churn = gg.worktrees.collect_uncommitted(wt)
+        [(commit, churn)] = gg.worktrees.collect_uncommitted(wt)
         self.assertEqual(commit["author"], "Teszt Elek")
         self.assertEqual(commit["parents"], [wt["head"]])
         self.assertEqual((churn["add"], churn["del"]), (1, 0))
-        self.assertIsNone(gg.worktrees.collect_uncommitted({**wt, "head": None}))
+        self.assertEqual(gg.worktrees.collect_uncommitted({**wt, "head": None}), [])
+
+    def test_staged_row(self) -> None:
+        """A stage-elt változás a nem stage-elt sor alatti külön sor: lánc a HEAD-re, fájlonként
+        a saját oldala; csak stage-elt változásnál csak az a sor."""
+        gg = self.load()
+        repo = self.plain_repo()
+        (repo / "a.txt").write_text("1\n2\n3\n", encoding="utf-8")
+        git_in(repo, "add", "a.txt")
+        gg.gitio.set_repo(repo)
+        wt = gg.worktrees.collect_worktrees()[0]
+        [(staged, churn)] = gg.worktrees.collect_uncommitted(wt)
+        self.assertEqual((staged["sha"], staged["parents"]), (f"*staged:{wt['slug']}", [wt["head"]]))
+        self.assertTrue(staged["staged"] and staged["uncommitted"])
+        self.assertEqual((churn["add"], churn["del"]), (2, 0))
+        (repo / "a.txt").write_text("1\n2\n3\n4\n", encoding="utf-8")
+        (repo / "uj.txt").write_text("x\n", encoding="utf-8")
+        wt = gg.worktrees.collect_worktrees()[0]
+        (top, top_churn), (staged, churn) = gg.worktrees.collect_uncommitted(wt)
+        self.assertEqual((top["sha"], top["parents"]), (f"*uncommitted:{wt['slug']}", [staged["sha"]]))
+        self.assertNotIn("staged", top)
+        self.assertEqual([(f["path"], f["add"]) for f in top_churn["files"]], [("a.txt", 1), ("uj.txt", 1)])
+        self.assertEqual([(f["path"], f["add"]) for f in churn["files"]], [("a.txt", 2)])
+        def added(sha: str) -> list[str]:
+            return [ln["s"] for h in gg.diff.file_diff(sha, "a.txt")["hunks"] for ln in h["lines"] if ln["t"] == "+"]
+
+        self.assertEqual(added(top["sha"]), ["4"])           # az indexhez képest
+        self.assertEqual(added(staged["sha"]), ["2", "3"])   # a HEAD-hez képest
 
     def test_untracked_files(self) -> None:
         """A követetlen fájl sorai a +-ba számítanak, és útvonal szerint a helyükre kerülnek."""
@@ -39,7 +66,7 @@ class WorktreesTest(HomeTestCase):
         (repo / "0.bin").write_bytes(b"\xff\x00")
         (repo / "a.txt").write_text("1\n2\n", encoding="utf-8")
         gg.gitio.set_repo(repo)
-        _, churn = gg.worktrees.collect_uncommitted(gg.worktrees.collect_worktrees()[0])
+        [(_, churn)] = gg.worktrees.collect_uncommitted(gg.worktrees.collect_worktrees()[0])
         self.assertEqual([(f["path"], f["add"], f["bin"]) for f in churn["files"]],
                          [("0.bin", 0, True), ("0.txt", 3, False), ("a.txt", 1, False)])
         self.assertEqual(churn["add"], 4)
@@ -59,7 +86,7 @@ class WorktreesTest(HomeTestCase):
         (repo / "mas.txt").unlink()
         (repo / "teljesen-mas.txt").write_text("alma\nkorte\n", encoding="utf-8")
         gg.gitio.set_repo(repo)
-        _, churn = gg.worktrees.collect_uncommitted(gg.worktrees.collect_worktrees()[0])
+        [(_, churn)] = gg.worktrees.collect_uncommitted(gg.worktrees.collect_worktrees()[0])
         self.assertEqual([(f["path"], f["add"], f["del"], f.get("status")) for f in churn["files"]],
                          [("mas.txt", 0, 2, "D"), ("teljesen-mas.txt", 2, 0, "A"),
                           ("{regi => uj}/SKILL.md", 1, 1, None)])

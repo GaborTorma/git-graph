@@ -526,10 +526,10 @@ def untracked_diff(root: Path, path: str) -> dict:
 
 
 def renamed_diff(root: Path, old: str, new: str, full: bool) -> dict | None:
-    """Még nem stage-elt átnevezés (a HEAD-beli `old` → követetlen `new`, ahogy a WIP-sor
+    """Még nem stage-elt átnevezés (az indexbeli `old` → követetlen `new`, ahogy a WIP-sor
     párosította): a két tartalom különbsége, a `difflib`-bel — a git ezt index nélkül
-    nem diffeli. Ha a pár nem áll (nincs a HEAD-ben, vagy bináris): `None`."""
-    a, b = head_lines(root, "HEAD", old), read_lines(root / new)
+    nem diffeli. Ha a pár nem áll (nincs az indexben, vagy bináris): `None`."""
+    a, b = head_lines(root, "", old), read_lines(root / new)
     if a is None or b is None:
         return None
     raw = "\n".join(difflib.unified_diff(a, b, lineterm="", n=1000000 if full else 3))
@@ -538,7 +538,8 @@ def renamed_diff(root: Path, old: str, new: str, full: bool) -> dict | None:
 
 
 def file_diff(sha: str, path: str, full: bool = False) -> dict:
-    """Egy fájl diffje a commitban (vagy egy Uncommitted ál-sorban: a worktree HEAD-jéhez képest).
+    """Egy fájl diffje a commitban, vagy egy WIP ál-sorban: a nem stage-elté az indexhez,
+    a stage-elté (`*staged:<slug>`) a HEAD-hez képest.
 
     `full`: a változatlan sorok is mind benne vannak (egyetlen hunk) — a lap
     ebből rendereli a Markdown-fájlt, a blokkjai csak a teljes szövegből jók.
@@ -551,20 +552,23 @@ def file_diff(sha: str, path: str, full: bool = False) -> dict:
     context = [FULL_CONTEXT] if full else []
     pending = UNCOMMITTED_RE.match(sha)
     if pending:
-        slug = pending[1]
+        kind, slug = pending[1], pending[2]
         root = next((wt["path"] for wt in worktree_list()
                      if slug in (None, slug_for(wt["path"]))), None)
         if root is None:
             raise ValueError(f"nincs ilyen worktree: {slug}")
-        untracked = git("ls-files", "--others", "--exclude-standard", "--", new, repo=root).splitlines()
-        if old != new and new in untracked:
-            paired = renamed_diff(root, old, new, full)
-            if paired is not None:
-                return paired
-        raw = git("diff", "--no-color", "--no-ext-diff", "-M", *context, "HEAD", "--", old, new,
-                  repo=root)
-        if not raw.strip() and path in untracked:
-            return untracked_diff(root, path)
+        if kind == "staged":
+            raw = git("diff", "--no-color", "--no-ext-diff", "-M", *context, "--cached", "--", old, new,
+                      repo=root)
+        else:
+            untracked = git("ls-files", "--others", "--exclude-standard", "--", new, repo=root).splitlines()
+            if old != new and new in untracked:
+                paired = renamed_diff(root, old, new, full)
+                if paired is not None:
+                    return paired
+            raw = git("diff", "--no-color", "--no-ext-diff", "-M", *context, "--", old, new, repo=root)
+            if not raw.strip() and path in untracked:
+                return untracked_diff(root, path)
     elif SHA_RE.match(sha):
         raw = git("show", "--format=", "--no-color", "--no-ext-diff", "-M",
                   "--diff-merges=first-parent", *context, sha, "--", old, new)

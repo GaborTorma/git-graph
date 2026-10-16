@@ -126,7 +126,7 @@ Egy sor szabály; a miért és a mérés: [architecture.md](../docs/architecture
   - A `REPO` a `gitio` globálisa: váltás `set_repo`-val, olvasás `gitio.REPO`-ként (nem `from .gitio import REPO`).
   - Python 3.9-kompatibilis (`/usr/bin/python3`); függvényen belüli import a csomagból nem lehet (a zip a futó szerver alatt cserélődhet).
   - Repónév az `origin` remote-ból, nem a mappanévből; minden út a fő checkoutra képződik le (`main_checkout`).
-  - A WIP ál-sorok (`*uncommitted:<slug>`) a lane-kiosztás ELŐTT kerülnek be, a `meta` a valódi commitokból készül.
+  - A WIP ál-sorok (`*uncommitted:<slug>`, alatta `*staged:<slug>`) a lane-kiosztás ELŐTT kerülnek be, a `meta` a valódi commitokból készül.
   - A `log --all` helyett `ALL_BUT_STASH` (a `refs/stash` nélkül); a stash-ek a `git stash list`-ből, egyetlen szülővel (`^1`).
   - A `file_diff` bemenete a lapról jön: `sha` csak hex, fájlt csak követetlen esetben olvasunk közvetlenül.
   - A kimenet a repón kívül, `~/.git-graph/<slug>/`; a projektmappába nem írunk.
