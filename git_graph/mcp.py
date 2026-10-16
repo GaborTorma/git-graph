@@ -41,7 +41,7 @@ MCP_TOOLS = [
     {"name": "file_diff", "annotations": {"readOnlyHint": True},
      "inputSchema": {"type": "object", "required": ["repo", "sha", "path"], "properties": {
          **_REPO_ARG["properties"],
-         "sha": {"type": "string", "description": "commit sha, vagy *uncommitted:<worktree-slug>"},
+         "sha": {"type": "string", "description": "commit sha, vagy *uncommitted:<worktree-slug> / *staged:<worktree-slug>"},
          "path": {"type": "string", "description": "a fájl útja, ahogy a graph_data adja"},
          "full": {"type": "boolean", "description": "a teljes fájl, a változatlan sorokkal együtt"}}},
      "description": "Egy fájl diffje egy commitban, hunkokra és sorokra bontva."},

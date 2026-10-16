@@ -223,17 +223,16 @@ def collect_payload(limit: int | None) -> dict:
     mark_stash_owners(commits, worktrees)
     fold_remote_heads(commits)
 
-    # Worktree-nként egy ál-sor, a gráf tetejére, a HEAD-jük fölé — a lane-kiosztás
-    # előtt, mert az élek sorindexeket használnak.
+    # Worktree-nként legfeljebb két ál-sor (nem stage-elt, stage-elt), a gráf tetejére,
+    # a HEAD-jük fölé — a lane-kiosztás előtt, mert az élek sorindexeket használnak.
     trunk = None
     for wt in reversed(worktrees):
         pending = collect_uncommitted(wt)
-        if pending:
-            commit, churn = pending
+        for commit, churn in reversed(pending):
             commits.insert(0, commit)
             stats[commit["sha"]] = churn
-        if wt["main"]:                    # a fő checkout csúcsa: az ál-sora, vagy a HEAD-je
-            trunk = commit["sha"] if pending else wt["head"]
+        if wt["main"]:                    # a fő checkout csúcsa: a felső ál-sora, vagy a HEAD-je
+            trunk = pending[0][0]["sha"] if pending else wt["head"]
 
     edges = assign_lanes(commits, trunk)
     worktree_lanes_last(commits, edges, worktrees)

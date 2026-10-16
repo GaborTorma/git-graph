@@ -81,8 +81,9 @@ class GraphTest(HomeTestCase):
         self.assertEqual(files(first), {"a": ("A", None), "d/old": ("A", 0)})
         self.assertEqual(files(second), {"d/n/new": ("A", 2), "d/old": ("D", None)})   # a d megmaradt
         slug = data["meta"]["worktrees"][0]["slug"]
-        self.assertEqual(files(f"*uncommitted:{slug}"), {"d/n/new": ("D", 0), ".gitignore": ("A", None),
+        self.assertEqual(files(f"*uncommitted:{slug}"), {".gitignore": ("A", None),
                                                           "u/v.txt": ("A", 0), "u/w/x.txt": ("A", 0)})
+        self.assertEqual(files(f"*staged:{slug}"), {"d/n/new": ("D", 0)})     # a `git rm` stage-el
 
     def test_remote_head(self) -> None:
         """Az `origin/HEAD` nem külön badge: a célja (`origin/main`) kapja a `default` jelet."""

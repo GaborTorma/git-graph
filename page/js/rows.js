@@ -69,10 +69,11 @@ export function render() {
   const ownSlug = focusWt()?.slug;
   renderPending(visible.filter(c => c.uncommitted && c.worktree === ownSlug));
   // A többi worktree WIP-je a commitok közé kerül, a fájlok utolsó módosítása
-  // szerint — de sosem a saját HEAD-je alá.
+  // szerint — de sosem a szülője (a stage-elt sor, ill. a HEAD) alá.
   const at = c => {
-    const head = commitBySha(c.parents[0]);
-    return Math.max(Date.parse(c.date) || 0, head ? Date.parse(head.date) + 1 : 0);
+    const parent = commitBySha(c.parents[0]);
+    const floor = !parent ? 0 : parent.uncommitted ? at(parent) : Date.parse(parent.date);
+    return Math.max(Date.parse(c.date) || 0, parent ? floor + 1 : 0);
   };
   const others = visible.filter(c => c.uncommitted && c.worktree !== ownSlug).sort((a, b) => at(b) - at(a));
   setOtherWip(others.length > 0);
@@ -115,7 +116,7 @@ export function render() {
   back?.focus({ preventScroll: true });
 }
 
-/* Az Uncommitted ál-sorok (worktree-nként egy) mindig látszanak: a lista
+/* Az Uncommitted ál-sorok (worktree-nként a nem stage-elt, alatta a stage-elt) mindig látszanak: a lista
    fölötti fix sávban, saját üres karikával és a lista felé futó szaggatott
    csonkkal; görgetve a többi worktree-é folytatódik a HEAD-ig. A karikák a sorok mért közepére kerülnek
    (`drawPending`, a `drawGraph` hívja): a sor kétsoros is lehet. */

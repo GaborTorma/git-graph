@@ -113,7 +113,7 @@ export function startLive(src) {
           const t1 = performance.now();
           setData(await src.data());
           const td = performance.now() - t1;
-          for (const [k, v] of diffCache) if (k.startsWith('*uncommitted')) v.stale = true;
+          for (const [k, v] of diffCache) if (k.startsWith('*uncommitted') || k.startsWith('*staged')) v.stale = true;
           const top = scroller.scrollTop;
           hydrate();
           fillBranches();

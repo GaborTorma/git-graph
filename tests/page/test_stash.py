@@ -1,19 +1,17 @@
 """A stash a lapon: egyetlen sor a saját chipjével (ikonnal), a segédcommitjai nélkül."""
 from __future__ import annotations
 
-import subprocess
 import unittest
 from pathlib import Path
 
-from harness import PageTestCase
+from harness import PageTestCase, git_in
 
 class StashTest(PageTestCase):
     @classmethod
     def prepare(cls, repo: Path) -> None:
         (repo / "main-4-5.txt").write_text("módosítva\n", encoding="utf-8")
         (repo / "kovetetlen.txt").write_text("új\n", encoding="utf-8")
-        subprocess.run(["git", "-c", "user.name=Teszt Elek", "-c", "user.email=teszt@x.hu", "-C", str(repo),
-                        "stash", "push", "-q", "-u", "-m", "félretéve"], check=True, capture_output=True)
+        git_in(repo, "stash", "push", "-q", "-u", "-m", "félretéve")
 
     def test_one_row(self) -> None:
         subjects = self.page.locator("#rows .row .subject").all_inner_texts()

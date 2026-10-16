@@ -50,6 +50,23 @@ window.claude = { use: async name => name !== 'mcp' ? null : {
 """
 
 
+def git_in(repo: Path, *args: str, env: dict | None = None) -> None:
+    """Git a fixture-repóban, a teszt szerzőjével."""
+    subprocess.run(["git", "-c", "user.name=Teszt Elek", "-c", "user.email=teszt@x.hu", "-C", str(repo), *args],
+                   check=True, capture_output=True, env=env)
+
+
+def commit_versions(repo: Path, files: dict, subject: str) -> None:
+    """Két commit a `files` két változatával ({név: (régi, új)}; `None`: abban nincs): a régi
+    a `subject`, az új a `<subject>: módosítva` üzenettel (`PageTestCase.open_file`)."""
+    for side, msg in ((0, subject), (1, f"{subject}: módosítva")):
+        for name, versions in files.items():
+            if versions[side] is not None:
+                (repo / name).write_text(versions[side], encoding="utf-8")
+        git_in(repo, "add", ".")
+        git_in(repo, "commit", "-qm", msg)
+
+
 def make_history(repo: Path) -> None:
     """Fixture-történet: 5 nap, naponta 6 commit a `main`-en, egy beolvasztott ág, és a
     HEAD-en sok, hosszú nevű ref (a badge-es sor tördelődéséhez)."""
@@ -59,9 +76,7 @@ def make_history(repo: Path) -> None:
         nonlocal n
         n += 1
         date = f"@{T0 + day * DAY + n * 60} +0000"
-        env = {**os.environ, "GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date}
-        subprocess.run(["git", "-c", "user.name=Teszt Elek", "-c", "user.email=teszt@x.hu",
-                        "-C", str(repo), *args], check=True, capture_output=True, env=env)
+        git_in(repo, *args, env={**os.environ, "GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date})
 
     def commit(name: str, day: int) -> None:
         (repo / f"{name}.txt").write_text(f"{name}\n", encoding="utf-8")
@@ -113,9 +128,17 @@ class PageTestCase(unittest.TestCase):
         cls.pw = sync_playwright().start()
         cls.browser = cls.pw.chromium.launch()
 
+    SUBJECT = ""               # a `commit_versions` témája: az `open_file` ennek a változatát nyitja
+
     @classmethod
     def prepare(cls, repo: Path) -> None:
         """Az osztály saját kiegészítése a fixture-történethez (alapból semmi)."""
+
+    def open_file(self, name: str) -> None:
+        """A `commit_versions` módosító commitjában a `name` fájl diffje."""
+        self.page.locator("#rows .row", has_text=f"{self.SUBJECT}: módosítva").click()
+        self.settle()
+        self.page.locator("#rows .details .file", has_text=name).click()
 
     @classmethod
     def tearDownClass(cls) -> None:

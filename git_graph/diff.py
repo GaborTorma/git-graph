@@ -7,11 +7,16 @@ from pathlib import Path
 
 from .gitio import git, numstat_new_path, numstat_old_path, worktree_list
 from .registry import slug_for
-from .worktrees import UNCOMMITTED_RE
+from .worktrees import UNCOMMITTED_RE, head_lines, read_lines
 
 HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 SHA_RE = re.compile(r"^[0-9a-f]{7,64}$")
 TOKEN_RE = re.compile(r"\w+|\s+|[^\w\s]")
+LIST_RE = re.compile(r"\s*(?:[-*+]|\d+[.)])\s")    # listaelem eleje
+# a markdown blokkjainak eleje, a lap `mdBlocks`-a szerint (md-diff.js, MD_*)
+MD_FENCE_RE = re.compile(r"\s{0,3}(`{3,}|~{3,})")
+MD_HEAD_RE = re.compile(r"\s{0,3}(?:#{1,6}(?:\s|$)|([-*_])(?:\s*\1){2,}\s*$)")   # címsor, vonal
+MD_KIND_RE = re.compile(r"\s*(\|)|\s{0,3}(>)")                                      # táblázat, idézet
 DIFF_MAX_LINES = 3000           # egy lockfile ne fagyassza meg a lapot
 FULL_CONTEXT = "-U1000000"      # a teljes fájl egy hunkban (a renderelt Markdown-diffhez)
 PAIR_MAX_CELLS = 10000          # e fölött (pl. 100×100-as blokk) nincs hasonlóság-illesztés
@@ -107,22 +112,61 @@ def paragraphs(lines: list) -> list:
     return [p for p in out if p]
 
 
+def list_items(lines: list, para: list) -> list:
+    """Egy bekezdés listaelemei (a listaelemek közt nincs üres sor): [[sorindex, …], …]."""
+    out: list = []
+    for i in para:
+        if not out or LIST_RE.match(lines[i]["s"]):
+            out.append([])
+        out[-1].append(i)
+    return out
+
+
+def pair_paragraphs(wa: list, wb: list) -> list:
+    """Bekezdéspárok a szavaik hasonlósága szerint, sorrendtartóan (`pair_lines`)."""
+    psim = [[0.0] * len(wb) for _ in wa]
+    if len(wa) * len(wb) <= PAIR_MAX_CELLS:
+        for x, ws in enumerate(wa):
+            sm = difflib.SequenceMatcher(None, autojunk=False)
+            sm.set_seq2(ws)
+            for y, wt in enumerate(wb):
+                sm.set_seq1(wt)
+                if sm.real_quick_ratio() >= PARA_MIN_RATIO and sm.quick_ratio() >= PARA_MIN_RATIO:
+                    r = sm.ratio()
+                    psim[x][y] = r if r >= PARA_MIN_RATIO else 0.0
+    return pair_lines(wa, wb, psim)
+
+
+def by_items(dels: list, adds: list, pa: list, pb: list, words) -> list:
+    """A pár nélküli bekezdések listaelemenként párosítva: [(törölt sorok, hozzáadott sorok), …].
+
+    Egy listában az elemek közé szúrt új elemek a bekezdést annyira
+    megváltoztatják, hogy nincs párja; az elemei viszont párosodnak.
+    """
+    ia = [it for p in pa for it in list_items(dels, p)]
+    ib = [it for p in pb for it in list_items(adds, p)]
+    pairs = pair_paragraphs([words(0, it) for it in ia], [words(1, it) for it in ib])
+    return [(ia[x], ib[y]) for x, y in pairs]
+
+
 def mark_prose(dels: list, adds: list) -> list | None:
     """Szöveges fájl cserélt blokkja bekezdésenként, szó-szinten: a sortörés csak szóköz.
 
     Előbb a bekezdések párosodnak (a szavaik hasonlósága szerint, sorrendtartóan,
     mint a `pair_lines`) — így egy átszámozás vagy egy törölt bekezdés nem
-    csúsztatja el a többit —, aztán a párok szavai illeszkednek (`match_blocks`).
+    csúsztatja el a többit; a pár nélküli bekezdések listaelemenként is
+    (`by_items`) —, aztán a párok szavai illeszkednek (`match_blocks`).
     Egy bekezdés újratördelése így nem változás: csak a valóban cserélt szavak
     kapnak `hl`-t, soronként; a pár nélküli bekezdés, és amelyik sorból egy szó
     sem maradt, egészében változott (nincs `hl`). A visszaadott mátrix a
     sorpárok közös (nem szóköz) karaktereinek száma: ebből párosít a
     `pair_lines`. Túl nagy blokknál `None` (marad a soronkénti összevetés).
     """
-    if sum(len(TOKEN_RE.findall(line["s"])) for line in dels + adds) > 2 * PROSE_MAX_TOKENS:
+    ta, tb = [TOKEN_RE.findall(line["s"]) for line in dels], [TOKEN_RE.findall(line["s"]) for line in adds]
+    if sum(map(len, ta + tb)) > 2 * PROSE_MAX_TOKENS:
         return None
 
-    def tokens(lines: list, idx: list) -> tuple:
+    def tokens(found: list, idx: list) -> tuple:
         toks, line_of, pos, row = [], [], [], []
         for r, i in enumerate(idx):
             if r:
@@ -131,7 +175,10 @@ def mark_prose(dels: list, adds: list) -> list | None:
                 pos.append(None)
                 row.append(r - 1)           # a sortörés az előző sor vége
             at = 0
-            for t in TOKEN_RE.findall(lines[i]["s"]):
+            for n, t in enumerate(found[i]):
+                if r and not n and t.isspace():  # a folytatósor behúzása a sortöréshez tartozik
+                    at += len(t)
+                    continue
                 toks.append(t)
                 line_of.append(i)
                 pos.append(at)
@@ -150,25 +197,22 @@ def mark_prose(dels: list, adds: list) -> list | None:
                 hl.append([pos[k], end])
 
     norm = lambda toks: [" " if t.isspace() else t for t in toks]   # noqa: E731
-    words = lambda lines, idx: [t for i in idx for t in TOKEN_RE.findall(lines[i]["s"]) if not t.isspace()]  # noqa: E731
     for line in dels + adds:
         line["hl"] = []
     sim = [[0] * len(adds) for _ in dels]
     pa, pb = paragraphs(dels), paragraphs(adds)
-    wa, wb = [words(dels, p) for p in pa], [words(adds, p) for p in pb]
-    psim = [[0.0] * len(pb) for _ in pa]
-    if len(pa) * len(pb) <= PAIR_MAX_CELLS:
-        for x, ws in enumerate(wa):
-            sm = difflib.SequenceMatcher(None, autojunk=False)
-            sm.set_seq2(ws)
-            for y, wt in enumerate(wb):
-                sm.set_seq1(wt)
-                if sm.quick_ratio() >= PARA_MIN_RATIO:
-                    r = sm.ratio()
-                    psim[x][y] = r if r >= PARA_MIN_RATIO else 0.0
-    for x, y in pair_lines(pa, pb, psim):
-        a, line_a, pos_a, row_a = tokens(dels, pa[x])
-        b, line_b, pos_b, row_b = tokens(adds, pb[y])
+    side = (ta, tb)
+    words = lambda s, idx: [t for i in idx for t in side[s][i] if not t.isspace()]  # noqa: E731
+    pairs = pair_paragraphs([words(0, p) for p in pa], [words(1, p) for p in pb])
+    units = [(pa[x], pb[y]) for x, y in pairs]
+    done_a, done_b = {x for x, _ in pairs}, {y for _, y in pairs}
+    left_a = [p for x, p in enumerate(pa) if x not in done_a]
+    left_b = [p for y, p in enumerate(pb) if y not in done_b]
+    if left_a and left_b:
+        units += by_items(dels, adds, left_a, left_b, words)
+    for ua, ub in units:
+        a, line_a, pos_a, row_a = tokens(ta, ua)
+        b, line_b, pos_b, row_b = tokens(tb, ub)
         for op, i1, i2, j1, j2 in opcodes(match_blocks(norm(a), norm(b), row_a, row_b), len(a), len(b)):
             if op == "equal":
                 for k in range(i2 - i1):
@@ -265,14 +309,17 @@ def join_runs(lines: list) -> list:
     return out
 
 
-def parse_diff(raw: str, prose: bool = False) -> dict:
+def parse_diff(raw: str, prose: bool = False, md: bool = False) -> dict:
     """Egyfájlos unified diff → hunkok soronként, a lap ebből rajzol.
 
     Sor: `t` (` `/`+`/`-`), `n` (a törölt sornál a régi, máskor az új sorszám),
-    `s` (szöveg), cserélt sorpárnál `hl` (a változott szakaszok). A hunk `old`
+    `s` (szöveg), cserélt sorpárnál `p` (a párja indexe a hunkban, mindkét
+    irányban) és `hl` (a változott szakaszok), változott sornál `w` (az
+    állapota, `mark_state`) és `v` (a megjelenése, `mark_looks`). A hunk `old`
     kezdete adja a lapon a kihagyott („unmodified") sorok számát. `prose`:
     szöveges fájl: a csak üres sorral elválasztott változások egyben
-    (`join_runs`), a bekezdések és a szavaik a `mark_prose` szerint.
+    (`join_runs`), a bekezdések és a szavaik a `mark_prose` szerint. `md`: a
+    renderelt markdown-nézetnek, a sorok a blokkok sorrendjében (`md_order`).
     """
     hunks: list[dict] = []
     binary = truncated = False
@@ -301,19 +348,18 @@ def parse_diff(raw: str, prose: bool = False) -> dict:
         else:
             n, old_no, new_no = new_no, old_no + 1, new_no + 1
         hunks[-1]["lines"].append({"t": tag, "n": n, "s": line[1:]})
-        if tag == " ":
+        if prose and tag == " ":
             hunks[-1]["lines"][-1]["o"] = old_no - 1      # a régi sorszám (`join_runs`-nak)
 
     if prose:
         for h in hunks:
             h["lines"] = join_runs(h["lines"])
-    for h in hunks:
-        for ln in h["lines"]:
-            ln.pop("o", None)
+            for ln in h["lines"]:
+                ln.pop("o", None)
 
     # Egy törölt blokk és a rá következő hozzáadott blokk sorait párba állítjuk
-    # (`pair_lines`): a pár a side-by-side nézetben egy sorba kerül (`p` a
-    # törölt sornál: a párja indexe a hunkban), és szó-szinten vetjük össze.
+    # (`pair_lines`): a pár a side-by-side nézetben egy sorba kerül (`p`: a
+    # párja indexe a hunkban), és szó-szinten vetjük össze.
     for h in hunks:
         lines, i = h["lines"], 0
         while i < len(lines):
@@ -328,11 +374,140 @@ def parse_diff(raw: str, prose: bool = False) -> dict:
                 k += 1
             sim = mark_prose(lines[i:j], lines[j:k]) if prose and j < k else None
             for d, a in pair_lines(lines[i:j], lines[j:k], sim):
-                lines[i + d]["p"] = j + a
+                lines[i + d]["p"], lines[j + a]["p"] = j + a, i + d
                 if sim is None:
                     mark_words(lines[i + d], lines[j + a])
             i = k
+        for line in lines:
+            mark_state(line)
+        mark_looks(lines)
+        if md:
+            h["lines"] = md_order(lines)
     return {"hunks": hunks, "binary": binary, "truncated": truncated}
+
+
+def runs(lines: list) -> list:
+    """A változások: [(i, j, k), …] — a `lines[i:j]` törölt, a `lines[j:k]` hozzáadott sorok
+    (bármelyik üres lehet), két változatlan sor között."""
+    out, i = [], 0
+    while i < len(lines):
+        if lines[i]["t"] == " ":
+            i += 1
+            continue
+        j = i
+        while j < len(lines) and lines[j]["t"] == "-":
+            j += 1
+        k = j
+        while k < len(lines) and lines[k]["t"] == "+":
+            k += 1
+        out.append((i, j, k))
+        i = k
+    return out
+
+
+def mark_looks(lines: list) -> None:
+    """A változott sorok megjelenése a lapon (`v`): `drop` — érintetlen (a szavai mind
+    megvannak a másik oldalon), egymás alatt kimarad, side-by-side-ban változatlanként
+    látszik; `only` — a párja érintetlen: semleges háttér, csak a változott szavai
+    színesek; `same` — maga sem változott (újratördelés), változatlanként látszik.
+    Egy változásban: ha az egyik oldala egészében érintetlen (csak beszúrás / csak
+    törlés, vagy mindkettő: tiszta újratördelés), az az oldal; különben páronként
+    (pl. egy táblázat egyetlen sorában csak törlés, a többiben csere). Az egészében
+    új / törölt sor (`whole`) teljes színű marad (nincs `v`-je)."""
+    kept = {"words": "only", "same": "same"}
+    for i, j, k in runs(lines):
+        if i == j or j == k:
+            continue
+        drop = ("-" if all(ln["w"] == "same" for ln in lines[i:j])
+                else "+" if all(ln["w"] == "same" for ln in lines[j:k]) else None)
+        if drop:
+            for ln in lines[i:k]:
+                v = "drop" if ln["t"] == drop else kept.get(ln["w"])
+                if v:
+                    ln["v"] = v
+            continue
+        for d in range(i, j):
+            if "p" not in lines[d]:
+                continue
+            old, new = lines[d], lines[lines[d]["p"]]
+            x, y = (old, new) if old["w"] == "same" else (new, old) if new["w"] == "same" else (None, None)
+            if x:
+                x["v"] = "drop"
+                if y["w"] in kept:
+                    y["v"] = kept[y["w"]]
+
+
+def md_starts(lines: list) -> set:
+    """A törölt oldal markdown-blokkjainak első sorai (a lap `mdBlocks`-a szerint): az üres
+    sor utáni, a kerítés, a címsor, a vonal, a listaelem, és ahol a sor fajtája
+    (táblázat, idézet, szöveg) vált; a kódblokk belseje nem."""
+    out: set = set()
+    fence, prev = None, None
+    for i, ln in enumerate(lines):
+        s = ln["s"]
+        if ln["t"] == "+":
+            continue
+        if fence:
+            if s.strip().startswith(fence):
+                fence = None
+            continue
+        if not s.strip():
+            prev = None
+            continue
+        m = MD_KIND_RE.match(s)
+        kind = "table" if m and m[1] else "quote" if m else "text"
+        fence = (MD_FENCE_RE.match(s) or [None, None])[1]
+        head = MD_HEAD_RE.match(s)
+        if (prev in (None, "head") or fence or head or LIST_RE.match(s)
+                or kind != prev and not (prev == "quote" and kind == "text")):
+            out.add(i)
+        prev = "head" if head else kind
+    return out
+
+
+def md_order(lines: list) -> list:
+    """A sorok a renderelt markdown blokkjainak sorrendjében. Egy változásban előbb az
+    összes törölt, aztán az összes hozzáadott sor jön (`join_runs`; egy átrendezett
+    szövegnél sok bekezdésnyi): itt minden törölt blokk (`md_starts`: bekezdés,
+    listaelem, címsor, …) után jönnek a párjai, az előttük álló pár nélküli új sorok
+    pedig a blokk elé — így a pár nélküli új blokk a helyén marad (a köztes törölt
+    blokkok után), nem csúszik a törölt rész végére. A `p` az új sorrendhez igazodik."""
+    starts, order, done = md_starts(lines), [], 0
+    for i, j, k in runs(lines):
+        order += range(done, i)
+        a, p = j, i
+        while p < j:                     # törölt blokk: a sorai, utána az üres sorok
+            q = p + 1
+            while q < j and lines[q]["s"].strip() and q not in starts:
+                q += 1
+            while q < j and not lines[q]["s"].strip():
+                q += 1
+            paired = [lines[x]["p"] for x in range(p, q) if lines[x].get("p", -1) >= a]
+            if paired:
+                lo, hi = min(paired), max(paired) + 1
+                order += [*range(a, lo), *range(p, q), *range(lo, hi)]
+                a = hi
+            else:
+                order += range(p, q)
+            p = q
+        order += range(a, k)
+        done = k
+    order += range(done, len(lines))
+    at = {old: new for new, old in enumerate(order)}
+    out = [lines[x] for x in order]
+    for ln in out:
+        if "p" in ln:
+            ln["p"] = at[ln["p"]]
+    return out
+
+
+def mark_state(line: dict) -> None:
+    """A változott sor állapota a lapnak (`w`): `same` — a szavai mind megvannak a
+    másik oldalon (vagy üres sor), `words` — szavai változtak (`hl`), `whole` —
+    egészében új / törölt (pár és közös szó nélkül)."""
+    if line["t"] != " ":
+        line["w"] = ("same" if not line["s"].strip() or line.get("hl") == []
+                     else "words" if line.get("hl") else "whole")
 
 
 def untracked_diff(root: Path, path: str) -> dict:
@@ -344,12 +519,27 @@ def untracked_diff(root: Path, path: str) -> dict:
     lines = text.splitlines()
     truncated = len(lines) > DIFF_MAX_LINES
     rows = [{"t": "+", "n": i + 1, "s": s} for i, s in enumerate(lines[:DIFF_MAX_LINES])]
+    for row in rows:
+        mark_state(row)
     return {"hunks": [{"old": 0, "lines": rows}] if rows else [], "binary": False,
             "truncated": truncated}
 
 
+def renamed_diff(root: Path, old: str, new: str, full: bool) -> dict | None:
+    """Még nem stage-elt átnevezés (az indexbeli `old` → követetlen `new`, ahogy a WIP-sor
+    párosította): a két tartalom különbsége, a `difflib`-bel — a git ezt index nélkül
+    nem diffeli. Ha a pár nem áll (nincs az indexben, vagy bináris): `None`."""
+    a, b = head_lines(root, "", old), read_lines(root / new)
+    if a is None or b is None:
+        return None
+    raw = "\n".join(difflib.unified_diff(a, b, lineterm="", n=1000000 if full else 3))
+    prose = Path(new).suffix.lower() in PROSE_SUFFIXES
+    return parse_diff(raw, prose, full and prose)
+
+
 def file_diff(sha: str, path: str, full: bool = False) -> dict:
-    """Egy fájl diffje a commitban (vagy egy Uncommitted ál-sorban: a worktree HEAD-jéhez képest).
+    """Egy fájl diffje a commitban, vagy egy WIP ál-sorban: a nem stage-elté az indexhez,
+    a stage-elté (`*staged:<slug>`) a HEAD-hez képest.
 
     `full`: a változatlan sorok is mind benne vannak (egyetlen hunk) — a lap
     ebből rendereli a Markdown-fájlt, a blokkjai csak a teljes szövegből jók.
@@ -362,16 +552,23 @@ def file_diff(sha: str, path: str, full: bool = False) -> dict:
     context = [FULL_CONTEXT] if full else []
     pending = UNCOMMITTED_RE.match(sha)
     if pending:
-        slug = pending[1]
+        kind, slug = pending[1], pending[2]
         root = next((wt["path"] for wt in worktree_list()
                      if slug in (None, slug_for(wt["path"]))), None)
         if root is None:
             raise ValueError(f"nincs ilyen worktree: {slug}")
-        raw = git("diff", "--no-color", "--no-ext-diff", "-M", *context, "HEAD", "--", old, new,
-                  repo=root)
-        if not raw.strip() and path in git("ls-files", "--others", "--exclude-standard",
-                                           "--", path, repo=root).splitlines():
-            return untracked_diff(root, path)
+        if kind == "staged":
+            raw = git("diff", "--no-color", "--no-ext-diff", "-M", *context, "--cached", "--", old, new,
+                      repo=root)
+        else:
+            untracked = git("ls-files", "--others", "--exclude-standard", "--", new, repo=root).splitlines()
+            if old != new and new in untracked:
+                paired = renamed_diff(root, old, new, full)
+                if paired is not None:
+                    return paired
+            raw = git("diff", "--no-color", "--no-ext-diff", "-M", *context, "--", old, new, repo=root)
+            if not raw.strip() and path in untracked:
+                return untracked_diff(root, path)
     elif SHA_RE.match(sha):
         raw = git("show", "--format=", "--no-color", "--no-ext-diff", "-M",
                   "--diff-merges=first-parent", *context, sha, "--", old, new)
@@ -385,5 +582,6 @@ def file_diff(sha: str, path: str, full: bool = False) -> dict:
                           parents[2], "--", new)
     else:
         raise ValueError(f"érvénytelen commit: {sha!r}")
-    return parse_diff(raw, Path(path).suffix.lower() in PROSE_SUFFIXES)
+    prose = Path(path).suffix.lower() in PROSE_SUFFIXES
+    return parse_diff(raw, prose, full and prose)
 

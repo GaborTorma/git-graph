@@ -2,11 +2,10 @@
 keretben, a változatlan keret nélkül; hibás diagramnál a kódnézet marad, a hibával."""
 from __future__ import annotations
 
-import subprocess
 import unittest
 from pathlib import Path
 
-from harness import PageTestCase
+from harness import PageTestCase, commit_versions
 
 FENCE = "```"
 OLD = f"""# Ábra
@@ -34,6 +33,18 @@ OLD_LINES = f"{FENCE}mermaid\nflowchart LR\n  A[Marad] --> B[Is]\n  B --> T[Tör
 NEW_LINES = OLD_LINES.replace("  B --> T[Törölt]\n", "").replace("Régi mondat.", "Új mondat.")
 OLD_BAD = f"{FENCE}mermaid\nflowchart LR\n  A --> B\n{FENCE}\n"
 NEW_BAD = f"{FENCE}mermaid\nflowchart LR\n  A --> \n{FENCE}\n"
+# csak egy él célpontja változik (`D` → `T`): az azonosító betűje egyik feliratban sem jelölt
+OLD_TARGET = (f'{FENCE}mermaid\nflowchart LR\n  H{{"HEAD egy commit?"}}\n  D["deploy"]\n  T["STOP"]\n'
+              f'  H -->|igen| D\n  D --> T\n{FENCE}\n')
+NEW_TARGET = OLD_TARGET.replace("H -->|igen| D", "H -->|igen| T")
+# egy csomópont felirata változik, a kiemelt vessző egy korábbi csomópontban is előfordul
+OLD_COMMA = (f'{FENCE}mermaid\nflowchart TD\n  S["merge-dev"] --> P{{"dev branch,<br/>tiszta munkakönyvtár?"}}\n'
+             f'  P -->|igen| F{{"a main a dev őse?"}}\n'
+             f'  F -->|igen| B["merge-body --commits main..dev<br/>tárgysor a commitokból"]\n{FENCE}\n')
+NEW_COMMA = OLD_COMMA.replace('B["merge-body --commits main..dev<br/>tárgysor a commitokból"]',
+                              'B["üzenet: tárgysor a commitokból,<br/>## Deploy, ha kell"]')
+# hosszú, fentről lefelé írt lánc: széles helyen vízszintesen fér el jobban
+CHAIN = f"{FENCE}mermaid\nflowchart TD\n  A[Első] --> B[Második] --> C[Harmadik] --> D[Negyedik] --> E[Ötödik]\n{FENCE}\n"
 
 # A kirajzolt diagramok: [keret, szövegek] — a keret a diff színe (`add` / `del`), vagy üres.
 FIGS = ("fs => fs.map(f => [f.className.replace(/md-mmd-(fig|)/g, '').trim(),"
@@ -41,29 +52,15 @@ FIGS = ("fs => fs.map(f => [f.className.replace(/md-mmd-(fig|)/g, '').trim(),"
 
 
 class MermaidTest(PageTestCase):
+    SUBJECT = "ábra"
+
     @classmethod
     def prepare(cls, repo: Path) -> None:
-        def git(*args: str) -> None:
-            subprocess.run(["git", "-c", "user.name=Teszt Elek", "-c", "user.email=teszt@x.hu",
-                            "-C", str(repo), *args], check=True, capture_output=True)
-        (repo / "abra.md").write_text(OLD, encoding="utf-8")
-        (repo / "hibas.md").write_text(OLD_BAD, encoding="utf-8")
-        (repo / "szoveg.md").write_text("Régi szöveg.\n", encoding="utf-8")
-        (repo / "torles.md").write_text(OLD_ONLY, encoding="utf-8")
-        (repo / "sorok.md").write_text(OLD_LINES, encoding="utf-8")
-        git("add", ".")
-        git("commit", "-qm", "ábra")
-        (repo / "abra.md").write_text(NEW, encoding="utf-8")
-        (repo / "hibas.md").write_text(NEW_BAD, encoding="utf-8")
-        (repo / "szoveg.md").write_text("Új szöveg.\n", encoding="utf-8")
-        (repo / "torles.md").write_text(NEW_ONLY, encoding="utf-8")
-        (repo / "sorok.md").write_text(NEW_LINES, encoding="utf-8")
-        git("commit", "-qam", "ábra: módosítva")
-
-    def open_file(self, name: str) -> None:
-        self.page.locator("#rows .row", has_text="ábra: módosítva").click()
-        self.settle()
-        self.page.locator("#rows .details .file", has_text=name).click()
+        commit_versions(repo, {
+            "abra.md": (OLD, NEW), "hibas.md": (OLD_BAD, NEW_BAD), "szoveg.md": ("Régi szöveg.\n", "Új szöveg.\n"),
+            "torles.md": (OLD_ONLY, NEW_ONLY), "sorok.md": (OLD_LINES, NEW_LINES), "lanc.md": (None, CHAIN),
+            "cel.md": (OLD_TARGET, NEW_TARGET), "vesszo.md": (OLD_COMMA, NEW_COMMA),
+        }, cls.SUBJECT)
 
     def figs(self, scope: str) -> list:
         self.page.wait_for_selector(f"{scope} .md-mmd-on")
@@ -147,6 +144,39 @@ class MermaidTest(PageTestCase):
         shown = self.page.locator(".md-mmd .md-code").evaluate("c => getComputedStyle(c).display")
         self.assertEqual(shown, "block")
 
+    def test_new_edge_target(self) -> None:
+        """Ha csak egy él célpontja változik, az él színes, de a csomópontok nem: az azonosító
+        (`D`, `T`) betűje nem emelődik ki a `HEAD` / `STOP` feliratban."""
+        self.open_file("cel.md")
+        self.figs(".diff-uni")
+        marked = self.page.locator(".diff-uni .md-mmd-fig").evaluate_all(
+            "fs => fs.map(f => [[...f.querySelectorAll('.md-mmd-hl')].length,"
+            " [...f.querySelectorAll('.md-mmd-ch')].map(e => e.tagName).sort()])")
+        self.assertEqual([m[0] for m in marked], [0, 0])
+        self.assertTrue(all(m[1] and set(m[1]) <= {"path"} for m in marked), marked)
+
+    def test_mark_in_its_own_node(self) -> None:
+        """A kiemelt szöveg a saját csomópontjában: az új felirat vesszője nem színezi a korábbi
+        „dev branch,” csomópontot."""
+        self.open_file("vesszo.md")
+        self.figs(".diff-uni")
+        marked = self.page.locator(".diff-uni .md-mmd-fig").evaluate_all(
+            "fs => fs.map(f => [...f.querySelectorAll('g.node.md-mmd-ch')].map(e => e.textContent.trim()))")
+        self.assertTrue(all(not any("dev branch" in t for t in m) for m in marked), marked)
+        self.assertTrue(any(any("üzenet" in t for t in m) for m in marked), marked)
+
+    def test_direction_fits_the_room(self) -> None:
+        """A flowchart iránya a helyhez igazodik: széles nézetben a fentről lefelé írt lánc
+        vízszintes, keskenyre váltva — újrarajzolás nélkül — visszafordul függőlegesre."""
+        aspect = "f => { const s = f.querySelector('svg').viewBox.baseVal; return s.width / s.height; }"
+        self.resize(1400)
+        self.open_file("lanc.md")
+        fig = self.page.locator(".md-mmd-on .md-mmd-fig:visible")
+        fig.wait_for()
+        self.assertGreater(fig.evaluate(aspect), 1)
+        self.resize(700)
+        self.assertLess(fig.evaluate(aspect), 1)
+
     def test_lazy_load_and_theme(self) -> None:
         """A Mermaid csak az első diagramnál töltődik be; témaváltáskor a diagram újrarajzolódik."""
         self.open_file("szoveg.md")
@@ -155,6 +185,8 @@ class MermaidTest(PageTestCase):
         self.assertFalse(self.page.evaluate("'mermaid' in globalThis"))
         self.page.locator("#rows .details .file", has_text="abra.md").click()
         self.figs(".diff-uni")
+        # a rajz `neo` stílusú, a lap palettáján (`base` téma)
+        self.assertIn("neo", self.page.evaluate("document.querySelector('.diff-uni .md-mmd-fig svg').outerHTML"))
         # a diagram stílusa a saját azonosítója nélkül (az minden rajzolásnál új)
         style = ("() => document.querySelector('.diff-uni .md-mmd-fig svg style').textContent"
                  ".replace(/#gg-mmd-\\d+/g, '')")

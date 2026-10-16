@@ -1,7 +1,7 @@
 """Sávkiosztás: a commitok oszlopa, az élek, a worktree-k oszlopai és csonkjai."""
 from __future__ import annotations
 
-from .worktrees import UNCOMMITTED
+from .worktrees import STAGED, UNCOMMITTED
 
 
 def assign_lanes(commits: list[dict], trunk: str | None = None) -> list[dict]:
@@ -86,7 +86,7 @@ def worktree_lanes_last(commits: list[dict], edges: list[dict], worktrees: list[
     for wt in worktrees:
         if wt["main"]:
             continue
-        for key in (f"{UNCOMMITTED}:{wt['slug']}", wt["head"] or ""):
+        for key in (f"{UNCOMMITTED}:{wt['slug']}", f"{STAGED}:{wt['slug']}", wt["head"] or ""):
             c = by_sha.get(key)
             if not c or c["lane"] == 0:
                 continue
@@ -142,7 +142,7 @@ def worktree_stubs(commits: list[dict], edges: list[dict], worktrees: list[dict]
     lanes = max((c["lane"] for c in commits), default=-1) + 1
     for wt in worktrees:
         row = row_of.get(wt["head"] or "")
-        if wt["main"] or row is None or f"{UNCOMMITTED}:{wt['slug']}" in row_of:
+        if wt["main"] or row is None or {f"{UNCOMMITTED}:{wt['slug']}", f"{STAGED}:{wt['slug']}"} & row_of.keys():
             continue
         c = commits[row]
         own = c["lane"] != 0 and (row, c["lane"]) not in has_child and heads[wt["head"]] == 1

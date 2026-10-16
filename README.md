@@ -223,12 +223,15 @@ Fájlon a `→` kinyitja a diffet, és rögtön az első módosított blokkra l�
 
 Ha a munkakönyvtárban van változás, a Git Graph mintájára megjelenik egy
 **ál-sor**: *Nem commitolt változások*, üres karikával, szaggatott vonallal a
-HEAD-re. Worktree-nként egy, mindegyik a saját HEAD-jére kötve. A sor végén,
+HEAD-re. Ha van stage-elt változás, alatta egy második ál-sor, *Stage-elt
+változások*: a felső a még nem stage-elt (az indexhez képest), az alsó a stage-elt
+(a HEAD-hez képest) változásokat mutatja, láncban a HEAD-re kötve. Worktree-nként
+külön, mindegyik a saját HEAD-jére kötve. A sor végén,
 mint a commitoknál: az idő (a fájlok utolsó módosítása), a gép git-felhasználója
 és a diff. A saját worktree-é a lista fölötti sávban ül; a többié a listában, az
 ideje szerinti helyen (sosem a HEAD-je alatt), elöl a worktree chipjével.
 Rákattintva ugyanaz a részletek-panel nyílik, mint egy commitnál: fájlonkénti
-`+`/`−` a HEAD-hez képest, a követetlen fájlok pedig `új` jelöléssel (számok
+`+`/`−`, a követetlen fájlok pedig `új` jelöléssel (számok
 nélkül — a diff nem látja őket).
 
 Nem commit, ezért a fejléc számlálójába nem számít bele; ágszűrésnél csak annak
@@ -239,7 +242,7 @@ a worktree-nek a sora látszik, amelyikben a szűrt ág van kivéve. Élő módb
 A részletek-panel fájlsorai lenyithatók (a sorra kattintva — a fájlnév maga a
 GitHub-link marad): alatta a fájl diffje, a Claude app diff-nézetének mintájára —
 sorszám, `+`/`−`, a cserélt soroknál a megváltozott szavak erősebb háttérrel, a
-hunkok közt „N változatlan sor”. Az Uncommitted sornál a HEAD-hez képesti diff,
+hunkok közt „N változatlan sor”. Az Uncommitted sornál az indexhez, a Stage-elt sornál a HEAD-hez képesti diff,
 követetlen fájlnál a teljes tartalom hozzáadottként. Ha a diff legalább 1000 px
 széles (széles Artifact-ablak), **side-by-side** nézetre vált:
 balra a régi, jobbra az új oldal, a cserélt sorok egymás mellett — átméretezéskor
