@@ -81,11 +81,42 @@ OLD_PY = "x = hivas(a)\ny = 1\nz = masik(a, b, c)\nw = 2\nv = csere(a)\n"
 NEW_PY = "x = hivas(a, b)\ny = 1\nz = masik(a)\nw = 2\nv = mas(a)\n"
 
 
+# lista: a régi két elem közé hosszú új elem (al-elemekkel) kerül — a bekezdésként nem párosodik
+OLD_LIST = (
+    "- **`## STOP`** — hiba: ha egy sora teljesül, mutasd, amit a nyíl után ír, és **állj meg**.\n"
+    "- **`## SKIP`** — nincs dolga, nem hiba: ha egy sora teljesül, **állj meg**; önállóan futva\n"
+    "  mutasd, amit a nyíl után ír, láncban nincs válasza. A `## STOP` után áll, és utána is\n"
+    "  értékelődik. Menet közben kiderülő kihagyás: `→ SKIP` (a szöveg, ha van, utána).\n"
+    "- **Felsorolásban** az első illeszkedő sor dönt.\n")
+NEW_LIST = (
+    "- **`## STOP`** — hiba: ha egy sora teljesül, mutasd, amit a nyíl után ír, és **STOP**: a futás véget ér.\n"
+    "- **`## ASK`** — hiányzó előfeltétel, a *Fejlesztő* dönt: ha egy sora teljesül, kérdezz\n"
+    "  `AskUserQuestion`-nel (a nyíl utáni helyzet a kérdés, az alatta álló számozott sorok az\n"
+    "  opciók, az első az ajánlott), és a válasz szerint folytasd. A teljesülő sorok egy hívásban,\n"
+    "  soronként egy kérdés; ha több sor ugyanazt az előző lépést ajánlja, csak az első kérdez. A\n"
+    "  `## STOP` után áll, a `## SKIP` előtt: az előző lépés új munkát hozhat.\n"
+    "  - **Opció**: egy előző lépés commandja — lefut, utána a command folytatódik; „<valami>\n"
+    "    nélküle” — továbbmegy; `STOP` — mint a `## STOP`. Az utolsó opció mindig `STOP`.\n"
+    "  - **Előző lépés után** a konstansok elavultak: amire a további feltételek épülnek, annak a\n"
+    "    parancsát futtasd újra.\n"
+    "  - **Ajánlott út egyszer**: ha a *Fejlesztő* az ajánlott opcióval egy előző lépést hívat, a\n"
+    "    hívott lépés ASK-jai ugyanebben a futásban kérdés nélkül az ajánlottal mennek — de csak\n"
+    "    azok a sorok, amelyek ajánlott opciója is egy előző lépés; a „nélküle” vagy `STOP`\n"
+    "    ajánlású sor ilyenkor is kérdez.\n"
+    "  - **Előre jóváhagyva**: ha a hívó ezt írja (gomb, command, amelynek a hívása maga a\n"
+    "    jóváhagyás), az ASK-ok ugyanígy mennek.\n"
+    "  - Menet közben kiderülő kérdés: `→ ASK` (a helyzet és az opciók utána).\n"
+    "- **`## SKIP`** — nincs dolga, nem hiba: ha egy sora teljesül, **STOP**; önállóan futva\n"
+    "  mutasd, amit a nyíl után ír, láncban nincs válasza. A `## STOP` és a `## ASK` után áll,\n"
+    "  és utánuk is értékelődik. Menet közben kiderülő kihagyás: `→ SKIP` (a szöveg, ha van, utána).\n"
+    "- **Felsorolásban** az első illeszkedő sor dönt.\n")
+
 FILES = {
     "doksi.md": (OLD, NEW), "kod.py": (OLD_PY, NEW_PY), "rend.md": (OLD_REORDER, NEW_REORDER),
     "tabla.md": (OLD_TABLE, NEW_TABLE), "kodtord.md": (OLD_CODEWRAP, NEW_CODEWRAP), "rovid.md": (OLD_SHORT, NEW_SHORT),
     "ujratord.md": (OLD_REWRAP, NEW_REWRAP), "jog.json": (OLD_JSON, NEW_JSON), "tordel.md": (OLD_WRAP, NEW_WRAP),
     "kihagy.md": (OLD_GAP, NEW_GAP), "utolso.md": (OLD_LAST, NEW_LAST), "bekezdes.md": (OLD_PARA, NEW_PARA),
+    "lista.md": (OLD_LIST, NEW_LIST),
 }
 
 # JS-részletek a lap elemeinek kiolvasásához: `e` osztálya a `base` nélkül, a kiemelt szövegei
@@ -221,6 +252,20 @@ class MdDiffTest(PageTestCase):
         ])
         uni = self.page.locator(".diff-uni .md-blk").evaluate_all(f"bs => bs.map({blk})")
         self.assertEqual(uni[2], ["del only", "Első mondat.\nMásodik mondat.\nHarmadik mondat.", ["Második mondat."]])
+
+    def test_md_new_list_item_in_place(self) -> None:
+        """Két párosodott listaelem közé szúrt új elem a helyén marad, nem a lista végére csúszik."""
+        self.open_file("lista.md")
+        self.page.wait_for_selector(".md-doc")
+        blocks = self.page.locator(".diff-uni .md-blk").evaluate_all(
+            f"bs => bs.map(e => [{CLS.format('md-blk')}, e.textContent.slice(1, 12)])")
+        self.assertEqual(blocks, [
+            ["del", "## STOP — h"], ["add", "## STOP — h"],
+            ["add", "## ASK — hi"], ["add", "Opció: egy "], ["add", "Előző lépés"],
+            ["add", "Ajánlott út"], ["add", "Előre jóváh"], ["add", "Menet közbe"],
+            ["del", "## SKIP — n"], ["add", "## SKIP — n"],
+            ["", "Felsorolásb"],
+        ])
 
     def test_raw_unpaired_side_by_side(self) -> None:
         """Nyers side-by-side: a két pár közti pár nélküli törölt és új sor egy sorban."""

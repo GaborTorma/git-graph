@@ -217,6 +217,14 @@ class DiffTest(HomeTestCase):
         raw_view = gg.diff.parse_diff(raw, prose=True)["hunks"][0]["lines"]
         self.assertEqual([ln["t"] for ln in raw_view], ["-"] * 7 + ["+"] * 7)
 
+    def test_md_starts(self) -> None:
+        """A törölt oldal blokkjai, mint a lapon: listaelem, címsor, táblázat külön; a kódblokk egyben."""
+        gg = self.load()
+        src = ["Bekezdés", "folytatás.", "- elem", "  folytatás", "- elem", "## Cím", "| a |", "| b |", "Szöveg",
+               "", "```", "- nem elem", "", "kód", "```", "> idézet", "lusta folytatás"]
+        lines = [{"t": "-", "s": s} for s in src] + [{"t": "+", "s": "- új"}]
+        self.assertEqual(sorted(gg.diff.md_starts(lines)), [0, 2, 4, 5, 6, 8, 10, 15])
+
     def test_numstat_paths(self) -> None:
         """Átnevezés-alakok: `a => b` és `x/{a => b}/y`, az üres oldallal is."""
         gg = self.load()

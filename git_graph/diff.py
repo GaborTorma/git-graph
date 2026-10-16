@@ -13,6 +13,10 @@ HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 SHA_RE = re.compile(r"^[0-9a-f]{7,64}$")
 TOKEN_RE = re.compile(r"\w+|\s+|[^\w\s]")
 LIST_RE = re.compile(r"\s*(?:[-*+]|\d+[.)])\s")    # listaelem eleje
+# a markdown blokkjainak eleje, a lap `mdBlocks`-a szerint (md-diff.js, MD_*)
+MD_FENCE_RE = re.compile(r"\s{0,3}(`{3,}|~{3,})")
+MD_HEAD_RE = re.compile(r"\s{0,3}(?:#{1,6}(?:\s|$)|([-*_])(?:\s*\1){2,}\s*$)")   # címsor, vonal
+MD_KIND_RE = re.compile(r"\s*(\|)|\s{0,3}(>)")                                      # táblázat, idézet
 DIFF_MAX_LINES = 3000           # egy lockfile ne fagyassza meg a lapot
 FULL_CONTEXT = "-U1000000"      # a teljes fájl egy hunkban (a renderelt Markdown-diffhez)
 PAIR_MAX_CELLS = 10000          # e fölött (pl. 100×100-as blokk) nincs hasonlóság-illesztés
@@ -433,20 +437,48 @@ def mark_looks(lines: list) -> None:
                     y["v"] = kept[y["w"]]
 
 
+def md_starts(lines: list) -> set:
+    """A törölt oldal markdown-blokkjainak első sorai (a lap `mdBlocks`-a szerint): az üres
+    sor utáni, a kerítés, a címsor, a vonal, a listaelem, és ahol a sor fajtája
+    (táblázat, idézet, szöveg) vált; a kódblokk belseje nem."""
+    out: set = set()
+    fence, prev = None, None
+    for i, ln in enumerate(lines):
+        s = ln["s"]
+        if ln["t"] == "+":
+            continue
+        if fence:
+            if s.strip().startswith(fence):
+                fence = None
+            continue
+        if not s.strip():
+            prev = None
+            continue
+        m = MD_KIND_RE.match(s)
+        kind = "table" if m and m[1] else "quote" if m else "text"
+        fence = (MD_FENCE_RE.match(s) or [None, None])[1]
+        head = MD_HEAD_RE.match(s)
+        if (prev in (None, "head") or fence or head or LIST_RE.match(s)
+                or kind != prev and not (prev == "quote" and kind == "text")):
+            out.add(i)
+        prev = "head" if head else kind
+    return out
+
+
 def md_order(lines: list) -> list:
     """A sorok a renderelt markdown blokkjainak sorrendjében. Egy változásban előbb az
     összes törölt, aztán az összes hozzáadott sor jön (`join_runs`; egy átrendezett
-    szövegnél sok bekezdésnyi): itt minden törölt bekezdés után jönnek a párjai, az
-    előttük álló pár nélküli új sorok pedig a bekezdés elé — így a pár nélküli új
-    bekezdés a helyén marad (a köztes törölt bekezdések után), nem csúszik a törölt
-    rész végére. A `p` az új sorrendhez igazodik."""
-    order, done = [], 0
+    szövegnél sok bekezdésnyi): itt minden törölt blokk (`md_starts`: bekezdés,
+    listaelem, címsor, …) után jönnek a párjai, az előttük álló pár nélküli új sorok
+    pedig a blokk elé — így a pár nélküli új blokk a helyén marad (a köztes törölt
+    blokkok után), nem csúszik a törölt rész végére. A `p` az új sorrendhez igazodik."""
+    starts, order, done = md_starts(lines), [], 0
     for i, j, k in runs(lines):
         order += range(done, i)
         a, p = j, i
-        while p < j:                     # törölt bekezdés: a sorai, utána az üres sorok
-            q = p
-            while q < j and lines[q]["s"].strip():
+        while p < j:                     # törölt blokk: a sorai, utána az üres sorok
+            q = p + 1
+            while q < j and lines[q]["s"].strip() and q not in starts:
                 q += 1
             while q < j and not lines[q]["s"].strip():
                 q += 1
