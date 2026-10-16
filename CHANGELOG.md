@@ -1,3 +1,100 @@
+## [0.15.0] - 2026-10-16
+
+### 🚀 Features
+
+- *(page)* Show issue, pull request and release references as chips
+- *(skills)* Merge the forget commands into artifact-forget with a scope choice
+- *(install)* Treat a plugin loaded from source as a dev instance
+- *(page)* Add a settings menu for automatic opening and publishing
+- *(page)* Animate opening, closing and resizing of commits and diffs
+- *(page)* Render markdown file diffs with highlighted changes
+- *(graph)* Show each stash as one row on its base
+- *(diff)* Show rendered markdown diffs side by side on wide panels
+- *(diff)* Render mermaid diagrams in the markdown diff
+- *(diff)* Mark only the changed parts of mermaid diagrams
+- *(diff)* Draw mermaid diagrams in the page palette with ELK layout
+- *(diff)* Turn flowcharts to the direction that fits the panel
+- *(worktrees)* Show staged changes as a separate row under the uncommitted one
+
+### 🐛 Bug Fixes
+
+- *(skills)* Bring up the artifact pane when reopening the graph
+- *(mcp)* Announce the tool list change after a self-update restart
+- *(loader)* Retry loading the page code once the hidden frame is shown
+- *(page)* Keep untracked files in place with their line count
+- *(page)* Fit the opened commit on screen with its neighbours
+- *(watch)* Carry focus in the since token and recheck it while waiting
+- *(lanes)* Place worktree lanes after the lanes live above the fork
+- *(diff)* Stop marking rewrapped prose lines as changed
+- *(diff)* Show one side when a change only inserts or only deletes words
+- *(diff)* Keep prose words in their own line and paragraph
+- *(diff)* Pair prose paragraphs so renumbering does not shift the text
+- *(diff)* Align table and code rows across the markdown side-by-side
+- *(diff)* Keep paired markdown rows the same height side by side
+- *(diff)* Stop marking node labels when only an edge target changes
+- *(diff)* Mark a single one-sided row even when its neighbours were replaced
+- *(wip)* Show an unstaged rename as one renamed file
+- *(diff)* Ignore the indentation of a wrapped list line
+- *(diff)* Treat a markdown block as one unit when colouring changes
+- *(diff)* Put unpaired old and new rows next to each other side by side
+- *(diff)* Keep a changed last table row in its table
+- *(diff)* Start the side-by-side view below the view toggle
+- *(diff)* Keep a leading gap marker beside the view toggle
+- *(diff)* Float the markdown view toggle over the diff
+- *(diff)* Keep a wholly new line fully coloured in a one-sided change
+- *(diff)* Line up a one-sided change from the top side by side
+- *(diff)* Show a pure rewrap as unchanged lines
+- *(diff)* Show a moved-only line of a one-sided change as unchanged
+- *(diff)* Hide rewrap-only blocks in the markdown view
+- *(diff)* Highlight a changed mermaid label only in its own node
+- *(diff)* Pair list items when new items are inserted between them
+- *(diff)* Keep a new list item in place in the markdown view
+
+### 🚜 Refactor
+
+- *(page)* Share the collapse of unchanged markdown blocks, rows and lines
+- *(page)* Build markdown links with ghLink
+- *(page)* Reuse the raw diff add/del classes in the markdown view
+- *(page)* Skip redrawing a refreshed diff that did not change
+- *(page)* Move the mdText comment above mdText
+- *(page)* Split page.js into ES modules linked by page_code
+- *(graph)* Split graph.py into stats, worktrees, branches and lanes modules
+- *(graph)* Resolve the stash owner once, on the server
+- *(graph)* Parse each commit time once when placing stashes
+- *(diff)* Line up one-sided runs through the general pairing path
+- *(diff)* Compute each hunk's one-sided lines once
+- *(diff)* Build the markdown partner lookup once
+- *(diff)* Look up a line's markdown block in a map
+- *(wip)* Keep the line counts of a paired rename
+- *(diff)* Decide each line's look once, from an explicit state
+- *(diff)* Order markdown change lines once instead of moving blocks
+- *(diff)* Skip the row-height sync while the side-by-side is hidden
+- *(diff)* Share the row view of markdown code blocks and tables
+- *(diff)* Tokenize each prose line once
+- *(wip)* Reuse the rename candidate's matcher for the line counts
+- *(test)* Share the page tests' fixture commits and readers
+- *(test)* Read prose diff lines and their marks through helpers
+- *(diff)* Build each markdown block's views once
+- *(diff)* Let the server decide each line's look and the markdown order
+
+### 📚 Documentation
+
+- *(claude-md)* Drop the version bump rule from the feature commit
+- Remove the historical desktop-live, mcp-plan notes and the probe tool
+- *(claude)* Trim CLAUDE.md to one-line rules, move the rationale to docs/architecture.md
+- *(claude-md)* Keep auto-commit on in this plugin repo
+- *(findings)* Record that mermaid runs under the artifact CSP
+
+### 🧪 Testing
+
+- *(page)* Add headless playwright harness for page behaviour
+
+### ⚙️ Miscellaneous Tasks
+
+- *(check)* Move the check commands to .claude/check.toml
+- *(settings)* Turn off the server-side auto mode classifier for the project
+- Drop the 0.12 entry shim and the pre-0.13 autoPublish fallback
+- *(page)* Type-check page/js with tsc --checkJs
 ## [0.14.0] - 2026-10-10
 
 ### 🚀 Features
