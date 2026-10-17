@@ -43,7 +43,11 @@ function mdBlocks(lines) {
   const add = (b, l) => { b.lines.push(l); blockOf.set(l, b); };
   const start = (type, l, extra) => {
     const own = l.t === '+' && blockOf.get(partnerOf(l));
-    if (own?.type === type && type !== 'code' && !own.lines.some(x => x.t === '+')) { add(own, l); cur = own; return; }
+    if (own?.type === type && own.indent === extra?.indent && type !== 'code' && !own.lines.some(x => x.t === '+')) {
+      add(own, l);   // a párja blokkjába — a listaelem csak a saját szintjén
+      cur = own;
+      return;
+    }
     cur = { type, lines: [], ...extra };
     blocks.push(cur);
     add(cur, l);

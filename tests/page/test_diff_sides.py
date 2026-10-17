@@ -110,13 +110,17 @@ NEW_LIST = (
     "  mutasd, amit a nyíl után ír, láncban nincs válasza. A `## STOP` és a `## ASK` után áll,\n"
     "  és utánuk is értékelődik. Menet közben kiderülő kihagyás: `→ SKIP` (a szöveg, ha van, utána).\n"
     "- **Felsorolásban** az első illeszkedő sor dönt.\n")
+# a lista végi elem al-elemmé válik: a párja a felső szintű régi elem
+OLD_NEST = ("- **Hova**:\n  - Egy.\n- **Projektfüggetlen tudás** (más repóban is érvényes) nem memória, hanem rule vagy skill\n"
+            "  (→ `/learn:capture`).\n")
+NEW_NEST = "- **Hova**:\n  - Egy.\n  - **Rule vagy skill** — ami más repóban is érvényes, `/learn:capture`-rel.\n"
 
 FILES = {
     "doksi.md": (OLD, NEW), "kod.py": (OLD_PY, NEW_PY), "rend.md": (OLD_REORDER, NEW_REORDER),
     "tabla.md": (OLD_TABLE, NEW_TABLE), "kodtord.md": (OLD_CODEWRAP, NEW_CODEWRAP), "rovid.md": (OLD_SHORT, NEW_SHORT),
     "ujratord.md": (OLD_REWRAP, NEW_REWRAP), "jog.json": (OLD_JSON, NEW_JSON), "tordel.md": (OLD_WRAP, NEW_WRAP),
     "kihagy.md": (OLD_GAP, NEW_GAP), "utolso.md": (OLD_LAST, NEW_LAST), "bekezdes.md": (OLD_PARA, NEW_PARA),
-    "lista.md": (OLD_LIST, NEW_LIST),
+    "lista.md": (OLD_LIST, NEW_LIST), "szint.md": (OLD_NEST, NEW_NEST),
 }
 
 # JS-részletek a lap elemeinek kiolvasásához: `e` osztálya a `base` nélkül, a kiemelt szövegei
@@ -266,6 +270,15 @@ class MdDiffTest(PageTestCase):
             ["del", "## SKIP — n"], ["add", "## SKIP — n"],
             ["", "Felsorolásb"],
         ])
+
+    def test_md_list_item_keeps_level(self) -> None:
+        """Az al-elemmé vált listaelem a saját szintjén látszik, nem a felső szintű párja blokkjában."""
+        self.open_file("szint.md")
+        self.page.wait_for_selector(".md-doc")
+        blocks = self.page.locator(".diff-uni .md-blk").evaluate_all(
+            f"bs => bs.map(e => [{CLS.format('md-blk')}, e.textContent.slice(1, 12),"
+            " e.querySelector('.md-li')?.style.getPropertyValue('--md-ind')])")
+        self.assertEqual(blocks[-2:], [["del", "Projektfügg", "0"], ["add", "Rule vagy s", "2"]])
 
     def test_raw_unpaired_side_by_side(self) -> None:
         """Nyers side-by-side: a két pár közti pár nélküli törölt és új sor egy sorban."""
