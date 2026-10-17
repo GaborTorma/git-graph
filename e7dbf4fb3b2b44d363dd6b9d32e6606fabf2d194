@@ -1,0 +1,20 @@
+## Összefoglaló
+
+A markdown-diff két hibája javult: az al-elemmé vált listaelem a saját szintjén látszik, és a szöveges sor behúzása nem számít változott szónak, így nem lesz zöld.
+
+```diff
+ mdBlocks › start(type, l, extra)
+-  a párja blokkjába, ha a típus egyezik
++  a párja blokkjába, ha a típus ÉS a behúzás (listaszint) egyezik
+ mark_prose
+-  a sor eleji szóköz csak a folytatósornál nem szó
++  a sor eleji szóköz soha nem szó
+```
+
+## Előtte / utána
+
+**Felső szintű elemből al-elem lett** (`- a` → `  - a`)
+
+| Előtte | Utána |
+| --- | --- |
+| az új sor felső szintű elemként látszik, a behúzás két szóköze zölden | az új sor al-elemként, a saját szintjén; a behúzás nincs kiemelve |
