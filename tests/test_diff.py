@@ -166,6 +166,15 @@ class DiffTest(HomeTestCase):
         self.assertEqual(marks(lines[21]), ["STOP"])
         self.assertEqual({ln.get("w") for ln in lines[5:21]}, {"whole"})
 
+    def test_prose_indent_not_marked(self) -> None:
+        """A sor eleji behúzás (a listaelem szintje) nem szó: az al-elemmé vált sornál nincs kiemelve."""
+        raw = ("@@ -1,2 +1,1 @@\n"
+               "-- **Projektfüggetlen tudás** (más repóban is érvényes) nem memória, hanem rule vagy skill\n"
+               "-  (→ `/learn:capture`).\n"
+               "+  - **Rule vagy skill** — ami más repóban is érvényes, `/learn:capture`-rel.\n")
+        lines = self.prose_lines(raw)
+        self.assertEqual(marks(lines[2]), ["Rule", "vagy skill", "— ami ", "-rel"])
+
     def test_line_state(self) -> None:
         """A változott sor állapota (`w`): változatlan szavak, változott szavak, egészében új / üres."""
         raw = ("@@ -1,2 +1,3 @@\n"

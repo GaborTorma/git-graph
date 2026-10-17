@@ -176,7 +176,7 @@ def mark_prose(dels: list, adds: list) -> list | None:
                 row.append(r - 1)           # a sortörés az előző sor vége
             at = 0
             for n, t in enumerate(found[i]):
-                if r and not n and t.isspace():  # a folytatósor behúzása a sortöréshez tartozik
+                if not n and t.isspace():   # a behúzás nem szó (a folytatósoré a sortöréshez tartozik)
                     at += len(t)
                     continue
                 toks.append(t)
