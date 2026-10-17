@@ -7,6 +7,7 @@ import { grow, shrink } from './anim.js';
 import { diffHtml } from './diff-html.js';
 import { drawGraph } from './graph.js';
 import { icon } from './icons.js';
+import { IMAGE_RE, fitImages, imageDiffHtml, loadImages } from './images.js';
 import { mdDiffHtml, syncRows } from './md-diff.js';
 import { refitMermaid, renderMermaid } from './mermaid.js';
 import { revealCommit, revealFile } from './panel.js';
@@ -23,7 +24,7 @@ function watchWidth(box) {
   watched.add(box);
   let width = box.clientWidth;
   new ResizeObserver(() => {
-    if (box.clientWidth !== width) { width = box.clientWidth; refitMermaid(box); syncRows(box); }
+    if (box.clientWidth !== width) { width = box.clientWidth; refitMermaid(box); fitImages(box); syncRows(box); }
   }).observe(box);
 }
 
@@ -57,6 +58,8 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
       syncRows(box);
       watchWidth(box);
       renderMermaid(box, () => SRC.mermaid());
+      loadImages(box, ref => image(sha, fileEl.dataset.path, ref), () => syncRows(box));
+      fitImages(box);
     };
     const settle = () => {
       if (reveal) revealCommit(fileEl.closest('.details'), true);
@@ -68,10 +71,12 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
     drawGraph();
   };
   // Markdown-fájl: renderelve a teljes fájlból (`full`, külön gyorstárazva), a
-  // kapcsolóval nyersen — a kapcsoló mindkét nézet fölött ott van.
-  const md = lang === 'md', full = md && !mdRaw;
+  // kapcsolóval nyersen — a kapcsoló mindkét nézet fölött ott van. Képfájl: a két
+  // oldal képe (`images.js`); az SVG-é a kapcsolóval a szöveges diff.
+  const md = lang === 'md', full = md && !mdRaw, svg = /\.svg$/i.test(fileEl.dataset.path);
   const cacheKey = full ? key + '\nfull' : key;
-  const render = d => (md ? mdModeHtml() : '') + (full ? mdDiffHtml(d) : diffHtml(d, lang));
+  const render = d => (md ? mdModeHtml() : '') + (d.image && svg ? svgModeHtml() : '') + (full ? mdDiffHtml(d)
+    : d.image && !(svg && svgCode) ? imageDiffHtml(d, fileEl.dataset.path) : diffHtml(d, lang));
   const cached = diffCache.get(cacheKey);
   if (!SRC) return show('<p class="diff-note">A diff csak élő nézetben látszik '
     + '(az Artifact a Claude appban).</p>');
@@ -88,6 +93,15 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
       e?.message || e?.code || e)}</p>`); });
 }
 
+/* A markdown-fájl egy képének két oldala (`file_diff` `image`), a diffekkel együtt
+   gyorstárazva: az Uncommitted soré ugyanúgy elavul. */
+function image(sha, path, ref) {
+  const key = sha + '\n' + path + '\nimg\n' + ref, cached = diffCache.get(key);
+  if (cached && !cached.stale) return Promise.resolve(cached.data);
+  return SRC.image(sha, path, ref).then(d => { diffCache.set(key, { data: d }); return d; },
+    e => { if (cached) return cached.data; throw e; });
+}
+
 const MD_RAW_KEY = 'git-graph:mdRaw';
 export let mdRaw = (() => { try { return localStorage.getItem(MD_RAW_KEY) === '1'; } catch { return false; } })();
 
@@ -101,3 +115,18 @@ export function setMdRaw(raw) {
 
 const mdModeHtml = () => `<button class="mini md-mode" data-md-mode title="${
   mdRaw ? 'Renderelt nézet' : 'Nyers diff'}">${icon(mdRaw ? 'text' : 'code')}</button>`;
+
+/* Az SVG-fájl: alapból kép, a kapcsolóval a kódja (a szöveges diff); a lap megjegyzi. */
+const SVG_CODE_KEY = 'git-graph:svgCode';
+export let svgCode = (() => { try { return localStorage.getItem(SVG_CODE_KEY) === '1'; } catch { return false; } })();
+
+export function setSvgCode(code) {
+  svgCode = code;
+  try { localStorage.setItem(SVG_CODE_KEY, code ? '1' : '0'); } catch { /* privát ablak: nem baj */ }
+  document.querySelectorAll('.details .file[aria-expanded="true"]').forEach(f => {
+    if (IMAGE_RE.test(f.dataset.path) && /\.svg$/i.test(f.dataset.path)) toggleFile(f, expanded, true, 'commit');
+  });
+}
+
+const svgModeHtml = () => `<button class="mini md-mode" data-svg-mode title="${
+  svgCode ? 'Kép' : 'Kód'}">${icon(svgCode ? 'image' : 'code')}</button>`;
