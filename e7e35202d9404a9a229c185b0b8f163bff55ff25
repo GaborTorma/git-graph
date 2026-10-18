@@ -1,0 +1,26 @@
+## Összefoglaló
+
+A fájl-diff a képfájlt és a markdown `![alt](út)` képét képként mutatja, nem „Bináris fájl.” / `[alt]` formában: új / törölt kép színes bal csíkkal, a változott pár kerettel, egymás mellett.
+
+```
+file_diff(sha, path)          → hunkok + image: { old, new }   # data URI, 1 MB fölött csak a méret
+file_diff(sha, md, image=ref) → { old, new }                   # a markdown-kép, oldalanként a saját változatából
+  image_sources(sha)   commit: szülő ↔ commit · Stage-elt: HEAD ↔ index · Uncommitted: index ↔ lemez
+page/js/images.js      imagesHtml · fitImages (egymás mellett / alá) · loadImages (md-kép, képenként)
+```
+
+## Előtte / utána
+
+**Módosított képfájl a diffben**
+
+```
+Előtte:  Bináris fájl.
+Utána:   [régi kép, piros keret] [új kép, zöld keret]   — a középvonalon; ha nem fér el, egymás alatt
+```
+
+**Markdown-kép a renderelt nézetben**
+
+```
+Előtte:  [gráf]
+Utána:   a régi oldalon a szülő commit képe, az újon a commité; hiányzónál „gráf nem található”
+```
