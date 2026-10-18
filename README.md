@@ -18,6 +18,11 @@ szerzőben, a ref-nevekben és a hash elején keres, ékezettől függetlenül;
 minden szónak egyeznie kell. Escape vagy a mező × gombja törli; ha közben nyitva
 volt egy commit, a teljes listában az kerül legfelülre.
 
+A részletek-panel fájlsorain a fájl előtt a típusa ikonja áll, utána a `+`/`−` számok; a
+sor lenyitva a diffet mutatja ([Fájl-diff](docs/file-diff.md)). Az ikonok a
+[Catppuccin VS Code-ikonjai](https://github.com/catppuccin/vscode-icons) (MIT),
+a lap színeire hangolva. Frissítés: `python3 scripts/file-icons.py`.
+
 A `git-graph` parancs a Claude Bash eszközének szól (a plugin `bin/`-jéből), nem a
 terminálnak — a skillek és a hook ezt hívják:
 
@@ -239,22 +244,10 @@ a worktree-nek a sora látszik, amelyikben a szűrt ág van kivéve. Élő módb
 
 ## Fájl-diff
 
-A részletek-panel fájlsorai lenyithatók (a sorra kattintva — a fájlnév maga a
-GitHub-link marad): alatta a fájl diffje, a Claude app diff-nézetének mintájára —
-sorszám, `+`/`−`, a cserélt soroknál a megváltozott szavak erősebb háttérrel, a
-hunkok közt „N változatlan sor”. Az Uncommitted sornál az indexhez, a Stage-elt sornál a HEAD-hez képesti diff,
-követetlen fájlnál a teljes tartalom hozzáadottként. Ha a diff legalább 1000 px
-széles (széles Artifact-ablak), **side-by-side** nézetre vált:
-balra a régi, jobbra az új oldal, a cserélt sorok egymás mellett — átméretezéskor
-magától, újratöltés nélkül.
-
-A diff nincs a teljes adatban: a lap lenyitáskor kéri, fájlonként (a
-`file_diff` toollal). A commitok diffje gyorstárazva, az
-Uncommitted soré élőben frissül. Egy fájlból legfeljebb 3000 sor látszik.
-
-A fájlok előtt a típusuk ikonja áll: a
-[Catppuccin VS Code-ikonjai](https://github.com/catppuccin/vscode-icons) (MIT),
-a lap színeire hangolva. Frissítés: `python3 scripts/file-icons.py`.
+A részletek-panel fájlsorai lenyithatók: alatta a fájl diffje (szöveg, renderelt markdown,
+kép), széles ablakban side-by-side. Részletek és követelmények:
+[docs/file-diff.md](docs/file-diff.md); a funkcióoldalak listája:
+[docs/README.md](docs/README.md).
 
 ## GitHub-linkek
 
