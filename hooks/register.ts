@@ -4,7 +4,7 @@ import type { Register } from 'claude-code'
 // indulásakor. Hogy kell-e, azt a Python dönti el (`git-graph --open-url`:
 // naprakész lap, a sessionben még nem volt nyitva). A publikálás a modellé
 // marad (a hook kéri): modból az auto mód elutasítja, az `open` viszont
-// átmegy (mérve, docs/artifact-findings.md).
+// átmegy (mérve, .claude/memory/mod-limits.md).
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const openArtifact = async ($: any): Promise<void> => {

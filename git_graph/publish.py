@@ -64,7 +64,7 @@ def publish_steps(job: dict) -> str:
     """A session teendője a lap publikálásához — a hook és a `git-graph --publish` adja a modellnek.
 
     Az Artifact API-t csak a modell éri el, ezért a publikálást a session
-    végzi (mérve, docs/artifact-findings.md): a `host:git-graph` akkor is
+    végzi (mérve, .claude/memory/publish-from-session.md): a `host:git-graph` akkor is
     deklarálható, ha a session nem látja a szervert; egy meglévő Artifactra
     viszont csak az élő verzió olvasása után publikálhat. Az URL-t és a hasht
     a `--published` írja vissza — a hook a publikálás eredményét nem látja.

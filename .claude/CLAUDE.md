@@ -27,8 +27,6 @@ Használat és felépítés: [README.md](../README.md).
 | `skills/artifact-open/SKILL.md` | a `/git-graph:artifact-open` skill (`git-graph --open-url`, és megnyitja az Artifactot; elavultat előbb frissít, újat nem hoz létre) |
 | `skills/artifact-forget/SKILL.md` | a `/git-graph:artifact-forget` skill: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; uninstall előtt: mind) |
 | `docs/README.md`, `docs/<funkció>.md` | a funkcióoldalak listája és oldalai (pl. `file-diff.md`): működés, `R-N` követelmények, használat |
-| `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
-| `docs/architecture.md` | a lenti szabályok indoklása, a mért háttér, a kézi ellenőrzés menete — **módosítás előtt az érintett részt olvasd el** |
 
 ## Parancsok
 
@@ -64,7 +62,7 @@ indítja), a mod tesztjei és a lap viselkedése headless Chromiumban (`tests/pa
 Ezen túl kézzel: a lap az appban, `python3 bin/git-graph --dev-install` után. A
 válaszban írd ki a verziót (`<verzió>+dev.<időbélyeg>`) — a lap láblécén ebből
 látszik, hogy már az új állapot fut. Forrásból futó plugin, a hook és a
-telepítés kézi próbája: [architecture.md](../docs/architecture.md#fejlesztés-és-ellenőrzés).
+telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
 
 ## Konvenciók
 
@@ -80,10 +78,9 @@ telepítés kézi próbája: [architecture.md](../docs/architecture.md#fejleszt�
   `graph_data`-ban (`fileIcons`). A lista egysoros, napokra bontott
   (`.day-group`, ragadós fejléccel), táblázatfej nélküli. Görgetni
   commitonként lehet (`stepRows`: egy kattanás egy commit, animáció nélkül,
-  a sor a napfejléc alá igazodik). A CSS scroll-snap ezt nem tartotta, egy
-  kattanással több sort ugrott; az animáció darabosnak tűnt. A simító
-  egérszoftverek (BetterMouse) régi irányú lendületét a `coasting` szűri,
-  különben fordulásnál ide-oda ugrál. A dátum `Europe/Budapest` szerint,
+  a sor a napfejléc alá igazodik; a simító egérszoftverek régi irányú
+  lendületét a `coasting` szűri — miért: [scroll-step-rows](memory/scroll-step-rows.md)).
+  A dátum `Europe/Budapest` szerint,
   magyar formában jelenik meg.
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
   futnia kell, `pip install` nélkül. Ne hozz be libet. A lap egyetlen külső
@@ -114,7 +111,7 @@ telepítés kézi próbája: [architecture.md](../docs/architecture.md#fejleszt�
 
 ## Gotchák
 
-Egy sor szabály; a miért és a mérés: [architecture.md](../docs/architecture.md#gotchák).
+Egy sor szabály; a miért és a mérés a memóriában (`.claude/memory/`, a témába vágó bejegyzés).
 
 - **Lap**
   - Osztálynév névtérrel (`ref-*`), rövid, generikus osztálynév nem lehet — egyetlen stíluslap van.

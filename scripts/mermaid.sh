@@ -1,7 +1,7 @@
 #!/bin/sh
 # A lap Mermaidja: karcsú egyfájlos build (`page/vendor/mermaid.min.js`) és a licencek.
 # A hivatalos `dist/mermaid.min.js` (12.x: 5,5 MB) nem fér át a host-hídon (a határ
-# 3,67 és 5,08 MB között — mérve, docs/artifact-findings.md). Az esbuild a Mermaid
+# 3,67 és 5,08 MB között — mérve, .claude/memory/host-bridge-response-size.md). Az esbuild a Mermaid
 # ES-moduljaiból fog egy IIFE-t (`globalThis.mermaid`), a nehéz, ritkán kellő
 # függőségek helyén csonkkal: `cytoscape` (mindmap, architecture), `katex` (képlet a
 # feliratban), `@mermaid-js/parser` (pie, gitGraph, packet, radar, treemap). Az így
