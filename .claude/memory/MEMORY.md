@@ -5,3 +5,41 @@
 - [Commit-ikon tilos](no-commit-icon.md) — a h-alakú VS Code Git Graph-os commit ikont sehol ne használd
 - [Ne ismételj ikont](no-redundant-icons.md) — chipen csak olyan ikon, ami nem derül ki a chipből (branch-chip távolsága ikon nélkül)
 - [A verziót a release emeli](version-bump-in-release.md) — plugin.json bump csak a /workflow:release-ben
+- [Artifact CSP](artifact-csp.md) — külső fetch tilos; eval, blob-script, import(blob:), CDN-script fut; data: nem
+- [Artifact capability-k](artifact-capabilities.md) — mi él a fiókon; „AI-powered artifacts” kapcsoló; a sample nem a session
+- [Host-híd korlátai](host-bridge-limits.md) — csak appban, tulajdonosnak, claude_desktop_config.json; az app felülírja; readOnlyHint; hol látszik a hívás
+- [Host-híd válaszmérete](host-bridge-response-size.md) — 3,67 MB átmegy, 5,08 MB „too large”
+- [Rejtett keret](host-bridge-hidden-frame.md) — rejtve server_unavailable, az időzítők állnak; megjelenéskor újrapróba
+- [Nyitott hívás a hídon](host-bridge-long-poll.md) — ≥50 s nyitva; ~20 gyors hívás után rate_limited; a signal nem jut át
+- [Új tool: tools/list_changed](tools-list-changed.md) — az app a kapcsolódáskor gyorstáraz; enélkül not_in_manifest
+- [Egy Artifact = egy keret](artifact-single-frame.md) — minden sessionben ugyanaz; #horgony, ?query eldobva; republish újratölt
+- [Előtérben lévő session forrásai](app-focus-sources.md) — session-JSON lastFocusedAt, main.log setFocusedSession; nincs hook
+- [git-worktrees.json](app-worktrees-json.md) — a leválasztott HEAD-ű worktree ága az app nyilvántartásában
+- [Publikálás a sessionből](publish-from-session.md) — meglévőre csak read után; csak végigolvasott fájl; git-graph a lépésekben
+- [Headless publikálás (kivezetve)](headless-publish-retired.md) — claude -p buktatói és idői, ha mégis kellene
+- [Mod korlátai](mod-limits.md) — open, read megy; publish nem (auto mód); classic.* nem jön; panel nem DOM
+- [Artifact megnyitása](artifact-open-paths.md) — nyitott lapra az open csak kártya; show_pane nyit; külső folyamat nem
+- [sendToClaude a lapról](comments-send-to-claude.md) — a lapot mutató sessionnek megy; egyszeri hozzájárulás
+- [A lap nyelve](page-language-os-locale.md) — navigator.language = OS; az app nyelve a config.json-ból, a szerveren
+- [Mermaid-build](mermaid-build.md) — blobból fut a CSP alatt; karcsú build csonkokkal, ELK-kal
+- [MCP-alakok a lapon](mcp-wire-format.md) — listTools() {servers}, payload; GUI-ból minimális PATH
+- [--no-optional-locks](git-no-optional-locks.md) — index.lock a Fejlesztő commitját akasztotta; fsmonitor nem járható
+- [Git-pollozás költsége](git-poll-cost.md) — worktree-nkénti WIP mérve; xcrun-shim ~6 ms; a követetlen fájlok drágák
+- [Python-futtatás korlátai](python-runtime-constraints.md) — /usr/bin/python3 3.9; cserélődő zip; gitio.REPO
+- [Stash egy sor](stash-single-row.md) — ALL_BUT_STASH; git stash list, egy szülő; ^3 követetlen
+- [WIP-sorok a lane-ek előtt](wip-rows-before-lanes.md) — az edges sorindexes; a meta a valódi commitokból
+- [Ág-távolság origin/HEAD-hez](branch-base-origin-head.md) — a reflog forrás-ága szándékosan nem; gazda a HEAD-reflogból
+- [Saját worktree: fókusz](focused-worktree-design.md) — nyitott changes long-poll; a 2 s-os kör is újraszámolja a fókuszt
+- [file_diff bemenete](file-diff-input-safety.md) — sha csak hex; fájl közvetlenül csak követetlen esetben
+- [CSS-osztály ütközés](css-class-collision.md) — .head a HEAD-badge-re ült; ref-* névtér
+- [Sticky és overflow](sticky-header-overflow.md) — overflow-x: auto elrontja a sticky fejlécet; egy görgető régió
+- [embed() és charset](page-embed-escaping.md) — </script> egy commit-üzenetben; meta charset az első sor
+- [Repónév a remote-ból](repo-name-from-remote.md) — auto-bpm → WristBPM; ebből az Artifact címe
+- [Gráf a sorok mögött](graph-rows-layout.md) — drawGraph() DOM-ból mér; kiemelés csak a .row-in-re
+- [Görgetés commitonként](scroll-step-rows.md) — scroll-snap és animáció elvetve; coasting a lendületre
+- [Modulok blob-URL-en](page-modules-blob-linking.md) — nincs körkörös, dinamikus import; LOADER_API
+- [Az Artifact nem tárol adatot](artifact-holds-no-data.md) — beágyazott adatú lap frissítése ~50 s volt
+- [A hook publikáltat, a mod nyit](hook-publishes-mod-opens.md) — sessionönként egyszer; resume, /clear nem zár
+- [Stabil másolat, telepítés](stable-copy-install.md) — nincs install-esemény; zip atomi cserével; lap → zip → manifest
+- [Önfrissítő szerver](server-self-update.md) — os.execv ugyanazokon a csöveken; puffereletlen stdin; leszerelés
+- [Fejlesztés forrásból](dev-from-source.md) — --dev-install, CLAUDE_CODE_PLUGIN_DIRS, kézi próba kamu HOME-mal
