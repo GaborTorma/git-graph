@@ -22,6 +22,8 @@ const ICONS = {
   // Markdown-diff nézetváltó: nyers forrás, illetve renderelt szöveg
   code: '<path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5"/>',
   text: '<path d="M2.5 3.5h11M2.5 6.5h11M2.5 9.5h11M2.5 12.5h7"/>',
+  // SVG-diff nézetváltó: a kép (keret, hegy, nap)
+  image: '<rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="m2.5 12 3.5-4 3 3 1.5-1.5 3 2.5"/><circle cx="10.5" cy="5.75" r="1.25"/>',
   // stash: archiváló doboz, fedéllel és fogantyúval — a stash chipjén
   stash: '<rect x="2" y="3" width="12" height="3.25" rx=".75"/><path d="M3 6.25v6.25a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6.25M6.5 9h3"/>',
   // a worktree-jel: mappa, benne egy kör (a kivett állapot) — saját rajz a készlet vonalvastagságával

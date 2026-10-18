@@ -12,7 +12,9 @@
    renderelés pontatlan lehet — arra való a nyers nézet. A ```mermaid blokk
    diagramként jelenik meg (`mermaid.js`): a változottnak a régi és az új
    változata, bennük a változott elemek pirosan, illetve zölden; amíg nincs
-   kirajzolva, vagy ha hibás, a kódnézet látszik. */
+   kirajzolva, vagy ha hibás, a kódnézet látszik. A `![alt](út)` kép képként
+   (`images.js`): a csak képből álló bekezdés a régi és az új változatával, mint a
+   diagram; a szövegbeli a helyén, oldalanként a saját változatából. */
 import { KIND, alignRows, annotate, kindOf, oneSide, partnerOf, untouched } from './diff-html.js';
 import { LANGS, highlight } from './syntax.js';
 import { esc, ghLink } from './util.js';
@@ -29,6 +31,16 @@ const MD_QUOTE = /^\s{0,3}>\s?/;
 const MD_TABLE = /^\s*\|/;
 const MD_TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 const MD_HTML = /^\s{0,3}<[!/a-zA-Z]/;
+const MD_IMG = /!\[([^\]]*)\]\(([^)]*)\)/g;             // az `esc` utáni szövegben
+const MD_PIC = /^\s*!\[([^\]]*)\]\(([^)]*)\)\s*$/;        // csak képből álló bekezdés (nyers szöveg)
+const EXTERNAL = /^(?:[a-z][\w+.-]*:|\/\/)/i;
+
+/* A kép hivatkozása (a cím — `"…"` — nélkül), ha a repóé; a külső (`https:`, `data:`)
+   `null`. Az `esc`-elt szövegből: attribútumba így mehet. */
+function imgRef(ref) {
+  const src = /^\s*(&lt;.*?&gt;|[^\s]+)/.exec(ref.replace(MARK_RE, ''))?.[1] || '';
+  return !src || EXTERNAL.test(src) ? null : src;
+}
 
 /* Az összefésült sorok blokkjai: { type, lines, … }. Az üres sor blokkhatár,
    magában nem blokk (az üres sorok változása így nem látszik). A hozzáadott
@@ -128,10 +140,12 @@ function mdMarks(html) {
   return tpl.innerHTML;
 }
 
-/* Inline formázás: kód, link, kép (csak az alt szövege — a CSP külső képet nem
-   enged), félkövér, dőlt, áthúzott. A kész elemek (`keep`) helyőrzőként várnak,
-   hogy a későbbi cserék (pl. `_` egy URL-ben) ne nyúljanak beléjük. */
-function mdInline(s) {
+/* Inline formázás: kód, link, kép, félkövér, dőlt, áthúzott. A kép az alt szövege, a
+   repóbeli helyőrzője (`data-img`: a hivatkozás, `data-side`: a `side` oldal, '-' a régi)
+   képpé cserélődik (`loadImages`); a külső kép alt szöveg marad (a CSP külső képet nem
+   enged). A kész elemek (`keep`) helyőrzőként várnak, hogy a későbbi cserék (pl. `_` egy
+   URL-ben) ne nyúljanak beléjük. */
+function mdInline(s, side = '+') {
   const keep = [];
   const hold = html => `${keep.push(html) - 1}`;
   const link = (text, url) => {
@@ -148,7 +162,11 @@ function mdInline(s) {
   }
   out += esc(s.slice(last));
   return out
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, (_, alt) => hold(`<span class="md-img">${alt}</span>`))
+    .replace(MD_IMG, (_, alt, ref) => {
+      const src = imgRef(ref);
+      return hold(src ? `<span class="md-img" data-img="${src}" data-side="${side}">` : '<span class="md-img">')
+        + alt + hold('</span>');
+    })
     .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^)]*&quot;)?\)/g, (_, text, url) => link(text, url))
     .replace(/&lt;(https?:\/\/[^\s&]+)&gt;/g, (_, url) => link(url, url))
     .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, '<strong>$2</strong>')
@@ -172,8 +190,8 @@ const lead = (l, re) => cut(l, re.exec(l.s)?.[0].length || 0);
 const trimmed = l => cut(l, l.s.length - l.s.trimStart().length, l.s.trimEnd().length);
 
 /* Egy változat (a blokk sorainak egy része) renderelve, szöveges blokkra. */
-function mdText(b, ls) {
-  const text = n => mdInline(n.map(marked).join('\n'));
+function mdText(b, ls, side) {
+  const text = n => mdInline(n.map(marked).join('\n'), side);
   if (b.type === 'h') {
     const src = b.setext ? ls.filter(l => !MD_SETEXT.test(l.s)) : ls;
     const t = src.map(l => { const h = lead(l, MD_HEAD); return cut(h, 0, h.s.replace(/\s+#+\s*$/, '').length); });
@@ -225,7 +243,8 @@ function mdBlockHtml(b, side = null) {
   if (!v.html.has(side)) v.html.set(side, v.make(side));
   return v.html.get(side);
 }
-const blockViews = b => (b.type === 'code' ? codeViews(b) : b.type === 'table' ? tableViews(b) : textViews(b));
+const blockViews = b => (b.type === 'code' ? codeViews(b) : b.type === 'table' ? tableViews(b)
+  : b.pic ? picViews(b) : textViews(b));
 // a függvény eredménye az első hívásra, utána ugyanaz
 const once = f => {
   let done = false, v;
@@ -293,7 +312,7 @@ function tableViews(b) {
       if (!l) return `<tr class="md-none"><td colspan="${width}"> </td></tr>`;
       const cell = i ? 'td' : 'th';
       return `<tr class="${kindOf(l).trim()}">`
-        + cells(l).map(c => `<${cell}>${mdInline(c.trim())}</${cell}>`).join('') + '</tr>';
+        + cells(l).map(c => `<${cell}>${mdInline(c.trim(), l.t)}</${cell}>`).join('') + '</tr>';
     };
     return '<div class="md-table"><table>' + collapse(keep, rows, row,
       n => `<tr class="md-skip"><td colspan="${width}" title="${n} változatlan sor">···</td></tr>`) + '</table></div>';
@@ -325,7 +344,7 @@ function textViews(b) {
     const key = cls + which;
     if (!made.has(key)) {
       const ls = which === '-' ? del : which === '+' ? add : b.lines;
-      made.set(key, `<div class="md-blk${cls}">${b.type === 'hr' ? '<hr>' : mdText(b, ls)}</div>`);
+      made.set(key, `<div class="md-blk${cls}">${b.type === 'hr' ? '<hr>' : mdText(b, ls, which || '+')}</div>`);
     }
     return made.get(key);
   };
@@ -338,6 +357,24 @@ function textViews(b) {
     return html(delCls, '-') + html(addCls, '+');
   };
 }
+
+/* Csak képből álló bekezdés (`picOf`): a kép két oldala a páros elrendezésben
+   (`loadImages` tölti be), side-by-side-ban is egyszer, a teljes szélességen, mint a
+   diagram. Amíg nincs betöltve, az alt szöveg látszik. */
+function picOf(b) {
+  if (b.type !== 'p') return null;
+  const text = t => b.lines.filter(l => l.t !== t).map(l => l.s).join('\n');
+  const [old, now] = [text('+'), text('-')].map(s => (s.trim() ? MD_PIC.exec(s) || false : null));
+  if (old === false || now === false || !(old || now)) return null;
+  const ref = m => {
+    const src = m && /^\s*(<.*?>|\S+)/.exec(m[2])?.[1];
+    return src && !EXTERNAL.test(src) ? src : null;
+  };
+  if ((old && !ref(old)) || (now && !ref(now))) return null;      // külső kép: marad szövegnek
+  return { old: ref(old), now: ref(now), alt: (now || old)[1] };
+}
+const picViews = b => () => `<div class="md-pic" data-pic="${esc(JSON.stringify(b.pic))}">`
+  + `<div class="img-view"><span class="md-img">${esc(b.pic.alt)}</span></div></div>`;
 
 /* Mermaid-blokk: a kódnézet (tartalék) és a kirajzolandó változatok (`data-mmd`:
    forrás, a diff színe, a kiemelt szövegek — `marks` —, az egyetlen változat
@@ -412,6 +449,7 @@ export function mdDiffHtml(d) {
   if (d.binary) return '<p class="diff-note">Bináris fájl.</p>';
   annotate(d);
   const blocks = mdBlocks(d.hunks.flatMap(h => h.lines));   // a Python már a blokkok sorrendjében adja
+  for (const b of blocks) b.pic = picOf(b);
   // a tiszta újratördelés (a Python `v`-je: `same` / `drop`) nem változás
   const shownLines = blocks.map(b => oneSide(b.lines));
   const changed = shownLines.map(ls => ls.some(l => l.t !== ' '));
@@ -435,9 +473,9 @@ export function mdDiffHtml(d) {
   const kinds = new Set(shownLines.flat().map(l => l.t));
   const next = new Map(blocks.map((b, i) => [b, blocks[i + 1]]));
   const half = (b, side) => (b ? mdBlockHtml(b, side) : NONE);
-  const split = list => splitPairs(list, b => b.mermaid || aboveMermaid(b, next.get(b))).map(([a, b]) => (a === b
-    && (a.mermaid || aboveMermaid(a, next.get(a)))
-    ? `<div class="md-mmd-row">${mdBlockHtml(a)}</div>`             // a diagram és a címsora a teljes szélességen
+  const wide = b => b.mermaid || b.pic || aboveMermaid(b, next.get(b));
+  const split = list => splitPairs(list, wide).map(([a, b]) => (a === b && wide(a)
+    ? `<div class="md-mmd-row">${mdBlockHtml(a)}</div>`             // a diagram, a kép és a címsora a teljes szélességen
     : `<div class="md-row"><div>${half(a, '-')}</div><div>${half(b, '+')}</div></div>`)).join('');
   const out = kinds.has('+') && kinds.has('-')
     ? `<div class="diff-uni">${uni}</div><div class="diff-split">${view(split)}</div>`

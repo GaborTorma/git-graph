@@ -56,6 +56,14 @@ def git(*args: str, repo: Path | None = None, stdin: str | None = None) -> str:
     ).stdout
 
 
+def git_raw(*args: str, repo: Path | None = None) -> bytes | None:
+    """Mint a `git`, de a kimenet bájtokban (pl. egy kép blobja); hibánál (nincs ilyen
+    objektum) `None`."""
+    out = subprocess.run([git_bin(), "--no-optional-locks", "-C", str(repo or REPO), *args],
+                         capture_output=True)
+    return out.stdout if out.returncode == 0 else None
+
+
 def resolve_repo(start: Path) -> Path:
     """A megadott könyvtárat tartalmazó git repó gyökere."""
     result = subprocess.run(

@@ -1,11 +1,14 @@
 """Fájl-diff (a lenyitott fájlsor): hunkok, sorpárok, szószintű kiemelés."""
 from __future__ import annotations
 
+import base64
 import difflib
+import posixpath
 import re
 from pathlib import Path
+from urllib.parse import unquote
 
-from .gitio import git, numstat_new_path, numstat_old_path, worktree_list
+from .gitio import git, git_raw, numstat_new_path, numstat_old_path, worktree_list
 from .registry import slug_for
 from .worktrees import UNCOMMITTED_RE, head_lines, read_lines
 
@@ -24,6 +27,12 @@ PAIR_MIN_RATIO = 0.6            # ennél hasonlóbb sorpár számít „ugyanann
 PARA_MIN_RATIO = 0.4            # ennél hasonlóbb bekezdéspár (a szavaik szerint) párosodik
 PROSE_SUFFIXES = {".md", ".markdown", ".mdx", ".txt", ".rst", ".adoc"}
 PROSE_MAX_TOKENS = 20000        # e fölött a szöveges blokk is soronként párosodik
+# a böngészőben `<img>`-ként megjelenő képek (a lapon data URI: a CSP külső képet nem enged)
+IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
+               ".webp": "image/webp", ".avif": "image/avif", ".svg": "image/svg+xml",
+               ".ico": "image/x-icon", ".bmp": "image/bmp"}
+IMAGE_MAX = 1024 * 1024         # képenként; fölötte csak a méret (egy pár így a host-híd határa alatt)
+EXTERNAL_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//)")   # `https:`, `data:`, `//host`
 
 
 def mark_words(old: dict, new: dict) -> None:
@@ -537,7 +546,7 @@ def renamed_diff(root: Path, old: str, new: str, full: bool) -> dict | None:
     return parse_diff(raw, prose, full and prose)
 
 
-def file_diff(sha: str, path: str, full: bool = False) -> dict:
+def text_diff(sha: str, path: str, full: bool = False) -> dict:
     """Egy fájl diffje a commitban, vagy egy WIP ál-sorban: a nem stage-elté az indexhez,
     a stage-elté (`*staged:<slug>`) a HEAD-hez képest.
 
@@ -552,11 +561,7 @@ def file_diff(sha: str, path: str, full: bool = False) -> dict:
     context = [FULL_CONTEXT] if full else []
     pending = UNCOMMITTED_RE.match(sha)
     if pending:
-        kind, slug = pending[1], pending[2]
-        root = next((wt["path"] for wt in worktree_list()
-                     if slug in (None, slug_for(wt["path"]))), None)
-        if root is None:
-            raise ValueError(f"nincs ilyen worktree: {slug}")
+        kind, root = pending[1], worktree_root(pending[2])
         if kind == "staged":
             raw = git("diff", "--no-color", "--no-ext-diff", "-M", *context, "--cached", "--", old, new,
                       repo=root)
@@ -585,3 +590,97 @@ def file_diff(sha: str, path: str, full: bool = False) -> dict:
     prose = Path(path).suffix.lower() in PROSE_SUFFIXES
     return parse_diff(raw, prose, full and prose)
 
+
+
+def worktree_root(slug: str | None) -> Path:
+    """Az ál-sor worktree-je a slugja szerint (csak élő worktree lehet)."""
+    root = next((wt["path"] for wt in worktree_list() if slug in (None, slug_for(wt["path"]))), None)
+    if root is None:
+        raise ValueError(f"nincs ilyen worktree: {slug}")
+    return root
+
+
+def image_sources(sha: str) -> tuple:
+    """Honnan jön a kép két oldala, ugyanonnan, ahonnan a `text_diff` a szöveget veszi:
+    (worktree, régi, új). Egy oldal: `("rev", <rev>)` — a rev-ek közül az első, amelyikben
+    a fájl megvan; az üres rev az index —, vagy `("disk",)`: a munkakönyvtár. Commitnál
+    szülő ↔ commit (a `stash -u` követetlen fájlja a `^3`-ban), a stage-elt sornál HEAD ↔
+    index, a nem stage-eltnél index ↔ lemez."""
+    pending = UNCOMMITTED_RE.match(sha)
+    if pending:
+        root = worktree_root(pending[2])
+        if pending[1] == "staged":
+            return root, ("rev", "HEAD"), ("rev", "")
+        return root, ("rev", ""), ("disk",)
+    if not SHA_RE.match(sha):
+        raise ValueError(f"érvénytelen commit: {sha!r}")
+    parents = {line.split()[0]: line.split()[1:]
+               for line in git("stash", "list", "--format=%H %P").splitlines()}.get(sha, [])
+    return None, ("rev", f"{sha}^1"), ("rev", sha, *parents[2:3])
+
+
+def image_side(root: Path | None, src: tuple, path: str | None) -> dict | None:
+    """A kép egy oldala: `{"size", "uri"}` (data URI), az `IMAGE_MAX` fölött csak a méret;
+    ha a fájl azon az oldalon nincs meg: `None`. A lemezről csak olyan fájl olvasható, amit
+    a git ismer (követett, vagy követetlen, de nem ignorált), és a worktree-n belül van."""
+    kind = IMAGE_TYPES.get(Path(path or "").suffix.lower())
+    if not path or not kind:
+        return None
+    data = size = None
+    if src[0] == "disk":
+        known = git("ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", path, repo=root)
+        file = (root / path).resolve()
+        if path not in known.split("\0") or not file.is_relative_to(Path(root).resolve()) or not file.is_file():
+            return None
+        size = file.stat().st_size
+        if size <= IMAGE_MAX:
+            data = file.read_bytes()
+    else:
+        for rev in src[1:]:
+            spec = f"{rev}:{path}" if rev else f":0:{path}"
+            found = git_raw("cat-file", "-s", spec, repo=root)
+            if found is not None:
+                size = int(found)
+                data = git_raw("cat-file", "blob", spec, repo=root) if size <= IMAGE_MAX else None
+                break
+        if size is None:
+            return None
+    side: dict = {"size": size}
+    if data is not None:
+        side["uri"] = f"data:{kind};base64,{base64.b64encode(data).decode('ascii')}"
+    return side
+
+
+def image_ref(md_path: str, ref: str) -> str:
+    """A markdown-kép (`![alt](ref)`) útja a repóban: a md-fájl mappájához képest, a `/…`
+    a repó gyökeréből. A külső (`https:`, `data:`, `//…`) és a repón kívülre mutató út
+    hibát ad: a lap kéri, a hálózat csak az avataré."""
+    ref = ref.strip()
+    if ref.startswith("<") and ref.endswith(">"):
+        ref = ref[1:-1]
+    ref = unquote(re.split(r"[?#]", ref, maxsplit=1)[0])
+    if not ref or EXTERNAL_RE.match(ref):
+        raise ValueError(f"nem a repó képe: {ref!r}")
+    joined = ref.lstrip("/") if ref.startswith("/") else posixpath.join(posixpath.dirname(md_path), ref)
+    out = posixpath.normpath(joined)
+    if out in (".", "..") or out.startswith("../") or out.startswith("/"):
+        raise ValueError(f"a repón kívüli út: {ref!r}")
+    return out
+
+
+def file_diff(sha: str, path: str, full: bool = False, image: str | None = None) -> dict:
+    """Egy fájl diffje (`text_diff`); képfájlnál a két oldal képe is (`image`: `old`, `new`,
+    `image_side`). Az `image` argumentummal a `path` markdown-fájl egy képe (`image_ref`):
+    a régi oldalé a régi, az újé az új változatból — `{"old", "new"}`, a diff nélkül."""
+    old, new = numstat_old_path(path), numstat_new_path(path)
+    if image is not None:
+        a, b = image_ref(old, image), image_ref(new, image)
+        if Path(b).suffix.lower() not in IMAGE_TYPES:
+            raise ValueError(f"nem kép: {image!r}")
+        root, src_a, src_b = image_sources(sha)
+        return {"old": image_side(root, src_a, a), "new": image_side(root, src_b, b)}
+    out = text_diff(sha, path, full)
+    if Path(new).suffix.lower() in IMAGE_TYPES:
+        root, src_a, src_b = image_sources(sha)
+        out["image"] = {"old": image_side(root, src_a, old), "new": image_side(root, src_b, new)}
+    return out

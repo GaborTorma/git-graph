@@ -2,7 +2,7 @@
 import { glide, grow, shrink } from './anim.js';
 import { avatarOf } from './avatars.js';
 import { fmtDate } from './dates.js';
-import { mdRaw, openFiles, setMdRaw, toggleFile } from './diff.js';
+import { mdRaw, openFiles, setMdRaw, setSvgCode, svgCode, toggleFile } from './diff.js';
 import { OPEN_PANEL, pendingEl, rowsEl, scroller } from './dom.js';
 import { drawGraph } from './graph.js';
 import { fileIcon, icon } from './icons.js';
@@ -139,6 +139,7 @@ function onListClick(e) {
   const copy = e.target.closest('[data-copy]');
   if (copy) { copyText(copy.dataset.copy, copy); return; }
   if (e.target.closest('[data-md-mode]')) { setMdRaw(!mdRaw); return; }
+  if (e.target.closest('[data-svg-mode]')) { setSvgCode(!svgCode); return; }
   const jump = e.target.closest('[data-jump]');
   if (jump) {
     const target = rowsEl.querySelector(`.row[data-sha="${jump.dataset.jump}"]`);

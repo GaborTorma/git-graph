@@ -8,6 +8,7 @@ export function mcpSource() {
   return { changes: (since, wait, signal) => /** @type {Promise<Changes>} */ (call('changes', { since, wait }, signal)),
            data: () => /** @type {Promise<GraphData>} */ (call('graph_data')),
            diff: (sha, path, full) => call('file_diff', { sha, path, full }),
+           image: (sha, path, image) => call('file_diff', { sha, path, image }),
            mermaid: () => /** @type {Promise<{ js: string }>} */ (call('page_code', { api: CTX.api, part: 'mermaid' })) };
 }
 

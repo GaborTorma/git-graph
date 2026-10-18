@@ -26,6 +26,7 @@ Használat és felépítés: [README.md](../README.md).
 | `skills/artifact-publish/SKILL.md` | a `/git-graph:artifact-publish` skill (`git-graph --publish`, publikálja, ha kell, és megnyitja) |
 | `skills/artifact-open/SKILL.md` | a `/git-graph:artifact-open` skill (`git-graph --open-url`, és megnyitja az Artifactot; elavultat előbb frissít, újat nem hoz létre) |
 | `skills/artifact-forget/SKILL.md` | a `/git-graph:artifact-forget` skill: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; uninstall előtt: mind) |
+| `docs/README.md`, `docs/<funkció>.md` | a funkcióoldalak listája és oldalai (pl. `file-diff.md`): működés, `R-N` követelmények, használat |
 | `docs/artifact-findings.md` | **mérési napló**: mit tud és mit nem az Artifact platform |
 | `docs/architecture.md` | a lenti szabályok indoklása, a mért háttér, a kézi ellenőrzés menete — **módosítás előtt az érintett részt olvasd el** |
 
@@ -107,6 +108,9 @@ telepítés kézi próbája: [architecture.md](../docs/architecture.md#fejleszt�
   élesít; a `/release` deploy-lépése a helyi frissítés:
   `claude plugin marketplace update git-graph && claude plugin update git-graph@git-graph`.
 - **Env**: a toolnak nincs env-függősége, ezért nincs `.env.example`.
+- **Funkcióoldal**: bár ez plugin, a funkcióoldalak a `docs/<funkció>.md`-ben élnek, a lista a
+  `docs/README.md`; a README csak belépő, funkciónként egy rövid bekezdéssel és linkkel —
+  a `RULE:docs` plugin-kivétele (a komponens README-je) itt nem érvényes.
 
 ## Gotchák
 
