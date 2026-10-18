@@ -147,7 +147,6 @@ repóét kikapcsolja.
 | `skills/artifact-publish/SKILL.md` | `/git-graph:artifact-publish`: `git-graph --publish`, publikálja az Artifactot, ha kell, és megnyitja |
 | `skills/artifact-open/SKILL.md` | `/git-graph:artifact-open`: `git-graph --open-url`, és megnyitja az Artifactot — ha elavult, előbb frissíti (újat nem hoz létre) |
 | `skills/artifact-forget/SKILL.md` | `/git-graph:artifact-forget`: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; eltávolítás előtt: mind) |
-| `.claude/memory/` | a fejlesztői háttér: mit tud és mit nem az Artifact platform (mérésekkel), a döntések, a `.claude/CLAUDE.md` szabályainak indoklása és a kézi ellenőrzés menete |
 
 ## Kimenet
 

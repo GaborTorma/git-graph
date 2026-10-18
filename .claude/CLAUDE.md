@@ -56,17 +56,14 @@ pedig újratölt.
 A `git-graph` a Claude Bash eszközének parancsa (a plugin `bin/`-je), terminálos
 link és pillanatkép nincs; parancs nélkül a súgót írja ki.
 
-A **Check** (`.claude/check.toml`): a lap moduljainak összekötése Node-ban, ruff +
-Biome, `tsc --checkJs` a `page/js`-re, a tesztek `/usr/bin/python3`-mal (ahogy az app
-indítja), a mod tesztjei és a lap viselkedése headless Chromiumban (`tests/page/`).
-Ezen túl kézzel: a lap az appban, `python3 bin/git-graph --dev-install` után. A
+A Checken túl kézzel: a lap az appban, `python3 bin/git-graph --dev-install` után. A
 válaszban írd ki a verziót (`<verzió>+dev.<időbélyeg>`) — a lap láblécén ebből
 látszik, hogy már az új állapot fut. Forrásból futó plugin, a hook és a
 telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
 
 ## Konvenciók
 
-- **Nyelv**: magyar — kommentek, doksi, commit-body, a generált UI feliratai.
+- **Nyelv**: magyar — a kommentek és a generált UI feliratai.
 - **Megjelenés**: a Claude app nyelvét követi (a Git Graph-ból a gráf marad).
   Meleg palettát használ, és a Claude Light / Dark kódszíneket. Betűk:
   Anthropic Sans / Mono, ahol nincs, a rendszeré; webfont nincs. A
@@ -80,27 +77,22 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
   commitonként lehet (`stepRows`: egy kattanás egy commit, animáció nélkül,
   a sor a napfejléc alá igazodik; a simító egérszoftverek régi irányú
   lendületét a `coasting` szűri — miért: [scroll-step-rows](memory/scroll-step-rows.md)).
-  A dátum `Europe/Budapest` szerint,
-  magyar formában jelenik meg.
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
   futnia kell, `pip install` nélkül. Ne hozz be libet. A lap egyetlen külső
   JS-e a vendorolt Mermaid (`page/vendor/`, verzióra rögzítve). A lintek (ruff, Biome),
   a `tsc` és a Playwright csak fejlesztői eszközök, `uvx` / `uv run --with` / `pnpm dlx`
   futtatja őket, verzióra rögzítve.
 - **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a
-  `.git/config` `git-graph.*` kulcsai — lokális, sosem commitolódik.
+  `.git/config` `git-graph.*` kulcsai — lokális, sosem commitolódik. A kimenet a
+  repón kívül, `~/.git-graph/<slug>/`; a projektmappába nem írunk.
 - **Hálózat csak az avatarért.** GitHub-os repónál a szerzők képét a Python
   tölti le háttérszálon (`avatars_for`). Noreply címnél közvetlenül, különben az
   API-ból, egy pusholt commitjukon át. A kép data URI-ként kerül a
   `graph_data`-ba (az Artifact CSP-je külső képet nem enged), gyorstárazva
   (`~/.git-graph/avatars.json`). Ami nem jött, 6 óra múlva újrapróbálódik. Az
   ujjlenyomatban az `avatars` szám jelzi a lapnak, hogy új kép érkezett.
-- **Verziókezelés**: SemVer, a verzió egyetlen forrása a
-  `.claude-plugin/plugin.json` (a `marketplace.json` nem ismétli); kézi
-  `vX.Y.Z` tag, Conventional Commits.
-- **Commit**: bár ez plugin-repó (`.claude-plugin/` a gyökérben), az auto-commit
-  (`RULE:git`) itt is megy — a kész, ellenőrzött munka kérdés nélkül commitolódik; a
-  plugin-repó kivétel itt nem érvényes.
+- **Verziókezelés**: a verzió egyetlen forrása a `.claude-plugin/plugin.json` (a
+  `marketplace.json` nem ismétli).
 - **Deploy**: a marketplace forrása a repó `main`-je, tehát a merge már
   élesít; a `/release` deploy-lépése a helyi frissítés:
   `claude plugin marketplace update git-graph && claude plugin update git-graph@git-graph`.
@@ -108,38 +100,3 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
 - **Funkcióoldal**: bár ez plugin, a funkcióoldalak a `docs/<funkció>.md`-ben élnek, a lista a
   `docs/README.md`; a README csak belépő, funkciónként egy rövid bekezdéssel és linkkel —
   a `RULE:docs` plugin-kivétele (a komponens README-je) itt nem érvényes.
-
-## Gotchák
-
-Egy sor szabály; a miért és a mérés a memóriában (`.claude/memory/`, a témába vágó bejegyzés).
-
-- **Lap**
-  - Osztálynév névtérrel (`ref-*`), rövid, generikus osztálynév nem lehet — egyetlen stíluslap van.
-  - Ami a lapra kerül, az `embed()`-en megy át (`</` → `<\/`, U+2028/29); `<meta charset="utf-8">` az első sor.
-  - A `drawGraph()` a DOM-ból méri a sorok Y-ját: minden DOM-változás után újra kell hívni.
-  - Sor-kiemelés csak a `.row-in`-re, a gráf-oszlopra nem (az `#lanes` SVG a sorok mögött van).
-  - ES-modulok, a `page_code` köti össze: körkörös és dinamikus import nincs, az import a sor eleji `import … from './x.js'`; az export csak olvasható, a közös állapotot a gazdája setterrel írja.
-  - A betöltő ↔ `page_code` szerződés a `LOADER_API`; a betöltő a `body`-t nem írhatja felül.
-  - Az Artifact nem tárol adatot és kódot — csak a betöltő; ne tedd vissza a lapba.
-- **Git és Python**
-  - Minden git-hívás olvas és `--no-optional-locks`; `core.fsmonitor` nem használható.
-  - A git a valódi binárisával fut (`git_bin`), nem a `/usr/bin/git` shimmel.
-  - A `REPO` a `gitio` globálisa: váltás `set_repo`-val, olvasás `gitio.REPO`-ként (nem `from .gitio import REPO`).
-  - Python 3.9-kompatibilis (`/usr/bin/python3`); függvényen belüli import a csomagból nem lehet (a zip a futó szerver alatt cserélődhet).
-  - Repónév az `origin` remote-ból, nem a mappanévből; minden út a fő checkoutra képződik le (`main_checkout`).
-  - A WIP ál-sorok (`*uncommitted:<slug>`, alatta `*staged:<slug>`) a lane-kiosztás ELŐTT kerülnek be, a `meta` a valódi commitokból készül.
-  - A `log --all` helyett `ALL_BUT_STASH` (a `refs/stash` nélkül); a stash-ek a `git stash list`-ből, egyetlen szülővel (`^1`).
-  - A `file_diff` bemenete a lapról jön: `sha` csak hex, fájlt csak követetlen esetben olvasunk közvetlenül.
-  - A kimenet a repón kívül, `~/.git-graph/<slug>/`; a projektmappába nem írunk.
-- **MCP és host-híd**
-  - stdout-on csak ASCII JSON-RPC, napló stderr-re; minden tool `readOnlyHint: true`.
-  - Új tool → `PUBLISH_CAPS` + új betöltő publikálása; `restart` után `notifications/tools/list_changed`.
-  - A host-hídon csak a `claude_desktop_config.json` szervere érhető el; a beírás után app-újraindítás.
-  - A `changes` long-poll: sűrű kérdezés tilos (a host ~20 gyors hívás után visszafog).
-  - A „saját” worktree az előtérben lévő sessioné, az app session-fájljaiból és naplójából (`focused_worktree`) — kézzel nem választható.
-- **Plugin és telepítés**
-  - Nincs install/update/uninstall esemény: a SessionStart hook telepít (`ensure_installed`), a futó szerver frissít és szerel le (`watch_plugin`).
-  - Az app a stabil zipet futtatja (`~/.git-graph/bin/git-graph`); csere sorrendje: lap → zip → manifest.
-  - A hook publikáltat (`publish_steps`), a mod nyit meg (`--open-url`); modból `publish` nem megy.
-  - Meglévő Artifactra a publish csak `Artifact read` után megy át; a lépésekben `git-graph` áll, nem abszolút út.
-  - Bump nélkül a `claude plugin update` nem hoz le semmit.
