@@ -56,6 +56,22 @@ def git(*args: str, repo: Path | None = None, stdin: str | None = None) -> str:
     ).stdout
 
 
+def stash_list(*args: str, repo: Path | None = None) -> str:
+    """`git stash list` a megadott formátummal. A git előbb megnézi, van-e `refs/stash`, és
+    csak utána olvassa a reflogját: ha közben egy `stash pop` / `drop` eltünteti, a hívás
+    `fatal: bad revision 'refs/stash'`-sel elbukik (mérve: párhuzamos stash/drop mellett
+    2000 hívásból 57). Ilyenkor a ref már nincs — nincs stash —, vagy épp újraíródott: egy
+    újrapróba olvassa."""
+    try:
+        return git("stash", "list", *args, repo=repo)
+    except subprocess.CalledProcessError:
+        try:
+            git("rev-parse", "-q", "--verify", "refs/stash", repo=repo)
+        except subprocess.CalledProcessError:
+            return ""
+        return git("stash", "list", *args, repo=repo)
+
+
 def git_raw(*args: str, repo: Path | None = None) -> bytes | None:
     """Mint a `git`, de a kimenet bájtokban (pl. egy kép blobja); hibánál (nincs ilyen
     objektum) `None`."""

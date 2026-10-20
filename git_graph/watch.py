@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .avatars import avatar_signal
 from .claude_app import focused_worktree, log_advance
-from .gitio import git, worktree_list
+from .gitio import git, stash_list, worktree_list
 from .install import RUNNING_VERSION, installed_version
 
 
@@ -28,7 +28,7 @@ def repo_state(repo: Path) -> str:
     """
     with ThreadPoolExecutor(max_workers=8) as pool:
         refs = pool.submit(git, "for-each-ref", "--format=%(objectname) %(refname)", repo=repo)
-        stashes = pool.submit(git, "stash", "list", "--format=%H", repo=repo)
+        stashes = pool.submit(stash_list, "--format=%H", repo=repo)
         worktrees = worktree_list(repo)
 
         def status(wt: dict) -> list[str] | None:

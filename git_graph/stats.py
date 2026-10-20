@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .gitio import ALL_BUT_STASH, RS, git
+from .gitio import ALL_BUT_STASH, RS, git, stash_list
 
 
 def collect_stats(limit: int | None) -> dict[str, dict]:
@@ -18,7 +18,7 @@ def collect_stats(limit: int | None) -> dict[str, dict]:
     args = ["log", *ALL_BUT_STASH, "--date-order", *opts]
     if limit:
         args.append(f"-{limit}")
-    stashes = git("stash", "list", *opts)
+    stashes = stash_list(*opts)
     raw = git(*args) + stashes
 
     stats: dict[str, dict] = {}
