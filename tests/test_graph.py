@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+from unittest import mock
 
 from helpers import HomeTestCase, git_in
 
@@ -147,6 +148,68 @@ class GraphTest(HomeTestCase):
         self.assertEqual(lane["On feat: wt"], wt_lane + 1)
         owner = {c["subject"]: c["owner"] for c in data["commits"] if c.get("stash")}
         self.assertEqual(owner, {"On feat: wt": wt, "On main: fo": data["meta"]["worktrees"][0]["slug"]})
+
+class BinarySizeTest(HomeTestCase):
+    """A bináris fájl sora a méretet adja (`size`: [régi, új] bájtban, a hiányzó oldal `None`),
+    ugyanazokról az oldalakról, ahonnan a diff is számol."""
+
+    def commit_bytes(self, repo, msg: str, **files: bytes | None) -> str:
+        for name, data in files.items():
+            path = repo / name.replace("__", ".")
+            if data is None:
+                git_in(repo, "rm", "-q", str(path))
+            else:
+                path.write_bytes(data)
+                git_in(repo, "add", str(path))
+        git_in(repo, "commit", "-qm", msg)
+        return git_in(repo, "rev-parse", "HEAD").strip()
+
+    def sizes(self, data: dict, sha: str) -> dict:
+        return {f["path"]: f.get("size") for f in data["stats"][sha]["files"] if f["bin"]}
+
+    def test_commit_sizes(self) -> None:
+        """Hozzáadott, törölt, módosított és azonos méretű bináris fájl a commitban; a szöveges
+        fájl nem kap méretet."""
+        repo = self.plain_repo()
+        add = self.commit_bytes(repo, "add", logo__png=b"\0" * 12288, doc__pdf=b"\0" * 3145728,
+                                same__png=b"\0" * 100, mod__png=b"\0" * 12390)
+        mod = self.commit_bytes(repo, "mod", mod__png=b"\1\0" * 7116 + b"\1", same__png=b"\0\1" * 50)
+        gone = self.commit_bytes(repo, "del", logo__png=None)
+        gg = self.load()
+        gg.gitio.set_repo(repo)
+        data = gg.graph.collect_payload(None)
+        self.assertEqual(self.sizes(data, add), {"doc.pdf": [None, 3145728], "logo.png": [None, 12288],
+                                                 "mod.png": [None, 12390], "same.png": [None, 100]})
+        self.assertEqual(self.sizes(data, mod), {"mod.png": [12390, 14233], "same.png": [100, 100]})
+        self.assertEqual(self.sizes(data, gone), {"logo.png": [12288, None]})
+        self.assertFalse([f for st in data["stats"].values() for f in st["files"] if not f["bin"] and "size" in f])
+
+    def test_pending_sizes(self) -> None:
+        """A stage-elt sor a HEAD-hez, a nem commitolt az indexhez méri; a követetlen bináris fájl
+        új fájl. Egy `graph_data`-n belül a méretekhez egy `cat-file --batch-check` fut."""
+        repo = self.plain_repo()
+        self.commit_bytes(repo, "add", b__png=b"\0" * 2000)
+        (repo / "b.png").write_bytes(b"\0" * 1800)
+        git_in(repo, "add", "b.png")
+        (repo / "b.png").write_bytes(b"\0\2" * 795)
+        (repo / "u.png").write_bytes(b"\xff\0" * 32)
+        gg = self.load()
+        gg.gitio.set_repo(repo)
+        calls = []
+        run = gg.gitio.subprocess.run
+
+        def spy(args, **kw):
+            if "--batch-check" in args and "png" in (kw.get("input") or ""):
+                calls.append(args)
+            return run(args, **kw)
+
+        with mock.patch.object(gg.gitio.subprocess, "run", spy):
+            data = gg.graph.collect_payload(None)
+        slug = data["meta"]["worktrees"][0]["slug"]
+        self.assertEqual(self.sizes(data, f"*staged:{slug}"), {"b.png": [2000, 1800]})
+        self.assertEqual(self.sizes(data, f"*uncommitted:{slug}"), {"b.png": [1800, 1590], "u.png": [None, 64]})
+        self.assertEqual(len(calls), 1)
+
 
 class WorktreeListTest(HomeTestCase):
     def test_worktree_order(self) -> None:

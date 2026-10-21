@@ -12,7 +12,7 @@ from .branches import branch_tracks, collect_branches
 from .gitio import ALL_BUT_STASH, FS, RS, default_base, git, numstat_new_path, remotes, repo_name, repo_url, stash_list
 from .lanes import assign_lanes, worktree_lanes_last, worktree_stubs
 from .page import attach_icons
-from .stats import collect_stats
+from .stats import collect_stats, mark_sizes
 from .worktrees import collect_uncommitted, collect_worktrees, worktree_meta
 
 
@@ -234,6 +234,7 @@ def collect_payload(limit: int | None) -> dict:
         if wt["main"]:                    # a fő checkout csúcsa: a felső ál-sora, vagy a HEAD-je
             trunk = pending[0][0]["sha"] if pending else wt["head"]
 
+    mark_sizes(stats)
     edges = assign_lanes(commits, trunk)
     worktree_lanes_last(commits, edges, worktrees)
     worktree_stubs(commits, edges, worktrees)

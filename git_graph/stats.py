@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .gitio import ALL_BUT_STASH, RS, git, stash_list
+from .gitio import ALL_BUT_STASH, RS, git, numstat_new_path, numstat_old_path, stash_list
 
 
 def collect_stats(limit: int | None) -> dict[str, dict]:
@@ -29,8 +29,12 @@ def collect_stats(limit: int | None) -> dict[str, dict]:
         lines = block.strip().splitlines()
         sha, *parents = lines[0].split()
         stats[sha] = numstat_files(lines[1:])
+        # A bináris fájl mérete (`mark_sizes`): az első szülőben és a commitban.
         # Új mappa: az első szülőben nem volt; törölt: a commitban már nincs.
         for f in stats[sha]["files"]:
+            if f["bin"]:
+                f["size"] = [None if f.get("status") == "A" or not parents else [f"{parents[0]}:{numstat_old_path(f['path'])}"],
+                             None if f.get("status") == "D" else [f"{sha}:{numstat_new_path(f['path'])}"]]
             if f.get("status") == "D":
                 checks.append((f, sha))
             elif f.get("status") == "A":
@@ -68,6 +72,9 @@ def untracked_stashed(stashes: str, stats: dict[str, dict]) -> list[tuple[dict, 
         lines = block.strip().splitlines()
         stash, base = owner[lines[0].strip()]
         extra = numstat_files(lines[1:])
+        for f in extra["files"]:
+            if f["bin"]:
+                f["size"] = [None, [f"{lines[0].strip()}:{f['path']}"]]
         st = stats[stash]
         st["files"] += extra["files"]
         st["add"] += extra["add"]
@@ -100,6 +107,30 @@ def mark_dirs(checks: list[tuple[dict, str]], missing: set[str]) -> None:
                 break
 
 
+def mark_sizes(stats: dict[str, dict]) -> None:
+    """A bináris fájlok mérete (`size`: [régi, új] bájtban, a hiányzó oldal `None`). A
+    `collect_stats` és a WIP-sorok oldalanként a forrást teszik a `size`-ba: objektumnevek
+    listája (`<rev>:<út>` vagy blob), az első meglévő számít, vagy a lemez fájlja (`Path`).
+    Az objektumok mérete az összes sorra egyetlen `cat-file --batch-check`-kel (a
+    worktree-k objektumtára közös)."""
+    sides = [f["size"] for st in stats.values() for f in st["files"] if "size" in f]
+    names = sorted({n for side in sides for spec in side if isinstance(spec, list) for n in spec if "\n" not in n})
+    found = {}
+    if names:
+        out = git("cat-file", "--batch-check", stdin="\n".join(names) + "\n").splitlines()
+        found = {n: int(line.rsplit(" ", 1)[1]) for n, line in zip(names, out) if not line.endswith(" missing")
+                 and line.rsplit(" ", 1)[1].isdigit()}
+    for side in sides:
+        for i, spec in enumerate(side):
+            if isinstance(spec, Path):
+                try:
+                    side[i] = spec.stat().st_size
+                except OSError:
+                    side[i] = None
+            elif spec is not None:
+                side[i] = next((found[n] for n in spec if n in found), None)
+
+
 SUMMARY_RE = re.compile(r"^ (create|delete) mode \d+ (.+)$")
 SUMMARY_STATUS = {"create": "A", "delete": "D"}
 
@@ -110,6 +141,8 @@ def numstat_files(lines: list[str]) -> dict:
     files, status = [], {}
     added = deleted = 0
     for line in lines:
+        if line.startswith(":"):                    # a `--raw` sora (a WIP-soroké): `raw_blobs`
+            continue
         m = SUMMARY_RE.match(line)
         if m:
             status[m.group(2)] = SUMMARY_STATUS[m.group(1)]

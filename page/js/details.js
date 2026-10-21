@@ -12,7 +12,16 @@ import { fitPanel, followPending, revealCommit } from './panel.js';
 import { commitUrl, fileUrl, linkify } from './refs.js';
 import { rowOf, select } from './scroll.js';
 import { DATA, expanded, setExpanded, visible } from './state.js';
-import { esc, ghLink, menuOpen } from './util.js';
+import { esc, fmtBytes, ghLink, menuOpen } from './util.js';
+
+// A bináris fájl mérete (`size`: [régi, új], a hiányzó oldal `null`): az új +méret, a
+// törölt −méret, a változott az előjeles különbség (±0 B semleges); méret nélkül `bin`.
+const sizeHtml = size => {
+  if (!size || (size[0] == null && size[1] == null)) return '<span class="tag">bin</span>';
+  const d = (size[1] ?? 0) - (size[0] ?? 0);
+  return d > 0 ? `<span class="a">+${fmtBytes(d)}</span>` : d < 0 ? `<span class="d">−${fmtBytes(-d)}</span>`
+    : '<span class="tag">±0 B</span>';
+};
 
 // A fájl útja: a mappa halványabban, a fájlnév teljes színnel.
 // A `from` utáni mappa-előtag új / törölt (`dirFrom`): a fájlnévvel együtt színes.
@@ -88,7 +97,7 @@ export function open(sha, animate = false) {
       ${st.files.map(f => `<div class="file" tabindex="-1" data-path="${esc(f.path)}" aria-expanded="false">
         <span class="chev">${icon('chev')}</span>${fileIcon(f)}
         <span class="path${f.status === 'A' ? ' added' : f.status === 'D' ? ' deleted' : ''}">${pathHtml(f.path, f.dirFrom)}</span>
-        <span class="churn">${f.bin ? '<span class="tag">bin</span>'
+        <span class="churn">${f.bin ? sizeHtml(f.size)
           : `${f.add ? `<span class="a">+${f.add}</span>` : ''}${f.del ? `<span class="d">−${f.del}</span>` : ''}${bars(f)}`}</span>
         ${c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : '<span></span>'}</div>
         <div class="diff" hidden></div>`).join('')}

@@ -18,6 +18,7 @@ from .stats import dir_prefixes, mark_dirs, missing_trees, numstat_files
 UNCOMMITTED = "*uncommitted"
 STAGED = "*staged"
 UNCOMMITTED_RE = re.compile(r"^\*(uncommitted|staged)(?::([a-z0-9-]+))?$")
+DIFF_OPTS = ("--numstat", "--summary", "--raw", "--no-abbrev")   # a `--raw`: a bináris fájlok mérete (`blob_sizes`)
 RENAME_MIN = 0.5            # a git `-M` alapküszöbe: ennyi közös tartalom már átnevezés
 RENAME_MAX_CELLS = 2000     # e fölött (törölt × követetlen) nincs párosítás — egy friss build-mappa ne lassítson
 
@@ -152,6 +153,7 @@ def collect_uncommitted(wt: dict) -> list[tuple[dict, dict]]:
     parent = wt["head"]
     if any(line[0] not in " ?" for line in status):      # az X oszlop: az index változása
         st = numstat_files(wt["staged"].splitlines())
+        blob_sizes(st["files"], raw_blobs(wt["staged"]), None)
         mark_new_dirs(wt, st["files"])
         mark_gone_dirs(wt, st["files"])
         rows.append(pending_row(wt, STAGED, "Stage-elt változások", parent, st))
@@ -165,6 +167,7 @@ def unstaged_stats(wt: dict, status: list[str]) -> dict:
     """A még nem stage-elt változások (index → munkakönyvtár) fájlonként, a követetlenekkel."""
     st = numstat_files(wt["unstaged"].splitlines())
     files = st["files"]
+    blob_sizes(files, raw_blobs(wt["unstaged"]), wt["path"])
 
     # A követetlen fájlokat a diff nem látja: a soraik száma a fájlból jön, és a
     # helyükre kerülnek (a git útvonal szerint rendez), nem a lista aljára.
@@ -182,11 +185,42 @@ def unstaged_stats(wt: dict, status: list[str]) -> dict:
     for path in untracked:
         lines = untracked_lines(wt["path"] / path)
         files.append({"path": path, "add": lines or 0, "del": 0, "bin": lines is None, "status": "A"})
+        if lines is None:
+            files[-1]["size"] = [None, wt["path"] / path]
         st["add"] += lines or 0
     files.sort(key=lambda f: numstat_new_path(f["path"]))
     mark_new_dirs(wt, files)
     mark_gone_dirs(wt, files)
     return st
+
+
+NO_BLOB = re.compile(r"^0+$")
+
+
+def raw_blobs(raw: str) -> dict[str, tuple[str, str]]:
+    """A `git diff --raw` sorai: az új út → (régi blob, új blob); a csupa nulla: azon az
+    oldalon nincs (a nem stage-elt diff új oldalán: a munkakönyvtár fájlja)."""
+    out = {}
+    for line in raw.splitlines():
+        if line.startswith(":"):
+            head, *paths = line.split("\t")
+            cols = head.split()
+            if len(cols) >= 4 and paths:
+                out[paths[-1]] = (cols[2], cols[3])
+    return out
+
+
+def blob_sizes(files: list[dict], blobs: dict[str, tuple[str, str]], disk: Path | None) -> None:
+    """A bináris fájl `size`-forrásai (`mark_sizes`) a diff két oldalának blobjából;
+    `disk`: az új oldal a munkakönyvtár fájlja (a nem stage-elt diff)."""
+    for f in files:
+        path = numstat_new_path(f["path"])
+        if not f["bin"] or path not in blobs:
+            continue
+        old, new = blobs[path]
+        f["size"] = [None if NO_BLOB.match(old) else [old],
+                     None if f.get("status") == "D" else (disk / path if disk and NO_BLOB.match(new) else
+                                                          None if NO_BLOB.match(new) else [new])]
 
 
 def mark_new_dirs(wt: dict, files: list[dict]) -> None:
@@ -254,8 +288,8 @@ def collect_worktrees(repo: Path | None = None) -> list[dict]:
         try:
             wt["status"] = [line for line in git("status", "--porcelain", "--untracked-files=all", repo=wt["path"])
                             .splitlines() if line.strip()]
-            wt["staged"] = git("diff", "--cached", "--numstat", "--summary", repo=wt["path"]) if wt["head"] else ""
-            wt["unstaged"] = git("diff", "--numstat", "--summary", repo=wt["path"]) if wt["head"] else ""
+            wt["staged"] = git("diff", "--cached", *DIFF_OPTS, repo=wt["path"]) if wt["head"] else ""
+            wt["unstaged"] = git("diff", *DIFF_OPTS, repo=wt["path"]) if wt["head"] else ""
         except subprocess.CalledProcessError:
             wt["gone"] = True
 

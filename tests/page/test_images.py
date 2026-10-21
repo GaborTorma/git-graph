@@ -1,6 +1,7 @@
 """Képek a diffben (#53): a képfájl és a markdown-kép képként, a Mermaid-diagramok páros
 elrendezésében; új / törölt kép bal csíkkal, a változott pár színes kerettel, sakktábla, a
-túl nagy kép mérete, az SVG kódnézete, és a markdown-kép oldalanként a saját változatából."""
+túl nagy kép mérete, az SVG kódnézete, és a markdown-kép oldalanként a saját változatából.
+A bináris fájl sora a méretét mutatja (#54)."""
 from __future__ import annotations
 
 import struct
@@ -207,6 +208,46 @@ class ImagesTest(PageTestCase):
             ".row.uncommitted").first.get_attribute("data-sha"), path="docs/README.md", image="img/graph.png")
         self.assertEqual(srcs, [sides["old"]["uri"], sides["new"]["uri"]])
         self.assertNotEqual(*srcs)
+
+
+SIZES = {
+    "add.png": (None, b"\0\2" * 6144),
+    "del.png": (b"\0\3" * 6144, None),
+    "grow.png": (b"\0" * 12390, b"\0\1" * 7116 + b"\0"),
+    "shrink.png": (b"\0" * 2000, b"\0\1" * 795),
+    "same.png": (b"\0\4" * 250, b"\0\5" * 250),
+    "doc.pdf": (None, b"\0" * 3145728),
+}
+
+
+class SizeTest(PageTestCase):
+    """A bináris fájl sora a `bin` címke helyett a méretet vagy a méretváltozást mutatja."""
+    SUBJECT = "méret"
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        for side, msg in ((0, cls.SUBJECT), (1, f"{cls.SUBJECT}: módosítva")):
+            for name, versions in SIZES.items():
+                if versions[side] is None:
+                    (repo / name).unlink(missing_ok=True)
+                else:
+                    (repo / name).write_bytes(versions[side])
+            git_in(repo, "add", "-A")
+            git_in(repo, "commit", "-qm", msg)
+
+    def test_labels(self) -> None:
+        """Méretfelirat: előjeles különbség, + zöld, − piros, ±0 semleges."""
+        self.page.locator("#rows .row", has_text=f"{self.SUBJECT}: módosítva").click()
+        self.settle()
+        got = self.page.locator(".details .file").evaluate_all(
+            """fs => Object.fromEntries(fs.map(f => { const c = f.querySelector('.churn > span');
+              return [f.dataset.path, [c.textContent, getComputedStyle(c).color]]; }))""")
+        colors = self.page.evaluate("""() => Object.fromEntries(['--add', '--del', '--fg-2'].map(v => {
+            const p = Object.assign(document.createElement('i'), { style: `color: var(${v})` });
+            document.querySelector('.details').append(p); const c = getComputedStyle(p).color; p.remove(); return [v, c]; }))""")
+        want = {"add.png": ("+12,0 KB", "--add"), "del.png": ("−12,0 KB", "--del"), "grow.png": ("+1,8 KB", "--add"),
+                "shrink.png": ("−410 B", "--del"), "same.png": ("±0 B", "--fg-2"), "doc.pdf": ("+3,0 MB", "--add")}
+        self.assertEqual(got, {k: [t, colors[c]] for k, (t, c) in want.items()})
 
 
 if __name__ == "__main__":
