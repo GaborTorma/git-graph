@@ -1,12 +1,12 @@
 /* ── Képek a diffben ──
-   A képfájl diffje (a `file_diff` `image`-e: a két oldal data URI-ja, az `IMAGE_MAX`
-   fölött csak a mérete — a CSP külső képet nem enged) és a markdown-nézet képei
-   (`![alt](út)`: a lap képenként kéri, a `file_diff` `image` argumentumával, oldalanként
-   a saját változatból). Az elrendezés a Mermaid-diagramoké (`.md-mmd-view`): az új vagy
-   törölt kép egyedül, balra, színes bal csíkkal; a változott pár a középvonalon
-   találkozik (a régi jobbra, az új balra igazítva), teljes színes kerettel, mindig
-   egymás mellett. A változatlan (pl. átnevezett) kép egyszer, semleges kerettel. Az
-   átlátszó kép mögött sakktábla (page.css).
+   A képfájl diffje (a két oldal data URI-ja, a `file_diff` `side`-dal oldalanként külön
+   hívásban, hogy egy válasz a host-híd határa alatt maradjon; az `IMAGE_MAX` fölött csak a
+   mérete — a CSP külső képet nem enged) és a markdown-nézet képei (`![alt](út)`: a lap
+   képenként kéri, az `image` argumentummal, oldalanként a saját változatából). Az új vagy
+   törölt kép egyedül, középen (a markdown-nézetben balra), színes bal csíkkal; a változott
+   pár a középvonalon találkozik (a régi jobbra, az új balra igazítva), teljes színes
+   kerettel, mindig egymás mellett. A változatlan (pl. átnevezett) kép egyszer, semleges
+   kerettel. Az átlátszó kép mögött sakktábla (page.css).
 
    A kép legfeljebb természetes méretű, és a hasáb (a párnál a fél hasáb) szélességébe és
    a panel látható magasságába illeszkedik (`layout`). A változott pár három nézetben
@@ -27,6 +27,8 @@ const LOW = 200;             // ennél alacsonyabb képnél a sáv a kép alatt 
 const FULL_PAD = 24;         // a teljes lapos nézet margója
 const FULL_BAR = 56;         // ... és a sávnak hagyott hely alul
 const MODES = { sbs: 'Side-by-side', swipe: 'Swipe', onion: 'Onion skin' };
+const MODE_KEYS = { sbs: '2', swipe: 'S', onion: 'O' };   // a teljes lapos nézet billentyűi
+const BAR_GAP = 12;          // a sáv és a kép alja között
 
 /* A választott nézet: közös, a lap megjegyzi (mint az `svgCode`). */
 const MODE_KEY = 'git-graph:imgMode';
@@ -50,10 +52,10 @@ function figHtml(side, cls, alt) {
 /* A sáv: a nézetek (csak a két képpel változott párnál), Onion skinnél az áttetszőség,
    a zoom és a teljes lapos nézet; a teljes lapos nézetben a bezárás. */
 const barHtml = (modes, tag = 'div') => `<${tag} class="img-bar">${modes ? Object.entries(MODES).map(([m, label]) =>
-  `<button class="mini" data-img-mode="${m}" title="${label}">${icon(`img-${m}`)}</button>`).join('')
+  `<button class="mini" data-img-mode="${m}" title="${label} (${MODE_KEYS[m]})">${icon(`img-${m}`)}</button>`).join('')
   + '<input class="img-opacity" type="range" min="0" max="100" step="1" title="Áttetszőség">' : ''
-}<button class="mini" data-img-zoom="-1" title="Kicsinyítés">${icon('minus')}</button><span class="img-pct"></span
-><button class="mini" data-img-zoom="1" title="Nagyítás">${icon('plus')}</button
+}<button class="mini" data-img-zoom="-1" title="Kicsinyítés (−)">${icon('minus')}</button><span class="img-pct"></span
+><button class="mini" data-img-zoom="1" title="Nagyítás (+)">${icon('plus')}</button
 ><button class="mini" data-img-full title="Teljes lapos nézet">${icon('expand')}</button
 ><button class="mini" data-img-close title="Bezárás (Esc)">${icon('close')}</button></${tag}>`;
 
@@ -90,20 +92,26 @@ function stateOf(view) {
 }
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-/* A kép helye: a hasáb szélessége és a panel látható magassága a fájlsor alatt (a
-   `fitPanel` a panel legnagyobb magasságát írja ki), a teljes lapos nézetben az ablak. */
+/* A kép helye: a hasáb szélessége és a panel látható magassága a fájlsor alatt, a diff dobozának
+   keretén belül, úgy, hogy a következő fájl sora is látsszon (a `fitPanel` a panel legnagyobb
+   magasságát írja ki); a teljes lapos nézetben az ablak. */
 function room(view) {
   const full = view.closest('.img-full');
   if (full) return { w: full.clientWidth - 2 * FULL_PAD, h: full.clientHeight - FULL_PAD - FULL_BAR };
   const w = view.classList.contains('img-inline') ? view.parentElement.clientWidth : view.clientWidth;
   const panel = view.closest('.details');
   if (!panel) return { w, h: innerHeight };
-  const cs = getComputedStyle(panel);
-  const file = /** @type {HTMLElement} */ (view.closest('.diff')?.previousElementSibling);
-  const vs = getComputedStyle(view);
-  const h = (parseFloat(panel.style.maxHeight) || panel.clientHeight) - parseFloat(cs.paddingTop)
-    - parseFloat(cs.paddingBottom) - parseFloat(cs.borderTopWidth) - parseFloat(cs.borderBottomWidth)
-    - (file?.offsetHeight || 0) - parseFloat(vs.marginTop) - parseFloat(vs.marginBottom);
+  const box = /** @type {HTMLElement} */ (view.closest('.diff'));
+  const next = /** @type {HTMLElement} */ (box?.nextElementSibling);   // a következő fájl sora: látsszon
+  const frame = el => {
+    const cs = getComputedStyle(el);
+    return parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+  };
+  const bs = box && getComputedStyle(box), vs = getComputedStyle(view);
+  const h = (parseFloat(panel.style.maxHeight) || panel.clientHeight) - frame(panel)
+    - (/** @type {HTMLElement} */ (box?.previousElementSibling)?.offsetHeight || 0)
+    - (box ? frame(box) + parseFloat(bs.marginTop) + (next ? parseFloat(bs.marginBottom) + next.offsetHeight : 0) : 0)
+    - parseFloat(vs.marginTop) - parseFloat(vs.marginBottom);
   return { w, h };
 }
 
@@ -196,7 +204,7 @@ function placeBar(view) {
   const below = height < LOW && bottom + bar.offsetHeight + 6 <= limit;
   bar.classList.toggle('img-bar-below', below);
   Object.assign(bar.style, { left: `${(left + right) / 2}px`,
-    top: `${bottom + (below ? 4 : -bar.offsetHeight - 6)}px` });
+    top: `${bottom + (below ? 4 : -bar.offsetHeight - BAR_GAP)}px` });
 }
 
 /* Nagyítás `z`-re (a természetes mérethez képest; az illesztett alá nem) úgy, hogy a
@@ -211,12 +219,16 @@ function zoomTo(view, z, at = null) {
     const pane = at?.pane || [...view.querySelectorAll('.img-pane')].pop();
     const d = pane.dataset, x = at ? at.x : pane.clientWidth / 2, y = at ? at.y : pane.clientHeight / 2;
     const u = (x - +d.cl) / +d.cw, w = (y - +d.ct) / +d.ch, k = z / +d.s;   // a pane saját léptéke
-    // a pane is nő (legfeljebb a helyéig); a pár régi fele jobbra igazodik, balra nő
-    const pw = Math.floor(Math.min(st.maxW, +d.cw * k)), ph = Math.floor(Math.min(st.maxH, +d.ch * k));
-    const sx = x + (pane.closest('.img-pair:not(.img-over) > .img-half:first-child') ? pw - pane.clientWidth : 0);
-    st.cx = (pw / 2 - (sx - u * +d.cw * k)) / (+d.cw * k);
-    st.cy = (ph / 2 - (y - w * +d.ch * k)) / (+d.ch * k);
+    const r = pane.getBoundingClientRect(), px = r.left + x, py = r.top + y;   // a pont a lapon
+    st.cx = (pane.clientWidth / 2 - (x - u * +d.cw * k)) / (+d.cw * k);
+    st.cy = (pane.clientHeight / 2 - (y - w * +d.ch * k)) / (+d.ch * k);
     st.z = z;
+    layout(view);
+    // A pane is nő (legfeljebb a helyéig), és az igazítása szerint el is mozdul: a pont
+    // eltérését utólag a kivágásból vesszük le.
+    const r2 = pane.getBoundingClientRect(), d2 = pane.dataset;
+    st.cx += (r2.left + +d2.cl + u * +d2.cw - px) / +d2.cw;
+    st.cy += (r2.top + +d2.ct + w * +d2.ch - py) / +d2.ch;
   }
   layout(view);
 }
@@ -289,7 +301,7 @@ export function loadImages(root, get, changed = () => {}) {
 }
 
 /* ── Teljes lapos nézet ── a nézet másolata a lapot fedő rétegen, ugyanabban a nézetben,
-   illesztve; a sávja mindig látszik. Billentyűk: + − 0 1 S W O, ← → (Shift: 1%), Esc. */
+   illesztve; a sávja mindig látszik. Billentyűk: + − 0 1 2 S O, ← → (Shift: 1%), Esc. */
 let full = null;
 function openFull(view) {
   closeFull();
@@ -324,7 +336,7 @@ function fullKey(e) {
   else if (k === '-' || k === '−') zoomStep(view, -1);
   else if (k === '0') zoomTo(view, 0);
   else if (k === '1') zoomTo(view, 1);
-  else if (modes && /^[swo]$/i.test(k)) setImgMode({ s: 'sbs', w: 'swipe', o: 'onion' }[k.toLowerCase()]);
+  else if (modes && /^[2so]$/i.test(k)) setImgMode({ 2: 'sbs', s: 'swipe', o: 'onion' }[k.toLowerCase()]);
   else if ((k === 'ArrowRight' || k === 'ArrowLeft') && modes && imgMode !== 'sbs') {
     const key = imgMode === 'swipe' ? 'swipe' : 'onion';
     st[key] = clamp(st[key] + (k === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 1 : 10), 0, 100);
@@ -333,9 +345,9 @@ function fullKey(e) {
   e.preventDefault();
 }
 
-/* ── Egér ── a sáv gombjai, ⌘/Ctrl+görgő (a teljes lapos nézetben a sima görgő is), a
-   húzás: a Swipe vonalán a vonal, nagyított képen a kivágás; a kattintás Swipe-ban a
-   vonalat odaugratja. A sima görgő a diffben a panelé (`stepRows`). */
+/* ── Egér ── a sáv gombjai, a teljes lapos nézetben a görgő, a húzás: a Swipe vonalán a
+   vonal, nagyított képen a kivágás; a kattintás Swipe-ban a vonalat odaugratja. A diffben a
+   görgő nem nagyít: a sima a panelé (`stepRows`), a ⌘/Ctrl+görgőt a Claude app elkapja. */
 const viewOf = el => /** @type {HTMLElement} */ (el.closest?.('.img-view'));
 document.addEventListener('click', e => {
   const t = /** @type {HTMLElement} */ (e.target), view = viewOf(t);
@@ -362,7 +374,7 @@ document.addEventListener('pointerover', e => {
 document.addEventListener('scroll', () => { if (hovered) placeBar(hovered); }, true);
 document.addEventListener('wheel', e => {
   const t = /** @type {HTMLElement} */ (e.target), pane = /** @type {HTMLElement} */ (t.closest?.('.img-pane'));
-  if (!pane || !(e.ctrlKey || e.metaKey || t.closest('.img-full'))) return;
+  if (!pane || !t.closest('.img-full')) return;
   e.preventDefault();
   const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
   const view = viewOf(pane), st = stateOf(view);
@@ -378,6 +390,9 @@ document.addEventListener('pointerdown', e => {
   const fig = () => halvesOf(view)[1].firstElementChild.getBoundingClientRect();
   const setLine = x => { const f = fig(); st.swipe = clamp(Math.round((x - f.left) / f.width * 100), 0, 100); blend(view); };
   const x0 = e.clientX, y0 = e.clientY;
+  // húzás közben a kurzor a lap egészén ugyanaz (a vonalról, a képről lecsúszva se ugráljon)
+  const cursor = line || (swipe && !st.z) ? 'img-drag-ew' : st.z ? 'img-drag-grab' : '';
+  if (cursor) document.documentElement.classList.add(cursor);
   let moved = false, px = x0, py = y0, frame = 0;
   const move = ev => {
     if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 3) return;
@@ -395,9 +410,12 @@ document.addEventListener('pointerdown', e => {
   const up = ev => {
     removeEventListener('pointermove', move);
     removeEventListener('pointerup', up);
+    removeEventListener('pointercancel', up);
+    if (cursor) document.documentElement.classList.remove(cursor);
     if (frame) { cancelAnimationFrame(frame); frame = 0; layout(view); }
-    if (!moved && swipe && !line) setLine(ev.clientX);
+    if (!moved && swipe && !line && ev.type === 'pointerup') setLine(ev.clientX);
   };
   addEventListener('pointermove', move);
   addEventListener('pointerup', up);
+  addEventListener('pointercancel', up);
 });

@@ -78,6 +78,7 @@ class ImageFixture(PageTestCase):
             "icon.svg": (SVG_OLD, SVG_NEW),
             "photo.jpg": (None, b"\xff\xd8\xff" + b"\0" * int(3.5 * 1048576)),
             "big.png": (noise_png(790, 790), noise_png(790, 790)),
+            "zzz-magas.png": (None, png(400, 2000, BLUE)),
             "regi-nev.png": (png(20, 20, RED), None),
             "uj-nev.png": (None, png(20, 20, RED)),
             "docs/img/graph.png": (png(50, 30, RED), png(50, 30, BLUE)),
@@ -150,17 +151,18 @@ class ImagesTest(ImageFixture):
             f"""v => {{ const f = v.querySelector('.img-fig'), s = getComputedStyle(f);
               const probe = Object.assign(document.createElement('i'), {{ style: 'color: var({color})' }});
               f.append(probe); const c = getComputedStyle(probe).color; probe.remove();
-              return [f.getBoundingClientRect().left - v.getBoundingClientRect().left,
+              const r = f.getBoundingClientRect(), w = v.getBoundingClientRect();
+              return [(r.left + r.width / 2) - (w.left + w.width / 2),
                       s.borderLeftWidth + ' ' + s.borderLeftColor, '3px ' + c]; }}""")
-        self.assertEqual(gap, 0)
+        self.assertLessEqual(abs(gap), 1)                 # középen (#54)
         self.assertEqual(stripe, want)
 
     def test_added(self) -> None:
-        """R-1 — Az új kép egyedül, balra, zöld bal csíkkal."""
+        """R-1 — Az új kép egyedül, középen, zöld bal csíkkal."""
         self.added_or_deleted("uj.png", "img-add img-whole", "--add")
 
     def test_deleted(self) -> None:
-        """R-1 — A törölt kép egyedül, balra, piros bal csíkkal."""
+        """R-1 — A törölt kép egyedül, középen, piros bal csíkkal."""
         self.added_or_deleted("torolt.png", "img-del img-whole", "--del")
 
     def test_changed_pair(self) -> None:
@@ -274,13 +276,25 @@ class FitTest(ImageFixture):
             self.assertLessEqual(img["h"], panel["h"] - file["h"], img)
 
     def test_tall(self) -> None:
-        """Magas kép: arányosan kicsinyedik, és a fájlsor alatt görgetés nélkül teljesen látszik."""
+        """Magas kép: arányosan kicsinyedik; a fájlsor, a teljes diff-doboz és a következő fájl
+        sora görgetés nélkül látszik."""
         self.open_image("tall.png")
         img, panel, file = self.rect(".diff img"), self.rect(".details"), self.rect(".details .file[aria-expanded=true]")
         self.assertLess(img["h"], 2000)
         self.assertAlmostEqual(img["w"] / img["h"], 0.2, delta=0.01)
         self.assertGreaterEqual(file["t"], panel["t"] - 1)
-        self.assertLessEqual(img["b"], panel["b"] + 1)
+        box = self.rect(".diff:not([hidden])")
+        after = self.page.locator(".details .file[aria-expanded=true] + .diff + .file").evaluate(
+            "f => f.getBoundingClientRect().bottom")
+        self.assertLessEqual(box["b"], panel["b"] + 1)
+        self.assertLessEqual(after, panel["b"] + 1)
+
+    def test_tall_last(self) -> None:
+        """Magas kép az utolsó fájlban: a panel aljáig nőhet, a diff-doboz teljesen látszik."""
+        self.open_image("zzz-magas.png")
+        panel, box = self.rect(".details"), self.rect(".diff:not([hidden])")
+        self.assertLessEqual(box["b"], panel["b"] + 1)
+        self.assertGreater(box["b"], panel["b"] - 30)
 
     def test_small(self) -> None:
         """Kis kép: 16×16 px-es marad."""
@@ -309,6 +323,36 @@ class FitTest(ImageFixture):
             self.assertLessEqual(self.rect(".diff .md-pic .img-view img", i)["w"], view["w"] / 2)
         panel, file = self.rect(".details"), self.rect(".details .file[aria-expanded=true]")
         self.assertLessEqual(self.rect(".diff .md-pic .img-view img", 1)["h"], panel["h"] - file["h"])
+
+
+class CenterTest(ImageFixture):
+    """A képfájl diffjében a kép középen áll; a markdown-nézet képei a helyükön maradnak."""
+
+    def centered(self, i: int = 0) -> None:
+        fig, view = self.rect(".diff:not([hidden]) .img-view > .img-half > .img-fig", i), self.rect(".diff:not([hidden]) .img-view")
+        self.assertAlmostEqual(fig["l"] + fig["w"] / 2, view["l"] + view["w"] / 2, delta=1)
+
+    def test_single(self) -> None:
+        """Egy kép (új, törölt, változatlan) és a fedő nézet: vízszintesen középen."""
+        for name in ("uj.png", "torolt.png", "uj-nev.png"):
+            with self.subTest(name):
+                self.open_image(name)
+                self.centered()
+                self.page.locator(".details .file", has_text=name).click()
+                self.settle()
+        self.open_image("logo.png")
+        for name in ("swipe", "onion"):
+            self.mode(name)
+            self.centered()
+
+    def test_markdown(self) -> None:
+        """A markdown-nézet egyedül álló képe a szöveg bal szélénél marad (a pár a középvonalon, mint eddig)."""
+        self.open_file("README.md")
+        self.page.wait_for_selector(".diff-uni .md-pic .img-fig")
+        self.settle()
+        view = self.rect(".diff-uni .md-pic >> nth=1")
+        self.assertAlmostEqual(self.rect(".diff-uni .md-pic >> nth=1 >> .img-fig")["l"], view["l"], delta=20)
+        self.assertLess(self.rect(".diff-uni .md-pic >> nth=1 >> .img-fig")["l"], view["l"] + view["w"] / 4)
 
 
 class SideBySideTest(ImageFixture):
@@ -365,6 +409,28 @@ class SwipeTest(ImageFixture):
         self.settle()
         line = self.rect(".diff .img-line")
         self.assertAlmostEqual(line["l"] + line["w"] / 2, fig["l"] + fig["w"] * 0.7, delta=1.5)
+
+
+    def cursor(self, sel: str) -> str:
+        return self.page.locator(sel).first.evaluate("e => getComputedStyle(e).cursor")
+
+    def test_cursor(self) -> None:
+        """Kurzor: nagyítatlan képen és húzás közben végig ew-resize; nagyítva a kép grab."""
+        self.open_image("logo.png")
+        self.mode("swipe")
+        self.assertEqual(self.cursor(".diff .img-pane >> nth=1"), "ew-resize")
+        line, fig = self.rect(".diff .img-line"), self.rect(".diff .img-fig")
+        self.page.mouse.move(line["l"] + line["w"] / 2, fig["t"] + fig["h"] / 2)
+        self.page.mouse.down()
+        self.page.mouse.move(fig["r"] + 60, fig["b"] + 30, steps=4)          # a képen kívülre is
+        self.assertEqual(self.page.evaluate("getComputedStyle(document.elementFromPoint("
+                                            f"{fig['r'] + 60}, {fig['b'] + 30})).cursor"), "ew-resize")
+        self.page.mouse.up()
+        self.settle()
+        self.assertNotEqual(self.page.evaluate("getComputedStyle(document.body).cursor"), "ew-resize")
+        self.zoom_in(1)
+        self.assertEqual(self.cursor(".diff .img-pane >> nth=1"), "grab")
+        self.assertEqual(self.cursor(".diff .img-line"), "ew-resize")
 
 
 class OnionTest(ImageFixture):
@@ -453,9 +519,15 @@ class BarTest(ImageFixture):
         bar, view = self.rect(".diff .img-bar"), self.rect(".diff .img-view")
         fig = self.rect(".diff .img-fig", 1)
         self.assertAlmostEqual(bar["l"] + bar["w"] / 2, view["l"] + view["w"] / 2, delta=2)
-        self.assertLessEqual(bar["b"], fig["b"])
-        self.assertGreater(bar["b"], fig["b"] - 20)
+        self.assertAlmostEqual(bar["b"], fig["b"] - 12, delta=1)
         self.assertEqual(self.rect(".diff .img-view img", 1), before)
+
+    def test_titles(self) -> None:
+        """Súgó: a gombok súgójában a teljes lapos nézet billentyűje is áll."""
+        self.open_image("logo.png")
+        titles = self.page.locator(".diff .img-bar button").evaluate_all("bs => bs.map(b => b.title)")
+        self.assertEqual(titles, ["Side-by-side (2)", "Swipe (S)", "Onion skin (O)", "Kicsinyítés (−)",
+                                  "Nagyítás (+)", "Teljes lapos nézet", "Bezárás (Esc)"])
 
     def test_low(self) -> None:
         """Alacsony kép: a sáv a kép alatt lebeg, nem takarja, a kép nem mozdul."""
@@ -555,22 +627,14 @@ class ZoomTest(ImageFixture):
         self.zoom_in(6)
         self.assertEqual(self.pct(), "1600%")
 
-    def test_ctrl_wheel_and_drag(self) -> None:
-        """⌘/Ctrl+görgő a mutató körül nagyít; nagyított képen a húzás mozgatja a kivágást."""
+    def test_drag(self) -> None:
+        """Húzás a diffben: nagyított képen a kivágás a húzással mozog."""
         self.open_image("logo.png")
+        self.zoom_in(2)
         pane = self.rect(".diff .img-pane >> nth=1")
-        x, y = pane["l"] + pane["w"] * 0.25, pane["t"] + pane["h"] * 0.25
+        x, y = pane["l"] + pane["w"] / 2, pane["t"] + pane["h"] / 2
         img = self.rect(".diff .img-view img", 1)
-        u = ((x - img["l"]) / img["w"], (y - img["t"]) / img["h"])
         self.page.mouse.move(x, y)
-        self.page.keyboard.down("Control")
-        self.page.mouse.wheel(0, -200)
-        self.page.keyboard.up("Control")
-        self.settle()
-        self.assertGreater(int(self.pct().rstrip("%")), 100)
-        img = self.rect(".diff .img-view img", 1)
-        self.assertAlmostEqual((x - img["l"]) / img["w"], u[0], delta=0.02)
-        self.assertAlmostEqual((y - img["t"]) / img["h"], u[1], delta=0.02)
         self.page.mouse.down()
         self.page.mouse.move(x + 30, y + 20, steps=4)
         self.page.mouse.up()
@@ -578,6 +642,16 @@ class ZoomTest(ImageFixture):
         moved = self.rect(".diff .img-view img", 1)
         self.assertAlmostEqual(moved["l"] - img["l"], 30, delta=1)
         self.assertAlmostEqual(moved["t"] - img["t"], 20, delta=1)
+
+    def test_ctrl_wheel(self) -> None:
+        """⌘/Ctrl+görgő a diffben: a lap nem nagyít (az app elkapja)."""
+        self.open_image("icon.png")
+        self.hover_image()
+        self.page.keyboard.down("Control")
+        self.page.mouse.wheel(0, -200)
+        self.page.keyboard.up("Control")
+        self.settle()
+        self.assertEqual(self.pct(), "100%")
 
     def test_plain_wheel(self) -> None:
         """Sima görgő a képen: a panel görget, a nagyítás nem változik."""
@@ -672,8 +746,23 @@ class FullTest(ImageFixture):
         self.settle()
         self.assertEqual(self.page.locator(".img-full").count(), 0)
 
+    def test_wheel(self) -> None:
+        """Görgő a teljes lapos nézetben: a mutató körül nagyít."""
+        self.open_full()
+        pane = self.rect(".img-full .img-pane >> nth=1")
+        x, y = pane["l"] + pane["w"] * 0.25, pane["t"] + pane["h"] * 0.25
+        img = self.rect(".img-full .img-view img", 1)
+        u = ((x - img["l"]) / img["w"], (y - img["t"]) / img["h"])
+        self.page.mouse.move(x, y)
+        self.page.mouse.wheel(0, -400)
+        self.settle()
+        self.assertGreater(int(self.pct(".img-full .img-pct").rstrip("%")), 100)
+        img = self.rect(".img-full .img-view img", 1)
+        self.assertAlmostEqual((x - img["l"]) / img["w"], u[0], delta=0.02)
+        self.assertAlmostEqual((y - img["t"]) / img["h"], u[1], delta=0.02)
+
     def test_keys(self) -> None:
-        """Billentyűk: + − 0 1 S W O, → 10%, Shift+→ 1%."""
+        """Billentyűk: + − 0 1 2 S O, → 10%, Shift+→ 1%; a W semmit nem tesz."""
         self.open_full()
         sel = ".img-full .img-pct"
         start = int(self.pct(sel).rstrip("%"))
@@ -688,7 +777,7 @@ class FullTest(ImageFixture):
         self.page.keyboard.press("1")
         self.assertEqual(self.pct(sel), "100%")
         view = self.page.locator(".img-full .img-view")
-        for key, mode in (("o", "onion"), ("w", "swipe"), ("s", "sbs"), ("W", "swipe")):
+        for key, mode in (("o", "onion"), ("w", "onion"), ("s", "swipe"), ("2", "sbs"), ("S", "swipe")):
             self.page.keyboard.press(key)
             self.assertEqual(view.get_attribute("data-mode"), mode, key)
         clip = "h => getComputedStyle(h).clipPath"
