@@ -37,7 +37,7 @@
 - [Nyitott hívás a hídon](host-bridge-long-poll.md) — a `changes` long-poll: sűrű kérdezés tilos (~20 gyors hívás után visszafog); a `signal` nem jut át
 - [Saját worktree: fókusz](focused-worktree-design.md) — az előtérben lévő sessioné (`focused_worktree`), kézzel nem választható
 - [Rejtett keret](host-bridge-hidden-frame.md) — rejtve `server_unavailable`, az időzítők állnak; megjelenéskor újrapróba
-- [Host-híd válaszmérete](host-bridge-response-size.md) — 3,67 MB átmegy, 5,08 MB „too large”
+- [Host-híd válaszmérete](host-bridge-response-size.md) — a határ ~4 000 000 karakter; képlimit ezért ~2,95 MB oldalanként
 - [Egy Artifact = egy keret](artifact-single-frame.md) — minden sessionben ugyanaz; `#horgony`, `?query` eldobva; republish újratölt
 - [Előtérben lévő session forrásai](app-focus-sources.md) — session-JSON `lastFocusedAt`, `main.log` `setFocusedSession`; nincs hook
 - [git-worktrees.json](app-worktrees-json.md) — a leválasztott HEAD-ű worktree ága az app nyilvántartásában
