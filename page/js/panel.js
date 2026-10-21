@@ -2,6 +2,7 @@
 import { glide } from './anim.js';
 import { OPEN_PANEL, pendingEl, scroller } from './dom.js';
 import { drawGraph } from './graph.js';
+import { fitImages } from './images.js';
 import { STEP_TOP } from './scroll.js';
 
 /* A kinyitott panel legfeljebb akkora, hogy a saját sora, ő maga és a
@@ -23,7 +24,11 @@ export function fitPanel() {
     room = scroller.clientHeight - STEP_TOP - /** @type {HTMLElement} */ (panel.previousElementSibling).offsetHeight
       - parseFloat(cs.marginTop) - parseFloat(cs.marginBottom) - near;
   }
-  panel.style.maxHeight = `${Math.max(PANEL_MIN, Math.floor(room))}px`;
+  const max = `${Math.max(PANEL_MIN, Math.floor(room))}px`;
+  if (panel.style.maxHeight !== max) {
+    panel.style.maxHeight = max;
+    fitImages(panel);                    // a kép a panel látható magasságába illeszkedik
+  }
   panel.scrollTop = keep;
 }
 new ResizeObserver(() => { fitPanel(); drawGraph(); }).observe(scroller);

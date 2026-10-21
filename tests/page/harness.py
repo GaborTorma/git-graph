@@ -135,9 +135,11 @@ class PageTestCase(unittest.TestCase):
         """Az osztály saját kiegészítése a fixture-történethez (alapból semmi)."""
 
     def open_file(self, name: str) -> None:
-        """A `commit_versions` módosító commitjában a `name` fájl diffje."""
-        self.page.locator("#rows .row", has_text=f"{self.SUBJECT}: módosítva").click()
-        self.settle()
+        """A `commit_versions` módosító commitjában a `name` fájl diffje (a commit nyitva marad)."""
+        row = self.page.locator("#rows .row", has_text=f"{self.SUBJECT}: módosítva")
+        if row.get_attribute("aria-expanded") != "true":
+            row.click()
+            self.settle()
         self.page.locator("#rows .details .file", has_text=name).click()
 
     @classmethod
@@ -173,9 +175,11 @@ class PageTestCase(unittest.TestCase):
 
     def settle(self) -> None:
         """Kivárja az animációkat (a `glide` görgetése rAF-fel fut: annak az ideje is) és a
-        méretfigyelők körét (két képkocka). A végtelen animáció (az élő-jel pulzálása) nem számít."""
+        méretfigyelők körét (két képkocka). A végtelen animáció (az élő-jel pulzálása) és a
+        befejezett (a csukott diff `fill`-es animációja) nem számít."""
         self.page.wait_for_function(
-            "!document.getAnimations().some(a => a.effect?.getComputedTiming().endTime !== Infinity)")
+            "!document.getAnimations().some(a => a.playState !== 'finished'"
+            " && a.effect?.getComputedTiming().endTime !== Infinity)")
         self.page.wait_for_timeout(250)
         self.page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
 

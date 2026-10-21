@@ -4,24 +4,58 @@
    (`![alt](út)`: a lap képenként kéri, a `file_diff` `image` argumentumával, oldalanként
    a saját változatból). Az elrendezés a Mermaid-diagramoké (`.md-mmd-view`): az új vagy
    törölt kép egyedül, balra, színes bal csíkkal; a változott pár a középvonalon
-   találkozik (a régi jobbra, az új balra igazítva), teljes színes kerettel, és ha nem
-   fér el, egymás alá törik, mindkettő balra (`fitImages`). A változatlan (pl. átnevezett)
-   kép egyszer, semleges kerettel. Az átlátszó kép mögött sakktábla (page.css). */
-import { esc } from './util.js';
+   találkozik (a régi jobbra, az új balra igazítva), teljes színes kerettel, mindig
+   egymás mellett. A változatlan (pl. átnevezett) kép egyszer, semleges kerettel. Az
+   átlátszó kép mögött sakktábla (page.css).
+
+   A kép legfeljebb természetes méretű, és a hasáb (a párnál a fél hasáb) szélességébe és
+   a panel látható magasságába illeszkedik (`layout`). A változott pár három nézetben
+   vethető össze (`imgMode`, a lap megjegyzi): Side-by-side, Swipe (a régi a vonaltól
+   balra, az új jobbra) és Onion skin (az új áttetszősége); a két utóbbiban a pár közös
+   léptékkel, középre igazítva fedi egymást. A kép nagyítható (`zoomTo`, legfeljebb
+   1600%), a nagyított kivágás húzással mozog; a pár két oldala együtt. A vezérlő a kép
+   alján, rámutatásra lebegő sáv (`placeBar`); a teljes lapos nézet (`openFull`) a lapot
+   fedi, a sávja mindig látszik. */
+import { icon } from './icons.js';
+import { esc, fmtBytes } from './util.js';
 
 export const IMAGE_RE = /\.(png|jpe?g|gif|webp|avif|svg|ico|bmp)$/i;
-const FRAME = 12;            // a keret belső margója és szegélye két oldalon (`.img-fig`)
 const GAP = 6;               // a pár köze (`.img-view`)
+const ZMAX = 16;             // a legnagyobb nagyítás (1600%)
+const STEPS = [0.25, 0.5, 1, 2, 4, 8, 16];   // a + / − gomb lépcsői
+const LOW = 200;             // ennél alacsonyabb képnél a sáv a kép alatt lebeg, ha ott elfér
+const FULL_PAD = 24;         // a teljes lapos nézet margója
+const FULL_BAR = 56;         // ... és a sávnak hagyott hely alul
+const MODES = { sbs: 'Side-by-side', swipe: 'Swipe', onion: 'Onion skin' };
 
-const mb = n => `${(n / 1048576).toFixed(1).replace('.', ',')} MB`;
+/* A választott nézet: közös, a lap megjegyzi (mint az `svgCode`). */
+const MODE_KEY = 'git-graph:imgMode';
+export let imgMode = (() => {
+  try { const m = localStorage.getItem(MODE_KEY); return m && m in MODES ? m : 'sbs'; } catch { return 'sbs'; }
+})();
+export function setImgMode(mode) {
+  imgMode = mode;
+  try { localStorage.setItem(MODE_KEY, mode); } catch { /* privát ablak: nem baj */ }
+  document.querySelectorAll('.img-view[data-modes]').forEach(layout);
+}
 
 /* Egy oldal kerete: a kép, vagy ha túl nagy, a mérete, ha nincs meg, az alt szöveg. Az
    `alt` már HTML-biztos. */
 function figHtml(side, cls, alt) {
   if (!side) return `<div class="img-fig img-miss${cls}"><span class="md-img">${alt}</span> <span class="img-note">nem található</span></div>`;
-  if (!side.uri) return `<div class="img-fig img-big${cls}"><span class="img-note">Túl nagy kép (${mb(side.size)}).</span></div>`;
-  return `<div class="img-fig${cls}"><img src="${side.uri}" alt="${alt}"></div>`;
+  if (!side.uri) return `<div class="img-fig img-big${cls}"><span class="img-note">Túl nagy kép (${fmtBytes(side.size)}).</span></div>`;
+  return `<div class="img-fig${cls}"><div class="img-pane"><img src="${side.uri}" alt="${alt}" draggable="false"></div></div>`;
 }
+
+/* A sáv: a nézetek (csak a két képpel változott párnál), Onion skinnél az áttetszőség,
+   a zoom és a teljes lapos nézet; a teljes lapos nézetben a bezárás. */
+const barHtml = (modes, tag = 'div') => `<${tag} class="img-bar">${modes ? Object.entries(MODES).map(([m, label]) =>
+  `<button class="mini" data-img-mode="${m}" title="${label}">${icon(`img-${m}`)}</button>`).join('')
+  + '<input class="img-opacity" type="range" min="0" max="100" step="1" title="Áttetszőség">' : ''
+}<button class="mini" data-img-zoom="-1" title="Kicsinyítés">${icon('minus')}</button><span class="img-pct"></span
+><button class="mini" data-img-zoom="1" title="Nagyítás">${icon('plus')}</button
+><button class="mini" data-img-full title="Teljes lapos nézet">${icon('expand')}</button
+><button class="mini" data-img-close title="Bezárás (Esc)">${icon('close')}</button></${tag}>`;
 
 /* A kép két oldala (`image_side`; `null`: azon az oldalon nincs meg) a páros
    elrendezésben. `had` / `has`: van-e régi / új oldal — új fájlnál, új bekezdésnél
@@ -32,7 +66,11 @@ export function imagesHtml(old, now, alt, had = true, has = true) {
     : !has ? [figHtml(old, ' img-del img-whole', alt)]
     : same ? [figHtml(now, '', alt)]
     : [figHtml(old, ' img-del', alt), figHtml(now, ' img-add', alt)];
-  return `<div class="img-view">${figs.map(f => `<div class="img-half">${f}</div>`).join('')}</div>`;
+  const modes = figs.length === 2 && old?.uri && now?.uri;
+  const zoom = figs.some(f => f.includes('<img'));
+  return `<div class="img-view${figs.length === 2 ? ' img-pair' : ''}"${modes ? ' data-modes' : ''}>${
+    figs.map(f => `<div class="img-half">${f}</div>`).join('')}${
+    modes ? '<div class="img-line"><span></span></div>' : ''}${zoom ? barHtml(modes) : ''}</div>`;
 }
 
 /* A képfájl diffje: a kép, egy oldalon nincs meg, ha a commit hozzáadta / törölte. */
@@ -43,38 +81,176 @@ export function imageDiffHtml(d, path) {
   return imagesHtml(old, now, esc(name), !!old, !!now);
 }
 
-/* A pár egymás mellé fér-e: a keretek a kép természetes szélességéig nőnek (a fél
-   legalább ekkora, ha a hely engedi), és ha együtt nem férnek el, egymás alá kerülnek,
-   mindkettő balra (`img-stack`). A még be nem töltött kép a betöltése után igazít. */
-function fit(view) {
-  const halves = [...view.children].filter(h => h.classList.contains('img-half'));
-  if (!halves.length) return;
-  const widths = halves.map(h => {
-    const fig = /** @type {HTMLElement} */ (h.firstElementChild), img = fig?.querySelector('img');
-    if (img) return (img.naturalWidth || 150) + FRAME;
-    fig.style.width = 'max-content';
-    const w = fig.offsetWidth;
-    fig.style.width = '';
-    return w;
-  });
-  halves.forEach((h, i) => { /** @type {HTMLElement} */ (h).style.minWidth = `min(100%, ${widths[i]}px)`; });
-  const room = view.clientWidth;
-  view.classList.toggle('img-stack', room > 0 && halves.length > 1
-    && widths.reduce((a, b) => a + b, 0) + GAP * (halves.length - 1) > room);
+/* A nézet állapota: a nagyítás (`z`: a természetes mérethez képest, `null`: illesztett),
+   a kivágás közepe a kép arányában (`cx`, `cy`), a Swipe vonala és az áttetszőség (%). */
+const states = new WeakMap();
+function stateOf(view) {
+  if (!states.has(view)) states.set(view, { z: null, cx: 0.5, cy: 0.5, swipe: 0, onion: 100, fit: 1 });
+  return states.get(view);
 }
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+/* A kép helye: a hasáb szélessége és a panel látható magassága a fájlsor alatt (a
+   `fitPanel` a panel legnagyobb magasságát írja ki), a teljes lapos nézetben az ablak. */
+function room(view) {
+  const full = view.closest('.img-full');
+  if (full) return { w: full.clientWidth - 2 * FULL_PAD, h: full.clientHeight - FULL_PAD - FULL_BAR };
+  const w = view.classList.contains('img-inline') ? view.parentElement.clientWidth : view.clientWidth;
+  const panel = view.closest('.details');
+  if (!panel) return { w, h: innerHeight };
+  const cs = getComputedStyle(panel);
+  const file = /** @type {HTMLElement} */ (view.closest('.diff')?.previousElementSibling);
+  const vs = getComputedStyle(view);
+  const h = (parseFloat(panel.style.maxHeight) || panel.clientHeight) - parseFloat(cs.paddingTop)
+    - parseFloat(cs.paddingBottom) - parseFloat(cs.borderTopWidth) - parseFloat(cs.borderBottomWidth)
+    - (file?.offsetHeight || 0) - parseFloat(vs.marginTop) - parseFloat(vs.marginBottom);
+  return { w, h };
+}
+
+const isSvg = img => img.src.startsWith('data:image/svg');
+const halvesOf = view => /** @type {HTMLElement[]} */ ([...view.children].filter(h => h.classList.contains('img-half')));
+
+/* A nézet elrendezése: a pane-ek (a kép látható kerete) mérete, benne a kép a nagyítással
+   és a kivágással; Swipe / Onion skinnél a vonal és az áttetszőség. Ha egy kép még nem
+   töltődött be, a betöltése után fut (`fitImages`). */
+function layout(view) {
+  if (!view.isConnected) return;
+  if (!view.clientWidth && !view.closest('.img-full')) return;   // becsukott diff: nyitáskor újra
+  const halves = halvesOf(view);
+  // a betöltetlen kép a betöltése után; a dekódolhatatlan (`complete`, de mérete nincs) kimarad
+  const imgs = halves.map(h => h.querySelector('img')).map(i => i && i.complete && !i.naturalWidth ? null : i);
+  if (!imgs.some(Boolean) || imgs.some(i => i && !i.naturalWidth)) return;
+  const st = stateOf(view);
+  const mode = view.hasAttribute('data-modes') ? imgMode : 'sbs';
+  const over = mode !== 'sbs';
+  view.dataset.mode = mode;
+  view.classList.toggle('img-over', over);
+  view.querySelectorAll('[data-img-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.imgMode === mode)));
+  const fig = imgs.find(Boolean).closest('.img-fig'), fs = getComputedStyle(fig);
+  const frameX = parseFloat(fs.paddingLeft) + parseFloat(fs.paddingRight) + parseFloat(fs.borderLeftWidth) + parseFloat(fs.borderRightWidth);
+  const frameY = parseFloat(fs.paddingTop) + parseFloat(fs.paddingBottom) + parseFloat(fs.borderTopWidth) + parseFloat(fs.borderBottomWidth);
+  const r = room(view);
+  const maxW = Math.max(1, (over || halves.length < 2 ? r.w : (r.w - GAP) / 2) - frameX);
+  const maxH = Math.max(1, r.h - frameY);
+  // A „vászon”: Side-by-side-ban a kép maga, a fedő nézetekben a két kép közös kerete.
+  const nat = imgs.map(i => i && [i.naturalWidth, i.naturalHeight]);
+  const canvases = over
+    ? nat.map(() => [Math.max(nat[0][0], nat[1][0]), Math.max(nat[0][1], nat[1][1])]) : nat;
+  const fits = canvases.map(c => c && Math.min(1, maxW / c[0], maxH / c[1]));
+  const main = imgs.length - 1 - [...imgs].reverse().findIndex(Boolean);   // az új oldal (ha van)
+  Object.assign(st, { fit: fits[main], maxW, maxH });
+  view.classList.toggle('img-zoomed', Boolean(st.z));
+  imgs.forEach((img, i) => {
+    if (!img) return;
+    const s = st.z ?? fits[i], [cw, ch] = canvases[i].map(v => v * s);
+    const pw = Math.floor(Math.min(maxW, cw)), ph = Math.floor(Math.min(maxH, ch));
+    const left = cw <= pw ? (pw - cw) / 2 : clamp(pw / 2 - st.cx * cw, pw - cw, 0);
+    const top = ch <= ph ? (ph - ch) / 2 : clamp(ph / 2 - st.cy * ch, ph - ch, 0);
+    const pane = /** @type {HTMLElement} */ (img.parentElement), w = nat[i][0] * s, h = nat[i][1] * s;
+    Object.assign(pane.style, { width: `${pw}px`, height: `${ph}px` });
+    Object.assign(pane.dataset, { cw: cw, ch: ch, cl: left, ct: top, s });
+    Object.assign(img.style, { width: `${w}px`, height: `${h}px`, maxWidth: 'none',
+      transform: `translate(${left + (cw - w) / 2}px, ${top + (ch - h) / 2}px)` });
+    img.classList.toggle('img-px', s > 1 && !isSvg(img));
+    if (i === main && st.z) {                         // a vágott kivágás vissza az állapotba
+      st.cx = cw <= pw ? 0.5 : (pw / 2 - left) / cw;
+      st.cy = ch <= ph ? 0.5 : (ph / 2 - top) / ch;
+    }
+  });
+  const pct = view.querySelector('.img-pct');
+  if (pct) pct.textContent = `${Math.round((st.z ?? st.fit) * 100)}%`;
+  blend(view);
+  placeBar(view);
+}
+
+/* A Swipe vonala és vágása, az Onion skin áttetszősége (a húzás csak ezt frissíti). */
+function blend(view) {
+  const st = stateOf(view), mode = view.dataset.mode, [a, b] = halvesOf(view);
+  if (!b) return;
+  a.style.clipPath = mode === 'swipe' ? `inset(0 ${100 - st.swipe}% 0 0)` : '';
+  b.style.clipPath = mode === 'swipe' ? `inset(0 0 0 ${st.swipe}%)` : '';
+  a.style.opacity = mode === 'onion' ? String(1 - st.onion / 100) : '';
+  b.style.opacity = mode === 'onion' ? String(st.onion / 100) : '';
+  const range = /** @type {HTMLInputElement} */ (view.querySelector('.img-opacity'));
+  if (range) range.value = String(st.onion);
+  const line = /** @type {HTMLElement} */ (view.querySelector('.img-line'));
+  if (line && mode === 'swipe') {
+    const v = view.getBoundingClientRect(), f = b.firstElementChild.getBoundingClientRect();
+    Object.assign(line.style, { left: `${f.left - v.left + f.width * st.swipe / 100}px`, top: `${f.top - v.top}px`,
+      height: `${f.height}px` });
+  }
+}
+
+/* A sáv helye: a kép (a párnál a két kép) alján, középen; a 200 px-nél alacsonyabb képnél
+   a kép alatt, ha ott a panel látható részében elfér; a kilógó képnél a látható aljánál. Rögzített (`fixed`): a diff dobozának
+   vágása nem érinti, görgetéskor a mutatott nézeté újra igazodik. A teljes lapos nézetben
+   a CSS-é. */
+function placeBar(view) {
+  const bar = /** @type {HTMLElement} */ (view.querySelector(':scope > .img-bar'));
+  if (!bar || view.closest('.img-full')) return;
+  const figs = halvesOf(view).map(h => h.firstElementChild.getBoundingClientRect());
+  const left = Math.min(...figs.map(f => f.left)), right = Math.max(...figs.map(f => f.right));
+  const height = Math.max(...figs.map(f => f.height));
+  const limit = Math.min(innerHeight, (view.closest('.details') || document.documentElement).getBoundingClientRect().bottom);
+  const bottom = Math.min(limit, Math.max(...figs.map(f => f.bottom)));   // a kép látható alja
+  const below = height < LOW && bottom + bar.offsetHeight + 6 <= limit;
+  bar.classList.toggle('img-bar-below', below);
+  Object.assign(bar.style, { left: `${(left + right) / 2}px`,
+    top: `${bottom + (below ? 4 : -bar.offsetHeight - 6)}px` });
+}
+
+/* Nagyítás `z`-re (a természetes mérethez képest; az illesztett alá nem) úgy, hogy a
+   mutató alatti képpont (`at`: a pane és benne a pont, alapból a fő pane közepe) a helyén
+   maradjon. */
+function zoomTo(view, z, at = null) {
+  const st = stateOf(view);
+  z = Math.min(ZMAX, z);
+  if (z <= st.fit + 1e-6) {
+    Object.assign(st, { z: null, cx: 0.5, cy: 0.5 });
+  } else {
+    const pane = at?.pane || [...view.querySelectorAll('.img-pane')].pop();
+    const d = pane.dataset, x = at ? at.x : pane.clientWidth / 2, y = at ? at.y : pane.clientHeight / 2;
+    const u = (x - +d.cl) / +d.cw, w = (y - +d.ct) / +d.ch, k = z / +d.s;   // a pane saját léptéke
+    // a pane is nő (legfeljebb a helyéig); a pár régi fele jobbra igazodik, balra nő
+    const pw = Math.floor(Math.min(st.maxW, +d.cw * k)), ph = Math.floor(Math.min(st.maxH, +d.ch * k));
+    const sx = x + (pane.closest('.img-pair:not(.img-over) > .img-half:first-child') ? pw - pane.clientWidth : 0);
+    st.cx = (pw / 2 - (sx - u * +d.cw * k)) / (+d.cw * k);
+    st.cy = (ph / 2 - (y - w * +d.ch * k)) / (+d.ch * k);
+    st.z = z;
+  }
+  layout(view);
+}
+function zoomStep(view, dir) {
+  const st = stateOf(view), cur = st.z ?? st.fit;
+  const next = dir > 0 ? STEPS.find(s => s > cur * 1.001) ?? ZMAX : [...STEPS].reverse().find(s => s < cur * 0.999) ?? 0;
+  zoomTo(view, next);
+}
+
+/* A pont a pane-ben (a zoom horgonya). */
+const paneAt = (pane, e) => {
+  const r = pane.getBoundingClientRect();
+  return { pane, x: e.clientX - r.left, y: e.clientY - r.top };
+};
+
+const watching = new WeakSet();   // a kép, amelyre már vár egy `load` / `error` figyelő
 export function fitImages(root) {
   for (const view of root.querySelectorAll('.img-view')) {
-    const pending = [...view.querySelectorAll('img')].filter(img => !img.complete);
-    for (const img of pending) img.addEventListener('load', () => fit(view), { once: true });
-    fit(view);
+    const pending = [...view.querySelectorAll('img')].filter(img => !img.complete && !watching.has(img));
+    for (const img of pending) {
+      watching.add(img);
+      img.addEventListener('load', () => layout(view), { once: true });
+      img.addEventListener('error', () => layout(view), { once: true });
+    }
+    layout(view);
   }
 }
 
 /* A markdown-nézet képei: a `get(ref)` a hivatkozott kép két oldalát adja (`{ old, new }`).
    A csak képből álló bekezdés (`.md-pic`, `data-pic`: a régi és az új hivatkozása, az
    alt szöveg) a páros elrendezésben; a szövegbeli kép (`.md-img[data-img]`, `data-side`:
-   melyik oldal) a helyén, a sorban. Ami nincs meg, az alt szövege marad, `nem található`
-   jelöléssel. A szövegbeli kép betöltése után a `changed` fut (a side-by-side sormagasságai).
+   melyik oldal) a helyén, a sorban, nézetgombok nélküli sávval. Ami nincs meg, az alt
+   szövege marad, `nem található` jelöléssel. A szövegbeli kép betöltése után a `changed`
+   fut (a side-by-side sormagasságai).
    */
 export function loadImages(root, get, changed = () => {}) {
   const sides = new Map();
@@ -98,12 +274,130 @@ export function loadImages(root, get, changed = () => {}) {
       const side = span.dataset.side === '-' ? r.old : r.new;
       if (!span.isConnected) return;
       if (side?.uri) {
-        const img = Object.assign(document.createElement('img'), { className: 'md-inl', src: side.uri, alt: span.textContent });
-        img.addEventListener('load', changed, { once: true });
-        span.replaceWith(img);
+        const view = document.createElement('span');
+        view.className = 'img-view img-inline';
+        view.innerHTML = `<span class="img-half"><span class="img-fig img-bare"><span class="img-pane"></span></span></span>${barHtml(false, 'span')}`;
+        const img = Object.assign(document.createElement('img'), { className: 'md-inl', src: side.uri, alt: span.textContent, draggable: false });
+        img.addEventListener('load', () => { layout(view); changed(); }, { once: true });
+        view.querySelector('.img-pane').append(img);
+        span.replaceWith(view);
       } else {
-        span.insertAdjacentHTML('afterend', ` <span class="img-note">${side ? `Túl nagy kép (${mb(side.size)}).` : 'nem található'}</span>`);
+        span.insertAdjacentHTML('afterend', ` <span class="img-note">${side ? `Túl nagy kép (${fmtBytes(side.size)}).` : 'nem található'}</span>`);
       }
     }, () => {});
   }
 }
+
+/* ── Teljes lapos nézet ── a nézet másolata a lapot fedő rétegen, ugyanabban a nézetben,
+   illesztve; a sávja mindig látszik. Billentyűk: + − 0 1 S W O, ← → (Shift: 1%), Esc. */
+let full = null;
+function openFull(view) {
+  closeFull();
+  const layer = document.createElement('div');
+  layer.className = 'img-full';
+  const copy = /** @type {HTMLElement} */ (view.cloneNode(true));
+  copy.querySelector(':scope > .img-bar').removeAttribute('style');   // a diffbeli helye nem kell: a CSS-é
+  const st = stateOf(view);
+  states.set(copy, { ...stateOf(copy), swipe: st.swipe, onion: st.onion });
+  layer.append(copy);
+  document.body.append(layer);
+  full = { layer, view: copy };
+  addEventListener('keydown', fullKey, true);
+  addEventListener('resize', fullResize);
+  fitImages(layer);
+}
+function closeFull() {
+  if (!full) return;
+  full.layer.remove();
+  full = null;
+  removeEventListener('keydown', fullKey, true);
+  removeEventListener('resize', fullResize);
+}
+const fullResize = () => full && layout(full.view);
+function fullKey(e) {
+  const view = full.view, st = stateOf(view), k = e.key;
+  e.stopImmediatePropagation();          // a lap billentyűi (kijelölés, Esc: a commit csukása) állnak
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const modes = view.hasAttribute('data-modes');
+  if (k === 'Escape') closeFull();
+  else if (k === '+' || k === '=') zoomStep(view, 1);
+  else if (k === '-' || k === '−') zoomStep(view, -1);
+  else if (k === '0') zoomTo(view, 0);
+  else if (k === '1') zoomTo(view, 1);
+  else if (modes && /^[swo]$/i.test(k)) setImgMode({ s: 'sbs', w: 'swipe', o: 'onion' }[k.toLowerCase()]);
+  else if ((k === 'ArrowRight' || k === 'ArrowLeft') && modes && imgMode !== 'sbs') {
+    const key = imgMode === 'swipe' ? 'swipe' : 'onion';
+    st[key] = clamp(st[key] + (k === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 1 : 10), 0, 100);
+    blend(view);
+  } else return;
+  e.preventDefault();
+}
+
+/* ── Egér ── a sáv gombjai, ⌘/Ctrl+görgő (a teljes lapos nézetben a sima görgő is), a
+   húzás: a Swipe vonalán a vonal, nagyított képen a kivágás; a kattintás Swipe-ban a
+   vonalat odaugratja. A sima görgő a diffben a panelé (`stepRows`). */
+const viewOf = el => /** @type {HTMLElement} */ (el.closest?.('.img-view'));
+document.addEventListener('click', e => {
+  const t = /** @type {HTMLElement} */ (e.target), view = viewOf(t);
+  if (!view) return;
+  const btn = /** @type {HTMLElement} */ (t.closest('button'));
+  if (!btn) return;
+  if (btn.dataset.imgMode) setImgMode(btn.dataset.imgMode);
+  else if (btn.dataset.imgZoom) zoomStep(view, +btn.dataset.imgZoom);
+  else if ('imgFull' in btn.dataset) openFull(view);
+  else if ('imgClose' in btn.dataset) closeFull();
+});
+document.addEventListener('input', e => {
+  const t = /** @type {HTMLInputElement} */ (e.target);
+  if (!t.classList?.contains('img-opacity')) return;
+  stateOf(viewOf(t)).onion = +t.value;
+  blend(viewOf(t));
+});
+let hovered = null;
+document.addEventListener('pointerover', e => {
+  const view = viewOf(/** @type {HTMLElement} */ (e.target));
+  if (view && view !== hovered) placeBar(view);
+  hovered = view;
+});
+document.addEventListener('scroll', () => { if (hovered) placeBar(hovered); }, true);
+document.addEventListener('wheel', e => {
+  const t = /** @type {HTMLElement} */ (e.target), pane = /** @type {HTMLElement} */ (t.closest?.('.img-pane'));
+  if (!pane || !(e.ctrlKey || e.metaKey || t.closest('.img-full'))) return;
+  e.preventDefault();
+  const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+  const view = viewOf(pane), st = stateOf(view);
+  zoomTo(view, (st.z ?? st.fit) * 2 ** (-px / 200), paneAt(pane, e));
+}, { passive: false });
+document.addEventListener('pointerdown', e => {
+  const t = /** @type {HTMLElement} */ (e.target), view = viewOf(t);
+  if (!view || e.button !== 0 || t.closest('.img-bar')) return;
+  const line = t.closest('.img-line'), pane = /** @type {HTMLElement} */ (t.closest('.img-pane'));
+  if (!line && !pane) return;
+  e.preventDefault();
+  const st = stateOf(view), swipe = view.dataset.mode === 'swipe';
+  const fig = () => halvesOf(view)[1].firstElementChild.getBoundingClientRect();
+  const setLine = x => { const f = fig(); st.swipe = clamp(Math.round((x - f.left) / f.width * 100), 0, 100); blend(view); };
+  const x0 = e.clientX, y0 = e.clientY;
+  let moved = false, px = x0, py = y0, frame = 0;
+  const move = ev => {
+    if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 3) return;
+    moved = true;
+    if (line) setLine(ev.clientX);
+    else if (st.z) {
+      const d = pane.dataset;
+      st.cx -= (ev.clientX - px) / +d.cw;
+      st.cy -= (ev.clientY - py) / +d.ch;
+      if (!frame) frame = requestAnimationFrame(() => { frame = 0; layout(view); });   // képkockánként egyszer
+    }
+    px = ev.clientX;
+    py = ev.clientY;
+  };
+  const up = ev => {
+    removeEventListener('pointermove', move);
+    removeEventListener('pointerup', up);
+    if (frame) { cancelAnimationFrame(frame); frame = 0; layout(view); }
+    if (!moved && swipe && !line) setLine(ev.clientX);
+  };
+  addEventListener('pointermove', move);
+  addEventListener('pointerup', up);
+});

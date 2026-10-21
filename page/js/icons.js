@@ -24,6 +24,14 @@ const ICONS = {
   text: '<path d="M2.5 3.5h11M2.5 6.5h11M2.5 9.5h11M2.5 12.5h7"/>',
   // SVG-diff nézetváltó: a kép (keret, hegy, nap)
   image: '<rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="m2.5 12 3.5-4 3 3 1.5-1.5 3 2.5"/><circle cx="10.5" cy="5.75" r="1.25"/>',
+  // képnézetek (`images.js`): egymás mellett, a Swipe vonala, az Onion skin két fedő lapja
+  'img-sbs': '<rect x="1.5" y="3.5" width="5.5" height="9" rx="1"/><rect x="9" y="3.5" width="5.5" height="9" rx="1"/>',
+  'img-swipe': '<rect x="2" y="3.5" width="12" height="9" rx="1"/><path d="M8 1.5v13"/>',
+  'img-onion': '<rect x="2" y="2" width="8" height="8" rx="1"/><rect x="6" y="6" width="8" height="8" rx="1"/>',
+  plus: '<path d="M8 3v10M3 8h10"/>',
+  minus: '<path d="M3 8h10"/>',
+  expand: '<path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/>',
+  close: '<path d="m4 4 8 8M12 4l-8 8"/>',
   // stash: archiváló doboz, fedéllel és fogantyúval — a stash chipjén
   stash: '<rect x="2" y="3" width="12" height="3.25" rx=".75"/><path d="M3 6.25v6.25a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6.25M6.5 9h3"/>',
   // a worktree-jel: mappa, benne egy kör (a kivett állapot) — saját rajz a készlet vonalvastagságával
