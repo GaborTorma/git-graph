@@ -621,6 +621,30 @@ class ZoomTest(ImageFixture):
         self.assertEqual(self.rect(".diff .img-view img", 1)["w"], 320)
         self.assertNotEqual(self.rendering(".diff .img-view img >> nth=1"), "pixelated")
 
+    def test_zoom_stays_visible(self) -> None:
+        """A panelben elférő kis kép nagyításkor nő: a panel utána görget, a diff-doboz alja és a
+        fájlsor is látszik."""
+        self.open_image("icon.png")
+        self.zoom_in(6)
+        panel, box = self.rect(".details"), self.rect(".diff:not([hidden])")
+        file = self.rect(".details .file[aria-expanded=true]")
+        self.assertGreater(box["h"], 256)
+        self.assertLessEqual(box["b"], panel["b"] + 1)
+        self.assertGreaterEqual(file["t"], panel["t"] - 1)
+
+    def test_zoom_fills_panel(self) -> None:
+        """A panel magasságáig nőtt nagyított kép: felül a saját fájlsora, alul a diff-doboz és
+        a következő fájl sora látszik."""
+        self.open_image("logo.png")
+        self.zoom_in(2)
+        panel = self.rect(".details")
+        file = self.rect(".details .file[aria-expanded=true]")
+        after = self.page.locator(".details .file[aria-expanded=true] + .diff + .file").evaluate(
+            "f => f.getBoundingClientRect().bottom")
+        self.assertLessEqual(after, panel["b"] + 1)
+        self.assertGreaterEqual(file["t"], panel["t"] - 1)
+        self.assertLess(file["t"] - panel["t"], 4)         # fölötte nem látszik másik fájl
+
     def test_limit(self) -> None:
         """Felső határ: 1600% fölé nem nagyít."""
         self.open_image("icon.png")

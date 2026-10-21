@@ -103,14 +103,18 @@ function room(view) {
   if (!panel) return { w, h: innerHeight };
   const box = /** @type {HTMLElement} */ (view.closest('.diff'));
   const next = /** @type {HTMLElement} */ (box?.nextElementSibling);   // a következő fájl sora: látsszon
-  const frame = el => {
+  const frame = (el, padding = true) => {
     const cs = getComputedStyle(el);
-    return parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+    return (padding ? parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) : 0)
+      + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
   };
+  // A panel belső margója görgetéskor kimegy a tartalommal: csak a szegélye számít. A fájlok
+  // közti sorköz (`gap`) a fájlsor és a doboz, a doboz és a következő sor között.
   const bs = box && getComputedStyle(box), vs = getComputedStyle(view);
-  const h = (parseFloat(panel.style.maxHeight) || panel.clientHeight) - frame(panel)
+  const gap = box ? parseFloat(getComputedStyle(box.parentElement).rowGap) || 0 : 0;
+  const h = (parseFloat(panel.style.maxHeight) || panel.clientHeight) - frame(panel, false)
     - (/** @type {HTMLElement} */ (box?.previousElementSibling)?.offsetHeight || 0)
-    - (box ? frame(box) + parseFloat(bs.marginTop) + (next ? parseFloat(bs.marginBottom) + next.offsetHeight : 0) : 0)
+    - (box ? gap + frame(box) + parseFloat(bs.marginTop) + (next ? parseFloat(bs.marginBottom) + gap + next.offsetHeight : 0) : 0)
     - parseFloat(vs.marginTop) - parseFloat(vs.marginBottom);
   return { w, h };
 }
@@ -231,6 +235,18 @@ function zoomTo(view, z, at = null) {
     st.cy += (r2.top + +d2.ct + w * +d2.ch - py) / +d2.ch;
   }
   layout(view);
+  keepInView(view);
+}
+/* A nagyítás (és a nézetváltás) a képet és vele a diff dobozát megnövelheti: a panel annyit
+   görget, hogy a doboz és alatta a következő fájl sora látsszon (a `room` erre szabja a
+   képet), de a fájl sora felül ne menjen ki (mint a `revealFile`). */
+function keepInView(view) {
+  const panel = view.closest('.details'), box = view.closest('.diff');
+  if (!panel || !box || view.closest('.img-full')) return;
+  const p = panel.getBoundingClientRect(), inTop = p.top + panel.clientTop, inBottom = inTop + panel.clientHeight;
+  const bottom = (box.nextElementSibling || box).getBoundingClientRect().bottom;
+  const top = box.previousElementSibling.getBoundingClientRect().top;
+  if (bottom > inBottom) panel.scrollTop += Math.min(bottom - inBottom, top - inTop);
 }
 function zoomStep(view, dir) {
   const st = stateOf(view), cur = st.z ?? st.fit;
@@ -354,7 +370,7 @@ document.addEventListener('click', e => {
   if (!view) return;
   const btn = /** @type {HTMLElement} */ (t.closest('button'));
   if (!btn) return;
-  if (btn.dataset.imgMode) setImgMode(btn.dataset.imgMode);
+  if (btn.dataset.imgMode) { setImgMode(btn.dataset.imgMode); keepInView(view); }
   else if (btn.dataset.imgZoom) zoomStep(view, +btn.dataset.imgZoom);
   else if ('imgFull' in btn.dataset) openFull(view);
   else if ('imgClose' in btn.dataset) closeFull();
