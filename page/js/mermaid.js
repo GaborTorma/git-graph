@@ -3,7 +3,7 @@
    változatokkal (`.md-mmd[data-mmd]`); ez cseréli diagramra. A Mermaidot (karcsú
    build, 3,7 MB, `page/vendor/`) csak az első diagramnál kéri a gépen futó
    git-graph-tól (`page_code` `part: 'mermaid'`), és blobból futtatja (az Artifact
-   CSP-je engedi — mérve, docs/artifact-findings.md). A rajz a lap palettáján
+   CSP-je engedi — mérve, .claude/memory/mermaid-build.md). A rajz a lap palettáján
    (`base` téma), `neo` stílusban, a Mermaid 12 alapértelmezett ELK-elrendezésével.
    A változott diagram változataiban a változott elemek színesek (`markChanges`), a változott
    szöveg kiemelve (`markText`); a diagramok egymás mellett, ha elférnek. A diagram a lap témáját követi: váltáskor

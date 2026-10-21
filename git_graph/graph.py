@@ -9,7 +9,7 @@ from datetime import datetime
 
 from .avatars import avatars_for
 from .branches import branch_tracks, collect_branches
-from .gitio import ALL_BUT_STASH, FS, RS, default_base, git, numstat_new_path, remotes, repo_name, repo_url
+from .gitio import ALL_BUT_STASH, FS, RS, default_base, git, numstat_new_path, remotes, repo_name, repo_url, stash_list
 from .lanes import assign_lanes, worktree_lanes_last, worktree_stubs
 from .page import attach_icons
 from .stats import collect_stats
@@ -63,7 +63,7 @@ def stash_commits() -> list[dict]:
     (`^2`, `^3`) nem sor és nem sáv. A chipje `stash`, a neve `stash@{N}`; a `branch`
     az ág, amelyen készült (az üzenetéből: `On <ág>: …`, `WIP on <ág>: …`) — a lap
     ebből tudja, melyik worktree-é."""
-    stashes = parse_commits(git("stash", "list", f"--pretty=format:{RS}{COMMIT_FMT}"))
+    stashes = parse_commits(stash_list(f"--pretty=format:{RS}{COMMIT_FMT}"))
     for n, c in enumerate(stashes):
         on = STASH_ON_RE.match(c["subject"])
         c.update(parents=c["parents"][:1], refs=[{"kind": "stash", "name": f"stash@{{{n}}}"}], stash=True,

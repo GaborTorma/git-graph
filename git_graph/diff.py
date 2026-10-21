@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from urllib.parse import unquote
 
-from .gitio import git, git_raw, numstat_new_path, numstat_old_path, worktree_list
+from .gitio import git, git_raw, numstat_new_path, numstat_old_path, stash_list, worktree_list
 from .registry import slug_for
 from .worktrees import UNCOMMITTED_RE, head_lines, read_lines
 
@@ -581,7 +581,7 @@ def text_diff(sha: str, path: str, full: bool = False) -> dict:
         # mért diffben; csak stash-nél — egy octopus merge `^3`-a valódi szülő.
         if not raw.strip():
             parents = {line.split()[0]: line.split()[1:]
-                       for line in git("stash", "list", "--format=%H %P").splitlines()}.get(sha, [])
+                       for line in stash_list("--format=%H %P").splitlines()}.get(sha, [])
             if len(parents) == 3:
                 raw = git("show", "--format=", "--no-color", "--no-ext-diff", *context,
                           parents[2], "--", new)
@@ -615,7 +615,7 @@ def image_sources(sha: str) -> tuple:
     if not SHA_RE.match(sha):
         raise ValueError(f"érvénytelen commit: {sha!r}")
     parents = {line.split()[0]: line.split()[1:]
-               for line in git("stash", "list", "--format=%H %P").splitlines()}.get(sha, [])
+               for line in stash_list("--format=%H %P").splitlines()}.get(sha, [])
     return None, ("rev", f"{sha}^1"), ("rev", sha, *parents[2:3])
 
 

@@ -101,7 +101,7 @@ def make_history(repo: Path) -> None:
     for tag in ("v1.0.0", "v1.1.0-release-candidate-1"):
         git("tag", tag)
 
-# Az Artifact CSP-jének mért része (docs/artifact-findings.md): a lap blobból futtat
+# Az Artifact CSP-jének mért része (.claude/memory/artifact-csp.md): a lap blobból futtat
 # (modulok, Mermaid), inline `<style>`-t ír; a CDN-lista itt nem kell.
 CSP = "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'"
 

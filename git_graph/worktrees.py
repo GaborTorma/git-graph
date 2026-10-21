@@ -245,7 +245,7 @@ def collect_worktrees(repo: Path | None = None) -> list[dict]:
     `git diff --numstat` (stage-elt és még nem stage-elt).
 
     Párhuzamosan fut: 5 worktree-vel ~50 ms (sorban ~200 ms; nagy repón 330
-    ms / 680 ms — mérve, docs/artifact-findings.md). A közben megszűnt worktree
+    ms / 680 ms — mérve, .claude/memory/git-poll-cost.md). A közben megszűnt worktree
     kimarad.
     """
     worktrees = worktree_list(repo)

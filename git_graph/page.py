@@ -13,7 +13,7 @@ from .gitio import numstat_new_path, repo_name
 # Az Artifactként publikált lap csak egy betöltő (`page/loader.html`): a rajzoló
 # kódot (`page/head.html`, `page.css`, `body.html` és a `page/js/` ES-moduljai) a
 # `page_code` toollal a gépen futó `git-graph --mcp`-ből kéri, és `import(blob:)`-bal
-# futtatja (az Artifact CSP-je engedi — mérve, docs/artifact-findings.md). Így
+# futtatja (az Artifact CSP-je engedi — mérve, .claude/memory/artifact-csp.md). Így
 # egy kódfrissítés az app újraindításával él, újrapublikálás nélkül: a betöltő
 # csak a saját változásakor, repónév- vagy capability-változáskor publikálandó.
 

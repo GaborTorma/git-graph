@@ -147,8 +147,6 @@ repóét kikapcsolja.
 | `skills/artifact-publish/SKILL.md` | `/git-graph:artifact-publish`: `git-graph --publish`, publikálja az Artifactot, ha kell, és megnyitja |
 | `skills/artifact-open/SKILL.md` | `/git-graph:artifact-open`: `git-graph --open-url`, és megnyitja az Artifactot — ha elavult, előbb frissíti (újat nem hoz létre) |
 | `skills/artifact-forget/SKILL.md` | `/git-graph:artifact-forget`: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; eltávolítás előtt: mind) |
-| `docs/artifact-findings.md` | **mit tud és mit nem az Artifact platform** — mérésekkel |
-| `docs/architecture.md` | a `.claude/CLAUDE.md` szabályainak indoklása, a fejlesztés és a kézi ellenőrzés menete |
 
 ## Kimenet
 
@@ -172,7 +170,7 @@ előtérben lévő session megváltozik — git-műveletnél ~50 ms, fájlszerke
 legfeljebb ~2 s alatt —, és csak változáskor jön a teljes `graph_data`
 (150–300 ms). A lábléc kiírja a mért időket. Egy lenyitott fájl diffje a `file_diff` toolból jön.
 
-Megkötések (a platformé, mérve — [docs/artifact-findings.md](docs/artifact-findings.md)):
+Megkötések (a platformé, mérve — [host-bridge-limits](.claude/memory/host-bridge-limits.md)):
 
 - csak a **Claude appban**, a saját gépeden, tulajdonosként megy — böngészőben,
   telefonon a lap annyit ír ki, hogy az appban kell megnyitni;

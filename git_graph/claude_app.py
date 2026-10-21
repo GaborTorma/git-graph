@@ -12,7 +12,7 @@ from .registry import slug_for
 # A worktree-k közös lapot látnak, az app pedig egy Artifactnak egyetlen
 # keretet tart, és azt mutatja minden sessionben — a lap maga nem tudhatja,
 # melyik sessionben látszik éppen; a host-híd hívásából sem derül ki (mérve,
-# docs/artifact-findings.md). A Claude app viszont sessionönként JSON-t tart
+# .claude/memory/artifact-single-frame.md). A Claude app viszont sessionönként JSON-t tart
 # (`claude-code-sessions/<fiók>/<szervezet>/local_<id>.json`) a
 # munkakönyvtárral és a `lastFocusedAt` időbélyeggel: a repóban dolgozó
 # sessionök közül a legutóbb fókuszált van előtérben. Belső fájl — ismeretlen
@@ -21,7 +21,7 @@ from .registry import slug_for
 # A `lastFocusedAt` 1–3 s késéssel kerül a fájlba, az app naplója
 # (`~/Library/Logs/Claude/main.log`) viszont a váltás után ~20 ms-mal már
 # tartalmazza (`setFocusedSession: sessionId=local_<id>`, mérve,
-# docs/artifact-findings.md). A fókusz idejét ezért a naplóból vesszük, ha
+# .claude/memory/app-focus-sources.md). A fókusz idejét ezért a naplóból vesszük, ha
 # ott van; a fájlból csak a munkakönyvtár és az archiváltság jön.
 
 APP_SESSIONS = (Path.home() / "Library" / "Application Support" / "Claude"
