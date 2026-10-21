@@ -43,7 +43,7 @@ git-graph --artifacts        # ismert repók Artifactjai (regiszter + a szülőm
 git-graph --forget           # a repó git-graph nyomai + automatikus megnyitás KI
 git-graph --open-url --session <ID>   # a mod kérdése: az URL, ha most meg kell nyitni
 claude plugin test .         # a mod tesztjei (hooks/*.test.ts)
-uv run --no-project --with playwright==1.63.0 python -m unittest discover -s tests/page   # a lap böngészőben
+uv run --no-project --with playwright==1.63.0 --with pytest==9.0.3 --with pytest-xdist==3.8.0 python -m pytest tests/page -n auto --dist loadscope -q -p no:cacheprovider   # a lap böngészőben
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
 python3 bin/git-graph --dev-install   # a working tree az appban futó git-graph helyére (+dev), a lap élőben
 ```

@@ -7,9 +7,11 @@ eldobható repóval, kamu HOME-mal) — a `page_code`, a `graph_data` és a `fil
 a valódi kimenet. A nyitva tartott `changes` hívás (`wait > 0`) a lapon függ, amíg
 a lap meg nem szakítja: a teszt alatt a repó nem változik.
 
-Futtatás (a Playwright fejlesztői eszköz, a repóba nem kerül függőség):
+Futtatás (a Playwright és a pytest fejlesztői eszköz, a repóba nem kerül függőség). Az
+osztályok párhuzamosan futnak, osztályonként egy workerben (`loadscope`: a `setUpClass`
+egyszer fut); egymástól függetlenek: saját kamu HOME, fixture-repó, MCP-szerver, böngésző.
   uvx --from playwright==1.63.0 playwright install chromium-headless-shell
-  uv run --no-project --with playwright==1.63.0 python -m unittest discover -s tests/page
+  uv run --no-project --with playwright==1.63.0 --with pytest==9.0.3 --with pytest-xdist==3.8.0 python -m pytest tests/page -n auto --dist loadscope -q -p no:cacheprovider
 """
 from __future__ import annotations
 
