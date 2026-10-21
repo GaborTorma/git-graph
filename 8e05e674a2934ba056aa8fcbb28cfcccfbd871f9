@@ -1,0 +1,22 @@
+## Összefoglaló
+
+A képdiff a panelbe illeszkedik, a pár Side-by-side, Swipe és Onion skin nézetben vethető össze, nagyítható (teljes lapos nézetben is); a képlimit ~2,8 MB, a bináris fájl sora a méretét mutatja.
+
+```text
+file_diff(sha, path)              → diff + image: {old: {size}, new: {size}}
+file_diff(sha, path, side=old|new) → {size, uri}   # oldalanként külön válasz (< ~4 000 000 kar.)
+graph_data                         → stats.files[].size = [régi, új]   # egy cat-file --batch-check
+lap: images.js
+  layout   — illesztés: hasáb × (panel − fájlsor − doboz − következő fájlsor)
+  nézetek  — sbs | swipe (clip-path) | onion (opacity), imgMode a localStorage-ban
+  sáv      — rámutatásra lebeg; zoom ≤ 1600%, húzás, teljes lapos nézet (+ − 0 1 2 S O ← → Esc)
+```
+
+## Előtte / utána
+
+**A fájlsor és a képdiff**
+
+```text
+Előtte:  logo.png   bin        | magas kép kilóg; a pár egymás alá törik; > 1 MB: csak a méret
+Utána:   logo.png   +1,8 KB    | panelbe illesztve; Side-by-side / Swipe / Onion skin; zoom; ≤ ~2,8 MB
+```
