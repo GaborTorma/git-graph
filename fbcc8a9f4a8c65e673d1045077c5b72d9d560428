@@ -1,0 +1,19 @@
+## Összefoglaló
+
+A `git stash list` nem bukik el, ha közben egy `stash pop` / `drop` eltünteti a `refs/stash`-t: üres listát ad vagy újrapróbál. A mérési napló és a gotchák a `docs/`-ból a memóriába költöztek.
+
+```
+gitio.stash_list()          # minden `stash list` hívás ezen át
+  ├─ ref nincs  → []
+  └─ fatal      → újrapróba
+graph · stats · watch · diff → stash_list()
+```
+
+## Előtte / utána
+
+**A lap pollozása egy `stash pop` közben**
+
+```
+Előtte: fatal: bad revision 'refs/stash'  → a lap hibát jelez
+Utána:  a stash-sor eltűnik, hiba nincs
+```
