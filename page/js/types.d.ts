@@ -52,6 +52,7 @@ interface FileStat {
   anchor?: string;
   icon?: string;
   dirFrom?: number;
+  size?: [number | null, number | null];   // bináris fájl: a régi és az új mérete bájtban
 }
 
 interface Stat {

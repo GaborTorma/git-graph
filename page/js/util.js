@@ -10,6 +10,11 @@ export const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt
 export const ghLink = (href, html, cls = 'gh-link', label = '') =>
   `<a class="${cls}" href="${href}" target="_blank" rel="noopener"${label ? ` aria-label="${esc(label)}" title="${esc(label)}"` : ''}>${html}</a>`;
 
+/* Bájtméret 1024-es alappal: B alatt tizedes nélkül, KB / MB egy tizedessel, tizedesvesszővel
+   (ami KB-ban 1024,0-ra kerekedne, már MB). */
+export const fmtBytes = n => n < 1024 ? `${n} B` : n < 1048525 ? `${(n / 1024).toFixed(1).replace('.', ',')} KB`
+  : `${(n / 1048576).toFixed(1).replace('.', ',')} MB`;
+
 /* Keresőszavak: kis- és nagybetű, ékezet nem számít. */
 export const fold = s => String(s).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
 export const queryWords = s => fold(s).split(/\s+/).filter(Boolean);

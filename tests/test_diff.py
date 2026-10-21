@@ -1,6 +1,8 @@
 """Fájl-diff (`diff`): hunkok, sorpárok, szószintű kiemelés, a lapról jövő bemenet szűrése."""
 from __future__ import annotations
 
+import json
+
 from helpers import HomeTestCase, git_in
 
 RAW = """diff --git a/x b/x
@@ -320,16 +322,22 @@ class DiffTest(HomeTestCase):
         gg.gitio.set_repo(repo)
         return repo, gg, *(git_in(repo, "rev-parse", r).strip() for r in ("HEAD~1", "HEAD"))
 
+    def sides(self, gg, sha: str, path: str, image: str | None = None) -> dict:
+        """A kép két oldala, oldalanként külön `file_diff` hívással (`side`)."""
+        return {s: gg.diff.file_diff(sha, path, image=image, side=s) for s in ("old", "new")}
+
     def test_image_file_sides(self) -> None:
-        """R-1 — A képfájl két oldala data URI-ként: commitnál szülő ↔ commit, a Stage-elt
-        sornál HEAD ↔ index, az Uncommitted sornál index ↔ lemez, követetlennél csak a lemez."""
+        """R-1 — A képfájl két oldala data URI-ként, oldalanként külön: commitnál szülő ↔ commit,
+        a Stage-elt sornál HEAD ↔ index, az Uncommitted sornál index ↔ lemez, követetlennél csak
+        a lemez. A diff maga a két oldal méretét adja, kép nélkül."""
         repo, gg, parent, sha = self.image_repo()
         png = "data:image/png;base64,"
         b64 = lambda b: png + __import__("base64").b64encode(b).decode()   # noqa: E731
-        img = gg.diff.file_diff(sha, "docs/img/graph.png")["image"]
+        self.assertEqual(gg.diff.file_diff(sha, "docs/img/graph.png")["image"], {"old": {"size": 10}, "new": {"size": 8}})
+        img = self.sides(gg, sha, "docs/img/graph.png")
         self.assertEqual((img["old"]["uri"], img["new"]["uri"]), (b64(b"\x89PNG\0-regi"), b64(b"\x89PNG\0-uj")))
         self.assertEqual(img["new"]["size"], 8)
-        img = gg.diff.file_diff(parent, "docs/img/graph.png")["image"]
+        img = self.sides(gg, parent, "docs/img/graph.png")
         self.assertIsNone(img["old"])                                          # új fájl
         self.assertTrue(gg.diff.file_diff(parent, "logo.svg")["hunks"])        # az SVG szöveges diffje is
         (repo / "docs" / "img" / "graph.png").write_bytes(b"\x89PNG\0-index")
@@ -337,11 +345,11 @@ class DiffTest(HomeTestCase):
         (repo / "docs" / "img" / "graph.png").write_bytes(b"\x89PNG\0-lemez")
         (repo / "uj.png").write_bytes(b"\x89PNG\0-kovetetlen")
         slug = gg.registry.slug_for(repo)
-        staged = gg.diff.file_diff(f"*staged:{slug}", "docs/img/graph.png")["image"]
+        staged = self.sides(gg, f"*staged:{slug}", "docs/img/graph.png")
         self.assertEqual((staged["old"]["uri"], staged["new"]["uri"]), (b64(b"\x89PNG\0-uj"), b64(b"\x89PNG\0-index")))
-        wip = gg.diff.file_diff(f"*uncommitted:{slug}", "docs/img/graph.png")["image"]
+        wip = self.sides(gg, f"*uncommitted:{slug}", "docs/img/graph.png")
         self.assertEqual((wip["old"]["uri"], wip["new"]["uri"]), (b64(b"\x89PNG\0-index"), b64(b"\x89PNG\0-lemez")))
-        wip = gg.diff.file_diff(f"*uncommitted:{slug}", "uj.png")["image"]
+        wip = self.sides(gg, f"*uncommitted:{slug}", "uj.png")
         self.assertEqual((wip["old"], wip["new"]["uri"]), (None, b64(b"\x89PNG\0-kovetetlen")))
         self.assertNotIn("image", gg.diff.file_diff(sha, "a.txt"))
 
@@ -353,10 +361,25 @@ class DiffTest(HomeTestCase):
         git_in(repo, "add", ".")
         git_in(repo, "commit", "-qm", "nagy")
         sha = git_in(repo, "rev-parse", "HEAD").strip()
-        self.assertEqual(gg.diff.file_diff(sha, "nagy.jpg")["image"]["new"], {"size": len(big)})
+        self.assertEqual(gg.diff.file_diff(sha, "nagy.jpg", side="new"), {"size": len(big)})
         (repo / "nagy2.jpg").write_bytes(big)
         wip = f"*uncommitted:{gg.registry.slug_for(repo)}"
-        self.assertEqual(gg.diff.file_diff(wip, "nagy2.jpg")["image"]["new"], {"size": len(big)})
+        self.assertEqual(gg.diff.file_diff(wip, "nagy2.jpg", side="new"), {"size": len(big)})
+
+    def test_image_side_response(self) -> None:
+        """A limit (2 950 000 bájt) alatti kép egy oldala külön válaszban, a host-híd ~4 000 000
+        karakteres határa alatt; a pár így két válasz."""
+        repo, gg, _, _ = self.image_repo()
+        self.assertEqual(gg.diff.IMAGE_MAX, 2_950_000)
+        for name, fill in (("a.png", b"\1"), ("b.png", b"\2")):
+            (repo / name).write_bytes(fill * gg.diff.IMAGE_MAX)
+        git_in(repo, "add", ".")
+        git_in(repo, "commit", "-qm", "nagy pár")
+        sha = git_in(repo, "rev-parse", "HEAD").strip()
+        side = gg.diff.file_diff(sha, "a.png", side="new")
+        self.assertIn("uri", side)
+        self.assertLess(len(json.dumps(side)), 3_999_000)
+        self.assertNotIn("uri", gg.diff.file_diff(sha, "a.png")["image"]["new"])
 
     def test_image_ref(self) -> None:
         """R-4 — A markdown-kép útja: a md-fájl mappájához képest, a `/…` a repó gyökeréből; a
@@ -377,19 +400,21 @@ class DiffTest(HomeTestCase):
         """R-4 — A markdown-kép oldalanként a saját változatából; hiányzó oldal: `None`; a nem
         képfájl, a hibás sha és a repón kívüli út hiba; a lemezről csak a git által ismert fájl."""
         repo, gg, parent, sha = self.image_repo()
-        img = gg.diff.file_diff(sha, "docs/README.md", image="img/graph.png")
+        img = self.sides(gg, sha, "docs/README.md", "img/graph.png")
         self.assertTrue(img["old"]["uri"].endswith(__import__("base64").b64encode(b"\x89PNG\0-regi").decode()))
         self.assertNotEqual(img["old"]["uri"], img["new"]["uri"])
-        self.assertIsNone(gg.diff.file_diff(parent, "docs/README.md", image="img/graph.png")["old"])
-        self.assertIsNone(gg.diff.file_diff(sha, "docs/README.md", image="img/nincs.png")["new"])
-        self.assertEqual(gg.diff.file_diff(sha, "docs/README.md", image="../logo.svg")["new"]["uri"][:26],
+        self.assertIsNone(gg.diff.file_diff(parent, "docs/README.md", image="img/graph.png", side="old"))
+        self.assertIsNone(gg.diff.file_diff(sha, "docs/README.md", image="img/nincs.png", side="new"))
+        self.assertEqual(gg.diff.file_diff(sha, "docs/README.md", image="../logo.svg", side="new")["uri"][:26],
                          "data:image/svg+xml;base64,")
         (repo / ".gitignore").write_text("titok.png\n", encoding="utf-8")
         (repo / "titok.png").write_bytes(b"\x89PNG\0")
         wip = f"*uncommitted:{gg.registry.slug_for(repo)}"
-        self.assertIsNone(gg.diff.file_diff(wip, "README.md", image="titok.png")["new"])    # ignorált
-        self.assertTrue(gg.diff.file_diff(wip, "README.md", image="docs/img/graph.png")["new"]["uri"])
+        self.assertIsNone(gg.diff.file_diff(wip, "README.md", image="titok.png", side="new"))    # ignorált
+        self.assertTrue(gg.diff.file_diff(wip, "README.md", image="docs/img/graph.png", side="new")["uri"])
         for bad_sha, bad_ref in (("--output=/tmp/x", "a.png"), ("HEAD", "a.png"), (sha, "a.txt"),
                                  (sha, "../../kint.png"), (sha, "https://x.hu/a.png")):
             with self.assertRaises(ValueError, msg=bad_ref):
-                gg.diff.file_diff(bad_sha, "docs/README.md", image=bad_ref)
+                gg.diff.file_diff(bad_sha, "docs/README.md", image=bad_ref, side="new")
+        with self.assertRaises(ValueError):
+            gg.diff.file_diff(sha, "docs/img/graph.png", side="mind")

@@ -82,7 +82,7 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
     + '(az Artifact a Claude appban).</p>');
   show(cached ? render(cached.data) : '<p class="diff-note loading">Betöltés…</p>');
   if (cached && !cached.stale) return;
-  SRC.diff(sha, fileEl.dataset.path, full).then(
+  SRC.diff(sha, fileEl.dataset.path, full).then(d => withImages(d, sha, fileEl.dataset.path)).then(
     d => {
       // Élő frissítéskor a régi adat már kirajzolva: ha nem változott, nem rajzoljuk újra.
       const same = cached && JSON.stringify(cached.data) === JSON.stringify(d);
@@ -93,12 +93,23 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
       e?.message || e?.code || e)}</p>`); });
 }
 
-/* A markdown-fájl egy képének két oldala (`file_diff` `image`), a diffekkel együtt
-   gyorstárazva: az Uncommitted soré ugyanúgy elavul. */
+/* A kép két oldala oldalanként külön hívással (`file_diff` `side`): egy válasz így a host-híd
+   határa alatt marad. `ref`: a markdown-fájl egy képe. `known`: a diffből ismert oldalak
+   (a mérettel) — a hiányzót nem kérjük, és ha egy oldal hívása elbukik, a mérete marad (a
+   lap „Túl nagy kép”-et mutat), a diff nem vész el. */
+const sides = (sha, path, ref = null, known = null) => Promise.all(['old', 'new'].map(s =>
+  known && !known[s] ? null : SRC.side(sha, path, s, ref).catch(e => { if (known) return known[s]; throw e; })))
+  .then(([old, now]) => ({ old, new: now }));
+
+/* A képfájl diffje a két oldal méretét adja: a képeket külön kérjük, és a diffbe tesszük. */
+const withImages = (d, sha, path) => d.image ? sides(sha, path, null, d.image).then(image => ({ ...d, image })) : d;
+
+/* A markdown-fájl egy képének két oldala, a diffekkel együtt gyorstárazva: az Uncommitted
+   soré ugyanúgy elavul. */
 function image(sha, path, ref) {
   const key = sha + '\n' + path + '\nimg\n' + ref, cached = diffCache.get(key);
   if (cached && !cached.stale) return Promise.resolve(cached.data);
-  return SRC.image(sha, path, ref).then(d => { diffCache.set(key, { data: d }); return d; },
+  return sides(sha, path, ref).then(d => { diffCache.set(key, { data: d }); return d; },
     e => { if (cached) return cached.data; throw e; });
 }
 

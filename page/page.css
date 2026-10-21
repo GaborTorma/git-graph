@@ -824,23 +824,32 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 /* Képek (`images.js`): a Mermaid-diagramok elrendezésében. Két oldal két egyforma
-   félen, a régi jobbra, az új balra igazítva; ha nem férnek el, egymás alá, mindkettő
-   balra (`img-stack`). Egy kép balra. A kép természetes méretben, legfeljebb a hasáb
-   szélességéig; az átlátszó része mögött sakktábla. */
-.img-view { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 12px; }
+   félen, a régi jobbra, az új balra igazítva, mindig egymás mellett. Egy kép balra. A
+   kép méretét (illesztés, nagyítás) a `layout` írja a pane-re és a képre; addig
+   legfeljebb a hasáb szélességéig. Az átlátszó része mögött sakktábla. Swipe / Onion
+   skin nézetben (`img-over`) a két fél egy rácscellában fedi egymást. */
+.img-view { position: relative; display: flex; gap: 6px; margin: 4px 12px; }
 .md-doc .img-view { margin: 4px 0 4px 17px; }
-.md-mmd-row .img-view:has(> :nth-child(2)) { margin-left: 0; }   /* a side-by-side középvonalán */
-.img-half { flex: 1 1 0; display: flex; min-width: 0; }
-.img-half:first-child:not(:only-child) { justify-content: flex-end; }
-.img-view.img-stack > .img-half { flex-basis: 100%; justify-content: flex-start; }
+.md-mmd-row .img-view.img-pair { margin-left: 0; }   /* a side-by-side középvonalán */
+.img-half { flex: 1 1 0; display: flex; align-items: flex-start; justify-content: center; min-width: 0; }
+.img-pair > .img-half:first-child { justify-content: flex-end; }
+.img-pair > .img-half + .img-half { justify-content: flex-start; }
+.img-view.img-over { display: grid; justify-content: center; }
+.img-over > .img-half { grid-area: 1 / 1; justify-content: center; }
+/* a markdown-nézet képe a helyén: egyedül és fedő nézetben balra */
+.md-pic .img-view:not(.img-pair) > .img-half, .md-pic .img-over > .img-half { justify-content: flex-start; }
+.md-pic .img-view.img-over { justify-content: start; }
+.img-over .img-fig { border-color: var(--border); }
 .img-fig {
   box-sizing: border-box; max-width: 100%; padding: 5px;
   border: 1px solid var(--border); border-radius: 6px; background: var(--bg-1);
 }
+.img-pane { position: relative; overflow: hidden; user-select: none; touch-action: none; }
 .img-fig img {
-  display: block; max-width: 100%; height: auto;
+  display: block; max-width: 100%; height: auto; transform-origin: 0 0;
   background: repeating-conic-gradient(var(--bg-3) 0 25%, var(--bg) 0 50%) 0 0 / 16px 16px;
 }
+.img-fig img.img-px { image-rendering: pixelated; }
 /* az egyedül álló új / törölt kép bal csíkot kap, a változott pár teljes keretet */
 .img-fig.img-whole.img-add { border-left: 3px solid var(--add); padding-left: 3px; }
 .img-fig.img-whole.img-del { border-left: 3px solid var(--del); padding-left: 3px; }
@@ -849,7 +858,52 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .img-fig:not(:has(img)) { padding: 3px 8px; }
 .img-note { font-family: var(--font-ui); font-size: 12px; color: var(--fg-2); }
 .md-pic > .img-view > .md-img { padding: 1px 0; }
+/* a szövegbeli markdown-kép: keret nélkül, a sorban */
+.img-view.img-inline { display: inline-flex; margin: 0; vertical-align: middle; max-width: 100%; }
+.img-inline .img-half, .img-inline .img-fig, .img-inline .img-pane { display: inline-block; }
+.img-fig.img-bare { padding: 0; border: 0; border-radius: 0; background: none; }
 img.md-inl { max-width: 100%; vertical-align: middle; }
+/* a Swipe vonala: a fogantyúval húzható */
+.img-line {
+  display: none; position: absolute; z-index: 1; width: 13px; transform: translateX(-50%);
+  cursor: ew-resize; touch-action: none;
+}
+.img-view[data-mode="swipe"] > .img-line { display: block; }
+.img-line::before {
+  content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 1px;
+  background: var(--fg-0); box-shadow: 0 0 0 1px var(--bg);
+}
+.img-line > span {
+  position: absolute; left: 1px; top: 50%; width: 11px; height: 11px; margin-top: -6px;
+  border-radius: 50%; background: var(--bg); box-shadow: 0 0 0 1px var(--fg-0);
+}
+.img-view[data-mode="swipe"]:not(.img-zoomed) .img-pane { cursor: ew-resize; }
+.img-view.img-zoomed .img-pane { cursor: grab; }
+html.img-drag-ew, html.img-drag-ew * { cursor: ew-resize !important; }
+html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
+/* a sáv: rámutatásra lebeg a kép alján (alacsony képnél alatta), helyet nem foglal */
+.img-bar {
+  position: fixed; z-index: 20; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 2px; padding: 3px;
+  border-radius: 8px; background: var(--ctrl, var(--bg)); box-shadow: inset 0 0 0 1px var(--border), 0 2px 8px rgba(0, 0, 0, .12);
+  font-family: var(--font-ui); font-size: 11.5px; color: var(--fg-1); white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity .12s;
+}
+.img-view:has(.img-fig:hover, .img-line:hover, .img-bar:hover) > .img-bar { opacity: 1; pointer-events: auto; }
+.img-bar::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 8px; }
+.img-bar .mini[aria-pressed="true"] { background: var(--bg-3); color: var(--fg-0); }
+.img-pct { min-width: 4.2ch; text-align: center; font-variant-numeric: tabular-nums; }
+.img-opacity { width: 80px; margin: 0 4px; accent-color: var(--accent); }
+.img-view:not([data-mode="onion"]) .img-opacity, .img-bar [data-img-close] { display: none; }
+/* a teljes lapos nézet: a lapot fedő réteg, a sáv mindig látszik */
+.img-full {
+  position: fixed; inset: 0; z-index: 70; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; padding: 24px 24px 56px;
+}
+.img-full .img-view { margin: 0; flex: 0 1 auto; width: calc(100vw - 48px); justify-content: center; }
+.img-full .img-bar { left: 50%; top: auto; bottom: 14px; opacity: 1; pointer-events: auto; }
+.img-full .img-bar [data-img-close] { display: inline-flex; }
+.img-full .img-bar [data-img-full] { display: none; }
 .md-table { margin: 4px 0 4px 17px; }
 .md-table table { border-collapse: collapse; font-size: 12.5px; max-width: 100%; }
 .md-table th, .md-table td {
