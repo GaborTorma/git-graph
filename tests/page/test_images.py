@@ -5,6 +5,7 @@ A kép a panelbe illeszkedik; a változott pár Side-by-side, Swipe és Onion sk
 összevethető, nagyítható, teljes lapos nézetben is; a bináris fájl sora a méretét mutatja."""
 from __future__ import annotations
 
+import os
 import struct
 import unittest
 import zlib
@@ -37,7 +38,16 @@ Régi mondat.
 """
 MD_NEW = MD_OLD.replace("Régi mondat.", "Új mondat.").replace("Egy sor", "Egy új sor")
 TALL_MD = "# Magas\n\n![magas](img/magas.png)\n\n{}\n"
-BIG_PNG = png(20, 20, RED)[:-12] + b"\0" * int(2.4 * 1048576) + png(20, 20, RED)[-12:]
+BIG_PNG = png(20, 20, RED)[:-12] + b"\0" * int(3.5 * 1048576) + png(20, 20, RED)[-12:]
+
+
+def noise_png(width: int, height: int) -> bytes:
+    """Véletlen pixelű, tömöríthetetlen PNG: a mérete ~szélesség × magasság × 4 bájt."""
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    raw = b"".join(b"\0" + os.urandom(width * 4) for _ in range(height))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw, 0)) + chunk(b"IEND", b""))
 
 # a figurák: [osztály a `img-fig` nélkül, van-e képe]
 FIGS = "fs => fs.map(f => [f.className.replace('img-fig', '').trim(), !!f.querySelector('img')])"
@@ -66,7 +76,8 @@ class ImageFixture(PageTestCase):
             "wide.png": (png(500, 20, RED), png(500, 20, BLUE)),
             "atlatszo.png": (None, png(40, 40, CLEAR)),
             "icon.svg": (SVG_OLD, SVG_NEW),
-            "photo.jpg": (None, b"\xff\xd8\xff" + b"\0" * int(2.4 * 1048576)),
+            "photo.jpg": (None, b"\xff\xd8\xff" + b"\0" * int(3.5 * 1048576)),
+            "big.png": (noise_png(790, 790), noise_png(790, 790)),
             "regi-nev.png": (png(20, 20, RED), None),
             "uj-nev.png": (None, png(20, 20, RED)),
             "docs/img/graph.png": (png(50, 30, RED), png(50, 30, BLUE)),
@@ -181,7 +192,14 @@ class ImagesTest(ImageFixture):
         """R-2 — A túl nagy kép helyén a mérete."""
         self.open_file("photo.jpg")
         self.page.wait_for_selector(".img-big")
-        self.assertEqual(self.page.locator(".img-big").inner_text(), "Túl nagy kép (2,4 MB).")
+        self.assertEqual(self.page.locator(".img-big").inner_text(), "Túl nagy kép (3,5 MB).")
+
+    def test_big_image(self) -> None:
+        """A limit alatti nagy kép (~2,4 MB) mindkét oldala megjelenik."""
+        self.open_image("big.png")
+        self.assertEqual(self.figs(), [["img-del", True], ["img-add", True]])
+        sizes = self.page.locator(".diff .img-view img").evaluate_all("is => is.map(i => i.naturalWidth)")
+        self.assertEqual(sizes, [790, 790])
 
     def test_wide_image_shrinks(self) -> None:
         """R-2 — A hasábnál szélesebb kép a hasáb szélességére kicsinyedik."""
@@ -238,9 +256,10 @@ class ImagesTest(ImageFixture):
         self.page.locator(".details .file", has_text="README.md").click()
         self.page.wait_for_selector(".md-doc .md-pic img")
         srcs = self.page.locator(".md-doc .md-pic").first.locator("img").evaluate_all("is => is.map(i => i.src)")
-        sides = self.client.call("file_diff", repo="fixture", sha=self.page.locator(
-            ".row.uncommitted").first.get_attribute("data-sha"), path="docs/README.md", image="img/graph.png")
-        self.assertEqual(srcs, [sides["old"]["uri"], sides["new"]["uri"]])
+        sha = self.page.locator(".row.uncommitted").first.get_attribute("data-sha")
+        sides = [self.client.call("file_diff", repo="fixture", sha=sha, path="docs/README.md", image="img/graph.png",
+                                  side=side) for side in ("old", "new")]
+        self.assertEqual(srcs, [sides[0]["uri"], sides[1]["uri"]])
         self.assertNotEqual(*srcs)
 
 

@@ -45,9 +45,11 @@ MCP_TOOLS = [
          "path": {"type": "string", "description": "a fájl útja, ahogy a graph_data adja"},
          "full": {"type": "boolean", "description": "a teljes fájl, a változatlan sorokkal együtt"},
          "image": {"type": "string", "description": "a markdown-fájl egy képének hivatkozása (![alt](…)): "
-                                                    "a diff helyett a kép két oldala"}}},
+                                                    "a diff helyett a kép két oldalának mérete"},
+         "side": {"type": "string", "enum": ["old", "new"],
+                  "description": "a kép egy oldala (data URI): képfájlnál vagy az `image` képénél"}}},
      "description": "Egy fájl diffje egy commitban, hunkokra és sorokra bontva; képfájlnál a "
-                    "két oldal képe is (data URI)."},
+                    "két oldal mérete is, a kép oldalanként a `side`-dal (data URI)."},
     {"name": "page_code", "annotations": {"readOnlyHint": True},
      "inputSchema": {"type": "object", "required": ["repo", "api"], "properties": {
          **_REPO_ARG["properties"],
@@ -108,7 +110,8 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
         if name == "file_diff":
             image = args.get("image")
             return text(file_diff(str(args.get("sha", "")), str(args.get("path", "")),
-                                  bool(args.get("full")), None if image is None else str(image)))
+                                  bool(args.get("full")), None if image is None else str(image),
+                                  None if args.get("side") is None else str(args["side"])))
         if name == "page_code":
             mismatch = page_api_mismatch(args.get("api"))
             return text(mismatch, True) if mismatch else text(page_code(args.get("part")))

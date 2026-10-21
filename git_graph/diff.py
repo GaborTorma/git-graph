@@ -31,7 +31,10 @@ PROSE_MAX_TOKENS = 20000        # e fölött a szöveges blokk is soronként pá
 IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
                ".webp": "image/webp", ".avif": "image/avif", ".svg": "image/svg+xml",
                ".ico": "image/x-icon", ".bmp": "image/bmp"}
-IMAGE_MAX = 1024 * 1024         # képenként; fölötte csak a méret (egy pár így a host-híd határa alatt)
+# Oldalanként, külön válaszban; fölötte csak a méret. A base64-e (×4/3, ~3 933 000 karakter) így
+# a host-híd mért, ~4 000 000 karakteres határa alatt (.claude/memory/host-bridge-response-size.md).
+IMAGE_MAX = 2_950_000
+SIDES = ("old", "new")
 EXTERNAL_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//)")   # `https:`, `data:`, `//host`
 
 
@@ -619,10 +622,11 @@ def image_sources(sha: str) -> tuple:
     return None, ("rev", f"{sha}^1"), ("rev", sha, *parents[2:3])
 
 
-def image_side(root: Path | None, src: tuple, path: str | None) -> dict | None:
-    """A kép egy oldala: `{"size", "uri"}` (data URI), az `IMAGE_MAX` fölött csak a méret;
-    ha a fájl azon az oldalon nincs meg: `None`. A lemezről csak olyan fájl olvasható, amit
-    a git ismer (követett, vagy követetlen, de nem ignorált), és a worktree-n belül van."""
+def image_side(root: Path | None, src: tuple, path: str | None, uri: bool = True) -> dict | None:
+    """A kép egy oldala: `{"size", "uri"}` (data URI), az `IMAGE_MAX` fölött vagy `uri` nélkül
+    csak a méret; ha a fájl azon az oldalon nincs meg: `None`. A lemezről csak olyan fájl
+    olvasható, amit a git ismer (követett, vagy követetlen, de nem ignorált), és a worktree-n
+    belül van."""
     kind = IMAGE_TYPES.get(Path(path or "").suffix.lower())
     if not path or not kind:
         return None
@@ -633,7 +637,7 @@ def image_side(root: Path | None, src: tuple, path: str | None) -> dict | None:
         if path not in known.split("\0") or not file.is_relative_to(Path(root).resolve()) or not file.is_file():
             return None
         size = file.stat().st_size
-        if size <= IMAGE_MAX:
+        if uri and size <= IMAGE_MAX:
             data = file.read_bytes()
     else:
         for rev in src[1:]:
@@ -641,7 +645,7 @@ def image_side(root: Path | None, src: tuple, path: str | None) -> dict | None:
             found = git_raw("cat-file", "-s", spec, repo=root)
             if found is not None:
                 size = int(found)
-                data = git_raw("cat-file", "blob", spec, repo=root) if size <= IMAGE_MAX else None
+                data = git_raw("cat-file", "blob", spec, repo=root) if uri and size <= IMAGE_MAX else None
                 break
         if size is None:
             return None
@@ -668,19 +672,29 @@ def image_ref(md_path: str, ref: str) -> str:
     return out
 
 
-def file_diff(sha: str, path: str, full: bool = False, image: str | None = None) -> dict:
-    """Egy fájl diffje (`text_diff`); képfájlnál a két oldal képe is (`image`: `old`, `new`,
-    `image_side`). Az `image` argumentummal a `path` markdown-fájl egy képe (`image_ref`):
-    a régi oldalé a régi, az újé az új változatból — `{"old", "new"}`, a diff nélkül."""
+def file_diff(sha: str, path: str, full: bool = False, image: str | None = None, side: str | None = None) -> dict | None:
+    """Egy fájl diffje (`text_diff`); képfájlnál a két oldal mérete is (`image`: `old`, `new`).
+    A kép maga oldalanként külön hívás (`side`: `old` / `new` → `image_side`), hogy egy válasz
+    a host-híd határa alatt maradjon. Az `image` argumentummal a `path` markdown-fájl egy képe
+    (`image_ref`): a régi oldalé a régi, az újé az új változatból — `side`-dal az az oldal,
+    nélküle a két oldal mérete, a diff nélkül."""
+    if side is not None and side not in SIDES:
+        raise ValueError(f"érvénytelen oldal: {side!r}")
     old, new = numstat_old_path(path), numstat_new_path(path)
     if image is not None:
-        a, b = image_ref(old, image), image_ref(new, image)
-        if Path(b).suffix.lower() not in IMAGE_TYPES:
+        old, new = image_ref(old, image), image_ref(new, image)
+        if Path(new).suffix.lower() not in IMAGE_TYPES:
             raise ValueError(f"nem kép: {image!r}")
+    elif side is not None and Path(new).suffix.lower() not in IMAGE_TYPES:
+        raise ValueError(f"nem kép: {path!r}")
+    if side is not None:
         root, src_a, src_b = image_sources(sha)
-        return {"old": image_side(root, src_a, a), "new": image_side(root, src_b, b)}
+        return image_side(root, src_a, old) if side == "old" else image_side(root, src_b, new)
+    if image is not None:
+        root, src_a, src_b = image_sources(sha)
+        return {"old": image_side(root, src_a, old, False), "new": image_side(root, src_b, new, False)}
     out = text_diff(sha, path, full)
     if Path(new).suffix.lower() in IMAGE_TYPES:
         root, src_a, src_b = image_sources(sha)
-        out["image"] = {"old": image_side(root, src_a, old), "new": image_side(root, src_b, new)}
+        out["image"] = {"old": image_side(root, src_a, old, False), "new": image_side(root, src_b, new, False)}
     return out
