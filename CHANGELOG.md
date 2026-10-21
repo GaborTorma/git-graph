@@ -1,3 +1,33 @@
+## [0.16.0] - 2026-10-21
+
+### 🚀 Features
+
+- *(diff)* Show image files and markdown images as images in the file diff
+- *(graph)* Méret a bináris fájlok sorában a `bin` címke helyett
+- *(page)* Képek összehasonlítása és nagyítása a fájl-diffben
+- *(diff)* A kép oldalanként külön válaszban, 2,95 MB-ig
+- *(page)* A képnézegető finomításai a kipróbálás után
+
+### 🐛 Bug Fixes
+
+- *(diff)* Do not mark the indentation of a prose line as a changed word
+- *(diff)* Keep a list item that changed level on its own level in the markdown view
+- *(graph)* Stash list versenyhelyzete hiba nélkül
+- *(page)* Nagyításkor a panel a megnőtt képhez görget
+
+### 📚 Documentation
+
+- *(diff)* Move the file diff to its own page with image requirements R-1–R-4
+- Move the measurement log and the gotcha reasons from docs/ into memory
+- Drop the CLAUDE.md lines that the rules and the memory index already state
+
+### 🧪 Testing
+
+- *(page)* A lap tesztjei párhuzamosan, osztályonként egy workerben
+
+### ⚙️ Miscellaneous Tasks
+
+- Keep the hand-drawn icon source in design/icons/ instead of docs/
 ## [0.15.0] - 2026-10-16
 
 ### 🚀 Features

@@ -4,7 +4,7 @@
 
 [changelog]
 header_marker = "<!-- git-cliff: end of header -->"
-# A merge commitok kimaradnak: a tárgysoruk Conventional (a PR címe, ill. a `dev` mergéjéé),
+# A merge commitok kimaradnak: a subjectjük Conventional (a mergelt munkából írva),
 # különben a mergelt commitok mellett külön sorként is megjelennének.
 body = """
 {% if version %}\
@@ -32,11 +32,10 @@ require_conventional = false
 split_commits = false
 commit_preprocessors = []
 protect_breaking_commits = false
-# A sorrend számít: az első illeszkedő dönt. Elöl a kihagyottak — a memória, a worklog és a
+# A sorrend számít: az első illeszkedő dönt. Elöl a kihagyottak — a memória és a
 # release-commit nem a User-nek szól.
 commit_parsers = [
     { message = "^memory", skip = true },
-    { message = "^docs\\(worklog\\)", skip = true },
     { message = "^chore\\(release\\)", skip = true },
     { message = "^chore\\(deps.*\\)", skip = true },
     { message = "^feat", group = "<!-- 0 -->🚀 Features" },
