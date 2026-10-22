@@ -16,6 +16,7 @@ Használat és felépítés: [README.md](../README.md).
 | `scripts/check-page.mjs` | a lap moduljainak szintaxisa és összekötése (import ↔ export) Node-ban, futtatás nélkül — a Check része |
 | `page/js/types.d.ts`, `page/tsconfig.json` | a lap típusai (`graph_data`, `GIT_GRAPH`) a `tsc --checkJs`-hez — a lapra nem kerül |
 | `scripts/mermaid.sh` | a `page/vendor/mermaid.min.js` karcsú buildje (esbuild, a nehéz diagramtípusok helyén csonk, ELK-kal) és a licencek — kézzel, frissítéskor; a host-híd határa alatt kell maradnia |
+| `scripts/screenshots.py` | a funkcióoldalak képei (`docs/img/<funkció>/`) a `tests/page` fixture-repóiból — kézzel, UI-változáskor (`/workflow:docs`) |
 | `scripts/file-icons.py` | a `page/file-icons.json` előállítása a Catppuccin VS Code ikonjaiból (MIT, verzióra rögzítve) — kézzel, frissítéskor |
 | `design/icons/` | a Fejlesztő ikonrajzainak forrása (CorelDRAW, pl. `cloud-branch-icon.cdr` → a `branchCloud` SVG-je) — a projekt nem használja, csak az SVG újrarajzolásához |
 | `tests/` | modulonként egy `test_<modul>.py`, kamu `HOME`-mal (`helpers.py`: a csomag friss betöltése, eldobható repók, MCP-kliens); `test_mcp.py` a füstteszt: `git-graph --mcp` stdio-n a working tree-ből, és a stabil másolatból; `tests/page/`: a lap viselkedése headless Chromiumban (Playwright, `harness.py`: valódi betöltő + `git-graph --mcp`, fixture-repó) |
@@ -44,6 +45,7 @@ git-graph --forget           # a repó git-graph nyomai + automatikus megnyitás
 git-graph --open-url --session <ID>   # a mod kérdése: az URL, ha most meg kell nyitni
 claude plugin test .         # a mod tesztjei (hooks/*.test.ts)
 uv run --no-project --with playwright==1.63.0 --with pytest==9.0.3 --with pytest-xdist==3.8.0 python -m pytest tests/page -n auto --dist loadscope -q -p no:cacheprovider   # a lap böngészőben
+uv run --no-project --with playwright==1.63.0 python scripts/screenshots.py   # a funkcióoldalak képei
 python3 bin/git-graph …    # közvetlenül, a working tree-ből
 python3 bin/git-graph --dev-install   # a working tree az appban futó git-graph helyére (+dev), a lap élőben
 ```

@@ -6,6 +6,8 @@ commitjainak tükrei — ugyanaz a subject, szerző és author-dátum, más hash
 
 ## Működés
 
+![A widgets/main chipje áthúzott lánccal, a tükör-commitok halványan, ívvel a forrásukhoz](img/subtree-remote/graph.png)
+
 ### Független történet a chipen
 
 Az ág chipje az alapághoz (amire az `origin/HEAD` mutat) mért távolságot mutatja
@@ -39,6 +41,8 @@ lap commitjaiból számolja (egy menet); ahol a limit elvágja a történetet, o
 
 ### Remote szerinti szűrő
 
+![A remote-szűrő nyitva: origin és widgets, mindkettő bekapcsolva](img/subtree-remote/remote-filter.png)
+
 Több remote-nál a „Remote ágak” kapcsoló mellett egy lenyíló menü remote-onként ki-be
 kapcsolja, mely remote-ok ágai látszanak (pl. `widgets` ki, `origin` be). A rejtett
 remote ágainak chipje, ágválasztó-sora és a hozzá mért távolság (`☁ ↑↓`) eltűnik, és a
@@ -52,52 +56,53 @@ a repó slugja), mint a témát és a diff-nézeteket.
 ## Követelmények
 
 ```gherkin
-Feature: Subtree-remote a gráfban
+# Egy `git subtree split` / `push` remote-ja helyesen jelenik meg a gráfban.
+Jellemző: Subtree-remote a gráfban
 
-  Rule: R-1 — A közös ős nélküli ág chipje nem mutat távolságot az alapághoz
+  Szabály: R-1 — A közös ős nélküli ág chipje nem mutat távolságot az alapághoz
+    Forgatókönyv: Subtree-remote ága
+      Adott a "widgets/main" remote ág, amelynek nincs közös őse az "origin/main"-nel
+      Ha a Fejlesztő a chipje fölé viszi az egeret
+      Akkor a chipen nincs "↑" és "↓" szakasz
+        És egy elválasztó után áthúzott lánc ikon áll
+        És a tooltip: "Külön történet: nincs közös őse az alapággal"
 
-    Scenario: Subtree-remote ága
-      Given a "widgets/main" remote ágnak nincs közös őse az alapággal
-      When a Fejlesztő megnézi a chipjét
-      Then a chipen nincs "↑" és "↓" szakasz
-      And egy elválasztó után áthúzott lánc ikon áll
-      And a tooltip: "Külön történet: nincs közös őse az alapággal"
+    Forgatókönyv: Szétvált, de rokon ág
+      Adott a "feat" ág, amely 1 committal előrébb és 1 committal mögötte jár az "origin/main"-nek
+      Ha a Fejlesztő megnézi a chipjét
+      Akkor a chipen "↑1 ↓1" áll
 
-    Scenario: Szétvált, de rokon ág
-      Given a "feat" ág 1 committal előrébb és 1 committal mögötte jár az alapágnak
-      Then a chipje "↑1 ↓1"
+  Szabály: R-2 — A tükör-commit halvány, és a forrásához kötve látszik
+    Forgatókönyv: Subtree-remote commitja
+      Adott a "widgets/main" "c678e84" commitja, a "main" "e7113d9" commitjának tükre, közös ős nélkül
+      Ha a Fejlesztő megnyitja a lapot
+      Akkor a "c678e84" sora halvány
+        És a gráfpöttye üres karika
+        És szaggatott ív köti az "e7113d9" pöttyéhez
 
-  Rule: R-2 — A tükör-commit halvány, és a forrásához kötve látszik
+    Forgatókönyv: Cherry-pick
+      Adott a "pick" ágon a "main" egy commitjának cherry-pickje
+      Ha a Fejlesztő megnyitja a lapot
+      Akkor a cherry-pick sora nem halvány, és nem kap ívet
 
-    Scenario: Subtree-remote commitja
-      Given a "widgets/main" commitja a "main" egy commitjának tükre
-      And a kettőnek nincs közös őse
-      Then a tükör-commit sora halvány
-      And a gráfpöttye üres karika
-      And szaggatott ív köti a forrás-commit pöttyéhez
+  Szabály: R-3 — A remote-ok ágai remote-onként elrejthetők
+    Forgatókönyv: Egy remote elrejtése
+      Adott a repó két remote-ja: "origin" és "widgets"
+      Ha a Fejlesztő a remote-szűrőben kikapcsolja a "widgets"-et
+      Akkor a "widgets/main" chipje és ágválasztó-sora eltűnik
+        És a csak a "widgets"-ből elérhető commitok kimaradnak
+        És az "origin" ágai látszanak
+        És a gomb felirata "origin"
 
-    Scenario: Cherry-pick
-      Given a "pick" ágon egy "main"-commit cherry-pickje áll
-      Then a cherry-pick sora nem halvány, és nem kap ívet
+    Forgatókönyv: A választás megmarad
+      Adott a rejtett "widgets" remote
+      Ha a lap újratölt
+      Akkor a "widgets" továbbra is rejtett
 
-  Rule: R-3 — A remote-ok ágai remote-onként elrejthetők
-
-    Scenario: Egy remote elrejtése
-      Given a repónak két remote-ja van: "origin" és "widgets"
-      When a Fejlesztő a remote-szűrőben kikapcsolja a "widgets"-et
-      Then a "widgets/main" chipje és ágválasztó-sora eltűnik
-      And a csak a "widgets"-ből elérhető commitok kimaradnak
-      And az "origin" ágai látszanak
-      And a gomb felirata "origin"
-
-    Scenario: A választás megmarad
-      Given a Fejlesztő elrejtette a "widgets" remote-ot
-      When a lap újratölt
-      Then a "widgets" továbbra is rejtett
-
-    Scenario: Egyetlen remote
-      Given a repónak csak "origin" remote-ja van
-      Then a remote-szűrő nem jelenik meg
+    Forgatókönyv: Egyetlen remote
+      Adott a repó egyetlen remote-ja: "origin"
+      Ha a Fejlesztő megnyitja a lapot
+      Akkor a remote-szűrő nem jelenik meg
 ```
 
 ## Használat

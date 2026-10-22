@@ -248,7 +248,12 @@ a worktree-nek a sora látszik, amelyikben a szűrt ág van kivéve. Élő módb
 A részletek-panel fájlsorai lenyithatók: alatta a fájl diffje (szöveg, renderelt markdown,
 kép), széles ablakban side-by-side. Részletek és követelmények:
 [docs/file-diff.md](docs/file-diff.md); a funkcióoldalak listája:
-[docs/README.md](docs/README.md).
+[docs/README.md](docs/README.md). A funkcióoldalak képei a lap tesztjeinek fixture-repóiból
+készülnek, újragenerálhatóan:
+
+```sh
+uv run --no-project --with playwright==1.63.0 python scripts/screenshots.py
+```
 
 ## GitHub-linkek
 
