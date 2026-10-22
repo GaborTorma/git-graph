@@ -41,6 +41,33 @@ class BranchesTest(HomeTestCase):
         pushed = {c["subject"] for c in commits if c.get("pushed")}
         self.assertEqual(pushed, {"init", "f1", "f2"})                 # a helyi main előfutása nem
 
+    def test_unrelated_history(self) -> None:
+        """Közös ős nélkül (`git subtree push` remote-ja) nincs `base` távolság, csak `unrelated` jel;
+        a szétvált, de rokon ágnál (mindkét irány nem nulla) a távolság marad."""
+        bare, repo = self.home / "remote.git", self.home / "work"
+        git_in(self.home, "init", "-q", "--bare", "-b", "main", str(bare))
+        repo.mkdir()
+        run = lambda *a: git_in(repo, *a)  # noqa: E731
+        run("init", "-q", "-b", "main")
+        run("remote", "add", "origin", str(bare))
+        run("commit", "-q", "--allow-empty", "-m", "init")
+        run("switch", "-q", "-c", "feat")
+        run("commit", "-q", "--allow-empty", "-m", "f1")
+        run("switch", "-q", "main")
+        run("commit", "-q", "--allow-empty", "-m", "m1")
+        run("push", "-q", "-u", "origin", "main", "feat")
+        run("remote", "set-head", "origin", "main")
+        run("switch", "-q", "--orphan", "split")
+        run("commit", "-q", "--allow-empty", "-m", "s1")
+        run("push", "-q", "origin", "split:only-split")                # remote-only, közös ős nélkül
+        run("switch", "-q", "main")
+        gg = self.load()
+        gg.gitio.set_repo(repo)
+        tracks = gg.branches.branch_tracks(gg.gitio.default_base())
+        self.assertEqual(tracks["split"], {"unrelated": True})
+        self.assertEqual(tracks["origin/only-split"], {"unrelated": True})
+        self.assertEqual(tracks["feat"]["base"], [1, 1])               # rokon: a távolság marad
+
     def test_branch_owners(self) -> None:
         """Az ág a worktree-é, amelyikben utoljára ki volt véve (HEAD-reflog); a soha ki nem vett gazdátlan."""
         main, extra = self.make_repo()

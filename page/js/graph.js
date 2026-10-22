@@ -87,13 +87,26 @@ export function drawGraph() {
         + `<circle cx="${x}" cy="${y}" r="${DOT_R}" fill="${color}" stroke="${color}" stroke-width="2"/>`;
     }
   });
+  // A tükör-commit (`mirrorOf`, pl. egy subtree-remote másolata) vékony, szaggatott íve a
+  // forrás pöttyéhez, a tükör sávjának színével; a pöttyök alá, hogy a végeit takarják.
+  visible.forEach((c, i) => {
+    const j = c.mirrorOf ? rowIndexBySha.get(c.mirrorOf) : undefined;
+    if (j === undefined) return;                       // nincs tükör, vagy a forrása szűrve
+    const src = visible[j];
+    const x1 = laneX(c.lane), y1 = rowY(i), x2 = laneX(src.lane), y2 = rowY(j), ym = (y1 + y2) / 2;
+    // Egy sávban egyenes volna (a sáv vonalán): ott oldalra hajlik.
+    const bow = x1 === x2 ? LANE_W * 0.8 : 0;
+    out += `<path d="M ${x1} ${y1} C ${x1 + bow} ${ym}, ${x2 + bow} ${ym}, ${x2} ${y2}" fill="none"`
+      + ` stroke="${laneColor(c.lane)}" stroke-width="1.2" stroke-dasharray="2 2"/>`;
+  });
   visible.forEach((c, i) => {
     if (c.uncommitted && c.worktree === focusWt()?.slug) return;   // a pontja a #pending sávban van
     const color = tint(c, laneColor(c.lane));
     const merge = c.parents.length > 1;
     // Az ál-sor és a stash pontja üres karika: a szaggatott vonal már jelzi, hogy nem
     // commit a branch-en — a pöttyözött körvonal ezen a méreten csak elmosódna.
-    const hollow = merge || c.uncommitted || c.stash;
+    // A tükör-commit is: a forrása a valódi commit, ez csak a másolata.
+    const hollow = merge || c.uncommitted || c.stash || c.mirrorOf;
     if (fresh.has(c.sha)) out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="8" fill="${color}" opacity=".28"/>`;
     out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="${hollow ? DOT_R + 1 : DOT_R}"`
         +  ` fill="${hollow ? 'var(--bg)' : color}" stroke="${color}" stroke-width="2"/>`;

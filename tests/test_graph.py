@@ -18,6 +18,27 @@ class GraphTest(HomeTestCase):
                           ("remote", "origin/main"), ("tag", "v1")])
         self.assertEqual(gg.graph.parse_refs("HEAD"), [{"kind": "detached", "name": "HEAD"}])
 
+    def test_mirrors(self) -> None:
+        """A közös ős nélküli történet azonos subjectű, szerzőjű és author-dátumú commitja a forrás
+        tükre (`mirrorOf`); a cherry-pick (közös ős van) és a forrás maga nem az."""
+        repo = self.plain_repo()
+        run = lambda *a: git_in(repo, *a)  # noqa: E731
+        date = "--date=@1780000000 +0000"                                # az author-dátum
+        run("commit", "-q", "--allow-empty", "-m", "forrás", date)
+        src = run("rev-parse", "HEAD").strip()
+        run("switch", "-q", "-c", "pick", "HEAD~1")
+        run("cherry-pick", "--allow-empty", src)                       # közös ős: nem tükör
+        run("switch", "-q", "--orphan", "split")
+        run("commit", "-q", "--allow-empty", "-m", "forrás", date)
+        mirror = run("rev-parse", "HEAD").strip()
+        run("switch", "-q", "main")
+        gg = self.load()
+        gg.gitio.set_repo(repo)
+        commits = gg.graph.collect_commits(None)
+        gg.graph.mark_mirrors(commits, "")
+        marked = {c["sha"]: c["mirrorOf"] for c in commits if "mirrorOf" in c}
+        self.assertEqual(marked, {mirror: src})
+
     def test_worktrees(self) -> None:
         """Közös adat: minden worktree HEAD-je és ál-sora, a diff a saját mappájából."""
         main, extra = self.make_repo()

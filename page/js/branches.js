@@ -1,7 +1,7 @@
 /* Ágválasztó: a menü tartalma és szűrője. */
 import { icon, tinted } from './icons.js';
 import { fitChrome } from './layout.js';
-import { branchColor, focusWt, linkedWts, refColor, remoteRefs, remotesOn, worktrees, wtColor } from './model.js';
+import { branchColor, focusWt, hiddenRemotes, linkedWts, refColor, remoteRefs, remoteShown, remotesOn, worktrees, wtColor } from './model.js';
 import { distText } from './refs.js';
 import { DATA } from './state.js';
 import { esc, fold, queryWords } from './util.js';
@@ -26,8 +26,10 @@ export const setBranchSel = refs => { branchSel = new Set(refs); };
 const cloudIc = (ref, color) => tinted(ref === DATA.meta.base ? 'cloudFill' : 'cloud', color);
 /* Ág és upstream együtt (egy helyen állnak, vagy mindkettő kijelölve): egy ikon. */
 const branchCloudIc = (ref, color) => tinted(ref === DATA.meta.base ? 'branchCloudFill' : 'branchCloud', color);
-/* Egy helyi ág refjei a menüben: maga, és — remote ágakkal — az élő upstreamje. */
-const blockRefs = (b, remote) => (remote && b.upstream && b.track !== 'gone' ? [b.name, b.upstream] : [b.name]);
+/* Egy helyi ág refjei a menüben: maga, és — remote ágakkal — az élő upstreamje, ha a
+   remote-ja nincs elrejtve. */
+const blockRefs = (b, remote) => (remote && b.upstream && b.track !== 'gone' && remoteShown(b.upstream)
+  ? [b.name, b.upstream] : [b.name]);
 /* Egy worktree-hez tartozó ágak (`owner`). */
 const ownedBy = w => DATA.branches.filter(b => !b.remote && b.owner === w.slug);
 /* A gomb ikonja és felirata a kijelölés szerint: minden ág; egy worktree összes ága
@@ -67,7 +69,7 @@ function selView() {
    az ágak. */
 export function fillBranches() {
   const remote = remotesOn();
-  const valid = new Set([...DATA.branches.map(b => b.name), ...(remote ? remoteRefs() : [])]);
+  const valid = new Set([...DATA.branches.map(b => b.name), ...[...remoteRefs()].filter(remoteShown)]);
   for (const n of branchSel) if (!valid.has(n)) branchSel.delete(n);
   const wts = worktrees(), multi = linkedWts().length > 0, own = focusWt();
   const base = DATA.meta.base || '', baseLocal = base.slice(base.indexOf('/') + 1);
@@ -160,7 +162,7 @@ export function fillBranches() {
   }
   // Csak remote ágak, remote-onként egy fejléc.
   const byRemote = new Map();
-  if (remote) for (const b of DATA.branches.filter(x => x.remote)) {
+  for (const b of DATA.branches.filter(x => x.remote && remoteShown(x.name))) {
     const r = b.name.slice(0, b.name.indexOf('/'));
     byRemote.set(r, [...(byRemote.get(r) || []), b]);
   }
@@ -173,6 +175,7 @@ export function fillBranches() {
   }
   branchList.innerHTML = html;
   filterBranches();
+  fillRemotes();
   // A három távolság-oszlop szélessége külön-külön a saját leghosszabb számához igazodik
   // (1–4 jegy, üres oszlopnál 0); a ↕ jel a szélső oszlophoz tartozik.
   const longest = sel => Math.max(0, ...[...branchPop.querySelectorAll(sel)].map(e => e.textContent.length));
@@ -184,6 +187,31 @@ export function fillBranches() {
   if (branchLabel.textContent !== label) {
     branchLabel.textContent = label;
     fitChrome();                // a hosszabb ágnév más sorbontást hozhat
+  }
+}
+
+/* Remote-szűrő (a „Remote ágak” kapcsoló mellett, csak több remote-nál): remote-onként
+   egy opció, pipával; a kapcsoló kikapcsolva a gomb is tiltott. A gomb felirata a
+   látható remote-ok neve, vagy „Minden remote”. */
+export const remotesBtn = /** @type {HTMLButtonElement} */ (document.getElementById('remotesBtn'));
+export const remotesPop = document.getElementById('remotesPop');
+const remotesLabel = document.getElementById('remotesLabel');
+function fillRemotes() {
+  const names = DATA.meta.remotes || [];
+  const focused = remotesPop.contains(document.activeElement) && /** @type {HTMLElement} */ (document.activeElement).dataset.key;
+  remotesPop.innerHTML = names.map(n => `<button type="button" class="option with-icon" role="option" data-keep`
+    + ` data-key="${esc(n)}" aria-selected="${!hiddenRemotes.has(n)}">${icon('cloud')}`
+    + `<span class="name">${esc(n)}</span>${icon('check', 'ic ck')}</button>`).join('');
+  if (focused) remotesPop.querySelector(`.option[data-key="${CSS.escape(focused)}"]`)?.focus();
+  remotesBtn.disabled = !remotesOn();
+  const shown = names.filter(n => !hiddenRemotes.has(n));
+  const label = shown.length === names.length ? 'Minden remote' : shown.join(', ') || 'Nincs remote';
+  const wrap = remotesBtn.parentElement, hide = names.length < 2;
+  if (wrap.hidden !== hide || remotesLabel.textContent !== label) {
+    wrap.hidden = hide;
+    remotesLabel.textContent = label;
+    remotesBtn.title = `Látható remote-ok: ${label.toLowerCase() === 'minden remote' ? 'mind' : label}`;
+    fitChrome();
   }
 }
 

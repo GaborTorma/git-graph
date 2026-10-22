@@ -86,7 +86,23 @@ def branch_tracks(base: str) -> dict[str, dict]:
     `origin/HEAD` mutat; magán az alapágon nincs; a remote-only ágaknak is,
     `origin/x` kulccsal; ha van helyi párja, `local` a helyi ághoz), `up` a saját upstreamjéhez
     (ha van, és nem tűnt el). Egyetlen `for-each-ref` (git 2.41+:
-    `%(ahead-behind:…)`); régebbi gitnél ágankénti `rev-list`. A `base` a `default_base()`."""
+    `%(ahead-behind:…)`); régebbi gitnél ágankénti `rev-list`. A `base` a `default_base()`.
+
+    Közös ős nélkül (pl. egy `git subtree split` / `push` remote-ja) a távolság a két
+    oldal összes commitja volna: ilyenkor `base` helyett `unrelated: true`."""
+    base_count: list[int] = []
+
+    def to_base(counts: list[int]) -> dict:
+        # Nincs közös ős ⇔ az alapág egyetlen commitja sem érhető el a refből, azaz a
+        # lemaradás az alapág teljes commitszáma. A számlálás egyszer, és csak akkor fut,
+        # ha van jelölt (mindkét irány nem nulla) — `merge-base` refenként nem kell.
+        if counts[0] and counts[1]:
+            if not base_count:
+                base_count.append(int(git("rev-list", "--count", base).strip()))
+            if counts[1] == base_count[0]:
+                return {"unrelated": True}
+        return {"base": counts}
+
     fields = "%(refname:short)%00%(upstream:short)%00%(upstream:track,nobracket)"
     try:
         lines = git("for-each-ref", f"--format={fields}%00%(ahead-behind:{base or 'HEAD'})",
@@ -105,8 +121,8 @@ def branch_tracks(base: str) -> dict[str, dict]:
             entry["up"] = [int(ahead.group(1)) if ahead else 0, int(behind.group(1)) if behind else 0]
             locals_[upstream] = entry["up"][::-1]     # a remote chipjén: a helyi ághoz mérve
         if base and base.split("/", 1)[-1] != name:
-            entry["base"] = ([int(n) for n in rest[0].split()] if rich and rest
-                             else ahead_behind(base, name))
+            entry.update(to_base([int(n) for n in rest[0].split()] if rich and rest
+                                 else ahead_behind(base, name)))
         out[name] = entry
     # A csak remote-on élő ágaknak is (`origin/x`): a távolságuk az alapágtól.
     if base:
@@ -118,7 +134,7 @@ def branch_tracks(base: str) -> dict[str, dict]:
                     continue
                 a, b = counts.split()
                 # Az alapág remote-jának nincs base-szakasza (önmaga), de a helyi párjához mérve igen.
-                out[name] = {} if name == base else {"base": [int(a), int(b)]}
+                out[name] = {} if name == base else to_base([int(a), int(b)])
                 if name in locals_:
                     out[name]["local"] = locals_[name]
         except (subprocess.CalledProcessError, ValueError):

@@ -1,6 +1,6 @@
 /* Az adatból számolt nézet: a saját worktree, a halvány (idegen) commitok, színek,
    keresőtáblák, elérhetőség, a friss commitok. */
-import { DATA, branchKeep } from './state.js';
+import { DATA, SLUG, branchKeep } from './state.js';
 
 // Sáv-paletta: a 0. sáv a Claude narancs, a többi vele egyező telítettségű.
 export const LANE_COLORS = ['#d97757', '#5b8def', '#4fa564', '#a07ad6', '#cf9a2c',
@@ -25,6 +25,26 @@ export const worktrees = () => DATA.meta.worktrees || [];
 export const linkedWts = () => worktrees().filter(w => !w.main);
 /* A remote ágak kapcsolója (alapból be): a távolságok, a badge-ek, az ágválasztó és a szűrés is ezt nézi. */
 export const remotesOn = () => /** @type {HTMLInputElement} */ (document.getElementById('showRemotes'))?.checked ?? true;
+/* Remote-onkénti szűrő (több remote-nál): a rejtett remote-ok nevei. Repónként megmarad
+   (a lap tárolja, mint a témát; a kulcsban a repó slugja). */
+const HIDDEN_KEY = `git-graph:hidden-remotes:${SLUG}`;
+export let hiddenRemotes = (() => {
+  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); } catch { return new Set(); }
+})();
+export function toggleRemote(name) {
+  hiddenRemotes = new Set(hiddenRemotes);
+  if (!hiddenRemotes.delete(name)) hiddenRemotes.add(name);
+  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hiddenRemotes])); } catch { /* privát ablak: nem baj */ }
+}
+/* A remote ref remote-ja: a leghosszabb illeszkedő remote-név (a név maga is tartalmazhat `/`-t). */
+const remoteOf = ref => (DATA.meta.remotes || []).filter(r => ref.startsWith(`${r}/`))
+  .reduce((a, r) => (r.length > a.length ? r : a), '');
+/* Rejtett-e a remote ref a remote-szűrő szerint (egy remote-nál nincs szűrő). */
+export const remoteHidden = ref => (DATA.meta.remotes || []).length > 1 && hiddenRemotes.has(remoteOf(ref));
+/* Látszik-e a remote ref: a kapcsoló be, és a remote-ja nincs elrejtve. */
+export const remoteShown = ref => remotesOn() && !remoteHidden(ref);
+/* A commit refjei a rejtett remote-ok refjei nélkül. */
+export const shownRefs = refs => refs.filter(r => r.kind !== 'remote' || !remoteHidden(r.name));
 /* A saját worktree; a fő checkout, ha a session nem egy worktree-ben dolgozik. */
 export function focusWt() {
   const wts = worktrees();
@@ -124,9 +144,10 @@ export function ancestryOf(names) {
   const tips = DATA.commits.filter(c => c.refs.some(r => names.has(r.name) && r.kind !== 'tag'));
   return tips.length ? reachable(tips.map(c => c.sha)) : null;
 }
-/* A remote ágak nélkül: ami helyi ágból, HEAD-ből, tagből vagy WIP-ből elérhető. */
+/* A (rejtett) remote ágak nélkül: ami helyi ágból, HEAD-ből, tagből, WIP-ből vagy látható
+   remote ágból elérhető. */
 export const localReach = () => reachable(DATA.commits.filter(c => c.uncommitted
-  || c.refs.some(r => r.kind !== 'remote')).map(c => c.uncommitted ? c.parents[0] : c.sha));
+  || c.refs.some(r => r.kind !== 'remote' || remoteShown(r.name))).map(c => c.uncommitted ? c.parents[0] : c.sha));
 function reachable(tips) {
   const keep = new Set(), stack = [...tips];
   const { bySha } = idx();

@@ -26,6 +26,8 @@ interface Commit {
   pushed?: boolean;
   stubs?: { lane: number; worktree: string }[];
   stash?: boolean;
+  /** tükör-commit (pl. `git subtree push`): a forrása, közös ős nélkül — `mark_mirrors` */
+  mirrorOf?: string;
   branch?: string | null;
   owner?: string | null;
   uncommitted?: boolean;
@@ -98,8 +100,8 @@ interface Meta {
   worktrees: Worktree[];
   remotes: string[];
   /** ág → előtte / mögötte: a remote párjához (`up`), az alapághoz (`base`), és a remote
-      ágnál a helyi párjához (`local`) — `branch_tracks` */
-  tracks: Record<string, { up?: [number, number]; base?: [number, number]; local?: [number, number] }>;
+      ágnál a helyi párjához (`local`) — `branch_tracks`; közös ős nélkül `base` helyett `unrelated` */
+  tracks: Record<string, { up?: [number, number]; base?: [number, number]; local?: [number, number]; unrelated?: boolean }>;
   base: string;
 }
 
