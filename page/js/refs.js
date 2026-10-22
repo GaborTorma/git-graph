@@ -1,7 +1,7 @@
 /* Chipek: ágak, tagek, worktree-k, hivatkozások (PR, issue, release) és az ágak
    távolságai. */
 import { icon } from './icons.js';
-import { LANE_COLORS, branchColor, commitBySha, focusWt, laneColor, linkedWts, remotesOn, worktrees, wtColor } from './model.js';
+import { LANE_COLORS, branchColor, commitBySha, focusWt, laneColor, linkedWts, remoteShown, remotesOn, shownRefs, worktrees, wtColor } from './model.js';
 import { DATA } from './state.js';
 import { esc, ghLink } from './util.js';
 
@@ -17,7 +17,7 @@ export function wtChipInner(w) {
   const mark = linked ? 'worktree' : linkedWts().length ? 'mainWorktree' : '';
   // A HEAD commit-chipjének (`badges`) ága: a vele egy helyen álló remote párjai.
   const ref = w.branch && remotesOn()
-    ? mergedRefs(commitBySha(w.head)?.refs || []).find(x => x.name === w.branch) : null;
+    ? mergedRefs(shownRefs(commitBySha(w.head)?.refs || [])).find(x => x.name === w.branch) : null;
   const pairs = ref?.remotes || [];
   const multi = (DATA.meta.remotes || []).length > 1;
   // Egy remote-nál a szinkronban lévő ág felhő-és-ág ikont kap (az alapágé teli); többnél
@@ -72,8 +72,9 @@ function distSegs(name, tr = DATA.meta.tracks?.[name] || {}) {
   const warn = odd ? ` warn" data-tip="${esc(`A helyi ${name}-en ${tr.up[0]} pusholatlan commit van`)}` : '';
   // Az upstream felhője teli, ha az az alapág (`origin/HEAD` célja), mint a remote chipen.
   const up = DATA.branches.find(b => !b.remote && b.name === name)?.upstream;
+  const upShown = remote && (!up || remoteShown(up));        // a rejtett remote-hoz mért szakasz sem kell
   const unrelated = tr.unrelated ? `<span class="div"></span><span class="dist unrelated">${icon('linkOff')}</span>` : '';
-  return unrelated + [[tr.base, '', ''], [remote && tr.up, cloudOf(base && up === base), warn], [remote && tr.local, icon('branch'), '']]
+  return unrelated + [[tr.base, '', ''], [upShown && tr.up, cloudOf(base && up === base), warn], [remote && tr.local, icon('branch'), '']]
     .filter(([d]) => d && (d[0] || d[1]))
     .map(([d, ic, cls]) => `<span class="div"></span><span class="dist${cls}">${ic}${arrows(/** @type {[number, number]} */ (d))}</span>`).join('');
 }
@@ -188,7 +189,7 @@ export function badges(c) {
   // A release chipje a tagjét is jelenti: az azonos nevű tag nem kap külön chipet.
   const sref = subjectRefs(c.subject).refs;
   const rel = new Set(sref.filter(r => r.kind === 'release').map(r => r.name));
-  return sortRefs(mergedRefs(c.refs)).filter(r => (showRemote || r.kind !== 'remote')
+  return sortRefs(mergedRefs(shownRefs(c.refs))).filter(r => (showRemote || r.kind !== 'remote')
     && !(r.kind === 'tag' && rel.has(r.name))).map(r => {
     const wt = r.worktree && worktrees().find(w => w.slug === r.worktree);
     const linked = wt && !wt.main;

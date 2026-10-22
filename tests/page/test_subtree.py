@@ -12,14 +12,19 @@ from harness import PageTestCase, git_in
 MIRRORED = ("main-4-3", "main-4-4")          # a `main` commitjai, amelyeknek tükre van
 
 
+def add_origin(repo: Path) -> None:
+    """Az `origin` remote, a `main` pusholva, az `origin/HEAD` rá mutat."""
+    origin = repo.parent / "origin.git"
+    git_in(repo.parent, "init", "-q", "--bare", "-b", "main", str(origin))
+    git_in(repo, "remote", "add", "origin", str(origin))
+    git_in(repo, "push", "-q", "-u", "origin", "main")
+    git_in(repo, "remote", "set-head", "origin", "main")
+
+
 class SubtreeTest(PageTestCase):
     @classmethod
     def prepare(cls, repo: Path) -> None:
-        origin = repo.parent / "origin.git"
-        git_in(repo.parent, "init", "-q", "--bare", "-b", "main", str(origin))
-        git_in(repo, "remote", "add", "origin", str(origin))
-        git_in(repo, "push", "-q", "-u", "origin", "main")
-        git_in(repo, "remote", "set-head", "origin", "main")
+        add_origin(repo)
         # A tükör-történet: külön repó, a tükrözött commitok metaadataival (mint a `subtree split`).
         split = repo.parent / "split"
         git_in(repo.parent, "init", "-q", "-b", "main", str(split))
@@ -62,6 +67,48 @@ class SubtreeTest(PageTestCase):
         y = mirror.evaluate("e => e.offsetTop + e.offsetHeight / 2")
         hollow = self.page.locator(f'#lanes circle[cy="{y}"]')
         self.assertEqual(hollow.get_attribute("fill"), "var(--bg)")
+
+    def toggle_remote(self, name: str) -> None:
+        self.page.locator("#remotesBtn").click()
+        self.page.locator(f'#remotesPop .option[data-key="{name}"]').click()
+        self.page.keyboard.press("Escape")
+        self.settle()
+
+    def test_remote_filter(self) -> None:
+        """A remote-szűrő elrejti a remote ágait és a csak onnan elérhető commitokat; a választás újratöltve is megmarad."""
+        self.assertTrue(self.page.locator("#remotesBtn").is_visible())
+        self.assertEqual(self.page.locator("#remotesLabel").inner_text(), "Minden remote")
+        self.toggle_remote("widgets")
+        self.assertEqual(self.page.locator("#remotesLabel").inner_text(), "origin")
+        self.assertEqual(self.chip("widgets/main").count(), 0)
+        self.assertEqual(self.page.locator("#rows .row.mirror").count(), 0)         # csak a widgetsből érhető el
+        self.assertGreater(self.page.locator("#rows .badge", has_text="origin").count(), 0)
+        self.page.locator("#branchBtn").click()
+        self.assertEqual(self.page.locator('#branchPop .menu-grp[data-name="widgets"]').count(), 0)
+        self.page.keyboard.press("Escape")
+        self.page.reload()
+        self.page.wait_for_selector("#rows .row")
+        self.settle()
+        self.assertEqual(self.page.locator("#remotesLabel").inner_text(), "origin")
+        self.assertEqual(self.chip("widgets/main").count(), 0)
+        self.toggle_remote("widgets")
+        self.assertEqual(self.chip("widgets/main").count(), 1)
+
+    def test_remote_filter_follows_switch(self) -> None:
+        """A „Remote ágak” kikapcsolva a remote-szűrő gombja tiltott."""
+        self.page.locator("label.switch:has(#showRemotes)").click()
+        self.settle()
+        self.assertTrue(self.page.locator("#remotesBtn").is_disabled())
+
+
+class SingleRemoteTest(PageTestCase):
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        add_origin(repo)
+
+    def test_no_remote_filter(self) -> None:
+        """Egyetlen remote-nál a remote-szűrő nem jelenik meg."""
+        self.assertFalse(self.page.locator("#remotesBtn").is_visible())
 
 
 if __name__ == "__main__":

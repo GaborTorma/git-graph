@@ -1,9 +1,9 @@
 /* Szűrők: ágválasztás, keresés, csak ref-es commitok, remote ágak. */
-import { branchBtn, branchPop, branchQuery, branchSel, fillBranches, filterBranches, setBranchSel } from './branches.js';
+import { branchBtn, branchPop, branchQuery, branchSel, fillBranches, filterBranches, remotesBtn, remotesPop, setBranchSel } from './branches.js';
 import { headChip, rowsEl } from './dom.js';
 import { hydrateFocus } from './hydrate.js';
 import { makeMenu } from './menu.js';
-import { ancestryOf, focusWt, headFiltered, localReach, remoteRefs, remotesOn, worktrees } from './model.js';
+import { ancestryOf, focusWt, headFiltered, hiddenRemotes, localReach, remoteRefs, remoteShown, remotesOn, toggleRemote, worktrees } from './model.js';
 import { render } from './rows.js';
 import { revealSha, scrollToSha } from './scroll.js';
 import { DATA, expanded, setBranchKeep, setVisible, visible } from './state.js';
@@ -59,7 +59,7 @@ export function applyFilters() {
   const words = queryWords(searchEl.value);
   const keep = branch ? ancestryOf(branch) : null;
   setBranchKeep(keep);
-  const local = remotes ? null : localReach();
+  const local = remotes && !hiddenRemotes.size ? null : localReach();
 
   setVisible(DATA.commits.filter(c => {
     // Állapot, nem commit: keresésnél nem kell; ágszűrésnél csak annak a worktree-nek
@@ -76,17 +76,24 @@ export function applyFilters() {
     // Remote ágak nélkül a helyi történet minden commitja marad (csak a remote-badge
     // tűnik el); ami csak remote ágból érhető el, az kimarad.
     if (local && !local.has(c.sha)) return false;
-    if (refsOnly && !c.refs.some(r => remotes || r.kind !== 'remote')) return false;
+    if (refsOnly && !c.refs.some(r => r.kind !== 'remote' || remoteShown(r.name))) return false;
     return matches(c, words);
   }));
   render();
 }
 document.getElementById('onlyRefs').addEventListener('change', applyFilters);
-// A remote-kapcsoló a fejléc chipjét is érinti (a ☁ szakasz).
-document.getElementById('showRemotes').addEventListener('change', () => {
-  // Remote ágak nélkül a kijelölt remote refek is kiesnek (üresen: minden ág).
-  if (!remotesOn()) for (const r of remoteRefs()) branchSel.delete(r);
+// A remote-kapcsoló és a remote-szűrő a fejléc chipjét is érinti (a ☁ szakasz).
+const remotesChanged = () => {
+  // A nem látható remote refek a kijelölésből is kiesnek (üresen: minden ág).
+  for (const r of remoteRefs()) if (!remoteShown(r)) branchSel.delete(r);
   hydrateFocus(); fillBranches(); applyFilters();
+};
+document.getElementById('showRemotes').addEventListener('change', remotesChanged);
+/* A remote-szűrő: a menü opciója ki-be kapcsol egy remote-ot, a menü nyitva marad. */
+makeMenu(remotesBtn, remotesPop, o => {
+  toggleRemote(o.dataset.key);
+  remotesChanged();
+  remotesPop.querySelector(`.option[data-key="${CSS.escape(o.dataset.key)}"]`)?.focus();
 });
 
 /* A fejléc chipjére kattintva a saját HEAD commitjához; ha az ágválasztó elrejti, előbb

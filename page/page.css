@@ -336,12 +336,20 @@ button { font: inherit; color: inherit; }
    soros fejlécben az ágválasztó kitölti a sort, a kapcsolók jobbra kerülnek. */
 .filters { display: flex; align-items: center; gap: 18px; flex: 0 1 auto; min-width: 0; }
 .chrome.multi .filters { flex-grow: 1; }
-.chrome.multi .filters .menu { flex: 1 1 auto; min-width: 0; }
+.chrome.multi .filters > .menu { flex: 1 1 auto; min-width: 0; }
 .chrome.multi #branchBtn { width: 100%; }
 .chrome.multi #branchBtn .chev { margin-left: auto; }
 .chrome.multi .select-label { max-width: none; }
 .chrome.rows-3 .repo { flex: 1 1 100%; }
 .chrome.rows-3 .head-chip { margin-left: auto; }
+/* A „Remote ágak” kapcsoló és mellette a remote-szűrő (több remote-nál) egy egység. */
+.remotes { display: flex; align-items: center; gap: 8px; }
+.remotes .menu[hidden] { display: none; }
+#remotesBtn { height: 24px; padding: 0 6px 0 8px; font-size: 12.5px; }
+#remotesBtn .chev { margin-left: 4px; }
+#remotesBtn .select-label { max-width: 140px; }
+#remotesBtn:disabled { cursor: default; opacity: .55; }
+#remotesBtn:disabled:hover { background: var(--ctrl); }
 /* Szűkös helyen (a sor tördelne) a kapcsolók felirata helyett ikon. */
 .switch .sw-ic { display: none; color: var(--fg-2); }
 .chrome.compact .switch { gap: 6px; }

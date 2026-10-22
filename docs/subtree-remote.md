@@ -37,6 +37,18 @@ A cherry-pick ezért nem tükör: a másolatnak közös őse van az eredetivel. 
 lap commitjaiból számolja (egy menet); ahol a limit elvágja a történetet, ott a jelöltekre
 `git rev-list --max-parents=0` dönt.
 
+### Remote szerinti szűrő
+
+Több remote-nál a „Remote ágak” kapcsoló mellett egy lenyíló menü remote-onként ki-be
+kapcsolja, mely remote-ok ágai látszanak (pl. `widgets` ki, `origin` be). A rejtett
+remote ágainak chipje, ágválasztó-sora és a hozzá mért távolság (`☁ ↑↓`) eltűnik, és a
+csak onnan elérhető commitok (pl. a tükör-commitok) is kimaradnak. A gomb felirata a
+látható remote-ok neve, vagy „Minden remote”. Ha a kapcsoló ki van kapcsolva, a gomb
+tiltott; egyetlen remote-nál nem jelenik meg.
+
+A választás repónként megmarad: a lap a böngészőjében tárolja (`localStorage`, a kulcsban
+a repó slugja), mint a témát és a diff-nézeteket.
+
 ## Követelmények
 
 ```gherkin
@@ -67,8 +79,29 @@ Feature: Subtree-remote a gráfban
     Scenario: Cherry-pick
       Given a "pick" ágon egy "main"-commit cherry-pickje áll
       Then a cherry-pick sora nem halvány, és nem kap ívet
+
+  Rule: R-3 — A remote-ok ágai remote-onként elrejthetők
+
+    Scenario: Egy remote elrejtése
+      Given a repónak két remote-ja van: "origin" és "widgets"
+      When a Fejlesztő a remote-szűrőben kikapcsolja a "widgets"-et
+      Then a "widgets/main" chipje és ágválasztó-sora eltűnik
+      And a csak a "widgets"-ből elérhető commitok kimaradnak
+      And az "origin" ágai látszanak
+      And a gomb felirata "origin"
+
+    Scenario: A választás megmarad
+      Given a Fejlesztő elrejtette a "widgets" remote-ot
+      When a lap újratölt
+      Then a "widgets" továbbra is rejtett
+
+    Scenario: Egyetlen remote
+      Given a repónak csak "origin" remote-ja van
+      Then a remote-szűrő nem jelenik meg
 ```
 
 ## Használat
 
 - A chip tooltipje (hover) mondja ki, hogy az ág külön történet.
+- A subtree-remote zavar? A „Remote ágak” melletti menüben kapcsold ki: az ágai és a
+  tükör-commitjai eltűnnek.

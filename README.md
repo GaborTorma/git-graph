@@ -14,7 +14,8 @@ mennyit jött az ág, mennyit haladt közben a main), `☁ ↑c ↓d` a remote-t
 helyi párjához. Ha az alapág helyi párja (`main`) előrébb jár a remote-jánál, a
 `☁ ↑` piros (a `main`-en nem dolgozunk, ez anomália). Közös ős nélküli ágon (pl. egy `git subtree push` remote-ja) a távolság helyén
 áthúzott lánc áll, a commitjai (a fő történet tükrei) halványak, és szaggatott ív köti
-őket a forrásukhoz ([Subtree-remote](docs/subtree-remote.md)). Ha a badge nem fér ki, csak a név
+őket a forrásukhoz; több remote-nál a „Remote ágak” melletti menü remote-onként rejt el
+([Subtree-remote](docs/subtree-remote.md)). Ha a badge nem fér ki, csak a név
 rövidül. A kereső (⌘F) az üzenetben, a
 szerzőben, a ref-nevekben és a hash elején keres, ékezettől függetlenül;
 minden szónak egyeznie kell. Escape vagy a mező × gombja törli; ha közben nyitva
