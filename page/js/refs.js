@@ -42,6 +42,8 @@ const syncedIcon = ref => ref.default ? 'branchCloudFill' : 'branchCloud';
    alapághoz (amire az origin/HEAD mutat) — ikon nélkül, a chip maga az ág —, és
    `☁ ↑c ↓d` az upstreamjéhez, csak ha nem egy helyen állnak (különben a chip a
    felhő-és-ág ikont kapja); a remote-only chipen utolsóként `⑂ ↑e ↓f` a helyi ágához.
+   Közös ős nélkül (`unrelated`, pl. egy `git subtree push` remote-ja) az alapághoz
+   mért szakasz helyén áthúzott lánc: a számok ott a két oldal összes commitja volnának.
    Ami a chipből már kiderül, annak nem jár újabb ikon. */
 const arrows = ([a, b]) => [a && `↑${a}`, b && `↓${b}`].filter(Boolean).join(' ');
 /* A worktree távolságai: az ágáé, leválasztott HEAD-nél (nincs ágkulcs) a worktree adja a
@@ -51,6 +53,7 @@ export const wtTrack = w => (w?.branch ? DATA.meta.tracks?.[w.branch] : { base: 
 export function distText(name, tr = DATA.meta.tracks?.[name] || {}) {
   const base = (DATA.meta.base || 'main').replace(/^[^/]+\//, '');
   const lines = [];
+  if (tr.unrelated) lines.push('Külön történet: nincs közös őse az alapággal');
   if (tr.base?.[0]) lines.push(`↑${tr.base[0]}: ennyi commit ${name ? 'az ágon' : 'a HEAD-ig'} a ${base} óta`);
   if (tr.base?.[1]) lines.push(`↓${tr.base[1]}: ennyit haladt közben a ${base}`);
   if (tr.up?.[0]) lines.push(`☁ ↑${tr.up[0]}: pusholatlan commit`);
@@ -69,7 +72,8 @@ function distSegs(name, tr = DATA.meta.tracks?.[name] || {}) {
   const warn = odd ? ` warn" data-tip="${esc(`A helyi ${name}-en ${tr.up[0]} pusholatlan commit van`)}` : '';
   // Az upstream felhője teli, ha az az alapág (`origin/HEAD` célja), mint a remote chipen.
   const up = DATA.branches.find(b => !b.remote && b.name === name)?.upstream;
-  return [[tr.base, '', ''], [remote && tr.up, cloudOf(base && up === base), warn], [remote && tr.local, icon('branch'), '']]
+  const unrelated = tr.unrelated ? `<span class="div"></span><span class="dist unrelated">${icon('linkOff')}</span>` : '';
+  return unrelated + [[tr.base, '', ''], [remote && tr.up, cloudOf(base && up === base), warn], [remote && tr.local, icon('branch'), '']]
     .filter(([d]) => d && (d[0] || d[1]))
     .map(([d, ic, cls]) => `<span class="div"></span><span class="dist${cls}">${ic}${arrows(/** @type {[number, number]} */ (d))}</span>`).join('');
 }
