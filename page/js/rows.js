@@ -47,7 +47,7 @@ function rowHtml(c) {
     + `<span class="author ${av || 'ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
     + `${av ? '' : esc(initials(c.author))}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge',
-    foreign(c) && 'foreign'].filter(Boolean).join(' ');
+    foreign(c) && 'foreign', c.mirrorOf && 'mirror'].filter(Boolean).join(' ');
   return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
       <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(subject)}</span>`
     + `${refs ? '<span class="br"></span>' : ''}${refs}</span>${meta}</span>

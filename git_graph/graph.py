@@ -209,6 +209,49 @@ def fold_remote_heads(commits: list[dict]) -> None:
                 r["default"] = True
 
 
+def mark_mirrors(commits: list[dict], base: str) -> None:
+    """Tükör-commit (`mirrorOf`: a forrás sha-ja): a látható commitok közt van egy másik
+    ugyanazzal a subjecttel, szerzővel és author-dátummal, a kettőnek nincs közös őse, és
+    a forrás az alapág (`base`, ennek híján a HEAD) történetéhez tartozik, a tükör nem —
+    pl. egy `git subtree split` / `push` remote-jának commitjai. A cherry-pick nem tükör:
+    közös ősük van.
+
+    Közös ős ⇔ közös gyökér-commit. A gyökereket a látható commitokból számoljuk: a
+    `--date-order` miatt a szülő a gyereke után jön, így visszafelé egy menetben. Ahol a
+    limit elvágja a történetet, ott a `rev-list --max-parents=0` dönt (csak a jelölteknél)."""
+    by_sha = {c["sha"]: c for c in commits if not c.get("stash")}
+    key = lambda c: (c["subject"], c["author"], c["email"], c["date"])  # noqa: E731
+    groups: dict[tuple, list[dict]] = {}
+    for c in by_sha.values():
+        groups.setdefault(key(c), []).append(c)
+    groups = {k: g for k, g in groups.items() if len(g) > 1}
+    if not groups:
+        return
+    roots: dict[str, frozenset | None] = {}     # None: a limiten túl dől el
+    for c in reversed(commits):
+        if c.get("stash"):
+            continue
+        parts = [roots.get(p) if p in by_sha else None for p in c["parents"]]
+        roots[c["sha"]] = (frozenset([c["sha"]]) if not parts
+                           else None if None in parts else parts[0] if len(parts) == 1
+                           else frozenset().union(*parts))
+
+    def roots_of(sha: str) -> frozenset:
+        if roots[sha] is None:
+            roots[sha] = frozenset(git("rev-list", "--max-parents=0", sha).split())
+        return roots[sha]
+
+    base_roots = frozenset(git("rev-list", "--max-parents=0", base or "HEAD").split())
+    for group in groups.values():
+        sources = [c for c in group if roots_of(c["sha"]) & base_roots]
+        for c in group:
+            if roots_of(c["sha"]) & base_roots:
+                continue
+            source = next((s for s in sources if not roots_of(s["sha"]) & roots_of(c["sha"])), None)
+            if source:
+                c["mirrorOf"] = source["sha"]
+
+
 def collect_payload(limit: int | None) -> dict:
     """A lap teljes adatcsomagja — a `git-graph --mcp` graph_data toolja adja."""
     commits = collect_commits(limit)
@@ -222,6 +265,7 @@ def collect_payload(limit: int | None) -> dict:
     mark_worktree_heads(commits, worktrees)
     mark_stash_owners(commits, worktrees)
     fold_remote_heads(commits)
+    mark_mirrors(commits, meta["base"])
 
     # Worktree-nként legfeljebb két ál-sor (nem stage-elt, stage-elt), a gráf tetejére,
     # a HEAD-jük fölé — a lane-kiosztás előtt, mert az élek sorindexeket használnak.

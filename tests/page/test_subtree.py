@@ -46,6 +46,23 @@ class SubtreeTest(PageTestCase):
         self.assertNotIn("↓", chip.inner_text())
         self.assertIn("Külön történet: nincs közös őse az alapággal", chip.get_attribute("data-tip"))
 
+    def test_mirror_rows(self) -> None:
+        """A tükör-commit sora halvány, a pöttye üres, és szaggatott ív köti a forrás pöttyéhez."""
+        for name in MIRRORED:
+            rows = self.page.locator("#rows .row", has_text=f"{name}: egy commit")
+            self.assertEqual(rows.count(), 2)                                    # forrás és tükör
+            self.assertEqual(self.page.locator("#rows .row.mirror", has_text=f"{name}:").count(), 1)
+            mirror = self.page.locator("#rows .row.mirror", has_text=f"{name}:")
+            opacity = mirror.locator(".subject").evaluate("e => getComputedStyle(e).opacity")
+            self.assertEqual(opacity, "0.55")
+        arcs = self.page.locator('#lanes path[stroke-dasharray="2 2"]')
+        self.assertEqual(arcs.count(), len(MIRRORED))
+        self.assertEqual(arcs.first.get_attribute("stroke-width"), "1.2")
+        # a tükör pöttye üres karika: háttérszínű kitöltés
+        y = mirror.evaluate("e => e.offsetTop + e.offsetHeight / 2")
+        hollow = self.page.locator(f'#lanes circle[cy="{y}"]')
+        self.assertEqual(hollow.get_attribute("fill"), "var(--bg)")
+
 
 if __name__ == "__main__":
     unittest.main()

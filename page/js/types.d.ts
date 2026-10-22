@@ -26,6 +26,8 @@ interface Commit {
   pushed?: boolean;
   stubs?: { lane: number; worktree: string }[];
   stash?: boolean;
+  /** tükör-commit (pl. `git subtree push`): a forrása, közös ős nélkül — `mark_mirrors` */
+  mirrorOf?: string;
   branch?: string | null;
   owner?: string | null;
   uncommitted?: boolean;

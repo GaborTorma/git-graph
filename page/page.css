@@ -602,6 +602,8 @@ button { font: inherit; color: inherit; }
    erős, mint a panelé. (A `.desc` a kétsoros elrendezésben `display: contents`,
    ezért a gyerekei kapják.) */
 .row.foreign .row-in > :not(.desc), .row.foreign .desc > * { opacity: .55; }
+/* A tükör-commit (egy subtree-remote másolata) ugyanígy: a forrása a fő történetben van. */
+.row.mirror .row-in > :not(.desc), .row.mirror .desc > * { opacity: .55; }
 .badge.ref-tag { border-radius: 9px; }   /* a tag az alakjáról ismerszik meg: teljesen kerek chip */
 .badge.ref-release { border-radius: 9px; }   /* a release a tagjét is jelenti: ugyanaz az alak */
 /* A stash chipje szaggatott kerettel: félretett munka, nem ág. */
