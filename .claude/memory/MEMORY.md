@@ -28,6 +28,7 @@
 - [Stash egy sor](stash-single-row.md) — `log --all` helyett `ALL_BUT_STASH`; stash a `git stash list`-ből, egy szülővel (`^1`)
 - [file_diff bemenete](file-diff-input-safety.md) — a `sha` csak hex; fájlt közvetlenül csak követetlen esetben olvasunk
 - [Ág-távolság origin/HEAD-hez](branch-base-origin-head.md) — a reflog forrás-ága szándékosan nem; gazda a HEAD-reflogból
+- [Független történet felismerése](unrelated-history-detection.md) — behind = alapág commitszáma; közös ős ⇔ közös gyökér; merge-base nélkül
 
 ## MCP és host-híd
 
