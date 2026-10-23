@@ -16,5 +16,8 @@ export const fmtBytes = n => n < 1024 ? `${n} B` : n < 1048525 ? `${(n / 1024).t
   : `${(n / 1048576).toFixed(1).replace('.', ',')} MB`;
 
 /* Keresőszavak: kis- és nagybetű, ékezet nem számít. */
+// A sor fájlszáma: az összevont mappa (`count`) a fájljaival, a le nem küldöttek (`more`) is.
+export const fileCount = st => st.files.reduce((n, f) => n + (f.count || 1), 0) + (st.more || 0);
+export const fmtInt = n => n.toLocaleString('hu-HU');
 export const fold = s => String(s).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
 export const queryWords = s => fold(s).split(/\s+/).filter(Boolean);

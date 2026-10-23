@@ -18,6 +18,7 @@ const ICONS = {
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
   check: '<path d="m3.5 8.5 3 3 6-7"/>',
   file: '<path d="M4 1.5h5l3.5 3.5v9.5H4z"/><path d="M9 1.5V5h3.5"/>',
+  folder: '<path d="M1.5 4a1 1 0 0 1 1-1h3.6l1.5 1.5h5.9a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/>',
   chev: '<path d="M6.5 4.5 10 8l-3.5 3.5"/>',
   // Markdown-diff nézetváltó: nyers forrás, illetve renderelt szöveg
   code: '<path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5"/>',

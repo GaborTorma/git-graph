@@ -12,7 +12,7 @@ from .branches import branch_tracks, collect_branches
 from .gitio import ALL_BUT_STASH, FS, RS, default_base, git, numstat_new_path, remotes, repo_name, repo_url, stash_list
 from .lanes import assign_lanes, worktree_lanes_last, worktree_stubs
 from .page import attach_icons
-from .stats import collect_stats, mark_sizes
+from .stats import cap_files, collect_stats, drop_ignored, mark_sizes
 from .worktrees import collect_uncommitted, collect_worktrees, worktree_meta
 
 
@@ -258,6 +258,7 @@ def collect_payload(limit: int | None) -> dict:
     if not commits:
         return {}
     stats = collect_stats(limit)
+    drop_ignored(list(stats.values()))
     worktrees = collect_worktrees()
     meta = collect_meta(commits, worktrees)   # még a valódi commitokból: `shown`
     if meta["repoUrl"]:
@@ -272,12 +273,14 @@ def collect_payload(limit: int | None) -> dict:
     trunk = None
     for wt in reversed(worktrees):
         pending = collect_uncommitted(wt)
+        drop_ignored([churn for _, churn in pending], wt["path"])   # a worktree saját `.gitignore`-ja
         for commit, churn in reversed(pending):
             commits.insert(0, commit)
             stats[commit["sha"]] = churn
         if wt["main"]:                    # a fő checkout csúcsa: a felső ál-sora, vagy a HEAD-je
             trunk = pending[0][0]["sha"] if pending else wt["head"]
 
+    cap_files(stats)
     mark_sizes(stats)
     edges = assign_lanes(commits, trunk)
     worktree_lanes_last(commits, edges, worktrees)

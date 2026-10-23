@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 from .gitio import ALL_BUT_STASH, RS, git, numstat_new_path, numstat_old_path, stash_list
@@ -133,6 +134,47 @@ def mark_sizes(stats: dict[str, dict]) -> None:
 
 SUMMARY_RE = re.compile(r"^ (create|delete) mode \d+ (.+)$")
 SUMMARY_STATUS = {"create": "A", "delete": "D"}
+
+
+# Soronként legfeljebb ennyi fájl kerül a lapra (a többinek csak a száma: `more`): a
+# host-híd 4 000 000 karakternél nagyobb választ nem ad át, egy fájl ~250 karakter.
+FILES_MAX = 500
+
+
+def ignored_paths(paths: set[str], repo: Path | None = None) -> set[str]:
+    """A `.gitignore` szerint kizárt utak — a követettek is (`--no-index`), egyetlen hívással."""
+    if not paths:
+        return set()
+    try:
+        out = git("check-ignore", "--no-index", "--stdin", "-z", repo=repo, stdin="\0".join(sorted(paths)) + "\0")
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode == 1:          # egyik sem kizárt
+            return set()
+        raise
+    return set(out.split("\0")) - {""}
+
+
+def drop_ignored(stats: list[dict], repo: Path | None = None) -> None:
+    """A `.gitignore` szerint kizárt fájl akkor is kimarad, ha commitolva van (pl. egy
+    korábban felvett `node_modules`); a száma `ignored`, a +/− nélküle számol."""
+    ignored = ignored_paths({numstat_new_path(f["path"]) for st in stats for f in st["files"]}, repo)
+    if not ignored:
+        return
+    for st in stats:
+        drop = [f for f in st["files"] if numstat_new_path(f["path"]) in ignored]
+        if drop:
+            st["files"] = [f for f in st["files"] if numstat_new_path(f["path"]) not in ignored]
+            st["add"] -= sum(f["add"] for f in drop)
+            st["del"] -= sum(f["del"] for f in drop)
+            st["ignored"] = len(drop)
+
+
+def cap_files(stats: dict[str, dict]) -> None:
+    """Soronként legfeljebb `FILES_MAX` fájl; a levágottak száma `more`."""
+    for st in stats.values():
+        if len(st["files"]) > FILES_MAX:
+            st["more"] = len(st["files"]) - FILES_MAX
+            del st["files"][FILES_MAX:]
 
 
 def numstat_files(lines: list[str]) -> dict:

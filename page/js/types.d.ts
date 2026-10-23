@@ -55,12 +55,15 @@ interface FileStat {
   icon?: string;
   dirFrom?: number;
   size?: [number | null, number | null];   // bináris fájl: a régi és az új mérete bájtban
+  count?: number;                          // összevont követetlen mappa: a fájljai száma
 }
 
 interface Stat {
   files: FileStat[];
   add: number;
   del: number;
+  more?: number;      // a `FILES_MAX` fölötti, le nem küldött fájlok száma
+  ignored?: number;   // a `.gitignore` szerint kizárt (de commitolt) fájlok száma
 }
 
 interface Branch {

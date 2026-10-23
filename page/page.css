@@ -682,6 +682,15 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
   height: 26px; padding: 0 4px 0 6px; border-radius: 6px;
   font-size: 12.5px; cursor: pointer;
 }
+.file-dir {   /* összevont követetlen mappa: mint a .file, de nem nyílik */
+  display: grid; grid-template-columns: 14px 16px minmax(0, 1fr) auto 20px; gap: 6px; align-items: center;
+  height: 26px; padding: 0 4px 0 6px; font-size: 12.5px;
+}
+.file-dir .ic.fic { width: 13px; height: 13px; margin: auto; color: var(--fg-2); }
+.file-dir .path { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--add); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-dir .path .dir-st { font-weight: 400; opacity: .7; }
+.file-dir .churn, .files-note { font-size: 12px; color: var(--fg-2); }
+.files-note { padding: 2px 6px 0 42px; }
 .file:hover { background: var(--bg-2); }
 .file[aria-expanded="true"] { background: var(--bg-3); }
 .file:focus { outline: 0; }
