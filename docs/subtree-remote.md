@@ -39,6 +39,18 @@ A cherry-pick ezért nem tükör: a másolatnak közös őse van az eredetivel. 
 lap commitjaiból számolja (egy menet); ahol a limit elvágja a történetet, ott a jelöltekre
 `git rev-list --max-parents=0` dönt.
 
+### Subtree squash-commit a split-commithoz kötve
+
+A `git subtree add / pull --squash` squash-commitja (`Squashed '<mappa>/' content from
+commit …`) a fő történetbe kerül, de a szülője nem a subtree-remote commitja: az első
+squash gyökér-commit, a későbbi az előző squash gyereke. A forrását csak a body
+`git-subtree-split: <sha>` sora nevezi meg. A lap ezért nem folytonos élt, hanem a
+tükörével azonos szaggatott ívet húz a squash pöttyétől a split-commitéig. A squash nélküli
+subtree merge-nél a split-commit valódi szülő: ott a megszokott él látszik, ív nincs.
+
+A szerver (`mark_subtree_splits`) a `graph_data`-ban a squash-commit `splitOf` mezőjébe
+írja a split-commit sha-ját, ha az látszik, és nem a szülője.
+
 ### Remote szerinti szűrő
 
 ![A remote-szűrő nyitva: origin és widgets, mindkettő bekapcsolva](img/subtree-remote/remote-filter.png)
@@ -103,6 +115,19 @@ Jellemző: Subtree-remote a gráfban
       Adott a repó egyetlen remote-ja: "origin"
       Ha a Fejlesztő megnyitja a lapot
       Akkor a remote-szűrő nem jelenik meg
+
+  Szabály: R-4 — A subtree squash-commitja szaggatott ívvel kötődik a split-commithoz
+    Forgatókönyv: Gyökér squash-commit
+      Adott a "main" "3f1ee45" squash-commitja szülő nélkül, "git-subtree-split: 79fbed9…" sorral
+        És a "widgets/main" "79fbed9" commitja közvetlenül alatta, ugyanabban a sávban
+      Ha a Fejlesztő megnyitja a lapot
+      Akkor a "3f1ee45" pöttyét szaggatott ív köti a "79fbed9" pöttyéhez
+        És köztük nincs folytonos él
+
+    Forgatókönyv: Squash nélküli subtree merge
+      Adott a "main" merge commitja, amelynek második szülője a "git-subtree-split:" commitja
+      Ha a Fejlesztő megnyitja a lapot
+      Akkor a merge commit és a split-commit között folytonos él áll, ív nincs
 ```
 
 ## Használat

@@ -39,6 +39,26 @@ class GraphTest(HomeTestCase):
         marked = {c["sha"]: c["mirrorOf"] for c in commits if "mirrorOf" in c}
         self.assertEqual(marked, {mirror: src})
 
+    def test_subtree_splits(self) -> None:
+        """A subtree squash-commitja (gyökér) a `git-subtree-split:` commitjához kötve (`splitOf`);
+        a squash nélküli subtree merge-nél a split a szülője, ott nincs `splitOf`."""
+        repo = self.plain_repo()
+        run = lambda *a: git_in(repo, *a)  # noqa: E731
+        run("switch", "-q", "--orphan", "split")
+        run("commit", "-q", "--allow-empty", "-m", "widget")
+        split = run("rev-parse", "HEAD").strip()
+        trailer = f"git-subtree-dir: widgets\ngit-subtree-split: {split}"
+        run("switch", "-q", "--orphan", "squash")
+        run("commit", "-q", "--allow-empty", "-m", f"Squashed 'widgets/' content\n\n{trailer}")
+        squash = run("rev-parse", "HEAD").strip()
+        run("switch", "-q", "main")
+        run("merge", "-q", "--allow-unrelated-histories", "-m", f"Add 'widgets/'\n\n{trailer}", split)
+        gg = self.load()
+        gg.gitio.set_repo(repo)
+        commits = gg.graph.collect_commits(None)
+        gg.graph.mark_subtree_splits(commits)
+        self.assertEqual({c["sha"]: c["splitOf"] for c in commits if "splitOf" in c}, {squash: split})
+
     def test_worktrees(self) -> None:
         """Közös adat: minden worktree HEAD-je és ál-sora, a diff a saját mappájából."""
         main, extra = self.make_repo()

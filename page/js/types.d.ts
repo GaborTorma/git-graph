@@ -28,6 +28,8 @@ interface Commit {
   stash?: boolean;
   /** tükör-commit (pl. `git subtree push`): a forrása, közös ős nélkül — `mark_mirrors` */
   mirrorOf?: string;
+  /** subtree squash-commit: a `git-subtree-split:` commitja, ha nem a szülője — `mark_subtree_splits` */
+  splitOf?: string;
   branch?: string | null;
   owner?: string | null;
   uncommitted?: boolean;

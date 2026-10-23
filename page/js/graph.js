@@ -89,8 +89,10 @@ export function drawGraph() {
   });
   // A tükör-commit (`mirrorOf`, pl. egy subtree-remote másolata) vékony, szaggatott íve a
   // forrás pöttyéhez, a tükör sávjának színével; a pöttyök alá, hogy a végeit takarják.
+  // A subtree squash-commitja (`splitOf`) ugyanígy a split-commithoz: nem a szülője.
   visible.forEach((c, i) => {
-    const j = c.mirrorOf ? rowIndexBySha.get(c.mirrorOf) : undefined;
+    const to = c.mirrorOf || c.splitOf;
+    const j = to ? rowIndexBySha.get(to) : undefined;
     if (j === undefined) return;                       // nincs tükör, vagy a forrása szűrve
     const src = visible[j];
     const x1 = laneX(c.lane), y1 = rowY(i), x2 = laneX(src.lane), y2 = rowY(j), ym = (y1 + y2) / 2;
