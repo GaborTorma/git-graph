@@ -308,6 +308,18 @@ class DiffTest(HomeTestCase):
         (self.home / "kep.bin").write_bytes(b"\xff\xfe\x00")
         self.assertTrue(gg.diff.untracked_diff(self.home, "kep.bin")["binary"])
 
+    def test_untracked_symlink(self) -> None:
+        """Követetlen symlink (mappára is): mint a gitben, egyetlen sor, a link célja — nem a cél tartalma."""
+        gg = self.load()
+        repo = self.plain_repo()
+        (repo / "skills" / "neon").mkdir(parents=True)
+        (repo / "link").symlink_to("skills/neon")
+        gg.gitio.set_repo(repo)
+        sha = gg.graph.collect_payload(None)["commits"][0]["sha"]
+        diff = gg.diff.file_diff(sha, "link")
+        self.assertEqual([ln["s"] for h in diff["hunks"] for ln in h["lines"]], ["skills/neon"])
+        self.assertEqual(gg.worktrees.untracked_lines(repo / "link"), 1)
+
     def image_repo(self) -> tuple:
         """Repó egy képpel két commitban (régi, új), és a betöltött csomag: (repó, gg, szülő, commit)."""
         repo = self.plain_repo()

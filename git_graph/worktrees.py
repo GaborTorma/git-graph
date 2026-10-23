@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime
 import difflib
+import os
 import re
 import subprocess
 import time
@@ -44,10 +45,18 @@ def last_change(root: Path, files: list[dict]) -> int:
     return latest
 
 
+def worktree_bytes(path: Path) -> bytes:
+    """Egy munkakönyvtárbeli fájl tartalma, ahogy a git látja: a symlinké a célja (akár
+    mappára mutat), nem a cél tartalma."""
+    if path.is_symlink():
+        return os.readlink(path).encode("utf-8")
+    return path.read_bytes()[:2_000_000]
+
+
 def read_lines(path: Path) -> list[str] | None:
     """Követetlen fájl sorai (mint az `untracked_diff`-é); bináris vagy olvashatatlan: `None`."""
     try:
-        return path.read_bytes()[:2_000_000].decode("utf-8").splitlines()
+        return worktree_bytes(path).decode("utf-8").splitlines()
     except (OSError, UnicodeDecodeError):
         return None
 
