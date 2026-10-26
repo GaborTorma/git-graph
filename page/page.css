@@ -48,6 +48,9 @@
   --lane-5: #008300; --lane-5-bg: #caeac7; --lane-5-fg: #006300;   /* green */
   --lane-6: #6250d6; --lane-6-bg: #dfdbfd; --lane-6-fg: #4a3aa7;   /* violet */
   --lane-7: #e34948; --lane-7-bg: #fad6d6; --lane-7-fg: #8e2626;   /* red */
+  /* monogram: a munkatárs-paletta, fehér betűvel, mindkét témában */
+  --collab-0: #7161e0; --collab-1: #c04873; --collab-2: #0f7e5c;
+  --collab-3: #008300; --collab-4: #945d00; --collab-5: #6d6b67;
   /* fájlikonok (Catppuccin, page/file-icons.json) */
   --ic-red: #c4573a; --ic-orange: #d97757; --ic-yellow: #c08a1e; --ic-green: #3f9455;
   --ic-teal: #2a8e8c; --ic-blue: #4f7fe0; --ic-purple: #8f68cc; --ic-pink: #c4588a;
@@ -593,7 +596,8 @@ button { font: inherit; color: inherit; }
 #tip .main { display: block; }
 #tip .sub { display: block; font-size: 12px; line-height: 17px; color: var(--tip-sub); }
 #tip .kbd { margin-left: 8px; color: var(--tip-sub); }
-.meta .author.ini { background: var(--bg-3); color: var(--fg-1); font-size: 9px; font-weight: 600; letter-spacing: .02em; }
+/* monogram: a szerző munkatárs-színe (`--ini`, rows.js) */
+.meta .author.ini { background: var(--ini, var(--bg-3)); color: #ffffff; font-size: 9px; font-weight: 600; letter-spacing: .02em; }
 /* A commit összes változása az avatar után, színes cellákban (a Claude app
    diff-jelzője mintájára). */
 .sum { display: inline-flex; align-items: center; margin-left: 2px;

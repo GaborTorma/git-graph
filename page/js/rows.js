@@ -24,6 +24,14 @@ const diffTag = (files, add, del) => `<span class="sum" data-tip="${files} fájl
 /* `Gábor Torma` → `GT`: a név első két szavának kezdőbetűje. */
 const initials = name => String(name || '?').trim().split(/\s+/).slice(0, 2)
   .map(w => [...w][0] || '').join('').toUpperCase();
+/* A monogram színe: a CDS munkatárs-palettájának egyike (page.css: `--collab-<n>`), a
+   szerző nevéből számolva — ugyanaz a szerző mindig ugyanazt kapja. */
+const COLLABS = 6;
+const collab = name => {
+  let h = 0;
+  for (const ch of String(name || '')) h = (h * 31 + /** @type {number} */ (ch.codePointAt(0))) >>> 0;
+  return `var(--collab-${h % COLLABS})`;
+};
 
 function rowHtml(c) {
   const color = fresh.has(c.sha) ? ` style="color:${laneColor(c.lane)}"` : '';
@@ -44,7 +52,7 @@ function rowHtml(c) {
   // A saját WIP a rögzített sávban ül, napfejléc nélkül: nem mai időnél a nap is kell.
   const pinned = c.uncommitted && c.worktree === focusWt()?.slug;
   const meta = `<span class="meta"><span class="time">${pinned ? pinnedTime(c.date) : fmtTime(c.date)}</span>`
-    + `<span class="author ${av || 'ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
+    + `<span class="author ${av || 'ini'}"${av ? '' : ` style="--ini:${collab(c.author)}"`} data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
     + `${av ? '' : esc(initials(c.author))}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge',
     foreign(c) && 'foreign', c.mirrorOf && 'mirror'].filter(Boolean).join(' ');

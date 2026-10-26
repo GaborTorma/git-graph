@@ -382,3 +382,19 @@ class StaleVersionTest(CdsCase):
         self.assertEqual(self.style(".foot .ver.warn .ic", "color"), rgb("#fab219"))
         self.assertEqual(self.style(".foot .ver.warn", "color"), rgb("#20201f"))
 
+
+# ── Monogram: szerzőnként egy munkatárs-szín ──────────────────────────────
+
+COLLABORATOR = [rgb(c) for c in ("#7161e0", "#c04873", "#0f7e5c", "#008300", "#945d00", "#6d6b67")]
+
+
+class MonogramTest(CdsCase):
+    def test_same_author_same_color(self) -> None:
+        """Teszt Elek minden monogramja ugyanazt a munkatárs-színt kapja, fehér betűvel."""
+        colors = self.page.locator("#rows .author.ini").evaluate_all(
+            "es => es.map(e => [getComputedStyle(e).backgroundColor, getComputedStyle(e).color])")
+        self.assertGreater(len(colors), 1)
+        self.assertEqual(len(set(map(tuple, colors))), 1)
+        self.assertIn(colors[0][0], COLLABORATOR)
+        self.assertEqual(colors[0][1], rgb("#ffffff"))
+
