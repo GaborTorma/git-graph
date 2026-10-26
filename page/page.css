@@ -589,12 +589,13 @@ button { font: inherit; color: inherit; }
    jobbra zárva úszik be, rövid késleltetéssel (`tip.js`: `showTip`). Mint az app
    buborékjai: egy fő sor (mellette halványan a gyorsbillentyű), alatta a többi kisebb,
    halványabb. */
-#tip {
-  position: fixed; z-index: 60; padding: 6px 10px; border-radius: 8px; pointer-events: none;
+#tip {   /* a padding az app Tooltipjéé: egysoros 3 × 8, többsoros 6 × 8 px */
+  position: fixed; z-index: 60; padding: 3px 8px; border-radius: 8px; pointer-events: none;
   background: var(--tip-bg); color: var(--tip-fg); font: 400 13px/18px var(--font-ui); white-space: pre;
   opacity: 0; transform: translateY(2px); transition: opacity .12s, transform .12s;
 }
 #tip.on { opacity: 1; transform: none; }
+#tip:has(.sub) { padding: 6px 8px; }
 #tip .main { display: block; }
 #tip .sub { display: block; font-size: 12px; line-height: 17px; color: var(--tip-sub); }
 #tip .kbd { margin-left: 8px; color: var(--tip-sub); }
