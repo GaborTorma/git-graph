@@ -12,7 +12,7 @@ import { fitPanel, followPending, revealCommit } from './panel.js';
 import { commitUrl, fileUrl, linkify } from './refs.js';
 import { rowOf, select } from './scroll.js';
 import { DATA, expanded, setExpanded, visible } from './state.js';
-import { esc, fmtBytes, ghLink, menuOpen } from './util.js';
+import { esc, fileCount, fmtBytes, fmtInt, ghLink, menuOpen } from './util.js';
 
 // A bináris fájl mérete (`size`: [régi, új], a hiányzó oldal `null`): az új +méret, a
 // törölt −méret, a változott az előjeles különbség (±0 B semleges); méret nélkül `bin`.
@@ -32,6 +32,11 @@ const pathHtml = (path, from = Infinity) => {
     + (j < i ? `<span class="dir-st">${esc(path.slice(j, i))}</span>` : '') + esc(path.slice(i)))
     .replaceAll(' =&gt; ', ' <span class="rename-arrow">»</span> ');   // a `--numstat` átnevezés-nyila
 };
+
+/* Összevont követetlen mappa (pl. `node_modules/`): egy sor a fájlszámával, diff nélkül. */
+const dirHtml = f => `<div class="file-dir"><span></span>${icon('folder', 'ic fic')}
+  <span class="path added">${pathHtml(f.path, f.dirFrom)}</span>
+  <span class="churn">${fmtInt(f.count)} fájl</span><span></span></div>`;
 
 const miniBtn =(name, label, attrs = '') =>
   `<button class="mini" type="button" aria-label="${esc(label)}" title="${esc(label)}" ${attrs}>${icon(name)}</button>`;
@@ -91,16 +96,18 @@ export function open(sha, animate = false) {
     ${headHtml(c)}
     ${c.body ? `<p class="body-text">${bodyHtml(c)}</p>` : ''}
     <div class="files">
-      <div class="files-head">Fájlok<span class="n">${st.files.length}</span>
+      <div class="files-head">Fájlok<span class="n">${fmtInt(fileCount(st))}</span>
         <span class="a" style="color:var(--add)">+${st.add}</span>
         <span class="d" style="color:var(--del)">−${st.del}</span></div>
-      ${st.files.map(f => `<div class="file" tabindex="-1" data-path="${esc(f.path)}" aria-expanded="false">
+      ${st.files.map(f => f.count ? dirHtml(f) : `<div class="file" tabindex="-1" data-path="${esc(f.path)}" aria-expanded="false">
         <span class="chev">${icon('chev')}</span>${fileIcon(f)}
         <span class="path${f.status === 'A' ? ' added' : f.status === 'D' ? ' deleted' : ''}">${pathHtml(f.path, f.dirFrom)}</span>
         <span class="churn">${f.bin ? sizeHtml(f.size)
           : `${f.add ? `<span class="a">+${f.add}</span>` : ''}${f.del ? `<span class="d">−${f.del}</span>` : ''}${bars(f)}`}</span>
         ${c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : '<span></span>'}</div>
         <div class="diff" hidden></div>`).join('')}
+      ${st.more ? `<div class="files-note">+${fmtInt(st.more)} további fájl</div>` : ''}
+      ${st.ignored ? `<div class="files-note">${fmtInt(st.ignored)} fájl rejtve (.gitignore)</div>` : ''}
     </div>`;
   // Az ál-sor a fix sávban ül: a panelje is ott, a saját sora alatt (több
   // worktree WIP-je közül a megfelelő alatt), korlátozott magasságban.

@@ -113,6 +113,9 @@ NEW_LIST = (
 # a lista végi elem al-elemmé válik: a párja a felső szintű régi elem
 OLD_NEST = ("- **Hova**:\n  - Egy.\n- **Projektfüggetlen tudás** (más repóban is érvényes) nem memória, hanem rule vagy skill\n"
             "  (→ `/learn:capture`).\n")
+OLD_ICON = ("- 🟣 · A-1 · **Alfa** régi\n  - 🌱 első al\n- 🟣 · B-2 · **Béta** régi\n  - ⚙️ második al\n\n"
+            "Vegyes lista:\n\n- 🟣 vegyes régi\n- sima régi\n")
+NEW_ICON = OLD_ICON.replace("régi", "új")
 NEW_NEST = "- **Hova**:\n  - Egy.\n  - **Rule vagy skill** — ami más repóban is érvényes, `/learn:capture`-rel.\n"
 
 FILES = {
@@ -121,6 +124,7 @@ FILES = {
     "ujratord.md": (OLD_REWRAP, NEW_REWRAP), "jog.json": (OLD_JSON, NEW_JSON), "tordel.md": (OLD_WRAP, NEW_WRAP),
     "kihagy.md": (OLD_GAP, NEW_GAP), "utolso.md": (OLD_LAST, NEW_LAST), "bekezdes.md": (OLD_PARA, NEW_PARA),
     "lista.md": (OLD_LIST, NEW_LIST), "szint.md": (OLD_NEST, NEW_NEST),
+    "ikon.md": (OLD_ICON, NEW_ICON),
 }
 
 # JS-részletek a lap elemeinek kiolvasásához: `e` osztálya a `base` nélkül, a kiemelt szövegei
@@ -279,6 +283,23 @@ class MdDiffTest(PageTestCase):
             f"bs => bs.map(e => [{CLS.format('md-blk')}, e.textContent.slice(1, 12),"
             " e.querySelector('.md-li')?.style.getPropertyValue('--md-ind')])")
         self.assertEqual(blocks[-2:], [["del", "Projektfügg", "0"], ["add", "Rule vagy s", "2"]])
+
+    def test_md_icon_bullets(self) -> None:
+        """Ha a lista egy szintjén minden elem ikonnal kezdődik, a felsorolásjel az ikon; ha nem mind,
+        marad a pont. Az ikonos alszint közelebb van a szülőjéhez, mint a következő főelemhez."""
+        self.open_file("ikon.md")
+        self.page.wait_for_selector(".md-doc")
+        items = self.page.locator(".diff-uni .md-li").evaluate_all(
+            "ls => ls.map(e => [e.querySelector('.md-mk').textContent, e.lastElementChild.textContent])")
+        self.assertEqual(items, [
+            ["🟣", "· A-1 · Alfa régi"], ["🟣", "· A-1 · Alfa új"], ["🌱", "első al"],
+            ["🟣", "· B-2 · Béta régi"], ["🟣", "· B-2 · Béta új"], ["⚙️", "második al"],
+            ["•", "🟣 vegyes régi"], ["•", "🟣 vegyes új"], ["•", "sima régi"], ["•", "sima új"],
+        ])
+        tops = self.page.locator(".diff-uni .md-li").evaluate_all(
+            "ls => ls.slice(1, 4).map(e => [e.getBoundingClientRect().top, e.getBoundingClientRect().bottom])")
+        to_sub, to_next = tops[1][0] - tops[0][1], tops[2][0] - tops[1][1]
+        self.assertLess(to_sub, to_next)
 
     def test_raw_unpaired_side_by_side(self) -> None:
         """Nyers side-by-side: a két pár közti pár nélküli törölt és új sor egy sorban."""

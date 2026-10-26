@@ -10,7 +10,7 @@ from urllib.parse import unquote
 
 from .gitio import git, git_raw, numstat_new_path, numstat_old_path, stash_list, worktree_list
 from .registry import slug_for
-from .worktrees import UNCOMMITTED_RE, head_lines, read_lines
+from .worktrees import UNCOMMITTED_RE, head_lines, read_lines, worktree_bytes
 
 HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 SHA_RE = re.compile(r"^[0-9a-f]{7,64}$")
@@ -525,7 +525,7 @@ def mark_state(line: dict) -> None:
 def untracked_diff(root: Path, path: str) -> dict:
     """Követetlen fájl: a git nem diffeli, minden sora hozzáadott."""
     try:
-        text = (root / path).read_bytes()[:2_000_000].decode("utf-8")
+        text = worktree_bytes(root / path).decode("utf-8")
     except UnicodeDecodeError:
         return {"hunks": [], "binary": True, "truncated": False}
     lines = text.splitlines()

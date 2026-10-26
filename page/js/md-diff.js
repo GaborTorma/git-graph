@@ -27,6 +27,8 @@ const MD_HEAD = /^\s{0,3}(#{1,6})(?:\s+|$)/;
 const MD_SETEXT = /^\s{0,3}(=+|-+)\s*$/;
 const MD_HR = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
 const MD_LI = /^(\s*)([-*+]|\d{1,9}[.)])\s+/;
+// a listaelem szövegének elején álló ikon (emoji, a változatjelével, ZWJ-sorral)
+const MD_ICON = /^\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier}|\u200D\p{Extended_Pictographic}\uFE0F?)*\s+/u;
 const MD_QUOTE = /^\s{0,3}>\s?/;
 const MD_TABLE = /^\s*\|/;
 const MD_TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
@@ -103,7 +105,34 @@ function mdBlocks(lines) {
     if (cur && ['p', 'li', 'quote', 'code'].includes(cur.type)) add(cur, l);
     else start('p', l);
   });
+  iconLists(blocks);
   return blocks;
+}
+
+/* Ikonos lista (a lista az egymást követő listaelem-blokkok sora): ha egy szintjén
+   minden elem ikonnal kezdődik, ott a felsorolásjel az ikon (`icon`). Az ikonos szint
+   ikonos alszintje a szülőjéhez tapad (`tight`), és a szülő következő testvére elválik
+   tőle (`gap`), hogy látsszon, melyik főelemhez tartozik. */
+function iconLists(blocks) {
+  const iconic = b => b.lines.every(l => !MD_LI.test(l.s) || MD_ICON.test(lead(l, MD_LI).s));
+  for (let i = 0; i < blocks.length; i++) {
+    if (blocks[i].type !== 'li') continue;
+    let j = i;
+    while (blocks[j + 1]?.type === 'li') j++;
+    const run = blocks.slice(i, j + 1);
+    for (const ind of new Set(run.map(b => b.indent))) {
+      const level = run.filter(b => b.indent === ind);
+      if (level.every(iconic)) level.forEach(b => { b.icon = true; });
+    }
+    run.forEach((b, k) => {
+      const prev = run[k - 1];
+      const parent = run.slice(0, k).reverse().find(p => p.indent < b.indent);
+      b.sub = b.icon && parent?.icon;
+      b.tight = b.sub && prev === parent;
+      b.gap = prev?.sub && prev.indent > b.indent;
+    });
+    i = j;
+  }
 }
 
 /* A szó-kiemelés (`hl`) helyei jelölőkarakterekként a szövegbe: az inline
@@ -200,9 +229,11 @@ function mdText(b, ls, side) {
   if (b.type === 'quote') return `<blockquote>${text(ls.map(l => lead(l, MD_QUOTE)))}</blockquote>`;
   if (b.type === 'li') {
     const m = MD_LI.exec(ls[0].s);
-    const mark = !m ? '' : /\d/.test(m[2]) ? esc(m[2]) : '•';
-    const t = ls.map((l, i) => (i === 0 && m ? lead(l, MD_LI) : trimmed(l)));
-    return `<div class="md-li" style="--md-ind:${b.indent || 0}"><span class="md-mk">${mark}</span>`
+    const icon = b.icon && m && MD_ICON.exec(ls[0].s.slice(m[0].length));
+    const mark = !m ? '' : icon ? esc(icon[0].trim()) : /\d/.test(m[2]) ? esc(m[2]) : '•';
+    const t = ls.map((l, i) => (i === 0 && m ? cut(l, m[0].length + (icon ? icon[0].length : 0)) : trimmed(l)));
+    const cls = (b.tight ? ' md-tight' : '') + (b.gap ? ' md-gap' : '');
+    return `<div class="md-li${cls}" style="--md-ind:${b.indent || 0}"><span class="md-mk">${mark}</span>`
       + `<span>${text(t)}</span></div>`;
   }
   return `<p>${text(ls)}</p>`;

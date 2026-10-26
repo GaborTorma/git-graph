@@ -12,7 +12,7 @@ from .branches import branch_tracks, collect_branches
 from .gitio import ALL_BUT_STASH, FS, RS, default_base, git, numstat_new_path, remotes, repo_name, repo_url, stash_list
 from .lanes import assign_lanes, worktree_lanes_last, worktree_stubs
 from .page import attach_icons
-from .stats import collect_stats, mark_sizes
+from .stats import cap_files, collect_stats, drop_ignored, mark_sizes
 from .worktrees import collect_uncommitted, collect_worktrees, worktree_meta
 
 
@@ -252,12 +252,28 @@ def mark_mirrors(commits: list[dict], base: str) -> None:
                 c["mirrorOf"] = source["sha"]
 
 
+SUBTREE_SPLIT_RE = re.compile(r"^git-subtree-split: ([0-9a-f]{40})$", re.M)
+
+
+def mark_subtree_splits(commits: list[dict]) -> None:
+    """A `git subtree add / pull --squash` squash-commitja (`splitOf`): a tartalma a
+    `git-subtree-split:` sorban álló commitból jön, de az nem a szülője — a squash gyökér-
+    vagy az előző squash gyereke. A lap szaggatott ívvel köti hozzá, ha az látszik. A
+    squash nélküli subtree merge-nél a split a valódi szülő: ott él van, ív nem kell."""
+    shas = {c["sha"] for c in commits}
+    for c in commits:
+        m = SUBTREE_SPLIT_RE.search(c["body"])
+        if m and m[1] in shas and m[1] not in c["parents"]:
+            c["splitOf"] = m[1]
+
+
 def collect_payload(limit: int | None) -> dict:
     """A lap teljes adatcsomagja — a `git-graph --mcp` graph_data toolja adja."""
     commits = collect_commits(limit)
     if not commits:
         return {}
     stats = collect_stats(limit)
+    drop_ignored(list(stats.values()))
     worktrees = collect_worktrees()
     meta = collect_meta(commits, worktrees)   # még a valódi commitokból: `shown`
     if meta["repoUrl"]:
@@ -266,18 +282,21 @@ def collect_payload(limit: int | None) -> dict:
     mark_stash_owners(commits, worktrees)
     fold_remote_heads(commits)
     mark_mirrors(commits, meta["base"])
+    mark_subtree_splits(commits)
 
     # Worktree-nként legfeljebb két ál-sor (nem stage-elt, stage-elt), a gráf tetejére,
     # a HEAD-jük fölé — a lane-kiosztás előtt, mert az élek sorindexeket használnak.
     trunk = None
     for wt in reversed(worktrees):
         pending = collect_uncommitted(wt)
+        drop_ignored([churn for _, churn in pending], wt["path"])   # a worktree saját `.gitignore`-ja
         for commit, churn in reversed(pending):
             commits.insert(0, commit)
             stats[commit["sha"]] = churn
         if wt["main"]:                    # a fő checkout csúcsa: a felső ál-sora, vagy a HEAD-je
             trunk = pending[0][0]["sha"] if pending else wt["head"]
 
+    cap_files(stats)
     mark_sizes(stats)
     edges = assign_lanes(commits, trunk)
     worktree_lanes_last(commits, edges, worktrees)

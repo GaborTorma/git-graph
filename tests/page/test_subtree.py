@@ -101,6 +101,38 @@ class SubtreeTest(PageTestCase):
         self.assertTrue(self.page.locator("#remotesBtn").is_disabled())
 
 
+class SquashTest(PageTestCase):
+    """`git subtree add --squash`: a squash-commit gyökér, a tartalma a `widgets/main`
+    csúcsából jön, amire csak a `git-subtree-split:` sora mutat."""
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        split = repo.parent / "split"
+        git_in(repo.parent, "init", "-q", "-b", "main", str(split))
+        (split / "widget.txt").write_text("widget\n", encoding="utf-8")
+        git_in(split, "add", ".")
+        git_in(split, "commit", "-qm", "widget: a split csúcsa")
+        git_in(repo, "remote", "add", "widgets", str(split))
+        git_in(repo, "fetch", "-q", "widgets")
+        out = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True,  # noqa: E731
+                                        capture_output=True, text=True).stdout.strip()
+        cls.split = out("rev-parse", "widgets/main")
+        trailer = f"git-subtree-dir: widgets\ngit-subtree-split: {cls.split}"
+        cls.squash = out("commit-tree", out("rev-parse", "widgets/main^{tree}"),
+                         "-m", f"Squashed 'widgets/' content from commit {cls.split[:7]}\n\n{trailer}")
+        git_in(repo, "merge", "-q", "--allow-unrelated-histories", "-m", "widgets subtree", cls.squash)
+
+    def test_squash_arc(self) -> None:
+        """A squash-commitot szaggatott ív köti a split-commithoz, nem folytonos él."""
+        y = lambda sha: self.page.locator(f'#rows .row[data-sha="{sha}"]').evaluate(  # noqa: E731
+            "e => e.offsetTop + e.offsetHeight / 2")
+        arcs = self.page.locator('#lanes path[stroke-dasharray="2 2"]')
+        self.assertEqual(arcs.count(), 1)
+        d = arcs.first.get_attribute("d")
+        self.assertTrue(d.startswith("M ") and d.split()[2] == str(y(self.squash)), d)
+        self.assertTrue(d.endswith(f" {y(self.split)}"), d)
+
+
 class SingleRemoteTest(PageTestCase):
     @classmethod
     def prepare(cls, repo: Path) -> None:

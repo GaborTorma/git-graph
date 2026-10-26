@@ -45,6 +45,9 @@ NEW_COMMA = OLD_COMMA.replace('B["merge-body --commits main..dev<br/>tárgysor a
                               'B["üzenet: tárgysor a commitokból,<br/>## Deploy, ha kell"]')
 # hosszú, fentről lefelé írt lánc: széles helyen vízszintesen fér el jobban
 CHAIN = f"{FENCE}mermaid\nflowchart TD\n  A[Első] --> B[Második] --> C[Harmadik] --> D[Negyedik] --> E[Ötödik]\n{FENCE}\n"
+# ER-diagram elágazással (a vonalak fordulnak), feliratos és üres kapcsolatokkal
+ER = (f'{FENCE}mermaid\nerDiagram\n  Szerzo ||--o{{ Konyv : iras\n  Szerzo ||--o{{ Cikk : ""\n'
+      f'  Konyv ||--o{{ Fejezet : ""\n  Cikk |o..o{{ Fejezet : hivatkozas\n{FENCE}\n')
 
 # A kirajzolt diagramok: [keret, szövegek] — a keret a diff színe (`add` / `del`), vagy üres.
 FIGS = ("fs => fs.map(f => [f.className.replace(/md-mmd-(fig|)/g, '').trim(),"
@@ -58,7 +61,7 @@ class MermaidTest(PageTestCase):
     def prepare(cls, repo: Path) -> None:
         commit_versions(repo, {
             "abra.md": (OLD, NEW), "hibas.md": (OLD_BAD, NEW_BAD), "szoveg.md": ("Régi szöveg.\n", "Új szöveg.\n"),
-            "torles.md": (OLD_ONLY, NEW_ONLY), "sorok.md": (OLD_LINES, NEW_LINES), "lanc.md": (None, CHAIN),
+            "torles.md": (OLD_ONLY, NEW_ONLY), "sorok.md": (OLD_LINES, NEW_LINES), "lanc.md": (None, CHAIN), "er.md": (None, ER),
             "cel.md": (OLD_TARGET, NEW_TARGET), "vesszo.md": (OLD_COMMA, NEW_COMMA),
         }, cls.SUBJECT)
 
@@ -176,6 +179,25 @@ class MermaidTest(PageTestCase):
         self.assertGreater(fig.evaluate(aspect), 1)
         self.resize(700)
         self.assertLess(fig.evaluate(aspect), 1)
+
+    def test_er_marker_before_bend(self) -> None:
+        """Az ER-diagram vonala az entitás mellett egyenesen fut, és csak a jelölő (kör, villa)
+        után fordul: a jelölő nem a fordulón ül."""
+        self.open_file("er.md")
+        self.page.wait_for_selector(".md-doc .md-mmd-on")
+        # a vonal két végén az egyenes szakasz hossza (a rajz egységeiben)
+        stubs = self.page.locator(".md-mmd-fig svg").first.evaluate("""svg => {
+          const straight = (p, from, dir) => {
+            const L = p.getTotalLength(), a = p.getPointAtLength(from);
+            let k = 0;
+            while (k < 100 && Math.abs(p.getPointAtLength(Math.min(L, Math.max(0, from + dir * (k + 1)))).x - a.x) < 0.5) k++;
+            return k;
+          };
+          return [...svg.querySelectorAll('path[marker-start], path[marker-end]')]
+            .flatMap(p => [straight(p, 0, 1), straight(p, p.getTotalLength(), -1)]);
+        }""")
+        self.assertEqual(len(stubs), 8)
+        self.assertTrue(all(s >= 40 for s in stubs), stubs)   # a Mermaid ELK-ja magától 16-ot hagy
 
     def test_lazy_load_and_theme(self) -> None:
         """A Mermaid csak az első diagramnál töltődik be; témaváltáskor a diagram újrarajzolódik."""

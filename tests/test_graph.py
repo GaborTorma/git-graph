@@ -39,6 +39,26 @@ class GraphTest(HomeTestCase):
         marked = {c["sha"]: c["mirrorOf"] for c in commits if "mirrorOf" in c}
         self.assertEqual(marked, {mirror: src})
 
+    def test_subtree_splits(self) -> None:
+        """A subtree squash-commitja (gyökér) a `git-subtree-split:` commitjához kötve (`splitOf`);
+        a squash nélküli subtree merge-nél a split a szülője, ott nincs `splitOf`."""
+        repo = self.plain_repo()
+        run = lambda *a: git_in(repo, *a)  # noqa: E731
+        run("switch", "-q", "--orphan", "split")
+        run("commit", "-q", "--allow-empty", "-m", "widget")
+        split = run("rev-parse", "HEAD").strip()
+        trailer = f"git-subtree-dir: widgets\ngit-subtree-split: {split}"
+        run("switch", "-q", "--orphan", "squash")
+        run("commit", "-q", "--allow-empty", "-m", f"Squashed 'widgets/' content\n\n{trailer}")
+        squash = run("rev-parse", "HEAD").strip()
+        run("switch", "-q", "main")
+        run("merge", "-q", "--allow-unrelated-histories", "-m", f"Add 'widgets/'\n\n{trailer}", split)
+        gg = self.load()
+        gg.gitio.set_repo(repo)
+        commits = gg.graph.collect_commits(None)
+        gg.graph.mark_subtree_splits(commits)
+        self.assertEqual({c["sha"]: c["splitOf"] for c in commits if "splitOf" in c}, {squash: split})
+
     def test_worktrees(self) -> None:
         """Közös adat: minden worktree HEAD-je és ál-sora, a diff a saját mappájából."""
         main, extra = self.make_repo()
@@ -242,3 +262,59 @@ class WorktreeListTest(HomeTestCase):
         gg = self.load()
         self.assertEqual([w["path"] for w in gg.gitio.worktree_list(main)], [main, extra, later])
         self.assertIsNone(gg.gitio.worktree_list(main)[2]["branch"])   # leválasztott HEAD
+
+
+class FileListLimitTest(HomeTestCase):
+    """A fájllista mérete: a host-híd 4 000 000 karakternél nagyobb választ nem ad át
+    („The tool result is too large.”) — egy `node_modules` sem feszítheti szét."""
+
+    def test_untracked_dir_collapsed(self) -> None:
+        """A sok fájlos, teljesen követetlen mappa a WIP-sorban egyetlen bejegyzés, a fájlszámával."""
+        gg = self.load()
+        repo = self.plain_repo()
+        (repo / "node_modules" / "pkg").mkdir(parents=True)
+        for i in range(gg.worktrees.DIR_COLLAPSE + 1):
+            (repo / "node_modules" / "pkg" / f"f{i}.js").write_text("x\n", encoding="utf-8")
+        (repo / "uj").mkdir()
+        (repo / "uj" / "b.txt").write_text("1\n2\n", encoding="utf-8")
+        gg.gitio.set_repo(repo)
+        data = gg.graph.collect_payload(None)
+        churn = data["stats"][data["commits"][0]["sha"]]
+        self.assertEqual([(f["path"], f.get("count"), f.get("status")) for f in churn["files"]],
+                         [("node_modules/", gg.worktrees.DIR_COLLAPSE + 1, "A"), ("uj/b.txt", None, "A")])
+        self.assertEqual(churn["add"], 2)
+
+    def test_file_list_capped(self) -> None:
+        """Soronként legfeljebb `FILES_MAX` fájl; a többi száma `more`, a +/− az összes fájlé."""
+        gg = self.load()
+        repo = self.plain_repo()
+        gg.stats.FILES_MAX = 3
+        for i in range(5):
+            (repo / f"f{i}.txt").write_text("x\n", encoding="utf-8")
+        git_in(repo, "add", ".")
+        git_in(repo, "commit", "-qm", "öt fájl")
+        gg.gitio.set_repo(repo)
+        data = gg.graph.collect_payload(None)
+        st = data["stats"][data["commits"][0]["sha"]]
+        self.assertEqual([f["path"] for f in st["files"]], ["f0.txt", "f1.txt", "f2.txt"])
+        self.assertEqual((st["more"], st["add"]), (2, 5))
+
+    def test_ignored_tracked_hidden(self) -> None:
+        """A `.gitignore` szerint kizárt fájl akkor is kimarad, ha commitolva van: a commitban
+        és a WIP-sorban is; a száma `ignored`, a +/− nélküle. A `.gitignore` maga nem commitolt."""
+        gg = self.load()
+        repo = self.plain_repo()
+        (repo / "node_modules").mkdir()
+        (repo / "node_modules" / "x.js").write_text("1\n2\n", encoding="utf-8")
+        (repo / "b.txt").write_text("b\n", encoding="utf-8")
+        git_in(repo, "add", ".")
+        git_in(repo, "commit", "-qm", "node_modules is")
+        (repo / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
+        (repo / "node_modules" / "x.js").write_text("1\n2\n3\n", encoding="utf-8")
+        gg.gitio.set_repo(repo)
+        data = gg.graph.collect_payload(None)
+        wip, head = data["commits"][0]["sha"], data["commits"][1]["sha"]
+        st = data["stats"][head]
+        self.assertEqual(([f["path"] for f in st["files"]], st["add"], st["ignored"]), (["b.txt"], 1, 1))
+        st = data["stats"][wip]
+        self.assertEqual(([f["path"] for f in st["files"]], st["ignored"]), ([".gitignore"], 1))

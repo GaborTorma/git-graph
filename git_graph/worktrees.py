@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime
 import difflib
+import os
 import re
 import subprocess
 import time
@@ -44,10 +45,18 @@ def last_change(root: Path, files: list[dict]) -> int:
     return latest
 
 
+def worktree_bytes(path: Path) -> bytes:
+    """Egy munkakönyvtárbeli fájl tartalma, ahogy a git látja: a symlinké a célja (akár
+    mappára mutat), nem a cél tartalma."""
+    if path.is_symlink():
+        return os.readlink(path).encode("utf-8")
+    return path.read_bytes()[:2_000_000]
+
+
 def read_lines(path: Path) -> list[str] | None:
     """Követetlen fájl sorai (mint az `untracked_diff`-é); bináris vagy olvashatatlan: `None`."""
     try:
-        return path.read_bytes()[:2_000_000].decode("utf-8").splitlines()
+        return worktree_bytes(path).decode("utf-8").splitlines()
     except (OSError, UnicodeDecodeError):
         return None
 
@@ -174,6 +183,7 @@ def unstaged_stats(wt: dict, status: list[str]) -> dict:
     known = {f["path"] for f in files}
     untracked = [p for p in (line[3:].strip().strip('"') for line in status if line.startswith("??"))
                  if p not in known]
+    untracked = collapse_untracked(wt, untracked, files)
     # A még nem stage-elt átnevezés: a törölt és az új fájl egy sor (`pair_renames`).
     gone = {f["path"]: f for f in files if f.get("status") == "D" and not f["bin"]}
     for old, new, add, rem in pair_renames(wt["path"], "", list(gone), untracked):
@@ -192,6 +202,30 @@ def unstaged_stats(wt: dict, status: list[str]) -> dict:
     mark_new_dirs(wt, files)
     mark_gone_dirs(wt, files)
     return st
+
+
+# Ennél több fájlos, teljesen követetlen mappa (pl. egy `.gitignore` nélküli
+# `node_modules`) a WIP-sorban egyetlen bejegyzés: a 40 000 fájl listája 10 M karakter
+# lenne, több, mint amit a host-híd átad, és a fájlok sorainak kiolvasása is másodpercek.
+DIR_COLLAPSE = 100
+
+
+def collapse_untracked(wt: dict, untracked: list[str], files: list[dict]) -> list[str]:
+    """A sok fájlos követetlen mappa egy bejegyzés a `files`-ban (`count`: a fájljai száma);
+    vissza a megmaradt követetlen fájlok. A legfelső teljesen követetlen mappákat a
+    `--untracked-files=normal` státusz adja."""
+    if len(untracked) <= DIR_COLLAPSE:
+        return untracked
+    dirs = [p for p in (line[3:].strip().strip('"') for line in
+                        git("status", "--porcelain", "--untracked-files=normal", repo=wt["path"]).splitlines()
+                        if line.startswith("??")) if p.endswith("/")]
+    for d in dirs:
+        inside = [p for p in untracked if p.startswith(d)]
+        if len(inside) > DIR_COLLAPSE:
+            files.append({"path": d, "add": 0, "del": 0, "bin": False, "status": "A", "count": len(inside)})
+            gone = set(inside)
+            untracked = [p for p in untracked if p not in gone]
+    return untracked
 
 
 NO_BLOB = re.compile(r"^0+$")

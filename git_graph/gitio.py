@@ -36,13 +36,25 @@ def git_bin() -> str:
 
     macOS-en a `/usr/bin/git` csak shim (`xcrun`), hívásonként ~6 ms-mal lassabb
     (mérve: 12 → 6 ms) — az app szűk PATH-tal indítja a szervert, így azt kapná.
+    Az utat nem oldjuk fel (`realpath`): a Homebrew `opt/git/…` symlinkje túléli a
+    `brew upgrade`-et, a verziós `Cellar/git/<verzió>` mappa nem.
     """
     try:
-        path = os.path.realpath(os.path.join(subprocess.run(
-            ["git", "--exec-path"], capture_output=True, text=True, check=True).stdout.strip(), "git"))
+        path = os.path.join(subprocess.run(
+            ["git", "--exec-path"], capture_output=True, text=True, check=True).stdout.strip(), "git")
     except (OSError, subprocess.CalledProcessError):
         return "git"
     return path if os.access(path, os.X_OK) else "git"
+
+
+def _run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
+    """`subprocess.run` a `git_bin()`-nel. Ha a megjegyzett bináris közben eltűnt (a futó
+    szerver alatt frissült vagy törlődött a git), újra megkeresi, és még egyszer próbál."""
+    try:
+        return subprocess.run([git_bin(), *args], **kwargs)
+    except FileNotFoundError:
+        git_bin.cache_clear()
+        return subprocess.run([git_bin(), *args], **kwargs)
 
 
 def git(*args: str, repo: Path | None = None, stdin: str | None = None) -> str:
@@ -50,8 +62,8 @@ def git(*args: str, repo: Path | None = None, stdin: str | None = None) -> str:
     # pedig `index.lock`-ot vesz. A szerver kétmásodpercenként kérdez — ez a
     # Fejlesztő saját git-parancsait akasztaná meg („Unable to create
     # index.lock"). Olvasó eszköznek úgyis felesleges.
-    return subprocess.run(
-        [git_bin(), "--no-optional-locks", "-C", str(repo or REPO), *args],
+    return _run(
+        ["--no-optional-locks", "-C", str(repo or REPO), *args],
         input=stdin, capture_output=True, text=True, check=True,
     ).stdout
 
@@ -75,15 +87,14 @@ def stash_list(*args: str, repo: Path | None = None) -> str:
 def git_raw(*args: str, repo: Path | None = None) -> bytes | None:
     """Mint a `git`, de a kimenet bájtokban (pl. egy kép blobja); hibánál (nincs ilyen
     objektum) `None`."""
-    out = subprocess.run([git_bin(), "--no-optional-locks", "-C", str(repo or REPO), *args],
-                         capture_output=True)
+    out = _run(["--no-optional-locks", "-C", str(repo or REPO), *args], capture_output=True)
     return out.stdout if out.returncode == 0 else None
 
 
 def resolve_repo(start: Path) -> Path:
     """A megadott könyvtárat tartalmazó git repó gyökere."""
-    result = subprocess.run(
-        [git_bin(), "-C", str(start), "rev-parse", "--show-toplevel"],
+    result = _run(
+        ["-C", str(start), "rev-parse", "--show-toplevel"],
         capture_output=True, text=True,
     )
     if result.returncode != 0:

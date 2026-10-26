@@ -9,7 +9,7 @@ import { commitBySha, focusWt, foreign, fresh, headFiltered, laneColor, worktree
 import { badges, linkify, subjectRefs, wtBadge } from './refs.js';
 import { stackDays } from './scroll.js';
 import { DATA, expanded, setExpanded, visible } from './state.js';
-import { esc } from './util.js';
+import { esc, fileCount } from './util.js';
 
 /* A diff-címke száma legfeljebb 3 karakter: 999 fölött kerekített ezres (`1k`). */
 const kilo = n => n < 1000 ? String(n) : `${Math.round(n / 1000)}k`;
@@ -28,7 +28,7 @@ const initials = name => String(name || '?').trim().split(/\s+/).slice(0, 2)
 function rowHtml(c) {
   const color = fresh.has(c.sha) ? ` style="color:${laneColor(c.lane)}"` : '';
   const st = DATA.stats[c.sha];
-  const sum = st ? diffTag(st.files.length, st.add, st.del) : '';   // üres commitnál is: 0 | 0 | 0
+  const sum = st ? diffTag(fileCount(st), st.add, st.del) : '';   // üres commitnál is: 0 | 0 | 0
   // A szerző a soron csak arcként: avatar (`hydrateAvatars`), ha nincs, monogram;
   // a név hoverre (`data-tip`).
   const av = avatarClass.get(c.email);
