@@ -35,24 +35,24 @@ const root = document.documentElement;
 const darkMedia = matchMedia('(prefers-color-scheme: dark)');
 const dark = () => (root.getAttribute('data-theme') || (darkMedia.matches ? 'dark' : 'light')) === 'dark';
 
-/* A Mermaid `base` témája a lap palettáján (page.css): a csomópont a háttérnél
+/* A Mermaid `base` témája a lap CDS-palettáján (page.css): a csomópont a háttérnél
    világosabb (sötétben sötétebb), a keret és a vonal halk. A `base` téma a
    színekből számol, ezért itt tömör hex áll, nem a lap áttetsző `--border`-e. */
 const PALETTE = {
-  light: { background: '#faf9f5', mainBkg: '#ffffff', primaryColor: '#ffffff', primaryTextColor: '#141413',
-           primaryBorderColor: '#c9c6ba', secondaryColor: '#f5f4ed', tertiaryColor: '#efede4',
-           lineColor: '#9c9a92', textColor: '#3d3d3a', clusterBkg: '#f5f4ed', clusterBorder: '#dedbd0',
-           edgeLabelBackground: '#faf9f5', nodeTextColor: '#141413',
-           actorBkg: '#ffffff', actorBorder: '#c9c6ba', actorTextColor: '#141413', signalColor: '#6b6a64',
-           signalTextColor: '#3d3d3a', labelBoxBkgColor: '#f5f4ed', labelBoxBorderColor: '#dedbd0',
-           loopTextColor: '#6b6a64', activationBkgColor: '#efede4', noteBkgColor: '#f5f4ed' },
-  dark: { darkMode: true, background: '#1f1e1d', mainBkg: '#2d2c2a', primaryColor: '#2d2c2a', primaryTextColor: '#faf9f5',
-          primaryBorderColor: '#57554f', secondaryColor: '#383734', tertiaryColor: '#262624',
-          lineColor: '#7f7d76', textColor: '#e3e1d8', clusterBkg: '#262624', clusterBorder: '#3f3e3a',
-          edgeLabelBackground: '#1f1e1d', nodeTextColor: '#faf9f5',
-          actorBkg: '#2d2c2a', actorBorder: '#57554f', actorTextColor: '#faf9f5', signalColor: '#a8a69d',
-          signalTextColor: '#e3e1d8', labelBoxBkgColor: '#262624', labelBoxBorderColor: '#3f3e3a',
-          loopTextColor: '#a8a69d', activationBkgColor: '#383734', noteBkgColor: '#383734' },
+  light: { background: '#ffffff', mainBkg: '#ffffff', primaryColor: '#ffffff', primaryTextColor: '#0b0b0b',
+           primaryBorderColor: '#cbcac6', secondaryColor: '#f0f0ef', tertiaryColor: '#e4e4e3',
+           lineColor: '#898781', textColor: '#20201f', clusterBkg: '#f0f0ef', clusterBorder: '#dcdcda',
+           edgeLabelBackground: '#ffffff', nodeTextColor: '#0b0b0b',
+           actorBkg: '#ffffff', actorBorder: '#cbcac6', actorTextColor: '#0b0b0b', signalColor: '#6d6b67',
+           signalTextColor: '#20201f', labelBoxBkgColor: '#f0f0ef', labelBoxBorderColor: '#dcdcda',
+           loopTextColor: '#6d6b67', activationBkgColor: '#e4e4e3', noteBkgColor: '#f0f0ef' },
+  dark: { darkMode: true, background: '#1a1a19', mainBkg: '#272727', primaryColor: '#272727', primaryTextColor: '#f0efec',
+          primaryBorderColor: '#4f4f4e', secondaryColor: '#383838', tertiaryColor: '#151515',
+          lineColor: '#898781', textColor: '#e1e0d9', clusterBkg: '#151515', clusterBorder: '#383838',
+          edgeLabelBackground: '#1a1a19', nodeTextColor: '#f0efec',
+          actorBkg: '#272727', actorBorder: '#4f4f4e', actorTextColor: '#f0efec', signalColor: '#a5a49a',
+          signalTextColor: '#e1e0d9', labelBoxBkgColor: '#151515', labelBoxBorderColor: '#383838',
+          loopTextColor: '#a5a49a', activationBkgColor: '#383838', noteBkgColor: '#383838' },
 };
 const themeVariables = () => ({ ...PALETTE[dark() ? 'dark' : 'light'],
                                 fontFamily: getComputedStyle(root).getPropertyValue('--font-ui').trim() });

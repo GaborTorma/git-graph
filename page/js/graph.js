@@ -3,7 +3,7 @@ import { pendingEl, rowsEl, scroller, svg } from './dom.js';
 import { commitBySha, fade, focusWt, fresh, laneColor, tint } from './model.js';
 import { DATA, visible } from './state.js';
 
-const ROW_H = 30, LANE_W = 14, X0 = 16, DOT_R = 4;
+const ROW_H = 34, LANE_W = 14, X0 = 16, DOT_R = 4;
 const EDGE_HUG = DOT_R + 1;   // a sávváltó vonal ennyit fut a commit sávjában, mielőtt elfordul
 const STUB_GAP = 11;   // több worktree-csonk pöttyei közti függőleges távolság
 

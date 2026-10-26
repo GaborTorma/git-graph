@@ -1,7 +1,7 @@
 /* Ágválasztó: a menü tartalma és szűrője. */
 import { icon, tinted } from './icons.js';
 import { fitChrome } from './layout.js';
-import { branchColor, focusWt, hiddenRemotes, linkedWts, refColor, remoteRefs, remoteShown, remotesOn, worktrees, wtColor } from './model.js';
+import { branchColor, focusWt, hiddenRemotes, lcStyle, linkedWts, refColor, remoteRefs, remoteShown, remotesOn, worktrees, wtColor } from './model.js';
 import { distText } from './refs.js';
 import { DATA } from './state.js';
 import { esc, fold, queryWords } from './util.js';
@@ -115,7 +115,7 @@ export function fillBranches() {
   const block = b => {
     const det = detachedOf(b.name);
     const name = (det ? `<i>${esc(b.name)}</i>` : esc(b.name))
-      + (isHead(b) ? `<span class="cur" style="--lc:${branchColor(b)}">HEAD</span>` : '');
+      + (isHead(b) ? `<span class="cur" style="${lcStyle(branchColor(b))}">HEAD</span>` : '');
     const refs = blockRefs(b, remote), up = refs[1];
     const pair = up && !synced(b);
     // A leválasztott HEAD jele a szélen, a worktree-fejléc WIP-karikájának oszlopában.

@@ -68,7 +68,13 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
 
 - **Nyelv**: magyar — a kommentek és a generált UI feliratai.
 - **Megjelenés**: a Claude app nyelvét követi (a Git Graph-ból a gráf marad).
-  Meleg palettát használ, és a Claude Light / Dark kódszíneket. Betűk:
+  Az app design-systemjét (CDS, „comfortable” sűrűség) használja: semleges
+  szürkék, kék akcentus, git- és állapot-színek, 14 px-es alapszöveg, 32 px-es
+  kontrollok, kerek chipek — az értékek a `page.css` tokenjeiben, témánként
+  (az app CSS-ét nem importáljuk). A sávszín a `chart-categorical` 1–8
+  (`--lane-<n>`, tint-párral a badge-hez: `lcStyle`); CSS-változó, így
+  témaváltáskor a gráf magától átszíneződik. A kód színei a Claude Light /
+  Dark kódszínek. Betűk:
   Anthropic Sans / Mono, ahol nincs, a rendszeré; webfont nincs. A
   kontrollok az app mintájára épülnek: kapcsoló (szűkös helyen ikonnal),
   lenyíló menü (`makeMenu`: ágválasztó és téma, natív `<select>` nincs),

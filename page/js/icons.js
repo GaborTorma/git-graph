@@ -33,6 +33,8 @@ const ICONS = {
   minus: '<path d="M3 8h10"/>',
   expand: '<path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/>',
   close: '<path d="m4 4 8 8M12 4l-8 8"/>',
+  // figyelmeztetés: háromszög felkiáltójellel (a lábléc verzió-jelzése)
+  warn: '<path d="M7.1 2.6a1 1 0 0 1 1.8 0l5.4 9.9a1 1 0 0 1-.9 1.5H2.6a1 1 0 0 1-.9-1.5z"/><path d="M8 6.5v3M8 11.5v.01"/>',
   // stash: archiváló doboz, fedéllel és fogantyúval — a stash chipjén
   stash: '<rect x="2" y="3" width="12" height="3.25" rx=".75"/><path d="M3 6.25v6.25a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6.25M6.5 9h3"/>',
   // a worktree-jel: mappa, benne egy kör (a kivett állapot) — saját rajz a készlet vonalvastagságával

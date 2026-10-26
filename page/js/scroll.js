@@ -111,7 +111,7 @@ scroller.addEventListener('scroll', stackDays, { passive: true });
    sosem takarja. A CSS scroll-snap ezt nem tartja (a böngésző egy
    kattanással több sort is átugrik). Ha egy kinyitott commit-panel látszik,
    azon belül szabad a görgetés — a következő lépés újra sorhoz igazít. */
-export const STEP_TOP = 16, TRACKPAD_STEP = 40, NOTCH = 50;
+export const STEP_TOP = 20, TRACKPAD_STEP = 40, NOTCH = 50;
 
 // Ennyi időn belül egy irány nem növekvő eseményei lecsengésnek számítanak.
 const COAST_MS = 120;

@@ -1,7 +1,7 @@
 /* Chipek: ágak, tagek, worktree-k, hivatkozások (PR, issue, release) és az ágak
    távolságai. */
 import { icon } from './icons.js';
-import { LANE_COLORS, branchColor, commitBySha, focusWt, laneColor, linkedWts, remoteShown, remotesOn, shownRefs, worktrees, wtColor } from './model.js';
+import { branchColor, commitBySha, focusWt, laneColor, lcStyle, linkedWts, remoteShown, remotesOn, shownRefs, worktrees, wtColor } from './model.js';
 import { DATA } from './state.js';
 import { esc, ghLink } from './util.js';
 
@@ -114,7 +114,9 @@ function refChips(refs, lc) {
       : r.kind === 'release' ? `${repoUrl}/releases/tag/${encodeURIComponent(r.name)}`
       : `${repoUrl}/${r.kind === 'pr' ? 'pull' : 'issues'}/${r.n}`;
     const tip = esc(`${REF_TIP[r.kind]}: ${name}`);
-    const attrs = `class="badge ref-${r.kind}" style="--lc:${lc}" data-tip="${tip}" aria-label="${tip}"`;
+    // A PR a subjectből jön, tehát beolvasztott: a merged színt viseli (nyitott, zárt nincs).
+    const style = r.kind === 'pr' ? '--lc:var(--git-merged);--lc-fg:var(--git-merged)' : lcStyle(lc);
+    const attrs = `class="badge ref-${r.kind}" style="${style}" data-tip="${tip}" aria-label="${tip}"`;
     const body = `${icon(r.kind)}<span class="badge-name">${esc(name)}</span>`;
     return href ? `<a ${attrs} href="${href}" target="_blank" rel="noopener">${body}</a>` : `<span ${attrs}>${body}</span>`;
   }).join('');
@@ -167,7 +169,7 @@ function sortRefs(refs) {
    üres mappa és az ága; a többi: a worktree jele és neve | az ága. Ág nélkül (leválasztott
    HEAD) mindkettő: jel, név (a fő checkouté „main”) | lánc. */
 export function wtBadge(w) {
-  const lc = w.main ? laneColor(commitBySha(w.head)?.lane || 0) : wtColor(w) || LANE_COLORS[0];
+  const lc = w.main ? laneColor(commitBySha(w.head)?.lane || 0) : wtColor(w) || laneColor(0);
   const tip = `${w.main ? 'fő checkout' : 'worktree'}: ${w.path}\n`
     + (w.branch ? `ág: ${w.branch}${distText(w.branch)}`
       : `ág nélkül, HEAD: ${String(w.head || '').slice(0, 7)}${distText('', wtTrack(w))}`);
@@ -175,7 +177,7 @@ export function wtBadge(w) {
   const body = w.main && branch ? `<span class="synced wt-lead">${icon('mainWorktree')}</span>${branch}`
     : `${icon(w.main ? 'mainWorktree' : 'worktree')}<span class="badge-name">${esc(w.main ? 'main' : w.name)}</span>`
       + `<span class="div"></span>${branch || icon('detached') + distSegs('', wtTrack(w))}`;
-  return `<span class="badge ref-branch" style="--lc:${lc}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${body}</span>`;
+  return `<span class="badge ref-branch" style="${lcStyle(lc)}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${body}</span>`;
 }
 
 // A leválasztott HEAD-en az ág-ikon helyén lánc (az ág nélküliség jele), utána „HEAD”.
@@ -229,7 +231,7 @@ export function badges(c) {
     // kapja: a csonkjáét, a WIP-soráét, vagy a HEAD-jéét (`wtColor`) — mint a fejléc chipje.
     const group = wtOfRef(r);
     const pair = r.kind === 'remote' && DATA.branches.find(b => !b.remote && b.upstream === r.name);
-    const lc = ` style="--lc:${pair ? branchColor(pair) : (group && wtColor(group)) || lane}"`;
+    const lc = ` style="${lcStyle(pair ? branchColor(pair) : (group && wtColor(group)) || lane)}"`;
     return `<span class="badge ref-${r.kind}${other}"${lc} data-tip="${esc(title)}" aria-label="${esc(title)}">`
       // Leválasztott worktree: név | lánc HEAD; a fő checkouté név nélkül (mappa, lánc, HEAD), mint a fejlécen.
       + (orphan ? lead + (linked ? `<span class="badge-name">${esc(wt.name)}</span><span class="div"></span>` : '')

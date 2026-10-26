@@ -101,7 +101,7 @@ export function open(sha, animate = false) {
         <span class="d" style="color:var(--del)">−${st.del}</span></div>
       ${st.files.map(f => f.count ? dirHtml(f) : `<div class="file" tabindex="-1" data-path="${esc(f.path)}" aria-expanded="false">
         <span class="chev">${icon('chev')}</span>${fileIcon(f)}
-        <span class="path${f.status === 'A' ? ' added' : f.status === 'D' ? ' deleted' : ''}">${pathHtml(f.path, f.dirFrom)}</span>
+        <span class="path${{ A: ' added', D: ' deleted' }[f.status] ?? ' modified'}">${pathHtml(f.path, f.dirFrom)}</span>
         <span class="churn">${f.bin ? sizeHtml(f.size)
           : `${f.add ? `<span class="a">+${f.add}</span>` : ''}${f.del ? `<span class="d">−${f.del}</span>` : ''}${bars(f)}`}</span>
         ${c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : '<span></span>'}</div>

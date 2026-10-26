@@ -2,9 +2,9 @@
    keresőtáblák, elérhetőség, a friss commitok. */
 import { DATA, SLUG, branchKeep } from './state.js';
 
-// Sáv-paletta: a 0. sáv a Claude narancs, a többi vele egyező telítettségű.
-export const LANE_COLORS = ['#d97757', '#5b8def', '#4fa564', '#a07ad6', '#cf9a2c',
-                     '#2f9c9a', '#d0628f', '#8a9a3a', '#6a7fd1', '#c4573a'];
+// Sáv-paletta: a CDS `chart-categorical` 1–8 (page.css: `--lane-<n>`, témánként), a 9.
+// sávtól elölről. A szín CSS-változó: témaváltáskor a gráf magától átszíneződik.
+const LANES = 8;
 
 // Friss commitok: a legújabbtól visszafelé, amíg a szomszédok közt ≤ 10 mp telt
 // el — és csak 5 percig. Egy újabb sorozat így magától leváltja az előzőt.
@@ -81,7 +81,13 @@ export const foreign = c => Boolean(foreignSet) && foreignSet.has(c.sha);
 const FADE = 45;
 export const fade = color => `color-mix(in srgb, ${color} ${FADE}%, var(--bg))`;
 export const tint = (c, color) => foreign(c) ? fade(color) : color;
-export const laneColor = lane => LANE_COLORS[lane % LANE_COLORS.length];
+export const laneColor = lane => `var(--lane-${lane % LANES})`;
+/* A chip színe (`--lc`) és a tint-párja (`--lc-bg`, `--lc-fg`) inline stílusként: sávszínnél a
+   sáv CDS-párja; más színnél csak a `--lc`, a pár a CSS keveréke. */
+export const lcStyle = color => {
+  const lane = /^var\(--lane-(\d+)\)$/.exec(color)?.[1];
+  return `--lc:${color}` + (lane ? `;--lc-bg:var(--lane-${lane}-bg);--lc-fg:var(--lane-${lane}-fg)` : '');
+};
 /* Keresőtáblák az adatból (sha → commit, ref → csúcs-commit, worktree → csonk és
    ál-sor): a DATA cseréjekor egyszer épülnek, a sor- és ágválasztó-rajzolás nem
    pásztázza végig a commitokat. */

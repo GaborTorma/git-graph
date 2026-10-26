@@ -15,6 +15,7 @@ import { mcpProblem } from './mcp.js';
 import { focusWt, setFocusAuto } from './model.js';
 import { render } from './rows.js';
 import { DATA, setData } from './state.js';
+import { icon } from './icons.js';
 import { esc, ghLink } from './util.js';
 
 const WAIT_S = 50;          // a nyitva tartott hívás leghosszabb várakozása (a host ~50 s-ig tartja, mérve)
@@ -52,7 +53,7 @@ function showVersion(f) {
   versionEl.className = stale ? 'ver warn' : 'ver';
   const name = `<span class="name">${ghLink(PLUGIN_URL, 'Git Graph', 'home', 'A Git Graph a GitHubon')} </span>`;
   versionEl.innerHTML = !f.version ? '' : stale
-    ? `${name} v${esc(f.version)} fut, v${esc(f.installed)} telepítve — indítsd újra a Claude appot`
+    ? `${icon('warn')}${name} v${esc(f.version)} fut, v${esc(f.installed)} telepítve — indítsd újra a Claude appot`
     : `${name} v${esc(f.version)}`;
   fitFoot();
 }
