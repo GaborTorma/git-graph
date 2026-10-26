@@ -309,13 +309,13 @@ class ExpandTest(CdsCase):
 
 class ChevronTest(CdsCase):
     def test_chevrons(self) -> None:
-        """A fájlsor nyila 12 × 12 (`xs`); az ágválasztóé az app menügombjáé: 16 × 16 (`sm`), 60 %-os."""
+        """A fájlsor nyila 12 × 12 (`xs`); az ágválasztóé az app Select-jéé: 16 × 16 (`sm`), halvány."""
         self.open_commit(FILES_SUBJECT)
         b = self.box("#rows .details .file .chev .ic")
         self.assertEqual((b["width"], b["height"]), (12, 12))
         b = self.box("#branchBtn .chev")
         self.assertEqual((b["width"], b["height"]), (16, 16))
-        self.assertEqual(self.style("#branchBtn .chev", "opacity"), "0.6")
+        self.assertEqual(self.style("#branchBtn .chev", "color"), rgb("#888888"))
 
     def test_file_icons(self) -> None:
         """A fájlikon 16 px, mint az app fájllistájában (a Catppuccin-ikon és az általános is)."""
@@ -572,9 +572,12 @@ class SearchHighlightTest(CdsCase):
 
 class ControlsTest(CdsCase):
     def test_trigger_button(self) -> None:
-        """A lenyíló gomb az app secondary gombja: szürke tint, keret és árnyék nélkül."""
-        self.assertEqual(self.style("#branchBtn", "backgroundColor"), "rgba(0, 0, 0, 0.05)")
-        self.assertEqual(self.style("#branchBtn", "boxShadow"), "none")
+        """A lenyíló gomb és a fogaskerék az app Select-je: halvány mező, 1 px-es keret, hoverre erősebb."""
+        for btn in ("#branchBtn", "#settingsBtn"):
+            self.assertEqual(self.style(btn, "backgroundColor"), "rgba(255, 255, 255, 0.5)", btn)
+            self.assertEqual(self.style(btn, "boxShadow"), "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px inset", btn)
+            self.page.locator(btn).hover()
+            self.assertEqual(self.style(btn, "boxShadow"), "rgba(11, 11, 11, 0.2) 0px 0px 0px 1px inset", btn)
 
     def test_search_field(self) -> None:
         """A keresőmező az app TextInput-ja: halvány mező, 1 px-es keret, 12 px a bal szélén;
@@ -606,12 +609,12 @@ class ControlsTest(CdsCase):
         self.assertEqual(moved, 16)
 
     def test_menu(self) -> None:
-        """A menü az app Menu-je: 4 px-es gutter, a keret a border token, a tétel 10 px-es
+        """A menü az app Menu-je: 4 px-es gutter, a keret a border token, a tétel 12 px-es (Select Item)
         paddingje; a worktree-fejléc nélküli menüben is."""
         self.page.locator("#themeBtn").click()
         self.assertEqual(self.style("#themePop", "paddingTop"), "4px")
         self.assertTrue(self.style("#themePop", "boxShadow").startswith("rgba(0, 0, 0, 0.08) 0px 0px 0px 1px"))
-        self.assertEqual(self.style("#themePop .option", "paddingLeft"), "10px")
+        self.assertEqual(self.style("#themePop .option", "paddingLeft"), "12px")   # a Select Item-je
 
     def test_link(self) -> None:
         """A szöveges link az app TextLink-je: text-accent, mindig aláhúzva, 3 px-re."""

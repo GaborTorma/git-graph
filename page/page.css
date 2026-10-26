@@ -29,8 +29,6 @@
   --fill-2:      rgba(11, 11, 11, .10);
   --fill-3:      rgba(11, 11, 11, .20);
   --fill-4:      rgba(11, 11, 11, .35);
-  --btn:         rgba(0, 0, 0, .05);    /* fill-secondary: a secondary gomb */
-  --btn-hover:   rgba(0, 0, 0, .075);   /* + fill-secondary-layer */
   --field:       rgba(255, 255, 255, .5);   /* fill-field: a beviteli mező */
   --track-off:   var(--fill-3);   /* a kapcsoló kikapcsolt sávja, hoverre egy fokkal erősebb */
   --track-hover: var(--fill-4);
@@ -129,8 +127,6 @@
     --fill-2:      rgba(255, 255, 255, .10);
     --fill-3:      rgba(255, 255, 255, .20);
     --fill-4:      rgba(255, 255, 255, .35);
-    --btn:         rgba(255, 255, 255, .15);
-    --btn-hover:   rgba(255, 255, 255, .21);
     --field:       var(--fill-1);
     --seg-on:      var(--fill-2);
     --shadow-sm:   0 1px 2px rgba(11, 11, 11, .06), 0 2px 8px rgba(0, 0, 0, .24);
@@ -198,8 +194,6 @@
   --fill-2:      rgba(255, 255, 255, .10);
   --fill-3:      rgba(255, 255, 255, .20);
   --fill-4:      rgba(255, 255, 255, .35);
-  --btn:         rgba(255, 255, 255, .15);
-  --btn-hover:   rgba(255, 255, 255, .21);
   --field:       var(--fill-1);
   --seg-on:      var(--fill-2);
   --shadow-sm:   0 1px 2px rgba(11, 11, 11, .06), 0 2px 8px rgba(0, 0, 0, .24);
@@ -303,18 +297,19 @@ button { font: inherit; color: inherit; }
 /* Ágválasztó: saját legördülő menü — a natív <select> listája a macOS kék
    menüjét hozná, ami kilóg az app nyelvéből. */
 .menu { position: relative; }
+/* az app Select-je (outline): mező — halvány háttér, 1 px keret, hoverre és nyitva erősebb keret */
 .select {
-  display: inline-flex; align-items: center; gap: 7px;
+  display: inline-flex; align-items: center; gap: 6px;
   height: 32px; padding: 0 8px;
   border: 0; border-radius: 8px;
-  background: var(--btn);   /* az app Menu.TriggerButton-ja: secondary gomb, keret és árnyék nélkül */
+  background: var(--field); box-shadow: inset 0 0 0 1px var(--border);
   color: var(--fg-2); font-size: 14px; cursor: pointer;
 }
-.select:hover { background: var(--btn-hover); }
+.select:hover, .select[aria-expanded="true"] { box-shadow: inset 0 0 0 1px var(--fill-3); }
 .select-ic { display: inline-flex; gap: 4px; }
 .select-ic:empty { display: none; }
 .select-label { color: var(--fg-0); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.select .chev { width: 16px; height: 16px; margin: 0 -3px 0 0; opacity: .6;   /* az app menügombjának CaretDown-ja (`sm`, 60 %) */ transition: transform .12s; }
+.select .chev { width: 16px; height: 16px; margin: 0 2px; color: var(--fg-3);   /* a Select CaretDown-ja (`sm`, text-muted, 20 px-es helyen) */ transition: transform .12s; }
 .select[aria-expanded="true"] .chev { transform: rotate(180deg); }
 .select:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .menu-pop {
@@ -329,7 +324,7 @@ button { font: inherit; color: inherit; }
 .menu-pop[hidden] { display: none; }
 .option {
   display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 8px; align-items: center;
-  height: 32px; padding: 0 10px;
+  height: 32px; padding: 0 12px;   /* a Select Item-je: px-md */
   border: 0; border-radius: 8px; background: transparent;
   font-size: 14px; color: var(--fg-0); text-align: left; cursor: pointer;
 }
@@ -359,23 +354,23 @@ button { font: inherit; color: inherit; }
 .menu-all { flex: none; padding: 4px 4px 3px; border-bottom: 1px solid var(--border); }
 .menu-all .option { width: 100%; }
 .menu-grp { display: flex; flex-direction: column; }
-.menu-grp:has(> .menu-wt) > .option.blk > .ln { padding-left: 36px; }   /* a fejléc alá tartozó ágak beljebb */
+.menu-grp:has(> .menu-wt) > .option.blk > .ln { padding-left: 40px; }   /* a fejléc alá tartozó ágak beljebb */
 /* Elválasztó a `sep` csoport fölött, ha előtte látszik egy csoport. */
 .menu-grp:not([hidden]) ~ .menu-grp.sep::before {
-  content: ""; height: 1px; margin: 4px 10px; background: var(--border);   /* Menu.Separator */
+  content: ""; height: 1px; margin: 4px 12px; background: var(--border);   /* Select.Separator: mx-pad-md */
 }
 .menu-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px; display: flex; flex-direction: column; }
 .menu-list.empty::after { content: "Nincs ilyen ág"; padding: 6px 12px; font-size: 12.5px; color: var(--fg-3); }
 /* A szűrőmező a menü tetején. */
 .menu-search {
   display: flex; flex: none; align-items: center; gap: 8px;
-  height: 38px; padding: 0 10px 0 12px;
+  height: 38px; padding: 0 16px;   /* PopupSearch: pad-md + a gutter, az ágak ikonjával egy oszlopban */
   border-bottom: 1px solid var(--border);
   color: var(--fg-3);
 }
 .menu-search .ic { width: 20px; height: 20px; flex: none; }   /* az ágak ikonjával egy oszlopban */
 .menu-wt {
-  display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 6px 10px 0 8px;
+  display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 6px 12px 0;
   font-size: 13px; font-weight: var(--w-medium); color: var(--fg-3);   /* Menu.GroupLabel: text-muted (a remote csoporté) */
 }
 .menu-wt .ic { width: 20px; height: 20px; flex: none; color: inherit; }
@@ -389,7 +384,7 @@ button { font: inherit; color: inherit; }
 }
 /* A worktree fejléce is opció: rákattintva az összes ága kijelölődik. */
 .option.menu-wt {
-  display: flex; height: auto; min-height: 26px; padding: 4px 10px 2px 8px; margin-top: 2px;
+  display: flex; height: auto; min-height: 26px; padding: 4px 12px 2px; margin-top: 2px;
   font-size: 13px; font-weight: var(--w-medium); color: var(--fg-0);   /* kattintható: nem halvány */
 }
 .option.blk { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 3px 0; position: relative; }
@@ -402,7 +397,7 @@ button { font: inherit; color: inherit; }
   width: calc(var(--digits, 2) * 1ch + 11px);   /* nyíl + az oszlop leghosszabb száma (a lap állítja) */
   font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-.blk .gap { position: absolute; right: 36px; top: 50%; transform: translateY(-50%); }
+.blk .gap { position: absolute; right: 38px; top: 50%; transform: translateY(-50%); }
 .blk .gap .ud { display: inline-flex; flex-direction: column; align-items: center; line-height: 7px; }
 .blk .gap.warn { color: var(--critical); font-weight: var(--w-header); }
 .blk .c1, .blk .gap { --digits: var(--c1-digits); }
@@ -414,7 +409,7 @@ button { font: inherit; color: inherit; }
 }
 .blk .ln {
   display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto 20px; gap: 8px; align-items: center;
-  height: 24px; padding: 0 10px 0 8px;
+  height: 24px; padding: 0 12px;
 }
 .blk .col { display: inline-flex; }
 /* A pipa külön kattintható: kipipáltnál kivesz, máskor (hoverre halványan) hozzáad. Mindig
@@ -467,7 +462,7 @@ button { font: inherit; color: inherit; }
 #remotesBtn .chev { width: 12px; height: 12px; margin: 0 -2px 0 0; }   /* a kisebb (28 px-es) gombé `xs`, mint az appban */
 #remotesBtn .select-label { max-width: 140px; }
 #remotesBtn:disabled { cursor: default; opacity: var(--disabled); }
-#remotesBtn:disabled:hover { background: var(--btn); }
+#remotesBtn:disabled:hover { box-shadow: inset 0 0 0 1px var(--border); }
 /* Szűkös helyen (a sor tördelne) a kapcsolók felirata helyett ikon. */
 .switch .sw-ic { display: none; color: var(--fg-2); }
 .chrome.compact .switch { gap: 6px; }
@@ -512,9 +507,8 @@ button { font: inherit; color: inherit; }
 
 /* Beállítások: a kereső melletti fogaskerék, a menüben kétsoros kapcsolók. */
 .select.gear { width: 32px; padding: 0; justify-content: center; }
-.select.gear[aria-expanded="true"] { background: var(--btn-hover); }
 .menu-pop.settings { width: 280px; }
-.option.setting { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 6px 10px; gap: 12px; }
+.option.setting { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 6px 12px; gap: 12px; }
 .option.setting .txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .option.setting .sub { font-size: 12px; line-height: 1.3; color: var(--fg-3); white-space: normal; }
 .option.setting:disabled { cursor: default; opacity: var(--disabled); }
@@ -531,7 +525,7 @@ button { font: inherit; color: inherit; }
 .option.setting[aria-checked="true"] .track { background: var(--accent); }
 .option.setting[aria-checked="true"]:not(:disabled):hover .track { background: var(--accent-hover); }
 .option.setting[aria-checked="true"] .track::after { transform: translateX(12px); }
-.menu-note { margin: 4px 10px 6px; font-size: 12px; line-height: 1.35; color: var(--del, var(--fg-2)); }
+.menu-note { margin: 4px 12px 6px; font-size: 12px; line-height: 1.35; color: var(--del, var(--fg-2)); }
 
 /* ── Nem commitolt változások ── a saját worktree WIP-je fix sávban a lista fölött:
    mindig látszik. A pontja saját SVG-ben van, a szaggatott vonal innen fut le a
