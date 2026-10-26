@@ -10,10 +10,12 @@ oldalról jön, az app a gyorsítótárában tartja; a kibontott fájlok útját
     uv run --no-project --with fonttools==4.60.1 --with brotli==1.1.0 \\
         python scripts/anthropicons.py <font.woff2> <bundle.js>
 
-Két méret: `icons` az app 16 px-es ikonja (`sm`: `opsz` 16, `wght` 533,3), `icons_xs` a 12 px-es
-(`xs`: `opsz` 12, `wght` 577,8) — az Icon komponens a méret vonalvastagságából ennyit számol. Mindkét
-készlet a 16-os rácson (az em-doboz 16 egység); a 12 px-es a lapon 12 px-esre rajzolandó. Az út
-kitöltött kontúr, nem vonal: a lapon `stroke="none"`-nal kell rajzolni.
+Négy készlet: `icons` az app 16 px-es ikonja (`sm`: `opsz` 16, `wght` 533,3), `icons_xs` a 12 px-es
+(`xs`: `opsz` 12, `wght` 577,8), `icons_md` a 20 px-es (`md`: `opsz` 20, `wght` 433,3 — comfortable
+sűrűségben ez az alapméret, pl. a menütétel ikonja), `icons_md_bold` ugyanez `bold`-dal (`wght`
+566,7, pl. a menü pipája) — az Icon komponens a méret vonalvastagságából ennyit számol. Mind a 16-os
+rácson (az em-doboz 16 egység); a lapon a készlet méretére rajzolandó. Az út kitöltött kontúr, nem
+vonal: a lapon `stroke="none"`-nal kell rajzolni.
 """
 from __future__ import annotations
 
@@ -28,7 +30,8 @@ from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
 
 OUT = Path(__file__).resolve().parent.parent / "design" / "icons" / "anthropicons.json"
-SIZES = {"icons": (533.3, 16), "icons_xs": (577.8, 12)}   # (wght, opsz): az Icon `sm` és `xs` mérete
+SIZES = {"icons": (533.3, 16), "icons_xs": (577.8, 12),    # (wght, opsz): az Icon `sm`, `xs`,
+         "icons_md": (433.3, 20), "icons_md_bold": (566.7, 20)}   # `md` és `md` bold mérete
 
 
 def names(bundle: str) -> dict[str, int]:
@@ -67,7 +70,7 @@ def main() -> None:
     OUT.write_text(json.dumps({"source": "Claude app, Anthropicons (anthropicons-variable.woff2)",
                                "sizes": {k: {"wght": w, "opsz": o, "px": o} for k, (w, o) in SIZES.items()},
                                "viewBox": "0 0 16 16", **sets}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    print(f"{len(sets['icons'])} ikon, két méretben → {OUT}")
+    print(f"{len(sets['icons'])} ikon, {len(sets)} készletben → {OUT}")
 
 
 if __name__ == "__main__":

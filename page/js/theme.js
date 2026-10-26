@@ -39,8 +39,8 @@ function setTheme(mode) {
   themeBtn.dataset.tip = `Téma: ${label.toLowerCase()}`;
   themePop.innerHTML = THEMES.map(([value, name, path]) =>
     `<button type="button" class="option with-icon" role="option" data-value="${value}" aria-selected="${value === mode}">`
-    + `<svg class="ic" viewBox="0 0 16 16" aria-hidden="true">${path}</svg>`
-    + `<span class="name">${name}</span>${icon('check', 'ic ck')}</button>`).join('');
+    + (value === 'auto' ? `<svg class="ic" viewBox="0 0 16 16" aria-hidden="true">${path}</svg>` : icon(value, 'ic', 'md'))
+    + `<span class="name">${name}</span>${icon('check', 'ic ck', 'md')}</button>`).join('');
   try { localStorage.setItem(THEME_KEY, mode); } catch { /* privát ablak: nem baj */ }
 }
 makeMenu(themeBtn, themePop, o => setTheme(o.dataset.value));

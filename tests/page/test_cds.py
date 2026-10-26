@@ -597,3 +597,28 @@ class ControlsTest(CdsCase):
         size = self.page.evaluate("""() => { const p = document.createElement('p'); p.className = 'diff-note loading';
           document.body.append(p); const s = getComputedStyle(p, '::before'); const r = [s.width, s.animationName]; p.remove(); return r; }""")
         self.assertEqual(size, ["12px", "spin"])
+
+
+# ── Ikonméretek: az app skálája (12 / 16 / 20), a menüben 20 ─────────────
+
+class IconSizesTest(CdsCase):
+    def sizes(self, selector: str) -> set:
+        return {tuple(round(v) for v in (b["width"], b["height"]))
+                for b in (e.bounding_box() for e in self.page.locator(selector).all()) if b}
+
+    def test_menu_icons(self) -> None:
+        """Az ágválasztó és a téma menüjének ikonjai 20 px-esek (az app comfortable `md`-je), a pipa
+        is, akcentus színnel; a gombok és a chipek ikonja 16 marad."""
+        self.page.locator("#branchBtn").click()
+        self.settle()
+        self.assertEqual(self.sizes("#branchPop .col svg.ic, #branchPop .menu-search .ic, #branchPop .ic.ck:visible"), {(20, 20)})
+        self.assertEqual(self.style("#branchPop .ic.ck", "color"), rgb("#257de0"))
+        self.assertEqual(self.sizes("#branchBtn .select-ic svg.ic, #rows .badge svg.ic"), {(16, 16)})
+        self.page.keyboard.press("Escape")
+        self.page.locator("#themeBtn").click()
+        self.assertEqual(self.sizes("#themePop .option > svg.ic:not(.ck)"), {(20, 20)})
+
+    def test_panel_icons(self) -> None:
+        """A commit-panel ikonjai (hash-chip, másolás, megnyitás) 16 px-esek, nem 14."""
+        self.open_commit("cds: módosítva")
+        self.assertEqual(self.sizes(".details .chip svg.ic, .details .mini svg.ic"), {(16, 16)})

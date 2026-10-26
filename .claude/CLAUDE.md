@@ -78,7 +78,8 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
   tint-hármassal: `lcStyle`); CSS-változó, így témaváltáskor a gráf magától
   átszíneződik. Az ikonok az app Anthropicons-glifái, ahol van pár (`ic-ag`; a
   teljes készlet `design/icons/anthropicons.json`), a többi saját, 1 egységes
-  vonalú rajz. A kód színei a Claude Light /
+  vonalú rajz. A méretük az app skálája: 16 px (gomb, chip, panel), 12 px (nyilak), a menükben
+  20 px (comfortable `md`, `ICONS_MD`; a pipa `bold`, akcentus színű). A kód színei a Claude Light /
   Dark kódszínek. Súgó csak a saját buborék (`data-tip`, `tip.js`; natív
   `title` nincs). Betű: az Anthropic Sans, a kódé az Anthropic Mono (a keretben nincsenek meg,
   külső fontot a CSP nem enged): a vendorolt woff2-ket a `page_code` adja base64-ben (`part:

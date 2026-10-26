@@ -23,9 +23,9 @@ export const setBranchSel = refs => { branchSel = new Set(refs); };
    chipjén; különben a csúcsa sávjáé. Az upstream felhője a helyi ágáé; teli csak
    az alapágé (default ág csak remote-on van). */
 
-const cloudIc = (ref, color) => tinted(ref === DATA.meta.base ? 'cloudFill' : 'cloud', color);
+const cloudIc = (ref, color, size = undefined) => tinted(ref === DATA.meta.base ? 'cloudFill' : 'cloud', color, size);
 /* Ág és upstream együtt (egy helyen állnak, vagy mindkettő kijelölve): egy ikon. */
-const branchCloudIc = (ref, color) => tinted(ref === DATA.meta.base ? 'branchCloudFill' : 'branchCloud', color);
+const branchCloudIc = (ref, color, size = undefined) => tinted(ref === DATA.meta.base ? 'branchCloudFill' : 'branchCloud', color, size);
 /* Egy helyi ág refjei a menüben: maga, és — remote ágakkal — az élő upstreamje, ha a
    remote-ja nincs elrejtve. */
 const blockRefs = (b, remote) => (remote && b.upstream && b.track !== 'gone' && remoteShown(b.upstream)
@@ -89,7 +89,7 @@ export function fillBranches() {
   const line = (refs, ic, name, c3, c2, c1) => {
     const on = refs.every(r => branchSel.has(r));
     return `<span class="ln${on ? ' on' : ''}"><span class="ckc" data-refs="${esc(refs.join(' '))}"`
-      + ` data-tip="${on ? 'kivesz' : 'hozzáad'}">${icon('check', 'ic ck')}</span>`
+      + ` data-tip="${on ? 'kivesz' : 'hozzáad'}">${icon('check', 'ic ck', 'md')}</span>`
       + `<span class="col">${ic}</span>`
       + `<span class="name">${name}</span><span class="c3">${c3}</span><span class="c2">${c2}</span><span class="c1">${c1}</span></span>`;
   };
@@ -119,21 +119,21 @@ export function fillBranches() {
     const refs = blockRefs(b, remote), up = refs[1];
     const pair = up && !synced(b);
     // A leválasztott HEAD jele a szélen, a worktree-fejléc WIP-karikájának oszlopában.
-    const detIc = det && `<span class="det" data-tip="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`;
+    const detIc = det && `<span class="det" data-tip="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached', 'ic', 'xs')}</span>`;
     const [ca, cd] = cell(b.name);
     const c = branchColor(b);
     // Két sornál a soronkénti távolság a belső oszlopban, a szélen a kettejük közti ↕.
     const lines = !pair
-      ? line(refs, up ? branchCloudIc(up, c) : tinted('branch', c), name, detIc ? '' : ca, '', detIc || cd)
-      : line([b.name], tinted('branch', c), name, detIc ? '' : ca, detIc || cd, '')
-        + line([up], cloudIc(up, c), esc(up), ...cell(up), '') + pairGap(b);
+      ? line(refs, up ? branchCloudIc(up, c, 'md') : tinted('branch', c, 'md'), name, detIc ? '' : ca, '', detIc || cd)
+      : line([b.name], tinted('branch', c, 'md'), name, detIc ? '' : ca, detIc || cd, '')
+        + line([up], cloudIc(up, c, 'md'), esc(up), ...cell(up), '') + pairGap(b);
     return blockBtn(refs, lines);
   };
   const blockBtn = (refs, lines) => `<button type="button" class="option blk" role="option" data-refs="${esc(refs.join(' '))}"`
     + ` data-key="${esc(refs[0])}" aria-selected="${refs.every(r => branchSel.has(r))}">${lines}</button>`;
   const header = w => {
     const lc = wtColor(w) || 'var(--accent)';
-    const ic = tinted(w.main ? 'mainWorktree' : 'worktree', lc);   // a worktree színe, mint a chipjén
+    const ic = tinted(w.main ? 'mainWorktree' : 'worktree', lc, 'md');   // a worktree színe, mint a chipjén
     const name = esc(w.main ? 'main' : w.name);
     const wip = w.dirty ? `<span class="wip" style="color:${lc}" data-tip="nem commitolt változás"></span>` : '';
     const cur = w.slug === own?.slug;
@@ -148,8 +148,8 @@ export function fillBranches() {
      csoport fölött vonal, ha előtte látszik egy csoport (CSS). */
   const group = (name, inner, sep) => `<div class="menu-grp${sep ? ' sep' : ''}" data-name="${esc(name)}">${inner}</div>`;
   branchAll.innerHTML = `<button type="button" class="option blk" role="option" data-refs="" data-key="" aria-selected="${!branchSel.size}">`
-    + `<span class="ln${branchSel.size ? '' : ' on'}"><span class="ckc">${icon('check', 'ic ck')}</span>`
-    + `<span class="col">${icon('allBranches')}</span><span class="name">Minden ág</span></span></button>`;
+    + `<span class="ln${branchSel.size ? '' : ' on'}"><span class="ckc">${icon('check', 'ic ck', 'md')}</span>`
+    + `<span class="col">${icon('allBranches', 'ic', 'md')}</span><span class="name">Minden ág</span></span></button>`;
   let html = '';
   if (multi) {
     const slugs = new Set(wts.map(w => w.slug));
@@ -167,10 +167,10 @@ export function fillBranches() {
     byRemote.set(r, [...(byRemote.get(r) || []), b]);
   }
   for (const [r, list] of byRemote) {
-    html += group(r, `<div class="menu-wt">${icon('cloud')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
+    html += group(r, `<div class="menu-wt">${icon('cloud', 'ic', 'md')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
       + list.map(b => {
         const [ca, cd] = cell(b.name);
-        return blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name)), esc(b.name.slice(r.length + 1)), ca, '', cd));
+        return blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name), 'md'), esc(b.name.slice(r.length + 1)), ca, '', cd));
       }).join(''), true);
   }
   branchList.innerHTML = html;
@@ -200,8 +200,8 @@ function fillRemotes() {
   const names = DATA.meta.remotes || [];
   const focused = remotesPop.contains(document.activeElement) && /** @type {HTMLElement} */ (document.activeElement).dataset.key;
   remotesPop.innerHTML = names.map(n => `<button type="button" class="option with-icon" role="option" data-keep`
-    + ` data-key="${esc(n)}" aria-selected="${!hiddenRemotes.has(n)}">${icon('cloud')}`
-    + `<span class="name">${esc(n)}</span>${icon('check', 'ic ck')}</button>`).join('');
+    + ` data-key="${esc(n)}" aria-selected="${!hiddenRemotes.has(n)}">${icon('cloud', 'ic', 'md')}`
+    + `<span class="name">${esc(n)}</span>${icon('check', 'ic ck', 'md')}</button>`).join('');
   if (focused) remotesPop.querySelector(`.option[data-key="${CSS.escape(focused)}"]`)?.focus();
   remotesBtn.disabled = !remotesOn();
   const shown = names.filter(n => !hiddenRemotes.has(n));
