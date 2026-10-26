@@ -384,7 +384,7 @@ button { font: inherit; color: inherit; }
 .menu-wt-cur { font-weight: var(--w-bold); }   /* az app bold-ja */
 /* A WIP jele: üres karika, mint a gráfon a „Nem commitolt változások” pontja. */
 .menu-wt .wip {
-  width: 9px; height: 9px; margin-left: auto; flex: none; box-sizing: border-box;
+  width: 12px; height: 12px; margin: 0 4px 0 auto; flex: none; box-sizing: border-box;   /* mint a gráfon (r 5, 2 px-es vonal); a pipa oszlopának közepén */
   border: 2px solid currentColor; border-radius: 50%;
 }
 /* A worktree fejléce is opció: rákattintva az összes ága kijelölődik. */

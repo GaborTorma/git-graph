@@ -353,6 +353,7 @@ class MenuIndentTest(CdsCase):
     def prepare(cls, repo: Path) -> None:
         prepare_cds(repo)
         git_in(repo, "worktree", "add", "-q", "-b", "wt-ag", str(repo.parent / "wt"), "main")
+        (repo.parent / "wt" / "piszkos.txt").write_text("nem commitolt\n", encoding="utf-8")   # WIP-jel a fejlécen
 
     def test_branches_indented(self) -> None:
         """A fejléc alá tartozó ág ikonja a fejléc nevével egy vonalban, beljebb a fejléc ikonjánál."""
@@ -368,6 +369,16 @@ class MenuIndentTest(CdsCase):
         self.assertEqual(self.style("#branchPop .menu-wt .name:not(.menu-wt-cur)", "fontWeight"), "460")
         # a worktree-fejléc kattintható (kijelöli az ágait): a szövege nem halvány, mint a remote csoporté
         self.assertEqual(self.style("#branchPop .option.menu-wt", "color"), rgb("#1a1a1a"))
+
+    def test_wip_mark(self) -> None:
+        """A nem commitolt változás jele a worktree-fejlécen akkora, mint a gráfon (12 px), és a
+        pipák oszlopának közepén áll."""
+        self.page.locator("#branchBtn").click()
+        self.settle()
+        wip = self.box("#branchPop .menu-wt .wip")
+        ck = self.box("#branchPop .blk .ckc .ic")
+        self.assertEqual((wip["width"], wip["height"]), (12, 12))
+        self.assertAlmostEqual(wip["x"] + 6, ck["x"] + ck["width"] / 2, delta=0.5)
 
     def test_worktree_chip_icons(self) -> None:
         """A worktree-jellel kezdődő chip (a kiemelt körvonalú is): a jel a széltől 4 px-re, a
