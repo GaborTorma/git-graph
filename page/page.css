@@ -5,23 +5,24 @@
    Claude Dark" témáé. Világos az alap; a sötét a rendszer-preferenciára és az
    explicit [data-theme="dark"] kapcsolóra is él. Minden szín tokenen keresztül megy.   */
 :root {
-  --bg:          #fcfcfb;   /* gray-10: az app ablakhátere */
+  --bg:          #ffffff;   /* surface-1: az app oldalháttere */
   --bg-1:        #ffffff;   /* surface-2: kártya, lábléc */
-  --bg-2:        #f0f0ef;   /* hover: 5 % */
-  --bg-3:        #e4e4e3;   /* kijelölt: 10 % */
-  --fg-0:        #0b0b0b;
-  --fg-1:        #20201f;
-  --fg-2:        #6d6b67;
-  --fg-3:        #898781;
-  --border:      rgba(11, 11, 11, .10);
-  --border-soft: rgba(11, 11, 11, .06);
-  --ctrl:        #ffffff;
-  --ctrl-border: rgba(11, 11, 11, .10);
-  --ctrl-shadow: 0 1px 2px rgba(11, 11, 11, .05);
+  --bg-2:        #f2f2f2;   /* hover: fill-ghost-hover (5 %) a háttéren */
+  --bg-3:        #e5e5e5;   /* kijelölt: fill-ghost-selected (10 %) a háttéren */
+  --fg-0:        #1a1a1a;   /* text-primary (90 %) */
+  --fg-1:        #1a1a1a;
+  --fg-2:        #666666;   /* text-secondary (60 %) */
+  --fg-3:        #888888;   /* text-muted (47 %) */
+  --border:      rgba(0, 0, 0, .08);
+  --border-soft: rgba(0, 0, 0, .05);
+  --ctrl:        #ffffff;   /* surface-3 */
+  --ctrl-border: rgba(0, 0, 0, .12);   /* border-line */
+  --ctrl-shadow: 0 1px 2px rgba(0, 0, 0, .05);
+  --pop-bg:      #ffffff;   /* surface-popover */
   --pop-shadow:  0 8px 24px rgba(0, 0, 0, .12), 0 2px 6px rgba(0, 0, 0, .08);
-  --accent:      #2a78d6;
-  --accent-bg:   rgba(42, 120, 214, .12);
-  --track-off:   rgba(11, 11, 11, .20);
+  --accent:      #257de0;   /* fill-accent (blue-450) */
+  --accent-bg:   rgba(37, 125, 224, .12);
+  --track-off:   rgba(0, 0, 0, .20);
   /* git: added / removed / modified / merged / conflicting */
   --add:         #1e9e3c;
   --del:         #cd2054;
@@ -35,27 +36,28 @@
   --highlight:   rgba(250, 178, 25, .33);
   /* a kódnézet (diff) kiemelt felülete: kódblokk, táblázatfej, üres oldal, ábrakeret */
   --code-tint:   color-mix(in srgb, var(--fg-0) 4%, var(--code-bg));
-  /* tooltip: fekete buborék mindkét témában */
+  /* tooltip: fekete buborék (sötétben a popover felülete) */
   --tip-bg:      #0b0b0b;
   --tip-fg:      #ffffff;
-  --tip-sub:     rgba(255, 255, 255, .6);
+  --tip-sub:     rgba(255, 255, 255, .57);   /* text-secondary a sötét buborékon */
+  --tip-kbd:     rgba(255, 255, 255, .4);    /* text-muted: a gyorsbillentyű */
   --tag-fg:      #8a5a00;
-  /* sávok (`laneColor`): szín, badge-háttér, badge-szöveg */
-  --lane-0: #2a78d6; --lane-0-bg: #cde2fb; --lane-0-fg: #184f95;   /* blue */
-  --lane-1: #eb6834; --lane-1-bg: #f7d8cb; --lane-1-fg: #863311;   /* orange */
-  --lane-2: #1baf7a; --lane-2-bg: #bfebdb; --lane-2-fg: #065f49;   /* aqua */
-  --lane-3: #eda100; --lane-3-bg: #f9dca4; --lane-3-fg: #734500;   /* yellow */
-  --lane-4: #e87ba4; --lane-4-bg: #f9d4e2; --lane-4-fg: #862a4c;   /* magenta */
-  --lane-5: #008300; --lane-5-bg: #caeac7; --lane-5-fg: #006300;   /* green */
-  --lane-6: #6250d6; --lane-6-bg: #dfdbfd; --lane-6-fg: #4a3aa7;   /* violet */
-  --lane-7: #e34948; --lane-7-bg: #fad6d6; --lane-7-fg: #8e2626;   /* red */
+  /* sávok (`laneColor`): a vonal színe (chart-categorical), a chip tint-háttere, -szövege és -kerete */
+  --lane-0: #2a78d6; --lane-0-bg: #257de01f; --lane-0-fg: #1757ac; --lane-0-bd: #257de039;   /* blue */
+  --lane-1: #eb6834; --lane-1-bg: #d25f2524; --lane-1-fg: #90370f; --lane-1-bd: #d25f2539;   /* orange */
+  --lane-2: #1baf7a; --lane-2-bg: #019c7f24; --lane-2-fg: #006458; --lane-2-bd: #019c7f39;   /* aqua */
+  --lane-3: #eda100; --lane-3-bg: #fbb31529; --lane-3-fg: #794c02; --lane-3-bd: #fbb3154a;   /* yellow */
+  --lane-4: #e87ba4; --lane-4-bg: #ce447d1f; --lane-4-fg: #902552; --lane-4-bd: #ce447d39;   /* magenta */
+  --lane-5: #008300; --lane-5-bg: #10a12224; --lane-5-fg: #006c10; --lane-5-bd: #10a12241;   /* green */
+  --lane-6: #6250d6; --lane-6-bg: #785ee81f; --lane-6-fg: #5437b8; --lane-6-bd: #785ee839;   /* violet */
+  --lane-7: #e34948; --lane-7-bg: #dc3c3d1f; --lane-7-fg: #a42528; --lane-7-bd: #dc3c3d39;   /* red */
   /* monogram: a munkatárs-paletta, fehér betűvel, mindkét témában */
   --collab-0: #7161e0; --collab-1: #c04873; --collab-2: #0f7e5c;
   --collab-3: #008300; --collab-4: #945d00; --collab-5: #6d6b67;
   /* fájlikonok (Catppuccin, page/file-icons.json) */
   --ic-red: #c4573a; --ic-orange: #d97757; --ic-yellow: #c08a1e; --ic-green: #3f9455;
   --ic-teal: #2a8e8c; --ic-blue: #4f7fe0; --ic-purple: #8f68cc; --ic-pink: #c4588a;
-  --ic-fg: #6d6b67; --ic-muted: #898781;
+  --ic-fg: #666666; --ic-muted: #888888;
   /* kód */
   --code-bg:     #ffffff;
   --code-fg:     #141413;
@@ -78,40 +80,42 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:          #151515;   /* gray-850: az app ablakhátere */
-    --bg-1:        #1a1a19;   /* surface-2 */
-    --bg-2:        #272727;   /* ghost-hover */
-    --bg-3:        #383838;   /* ghost-selected */
-    --fg-0:        #f0efec;
-    --fg-1:        #e1e0d9;
-    --fg-2:        #a5a49a;
-    --fg-3:        #898781;
-    --border:      rgba(255, 255, 255, .10);
-    --border-soft: rgba(255, 255, 255, .06);
-    --ctrl:        #20201f;   /* surface-3 */
-    --ctrl-border: rgba(255, 255, 255, .10);
+    --bg:          #191919;   /* surface-1 */
+    --bg-1:        #1f1f1f;   /* surface-2 */
+    --bg-2:        #2a2a2a;   /* fill-ghost-hover (7,5 %) a háttéren */
+    --bg-3:        #3b3b3b;   /* fill-ghost-selected (15 %) a háttéren */
+    --fg-0:        #efefef;   /* text-primary (93 %) */
+    --fg-1:        #efefef;
+    --fg-2:        #9c9c9c;   /* text-secondary (57 %) */
+    --fg-3:        #757575;   /* text-muted (40 %) */
+    --border:      rgba(255, 255, 255, .08);
+    --border-soft: rgba(255, 255, 255, .05);
+    --ctrl:        #1f1f1f;   /* surface-3 */
+    --ctrl-border: rgba(255, 255, 255, .12);   /* border-line */
     --ctrl-shadow: none;
+    --pop-bg:      #303030;   /* surface-popover */
     --pop-shadow:  0 8px 24px rgba(0, 0, 0, .32), 0 2px 6px rgba(0, 0, 0, .2);
-    --accent:      #3987e5;
-    --accent-bg:   rgba(57, 135, 229, .20);
+    --accent:      #257de0;
+    --accent-bg:   rgba(37, 125, 224, .12);
     --track-off:   rgba(255, 255, 255, .20);
+    --tip-bg:      #303030;   /* sötétben a buborék a popover felülete */
     --add:         #32d74b;
     --del:         #ff2c56;
     --git-modified: #ffd014;
     --git-merged:  #b796ff;
     --git-conflict: #fa832e;
     --tag-fg:      #e6c06e;
-    --lane-0: #3987e5; --lane-0-bg: #032042; --lane-0-fg: #6da7ec;   /* blue */
-    --lane-1: #d95926; --lane-1-bg: #371407; --lane-1-fg: #ec835a;   /* orange */
-    --lane-2: #199e70; --lane-2-bg: #022720; --lane-2-fg: #3bbd8c;   /* aqua */
-    --lane-3: #c98500; --lane-3-bg: #311a00; --lane-3-fg: #db9300;   /* yellow */
-    --lane-4: #d55181; --lane-4-bg: #390f1f; --lane-4-fg: #e87ba4;   /* magenta */
-    --lane-5: #008300; --lane-5-bg: #11260f; --lane-5-fg: #55bf50;   /* green */
-    --lane-6: #9085e9; --lane-6-bg: #1d1649; --lane-6-fg: #a096eb;   /* violet */
-    --lane-7: #e66767; --lane-7-bg: #3c0e0e; --lane-7-fg: #ec7e7e;   /* red */
+    --lane-0: #3987e5; --lane-0-bg: #257de01f; --lane-0-fg: #6aabf1; --lane-0-bd: #257de066;   /* blue */
+  --lane-1: #d95926; --lane-1-bg: #d25f251f; --lane-1-fg: #f18a59; --lane-1-bd: #d25f2566;   /* orange */
+  --lane-2: #199e70; --lane-2-bg: #019c7f1f; --lane-2-fg: #2bc6a5; --lane-2-bd: #019c7f66;   /* aqua */
+  --lane-3: #c98500; --lane-3-bg: #fbb31514; --lane-3-fg: #e49c06; --lane-3-bd: #fbb3154d;   /* yellow */
+  --lane-4: #d55181; --lane-4-bg: #ce447d1f; --lane-4-fg: #ee7fac; --lane-4-bd: #ce447d66;   /* magenta */
+  --lane-5: #008300; --lane-5-bg: #10a1221f; --lane-5-fg: #53c556; --lane-5-bd: #10a12266;   /* green */
+  --lane-6: #9085e9; --lane-6-bg: #785ee81f; --lane-6-fg: #a89af0; --lane-6-bd: #785ee866;   /* violet */
+  --lane-7: #e66767; --lane-7-bg: #dc3c3d1f; --lane-7-fg: #f17778; --lane-7-bd: #dc3c3d66;   /* red */
     --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
     --ic-teal: #6cc4c0; --ic-blue: #8fb2f5; --ic-purple: #c5aaf0; --ic-pink: #e38fb2;
-    --ic-fg: #a5a49a; --ic-muted: #898781;
+    --ic-fg: #9c9c9c; --ic-muted: #757575;
     --code-bg:     #141413;
     --code-fg:     #ecebe4;
     --code-no:     #7f7d76;
@@ -131,23 +135,25 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg:          #151515;   /* gray-850: az app ablakhátere */
-  --bg-1:        #1a1a19;   /* surface-2 */
-  --bg-2:        #272727;   /* ghost-hover */
-  --bg-3:        #383838;   /* ghost-selected */
-  --fg-0:        #f0efec;
-  --fg-1:        #e1e0d9;
-  --fg-2:        #a5a49a;
-  --fg-3:        #898781;
-  --border:      rgba(255, 255, 255, .10);
-  --border-soft: rgba(255, 255, 255, .06);
-  --ctrl:        #20201f;   /* surface-3 */
-  --ctrl-border: rgba(255, 255, 255, .10);
+  --bg:          #191919;   /* surface-1 */
+  --bg-1:        #1f1f1f;   /* surface-2 */
+  --bg-2:        #2a2a2a;   /* fill-ghost-hover (7,5 %) a háttéren */
+  --bg-3:        #3b3b3b;   /* fill-ghost-selected (15 %) a háttéren */
+  --fg-0:        #efefef;   /* text-primary (93 %) */
+  --fg-1:        #efefef;
+  --fg-2:        #9c9c9c;   /* text-secondary (57 %) */
+  --fg-3:        #757575;   /* text-muted (40 %) */
+  --border:      rgba(255, 255, 255, .08);
+  --border-soft: rgba(255, 255, 255, .05);
+  --ctrl:        #1f1f1f;   /* surface-3 */
+  --ctrl-border: rgba(255, 255, 255, .12);   /* border-line */
   --ctrl-shadow: none;
+  --pop-bg:      #303030;   /* surface-popover */
   --pop-shadow:  0 8px 24px rgba(0, 0, 0, .32), 0 2px 6px rgba(0, 0, 0, .2);
-  --accent:      #3987e5;
-  --accent-bg:   rgba(57, 135, 229, .20);
+  --accent:      #257de0;
+  --accent-bg:   rgba(37, 125, 224, .12);
   --track-off:   rgba(255, 255, 255, .20);
+  --tip-bg:      #303030;   /* sötétben a buborék a popover felülete */
   --add:         #32d74b;
   --del:         #ff2c56;
   --git-modified: #ffd014;
@@ -164,7 +170,7 @@
   --lane-7: #e66767; --lane-7-bg: #3c0e0e; --lane-7-fg: #ec7e7e;   /* red */
   --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
   --ic-teal: #6cc4c0; --ic-blue: #8fb2f5; --ic-purple: #c5aaf0; --ic-pink: #e38fb2;
-  --ic-fg: #a5a49a; --ic-muted: #898781;
+  --ic-fg: #9c9c9c; --ic-muted: #757575;
   --code-bg:     #141413;
   --code-fg:     #ecebe4;
   --code-no:     #7f7d76;
@@ -204,9 +210,11 @@ body {
 .mono { font-family: var(--font-mono); font-variant-ligatures: none; }
 .ic {
   width: 16px; height: 16px; flex: none;
-  fill: none; stroke: currentColor; stroke-width: 1.5;
+  fill: none; stroke: currentColor; stroke-width: 1;
   stroke-linecap: round; stroke-linejoin: round;
 }
+/* az Anthropicons-glifa (`icons.js`): kitöltött kontúr, nem vonal */
+.ic .ic-ag { fill: currentColor; stroke: none; }
 button { font: inherit; color: inherit; }
 :focus-visible { outline: 0; box-shadow: 0 0 0 1px var(--accent), 0 0 6px 1px var(--accent-bg); }
 
@@ -227,12 +235,13 @@ button { font: inherit; color: inherit; }
 .repo-name { font-size: 15px; font-weight: 600; color: var(--fg-0); white-space: nowrap; }
 .head-chip {
   display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; overflow: hidden;
-  height: 22px; padding: 0 9px; border-radius: 999px;
+  height: 22px; padding: 0 9px; border-radius: 5.5px;   /* a magasság negyede, mint a chipeké */
   background: var(--lc); color: #ffffff;   /* teli, mint a saját HEAD commit-chipje */
   font-size: 13px; font-weight: 600; white-space: nowrap;
   border: 0; font-family: inherit; cursor: pointer;   /* gomb: a lista a HEAD-hez ugrik */
 }
-.head-chip .ic { width: 13px; height: 13px; }
+.head-chip .ic { width: 16px; height: 16px; }
+.head-chip > .ic:first-child, .head-chip > .wt-lead:first-child { margin-left: -5px; }   /* az ikon a széltől 4 px-re */
 .head-chip[hidden] { display: none; }
 .head-chip.head-off { opacity: .5; }   /* az ágválasztó elrejti a HEAD-et */
 
@@ -251,7 +260,7 @@ button { font: inherit; color: inherit; }
 .select-ic { display: inline-flex; gap: 4px; }
 .select-ic:empty { display: none; }
 .select-label { color: var(--fg-0); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.select .chev { width: 16px; height: 16px; stroke-width: 1.75; margin-left: 8px; transition: transform .12s; }
+.select .chev { width: 12px; height: 12px; margin-left: 8px;   /* az app választóinak CaretDown-ja (`xs`) */ transition: transform .12s; }
 .select[aria-expanded="true"] .chev { transform: rotate(180deg); }
 .select:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--accent), 0 0 6px 1px var(--accent-bg); }
 .menu-pop {
@@ -259,7 +268,7 @@ button { font: inherit; color: inherit; }
   min-width: 100%; width: max-content; max-width: 360px; max-height: min(340px, var(--room, 100vh)); overflow: auto;
   padding: 6px;
   display: flex; flex-direction: column; gap: 1px;
-  background: var(--ctrl);
+  background: var(--pop-bg);
   border-radius: 12px;
   box-shadow: 0 0 0 1px var(--ctrl-border), var(--pop-shadow);
 }
@@ -273,8 +282,8 @@ button { font: inherit; color: inherit; }
 .option:hover, .option:focus-visible { outline: 0; box-shadow: none; background: var(--bg-2); }
 /* Az opció ikonjai látszanak; a pipa (`.ck`) csak a kiválasztotton (az ágválasztó
    blokkjában soronként, `.ln.on`). */
-.option .ic { width: 16px; height: 16px; color: var(--fg-2); stroke-width: 1.5; }
-.option .ic.ck { width: 14px; height: 14px; color: var(--accent); stroke-width: 2; visibility: hidden; }
+.option .ic { width: 16px; height: 16px; color: var(--fg-2); }
+.option .ic.ck { width: 16px; height: 16px; color: var(--accent); visibility: hidden; }
 .option[aria-selected="true"] .ic.ck, .blk .ln.on .ic.ck { visibility: visible; }
 .option.with-icon { grid-template-columns: 16px minmax(0, 1fr) 14px; }
 .option .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -282,7 +291,7 @@ button { font: inherit; color: inherit; }
 .option .cur {
   --lc-bg: color-mix(in srgb, var(--lc, var(--accent)) 14%, var(--bg));
   --lc-fg: color-mix(in srgb, var(--lc, var(--accent)) 70%, var(--fg-0));
-  margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 500;
+  margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 500;
   background: var(--lc-bg); color: var(--lc-fg);
 }
 /* Ágválasztó: worktree-fejléc, alatta az ágai; a helyi ág és az upstreamje egy
@@ -293,6 +302,7 @@ button { font: inherit; color: inherit; }
 .menu-all { flex: none; padding: 4px 4px 3px; border-bottom: 1px solid var(--border-soft); }
 .menu-all .option { width: 100%; }
 .menu-grp { display: flex; flex-direction: column; gap: 1px; }
+.menu-grp:has(> .menu-wt) > .option.blk > .ln { padding-left: 32px; }   /* a fejléc alá tartozó ágak beljebb */
 /* Elválasztó a `sep` csoport fölött, ha előtte látszik egy csoport. */
 .menu-grp:not([hidden]) ~ .menu-grp.sep::before {
   content: ""; height: 1px; margin: 3px 6px; background: var(--border-soft);
@@ -311,7 +321,7 @@ button { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 6px 10px 0 8px;
   font-size: 13px; font-weight: 500; color: var(--fg-0);
 }
-.menu-wt .ic { width: 14px; height: 14px; flex: none; color: var(--fg-2); }
+.menu-wt .ic { width: 16px; height: 16px; flex: none; color: var(--fg-2); }
 .menu-wt .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-wt .note { margin-left: -4px; font-weight: 400; font-style: italic; color: var(--fg-3); font-size: 11.5px; }
 .menu-wt-cur { font-weight: 700; }
@@ -346,7 +356,7 @@ button { font: inherit; color: inherit; }
   min-width: calc(var(--digits, 2) * 1ch + min(var(--digits, 2), 1) * 11px);
 }
 .blk .ln {
-  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto auto 14px; gap: 8px; align-items: center;
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto auto 16px; gap: 8px; align-items: center;
   height: 24px; padding: 0 10px 0 8px;
 }
 .blk .col { display: inline-flex; }
@@ -590,15 +600,15 @@ button { font: inherit; color: inherit; }
    buborékjai: egy fő sor (mellette halványan a gyorsbillentyű), alatta a többi kisebb,
    halványabb. */
 #tip {   /* a padding az app Tooltipjéé: egysoros 3 × 8, többsoros 6 × 8 px */
-  position: fixed; z-index: 60; padding: 3px 8px; border-radius: 8px; pointer-events: none;
+  position: fixed; z-index: 60; padding: 3px 8px; border-radius: 6px; pointer-events: none;
   background: var(--tip-bg); color: var(--tip-fg); font: 400 13px/18px var(--font-ui); white-space: pre;
   opacity: 0; transform: translateY(2px); transition: opacity .12s, transform .12s;
 }
 #tip.on { opacity: 1; transform: none; }
 #tip:has(.sub) { padding: 6px 8px; }
 #tip .main { display: block; }
-#tip .sub { display: block; font-size: 12px; line-height: 17px; color: var(--tip-sub); }
-#tip .kbd { margin-left: 8px; color: var(--tip-sub); }
+#tip .sub { display: block; margin-top: 2px; font-size: 11px; line-height: 14px; color: var(--tip-sub); }
+#tip .kbd { margin-left: 8px; font-size: 12px; color: var(--tip-kbd); }
 /* monogram: a szerző munkatárs-színe (`--ini`, rows.js) */
 .meta .author.ini { background: var(--ini, var(--bg-3)); color: #ffffff; font-size: 9px; font-weight: 600; letter-spacing: .02em; }
 /* A commit összes változása az avatar után, színes cellákban (a Claude app
@@ -622,12 +632,17 @@ button { font: inherit; color: inherit; }
 /* ── Ref-badge-ek ───────────────────────────────────────────────────────── */
 .badge {
   display: inline-flex; align-items: center; gap: 4px; flex: none;
-  max-width: 260px; height: 20px; padding: 0 8px;
-  border-radius: 999px;   /* teljesen kerek, mint az app jelvényei; a tag az ikonjáról ismerszik meg */
-  font-size: 12px; font-weight: 500; line-height: 20px; white-space: nowrap;
+  max-width: 260px; height: 20px; padding: 0 8.5px;   /* 7 px + a 1,5 px-es keret */
+  border-radius: 5px;   /* a magasság negyede; a tag az ikonjáról ismerszik meg */
+  font-size: 12px; font-weight: 500; line-height: 15px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
 }
-.badge .ic { width: 13px; height: 13px; }
+.badge .ic { width: 16px; height: 16px; }
+/* az első ikon a chip szélétől 4 px-re, mint az app Badge-én */
+.badge > .ic:first-child, .badge > .wt-lead:first-child { margin-left: -4.5px; }
+.badge-name { padding-bottom: .05em; }
+/* az ikon és a szöveg közt 3,2 px, mint az app Badge-én */
+:is(.badge, .head-chip) > svg.ic:has(+ :is(.badge-name, .chip-name)) { margin-right: -0.8px; }
 /* Ha nem fér ki, csak a név rövidül (`…`); az ikonok, az elválasztó és a
    távolság-szakaszok nem nyomódnak össze. */
 .badge > *, .head-chip > * { flex: none; }
@@ -639,7 +654,7 @@ button { font: inherit; color: inherit; }
 .badge > .badge-name, .head-chip > .chip-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* A remote-on is ugyanott áll: felhő az ág neve után. */
 :is(.badge, .head-chip) .synced { display: inline-flex; align-items: center; gap: 3px; margin-left: 1px; opacity: .8; }
-:is(.badge, .head-chip) .synced.wt-lead { margin: 0 -2px 0 0; }   /* a worktree-jel elöl, a branch-ikonhoz tapad */
+:is(.badge, .head-chip) .synced.wt-lead { margin-right: -1px; }   /* a worktree-jel elöl, 3 px-re a branch-ikontól */
 :is(.badge, .head-chip) .div { align-self: stretch; width: 1px; margin: 3px 1px; background: currentColor; opacity: .3; }
 :is(.badge, .head-chip) .ic.filled { fill: currentColor; }
 /* Az ág távolsága (alapág / upstream): ikon és nyilak, egy szakaszban. */
@@ -649,24 +664,27 @@ button { font: inherit; color: inherit; }
 :is(.badge, .head-chip) .dist.warn { align-self: stretch; margin: 1px 0; padding: 0 5px; background: var(--critical); color: #ffffff; font-weight: 600; }
 :is(.badge, .head-chip) .div:has(+ .dist.warn) { display: none; }
 /* A chip végén: 1 px-es keret marad körülötte a chip színéből, a sarok a chipével párhuzamos. */
-:is(.badge, .head-chip) .dist.warn:last-child { border-radius: 0 999px 999px 0; }
-.badge .dist.warn:last-child { margin-right: -7px; }
-.head-chip .dist.warn:last-child { margin-right: -8px; }
+.badge .dist.warn:last-child { border-radius: 0 3.5px 3.5px 0; }   /* a keret belső íve */
+.head-chip .dist.warn:last-child { border-radius: 0 5.5px 5.5px 0; }
+.badge .dist.warn:last-child { margin-right: -7px; }   /* a keret belül marad */
+.head-chip .dist.warn:last-child { margin-right: -9px; }
 .head-chip .div { margin: 3px 2px; }
 :is(.badge, .head-chip) .synced:has(.wt-ic) { opacity: 1; }   /* a worktree-jel teljes erővel, a felhő visszafogott */
 /* Az ág, a HEAD és a tag a commit sávjának színét viseli (`--lc`), a chip a sáv CDS
    tint-párját (`--lc-bg`, `--lc-fg`: `lcStyle`); keret a szöveg 25 %-a. Sávon kívüli
    színnél a pár a szín és a háttér, illetve az előtér keveréke. */
 .badge:is(.ref-branch, .ref-remote, .ref-tag, .ref-release, .ref-pr, .ref-issue, .ref-stash), .badge.other {
-  --lc-bg: color-mix(in srgb, var(--lc) 14%, var(--bg));
+  --lc-bg: color-mix(in srgb, var(--lc) 12%, transparent);
   --lc-fg: color-mix(in srgb, var(--lc) 70%, var(--fg-0));
+  --lc-bd: color-mix(in srgb, var(--lc) 22%, transparent);
   background: var(--lc-bg);
   color: var(--lc-fg);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc-fg) 25%, transparent);
+  /* a 1,5 px-es keret árnyékként: kerekítés nélkül, a tartalom helyét nem mozdítja */
+  box-shadow: inset 0 0 0 1.5px var(--lc-bd);
 }
 /* A saját worktree HEAD-je teli, más worktree-é halvány, erős kerettel. */
 .badge:is(.ref-head, .ref-detached):not(.other) { background: var(--lc); color: #ffffff; font-weight: 600; }
-.badge.other { box-shadow: inset 0 0 0 1.5px var(--lc); font-weight: 500; }
+.badge.other { box-shadow: inset 0 0 0 1.5px var(--lc); }
 /* Ami nem a saját worktree-ben van (más ág, más worktree): halványabb. */
 /* Halvány a sor tartalma, de nem a belső sáv: a lenyitott sor körvonala ugyanolyan
    erős, mint a panelé. (A `.desc` a kétsoros elrendezésben `display: contents`,
@@ -675,7 +693,7 @@ button { font: inherit; color: inherit; }
 /* A tükör-commit (egy subtree-remote másolata) ugyanígy: a forrása a fő történetben van. */
 .row.mirror .row-in > :not(.desc), .row.mirror .desc > * { opacity: .55; }
 /* A stash chipje szaggatott kerettel: félretett munka, nem ág. */
-.badge.ref-stash { box-shadow: none; border: 1px dashed color-mix(in srgb, var(--lc) 55%, var(--bg)); }
+.badge.ref-stash { box-shadow: none; padding: 0 7px; border: 1.5px dashed color-mix(in srgb, var(--lc) 55%, transparent); }
 a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitHub-link */
 
 /* ── Commit-részletek ───────────────────────────────────────────────────── */
@@ -738,19 +756,19 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
   background: var(--bg-3); color: var(--fg-1);
 }
 .file {
-  display: grid; grid-template-columns: 16px 18px minmax(0, 1fr) auto 24px; gap: 6px; align-items: center;
+  display: grid; grid-template-columns: 16px 16px minmax(0, 1fr) auto 24px; gap: 6px; align-items: center;
   height: 30px; padding: 0 4px 0 6px; border-radius: 8px;
   font-size: 13px; cursor: pointer;
 }
 .file-dir {   /* összevont követetlen mappa: mint a .file, de nem nyílik */
-  display: grid; grid-template-columns: 16px 18px minmax(0, 1fr) auto 24px; gap: 6px; align-items: center;
+  display: grid; grid-template-columns: 16px 16px minmax(0, 1fr) auto 24px; gap: 6px; align-items: center;
   height: 30px; padding: 0 4px 0 6px; font-size: 13px;
 }
-.file-dir .ic.fic { width: 13px; height: 13px; margin: auto; color: var(--fg-2); }
+.file-dir .ic.fic { width: 16px; height: 16px; margin: auto; color: var(--fg-2); }
 .file-dir .path { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--add); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-dir .path .dir-st { font-weight: 400; opacity: .7; }
 .file-dir .churn, .files-note { font-size: 12px; color: var(--fg-2); }
-.files-note { padding: 2px 6px 0 46px; }
+.files-note { padding: 2px 6px 0 44px; }
 .file:hover { background: var(--bg-2); }
 /* A lenyitott fájl és a diffje egy keret, mint a lenyitott commit és a panele. */
 .file[aria-expanded="true"], .file[aria-expanded="true"]:hover {
@@ -767,9 +785,9 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .hunk:focus { outline: 0; }
 .hunk:focus-visible { box-shadow: none; outline: 1.5px solid var(--accent); outline-offset: -1.5px; border-radius: 3px; }
 .file .chev { display: flex; color: var(--fg-2); transition: transform .12s; }
-.file .chev .ic { width: 16px; height: 16px; stroke-width: 1.75; color: var(--fg-2); }
-.file .fic { width: 18px; height: 18px; display: block; }           /* Catppuccin-ikon */
-.file .ic.fic { width: 13px; height: 13px; margin: auto; color: var(--fg-2); }   /* általános fájlikon */
+.file .chev .ic { width: 12px; height: 12px; margin: auto; color: var(--fg-2); }   /* CaretRight (`xs`) */
+.file .fic { width: 16px; height: 16px; display: block; }           /* Catppuccin-ikon */
+.file .ic.fic { width: 16px; height: 16px; margin: auto; color: var(--fg-2); }   /* általános fájlikon: Anthropicons File */
 .file[aria-expanded="true"] .chev { transform: rotate(90deg); }
 .file .path { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--fg-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file .path .dir, .file .path .dir-st { font-weight: 400; }

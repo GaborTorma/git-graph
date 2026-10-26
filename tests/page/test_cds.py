@@ -94,15 +94,16 @@ class CdsCase(PageTestCase):
 
 class LightTokensTest(CdsCase):
     def test_light_base(self) -> None:
-        """Világos téma alapszínei: háttér, szöveg, akcentus, hover 5 %, kijelölt 10 %."""
-        self.assertEqual(self.style("body", "backgroundColor"), rgb("#fcfcfb"))
-        self.assertEqual(self.style("#rows .desc", "color"), rgb("#0b0b0b"))
-        self.assertEqual(self.token("--accent"), "#2a78d6")
-        self.assertEqual(self.token("--bg-3"), "#e4e4e3")
+        """Világos téma alapszínei (az app fizzy-lake színtémája): háttér, szöveg, akcentus,
+        hover 5 %, kijelölt 10 %."""
+        self.assertEqual(self.style("body", "backgroundColor"), rgb("#ffffff"))
+        self.assertEqual(self.style("#rows .desc", "color"), rgb("#1a1a1a"))
+        self.assertEqual(self.token("--accent"), "#257de0")
+        self.assertEqual(self.token("--bg-3"), "#e5e5e5")
         self.row("main-3-2").hover()
         self.settle()
         self.assertEqual(self.row("main-3-2").locator(".row-in").evaluate("e => getComputedStyle(e).backgroundColor"),
-                         rgb("#f0f0ef"))
+                         rgb("#f2f2f2"))
 
 
 class DarkTokensTest(CdsCase):
@@ -110,11 +111,11 @@ class DarkTokensTest(CdsCase):
 
     def test_dark_base(self) -> None:
         """Sötét téma alapszínei."""
-        self.assertEqual(self.style("body", "backgroundColor"), rgb("#151515"))
-        self.assertEqual(self.style("#rows .desc", "color"), rgb("#f0efec"))
-        self.assertEqual(self.token("--accent"), "#3987e5")
-        self.assertEqual(self.token("--bg-2"), "#272727")
-        self.assertEqual(self.token("--bg-3"), "#383838")
+        self.assertEqual(self.style("body", "backgroundColor"), rgb("#191919"))
+        self.assertEqual(self.style("#rows .desc", "color"), rgb("#efefef"))
+        self.assertEqual(self.token("--accent"), "#257de0")
+        self.assertEqual(self.token("--bg-2"), "#2a2a2a")
+        self.assertEqual(self.token("--bg-3"), "#3b3b3b")
 
 
 # ── Méretek: 14 px-es alapszöveg, comfortable kontrollok ──────────────────
@@ -160,17 +161,34 @@ class LaneColorsTest(CdsCase):
         self.assertEqual(self.lane_colors()["16"], rgb("#3987e5"))
 
 
-# ── Branch-badge: a sáv tint-párja, teljesen kerek ───────────────────────
+# ── Branch-badge: a sáv tintje, az app Badge-ének alakja ─────────────────
 
 class BadgeTest(CdsCase):
     def test_blue_badge(self) -> None:
-        """A `main` badge-e (az első, kék sávon) a kék tint-pár, teljesen kerek."""
+        """A `main` badge-e (az első, kék sávon) a kék tint: háttér, szöveg, 1,5 px-es keret; a
+        sarka a magasság negyede."""
         main = self.page.locator("#rows .badge.ref-branch", has=self.page.locator(".badge-name", has_text="main"))
         main = main.filter(has_not=self.page.locator(".badge-name", has_text="kiserlet")).first
-        self.assertEqual(main.evaluate("e => getComputedStyle(e).backgroundColor"), rgb("#cde2fb"))
-        self.assertEqual(main.evaluate("e => getComputedStyle(e).color"), rgb("#184f95"))
-        radius = main.evaluate("e => parseFloat(getComputedStyle(e).borderTopLeftRadius)")
-        self.assertGreaterEqual(radius, main.bounding_box()["height"] / 2)
+        css = lambda p: main.evaluate(f"e => getComputedStyle(e)['{p}']")   # noqa: E731
+        self.assertEqual(css("backgroundColor"), "rgba(37, 125, 224, 0.12)")
+        self.assertEqual(css("color"), rgb("#1757ac"))
+        self.assertEqual(css("boxShadow"), "rgba(37, 125, 224, 0.224) 0px 0px 0px 1.5px inset")
+        self.assertEqual(float(css("borderTopLeftRadius")[:-2]), main.bounding_box()["height"] / 4)
+
+    def test_icons(self) -> None:
+        """A chip ikonja 16 px, az első a chip szélétől 4 px-re; a worktree-jel és a branch-ikon
+        közt 3 px."""
+        boxes = self.page.locator("#rows .badge.ref-branch").first.evaluate("""b => {
+          const r = b.getBoundingClientRect();
+          return [...b.querySelectorAll('svg.ic')].map(i => { const q = i.getBoundingClientRect();
+            return [q.left - r.left, q.width, q.height]; }); }""")
+        self.assertEqual(boxes[0], [4, 16, 16])
+
+    def test_glyph_icons(self) -> None:
+        """Az ikon, aminek van Anthropicons-párja, a glifa: kitöltött kontúr, vonal nélkül."""
+        fill, stroke, color = self.page.locator("#rows .badge svg.ic .ic-ag").first.evaluate(
+            "e => [getComputedStyle(e).fill, getComputedStyle(e).stroke, getComputedStyle(e.closest('.badge')).color]")
+        self.assertEqual((fill, stroke), (color, "none"))
 
 
 # ── Git-színek ────────────────────────────────────────────────────────────
@@ -201,7 +219,7 @@ class ExpandTest(CdsCase):
         row = self.row("main-3-2")
         row.hover()
         self.settle()
-        self.assertEqual(row.locator(".row-in").evaluate("e => getComputedStyle(e).backgroundColor"), rgb("#f0f0ef"))
+        self.assertEqual(row.locator(".row-in").evaluate("e => getComputedStyle(e).backgroundColor"), rgb("#f2f2f2"))
 
     def test_expanded_commit(self) -> None:
         """Lenyitva a fejléc átlátszó (hover alatt is), és egy 12 px-es kerek keret fogja körbe a
@@ -240,11 +258,19 @@ class ExpandTest(CdsCase):
 
 class ChevronTest(CdsCase):
     def test_chevrons(self) -> None:
-        """A fájlsor és az ágválasztó nyila 16 × 16."""
+        """A fájlsor és az ágválasztó nyila 12 × 12, mint az app választóinak CaretDown-ja (`xs`)."""
         self.open_commit(FILES_SUBJECT)
         for sel in ("#rows .details .file .chev .ic", "#branchBtn .chev"):
             b = self.box(sel)
-            self.assertEqual((b["width"], b["height"]), (16, 16), sel)
+            self.assertEqual((b["width"], b["height"]), (12, 12), sel)
+
+    def test_file_icons(self) -> None:
+        """A fájlikon 16 px, mint az app fájllistájában (a Catppuccin-ikon és az általános is)."""
+        self.open_commit(FILES_SUBJECT)
+        sizes = self.page.locator("#rows .details .file .fic").evaluate_all(
+            "es => es.map(e => [e.getBoundingClientRect().width, e.getBoundingClientRect().height])")
+        self.assertTrue(sizes)
+        self.assertEqual({tuple(x) for x in sizes}, {(16, 16)})
 
 
 # ── A lenyílóban a pipa jobbra, egy oszlopban ─────────────────────────────
@@ -265,6 +291,37 @@ class MenuCheckTest(CdsCase):
         lens = self.box("#branchPop .menu-search .ic")
         col = dev.locator(".col").first.bounding_box()
         self.assertAlmostEqual(lens["x"] + lens["width"] / 2, col["x"] + col["width"] / 2, delta=0.5)
+
+
+class MenuIndentTest(CdsCase):
+    """Több worktree-nél az ágválasztó worktree-fejlécei alatt a saját ágaik."""
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        prepare_cds(repo)
+        git_in(repo, "worktree", "add", "-q", "-b", "wt-ag", str(repo.parent / "wt"), "main")
+
+    def test_branches_indented(self) -> None:
+        """A fejléc alá tartozó ág ikonja a fejléc nevével egy vonalban, beljebb a fejléc ikonjánál."""
+        self.page.locator("#branchBtn").click()
+        self.settle()
+        grp = self.page.locator("#branchPop .menu-grp:has(> .menu-wt)").first
+        head_ic, head_name = (grp.locator(sel).first.bounding_box()["x"] for sel in (".menu-wt .ic", ".menu-wt .name"))
+        col = grp.locator(".option.blk .col").first.bounding_box()["x"]
+        self.assertGreater(col, head_ic + 16)
+        self.assertAlmostEqual(col, head_name, delta=0.5)
+
+    def test_worktree_chip_icons(self) -> None:
+        """A worktree-jellel kezdődő chip (a kiemelt körvonalú is): a jel a széltől 4 px-re, a
+        branch-ikon 3 px-re tőle, a név 3,2 px-re az ikontól."""
+        for chip in self.page.locator("#rows .badge:has(> .wt-lead)").all():
+            left, gap, text = chip.evaluate("""b => {
+              const r = b.getBoundingClientRect(), [a, c] = [...b.querySelectorAll('svg.ic')].slice(0, 2).map(i => i.getBoundingClientRect());
+              const n = b.querySelector('.badge-name').getBoundingClientRect();
+              return [a.left - r.left, c.left - a.right, n.left - c.right]; }""")
+            self.assertAlmostEqual(left, 4, delta=0.05)
+            self.assertAlmostEqual(gap, 3, delta=0.05)
+            self.assertAlmostEqual(text, 3.2, delta=0.05)
 
 
 # ── A markdown- és SVG-diff nézetváltója: kétgombos szegmens ──────────────
@@ -302,7 +359,7 @@ class TooltipTest(CdsCase):
         })""")
 
     def test_multiline(self) -> None:
-        """A 3 soros branch-badge tooltipje: fekete buborék, a fő sor 13 px, a többi 12 px, halványabb."""
+        """A 3 soros branch-badge tooltipje: fekete buborék, a fő sor 13 px, a többi 11 px, halványabb."""
         badge = self.page.locator("#rows .badge.ref-head").first
         self.assertEqual(len(badge.get_attribute("data-tip").split("\n")), 3)
         badge.hover()
@@ -314,8 +371,8 @@ class TooltipTest(CdsCase):
         self.assertEqual(len(subs), 2)
         for sub in subs:
             self.assertEqual(sub[0], "sub")
-            self.assertEqual(sub[2], "12px")
-            self.assertEqual(sub[3], rgb("#ffffff", 0.6))
+            self.assertEqual(sub[2], "11px")
+            self.assertEqual(sub[3], rgb("#ffffff", 0.57))
 
     def test_shortcut(self) -> None:
         """A képnéző bezáró gombjának buboréka: „Bezárás”, mellette halványan „Esc”."""
@@ -330,7 +387,7 @@ class TooltipTest(CdsCase):
         self.assertEqual(main.evaluate("e => e.firstChild.textContent"), "Bezárás")
         kbd = main.locator(".kbd")
         self.assertEqual(kbd.inner_text(), "Esc")
-        self.assertEqual(kbd.evaluate("e => getComputedStyle(e).color"), rgb("#ffffff", 0.6))
+        self.assertEqual(kbd.evaluate("e => getComputedStyle(e).color"), rgb("#ffffff", 0.4))
 
     def test_no_native_title(self) -> None:
         """Egyetlen elemnek sincs `title` attribútuma — nyitott commit és menü mellett sem."""
@@ -380,7 +437,7 @@ class StaleVersionTest(CdsCase):
         """A figyelmeztetés jele a warning-sárga, a szövege olvasható (nem sárga)."""
         self.page.wait_for_selector(".foot .ver.warn")
         self.assertEqual(self.style(".foot .ver.warn .ic", "color"), rgb("#fab219"))
-        self.assertEqual(self.style(".foot .ver.warn", "color"), rgb("#20201f"))
+        self.assertEqual(self.style(".foot .ver.warn", "color"), rgb("#1a1a1a"))
 
 
 # ── Monogram: szerzőnként egy munkatárs-szín ──────────────────────────────

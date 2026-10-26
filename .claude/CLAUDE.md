@@ -17,8 +17,9 @@ Használat és felépítés: [README.md](../README.md).
 | `page/js/types.d.ts`, `page/tsconfig.json` | a lap típusai (`graph_data`, `GIT_GRAPH`) a `tsc --checkJs`-hez — a lapra nem kerül |
 | `scripts/mermaid.sh` | a `page/vendor/mermaid.min.js` karcsú buildje (esbuild, a nehéz diagramtípusok helyén csonk, ELK-kal) és a licencek — kézzel, frissítéskor; a host-híd határa alatt kell maradnia |
 | `scripts/screenshots.py` | a funkcióoldalak képei (`docs/img/<funkció>/`) a `tests/page` fixture-repóiból — kézzel, UI-változáskor (`/workflow:docs`) |
+| `scripts/anthropicons.py` | a `design/icons/anthropicons.json` előállítása az app ikonfontjából és a CDS-bundle névtáblájából (a gyorsítótárból kibontva) — kézzel, frissítéskor |
 | `scripts/file-icons.py` | a `page/file-icons.json` előállítása a Catppuccin VS Code ikonjaiból (MIT, verzióra rögzítve) — kézzel, frissítéskor |
-| `design/icons/` | a Fejlesztő ikonrajzainak forrása (CorelDRAW, pl. `cloud-branch-icon.cdr` → a `branchCloud` SVG-je) — a projekt nem használja, csak az SVG újrarajzolásához |
+| `design/icons/` | ikonforrások, a lapra nem kerülnek: a Fejlesztő rajzai (CorelDRAW, pl. `cloud-branch-icon.cdr` → a `branchCloud` SVG-je) és az app teljes Anthropicons-készlete SVG-útként (`anthropicons.json`, innen kerül a lapra, ami kell) |
 | `tests/` | modulonként egy `test_<modul>.py`, kamu `HOME`-mal (`helpers.py`: a csomag friss betöltése, eldobható repók, MCP-kliens); `test_mcp.py` a füstteszt: `git-graph --mcp` stdio-n a working tree-ből, és a stabil másolatból; `tests/page/`: a lap viselkedése headless Chromiumban (Playwright, `harness.py`: valódi betöltő + `git-graph --mcp`, fixture-repó) |
 | `ruff.toml`, `biome.json` | lint: Python (3.9-célverzióval) és a `page/` JS / CSS / HTML-je |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
@@ -68,12 +69,16 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
 
 - **Nyelv**: magyar — a kommentek és a generált UI feliratai.
 - **Megjelenés**: a Claude app nyelvét követi (a Git Graph-ból a gráf marad).
-  Az app design-systemjét (CDS, „comfortable” sűrűség) használja: semleges
-  szürkék, kék akcentus, git- és állapot-színek, 14 px-es alapszöveg, 32 px-es
-  kontrollok, kerek chipek — az értékek a `page.css` tokenjeiben, témánként
-  (az app CSS-ét nem importáljuk). A sávszín a `chart-categorical` 1–8
-  (`--lane-<n>`, tint-párral a badge-hez: `lcStyle`); CSS-változó, így
-  témaváltáskor a gráf magától átszíneződik. A kód színei a Claude Light /
+  Az app design-systemjét (CDS, „comfortable” sűrűség, a jelenlegi „fizzy-lake”
+  színtémával) használja: semleges szürkék, kék akcentus, git- és állapot-színek,
+  14 px-es alapszöveg, 32 px-es kontrollok — az értékek a `page.css` tokenjeiben,
+  témánként (az app CSS-ét nem importáljuk). A chip az app Badge-e (20 px, tint
+  háttér, 1,5 px-es keret, a sarok a magasság negyede, 16 px-es ikon a széltől
+  4 px-re). A sávszín a `chart-categorical` 1–8 (`--lane-<n>`, a chiphez
+  tint-hármassal: `lcStyle`); CSS-változó, így témaváltáskor a gráf magától
+  átszíneződik. Az ikonok az app Anthropicons-glifái, ahol van pár (`ic-ag`; a
+  teljes készlet `design/icons/anthropicons.json`), a többi saját, 1 egységes
+  vonalú rajz. A kód színei a Claude Light /
   Dark kódszínek. Súgó csak a saját buborék (`data-tip`, `tip.js`; natív
   `title` nincs). Betűk:
   Anthropic Sans / Mono, ahol nincs, a rendszeré; webfont nincs. A

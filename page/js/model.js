@@ -82,11 +82,11 @@ const FADE = 45;
 export const fade = color => `color-mix(in srgb, ${color} ${FADE}%, var(--bg))`;
 export const tint = (c, color) => foreign(c) ? fade(color) : color;
 export const laneColor = lane => `var(--lane-${lane % LANES})`;
-/* A chip színe (`--lc`) és a tint-párja (`--lc-bg`, `--lc-fg`) inline stílusként: sávszínnél a
-   sáv CDS-párja; más színnél csak a `--lc`, a pár a CSS keveréke. */
+/* A chip színe (`--lc`) és a tint-hármasa (`--lc-bg`, `--lc-fg`, `--lc-bd`) inline stílusként:
+   sávszínnél a sáv CDS-tintje; más színnél csak a `--lc`, a többi a CSS keveréke. */
 export const lcStyle = color => {
   const lane = /^var\(--lane-(\d+)\)$/.exec(color)?.[1];
-  return `--lc:${color}` + (lane ? `;--lc-bg:var(--lane-${lane}-bg);--lc-fg:var(--lane-${lane}-fg)` : '');
+  return `--lc:${color}` + (lane ? `;--lc-bg:var(--lane-${lane}-bg);--lc-fg:var(--lane-${lane}-fg);--lc-bd:var(--lane-${lane}-bd)` : '');
 };
 /* Keresőtáblák az adatból (sha → commit, ref → csúcs-commit, worktree → csonk és
    ál-sor): a DATA cseréjekor egyszer épülnek, a sor- és ágválasztó-rajzolás nem
