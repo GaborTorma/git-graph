@@ -818,15 +818,19 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 
 /* ── Markdown-diff ── renderelt szöveg; a változott blokk a diff színeivel, a
    bal szélén csíkkal (a háttér magában halvány lehet egy hosszú bekezdésen). */
-/* a nézetváltó lebegő gomb a jobb felső sarokban: a tartalom fölött, helyet nem
-   foglal (egymás alatti és side-by-side nézetben sem tolja, szűkíti a sorokat) */
-.diff:has(> .md-mode) { position: relative; }
-.diff .md-mode {
-  position: absolute; top: 6px; right: 6px; z-index: 2; width: 24px; height: 24px;
-  background: var(--code-bg); box-shadow: inset 0 0 0 1px var(--ctrl-border), var(--ctrl-shadow);
+/* a nézetváltó kétgombos szegmens (renderelt | forrás) a jobb felső sarokban: a tartalom
+   fölött, helyet nem foglal (egymás alatti és side-by-side nézetben sem tolja, szűkíti a sorokat) */
+.diff:has(> .md-seg) { position: relative; }
+.md-seg {
+  position: absolute; top: 8px; right: 8px; z-index: 2; display: inline-flex; height: 28px; border-radius: 8px;
+  background: var(--code-tint);
 }
-.diff .md-mode:hover { background: var(--bg-2); }
-.md-mode + .diff-gap { margin-top: 0; border-top: 0; }
+.md-seg button {
+  width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 8px; background: transparent; color: var(--fg-1); cursor: pointer;
+}
+.md-seg button[aria-pressed="true"] { background: var(--code-bg); color: var(--fg-0); box-shadow: inset 0 0 0 1px var(--border), 0 1px 2px rgba(0, 0, 0, .05); }
+.md-seg + .diff-gap { margin-top: 0; border-top: 0; }
 .md-doc { font-family: var(--font-ui); font-size: 13px; line-height: 1.55; color: var(--fg-0); padding: 0 14px 0 0; }
 .md-blk { padding: 1px 0 1px 14px; border-left: 3px solid transparent; }
 /* a háttér és a `mark` a nyers diff `.add` / `.del` szabályaiból jön, itt csak a csík */

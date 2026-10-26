@@ -267,6 +267,30 @@ class MenuCheckTest(CdsCase):
         self.assertAlmostEqual(lens["x"] + lens["width"] / 2, col["x"] + col["width"] / 2, delta=0.5)
 
 
+# ── A markdown- és SVG-diff nézetváltója: kétgombos szegmens ──────────────
+
+class SegmentTest(CdsCase):
+    def test_md_segment(self) -> None:
+        """A `</>` gombra a nyers diff, és az a lenyomott."""
+        self.open_file("README.md")
+        self.page.wait_for_selector(".diff .md-doc")
+        raw = self.page.locator('.diff .md-seg [data-md-mode="raw"]')
+        self.assertEqual(raw.get_attribute("aria-pressed"), "false")
+        raw.click()
+        self.page.wait_for_selector(".diff .diff-line")
+        self.assertEqual(self.page.locator('.diff .md-seg [data-md-mode="raw"]').get_attribute("aria-pressed"), "true")
+        self.assertEqual(self.page.locator('.diff .md-seg [data-md-mode="rendered"]').get_attribute("aria-pressed"), "false")
+
+    def test_svg_segment(self) -> None:
+        """Az SVG képnézetében a kód gombra a kód, és az a lenyomott."""
+        self.open_file("logo.svg")
+        self.page.wait_for_selector(".diff .img-fig")
+        self.page.locator('.diff .md-seg [data-svg-mode="code"]').click()
+        self.page.wait_for_selector(".diff .diff-line")
+        self.assertEqual(self.page.locator('.diff .md-seg [data-svg-mode="code"]').get_attribute("aria-pressed"), "true")
+        self.assertEqual(self.page.locator('.diff .md-seg [data-svg-mode="image"]').get_attribute("aria-pressed"), "false")
+
+
 # ── Állapot-színek ────────────────────────────────────────────────────────
 
 class LiveStateTest(CdsCase):

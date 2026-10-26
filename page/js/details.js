@@ -154,8 +154,9 @@ function onListClick(e) {
   if (e.target.closest('a[href]')) return;   // GitHub-link: nyíljon, a sor ne csukódjon
   const copy = e.target.closest('[data-copy]');
   if (copy) { copyText(copy.dataset.copy, copy); return; }
-  if (e.target.closest('[data-md-mode]')) { setMdRaw(!mdRaw); return; }
-  if (e.target.closest('[data-svg-mode]')) { setSvgCode(!svgCode); return; }
+  const md = e.target.closest('[data-md-mode]'), svg = e.target.closest('[data-svg-mode]');
+  if (md) { if ((md.dataset.mdMode === 'raw') !== mdRaw) setMdRaw(!mdRaw); return; }
+  if (svg) { if ((svg.dataset.svgMode === 'code') !== svgCode) setSvgCode(!svgCode); return; }
   const jump = e.target.closest('[data-jump]');
   if (jump) {
     const target = rowsEl.querySelector(`.row[data-sha="${jump.dataset.jump}"]`);

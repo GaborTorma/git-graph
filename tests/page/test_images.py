@@ -216,11 +216,11 @@ class ImagesTest(ImageFixture):
         """R-3 — Az SVG alapból kép (a pár elrendezésében), a gombbal a szöveges diff."""
         self.open_file("icon.svg")
         self.assertEqual(self.figs(), [["img-del", True], ["img-add", True]])
-        self.page.locator(".diff [data-svg-mode]").click()
+        self.page.locator('.diff [data-svg-mode="code"]').click()
         self.page.wait_for_selector(".diff .diff-line")
         self.assertEqual(self.page.locator(".diff .img-fig").count(), 0)
         self.assertIn("blue", self.page.locator(".diff:has([data-svg-mode])").inner_text())
-        self.page.locator(".diff [data-svg-mode]").click()                 # vissza: a lap megjegyzi
+        self.page.locator('.diff [data-svg-mode="image"]').click()         # vissza: a lap megjegyzi
         self.page.wait_for_selector(".diff .img-fig")
 
     def test_markdown_images(self) -> None:

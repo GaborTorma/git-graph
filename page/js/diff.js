@@ -124,8 +124,12 @@ export function setMdRaw(raw) {
   });
 }
 
-const mdModeHtml = () => `<button class="mini md-mode" data-md-mode title="${
-  mdRaw ? 'Renderelt nézet' : 'Nyers diff'}">${icon(mdRaw ? 'text' : 'code')}</button>`;
+/* A nézetváltó: kétgombos szegmens (`[érték, ikon, felirat]`), a választott a lenyomott. */
+const segHtml = (attr, on, ...opts) => `<span class="md-seg" role="group">${opts.map(([value, name, label]) =>
+  `<button type="button" data-${attr}="${value}" aria-pressed="${value === on}" aria-label="${label}" data-tip="${label}">`
+  + `${icon(name)}</button>`).join('')}</span>`;
+const mdModeHtml = () => segHtml('md-mode', mdRaw ? 'raw' : 'rendered',
+  ['rendered', 'text', 'Renderelt nézet'], ['raw', 'code', 'Nyers diff']);
 
 /* Az SVG-fájl: alapból kép, a kapcsolóval a kódja (a szöveges diff); a lap megjegyzi. */
 const SVG_CODE_KEY = 'git-graph:svgCode';
@@ -139,5 +143,4 @@ export function setSvgCode(code) {
   });
 }
 
-const svgModeHtml = () => `<button class="mini md-mode" data-svg-mode title="${
-  svgCode ? 'Kép' : 'Kód'}">${icon(svgCode ? 'image' : 'code')}</button>`;
+const svgModeHtml = () => segHtml('svg-mode', svgCode ? 'code' : 'image', ['image', 'image', 'Kép'], ['code', 'code', 'Kód']);
