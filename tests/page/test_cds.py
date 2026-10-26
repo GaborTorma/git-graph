@@ -153,7 +153,7 @@ class DarkTokensTest(CdsCase):
 class SizesTest(CdsCase):
     def test_sizes(self) -> None:
         """A subject 14, az idő 13, a badge 12 px és 20 magas; a sor 34, a kontroll 32 / 8 px-es
-        sarok; a fejléc kapcsolója 34 × 20, a beállítások menüjéé 28 × 16."""
+        sarok; a fejléc kapcsolója 36 × 20, a beállítások menüjéé 28 × 16."""
         self.assertEqual(self.style("#rows .subject", "fontSize"), "14px")
         self.assertEqual(self.style("#rows .meta .time", "fontSize"), "13px")
         self.assertEqual(self.style("#rows .badge", "fontSize"), "12px")
@@ -163,7 +163,7 @@ class SizesTest(CdsCase):
             self.assertEqual(self.box(ctrl)["height"], 32, ctrl)
             self.assertEqual(self.style(ctrl, "borderTopLeftRadius"), "8px", ctrl)
         track = self.box(".chrome .switch .track")
-        self.assertEqual((track["width"], track["height"]), (34, 20))
+        self.assertEqual((track["width"], track["height"]), (36, 20))
         self.page.locator("#settingsBtn").click()
         track = self.box(".option.setting .track")
         self.assertEqual((track["width"], track["height"]), (28, 16))
@@ -183,8 +183,9 @@ class LaneColorsTest(CdsCase):
         self.page.locator('#themePop [data-value="dark"]').click()
         self.settle()
         self.assertEqual(self.lane_colors()["16"], rgb("#3987e5"))
-        # a kézzel választott sötét téma sávtokenjei a rendszer sötétjéével azonosak (a chip kerete is)
+        # a kézzel választott sötét téma tokenjei a rendszer sötétjéével azonosak (a chip kerete is)
         self.assertEqual(self.token("--lane-0-bd"), "#257de066")
+        self.assertEqual(self.token("--border"), "rgba(255, 255, 255, .04)")
 
     def test_system_switch(self) -> None:
         """Automatikus témánál a rendszer sötétre váltása is átszínezi a gráfot."""
@@ -502,3 +503,80 @@ class SearchHighlightTest(CdsCase):
         mark = self.row("login oldal").locator(".subject mark")
         self.assertEqual(mark.inner_text(), "login")
         self.assertEqual(mark.evaluate("e => getComputedStyle(e).backgroundColor"), rgb("#fab219", 0.33))
+
+
+# ── Kontrollok az app komponensei szerint ────────────────────────────────
+
+class ControlsTest(CdsCase):
+    def test_trigger_button(self) -> None:
+        """A lenyíló gomb az app secondary gombja: szürke tint, keret és árnyék nélkül."""
+        self.assertEqual(self.style("#branchBtn", "backgroundColor"), "rgba(0, 0, 0, 0.05)")
+        self.assertEqual(self.style("#branchBtn", "boxShadow"), "none")
+
+    def test_search_field(self) -> None:
+        """A keresőmező az app TextInput-ja: halvány mező, 1 px-es keret, 12 px a bal szélén;
+        a gyorsbillentyű billentyűnként egy négyzetes sapka, 2 px-es közzel."""
+        self.assertEqual(self.style(".search", "backgroundColor"), "rgba(255, 255, 255, 0.5)")
+        self.assertEqual(self.style(".search", "paddingLeft"), "12px")
+        caps = self.page.locator(".search kbd").evaluate_all(
+            "ks => ks.map(k => { const r = k.getBoundingClientRect(); return [k.textContent, r.width, r.height, r.left]; })")
+        self.assertEqual([c[0] for c in caps], ["⌘", "F"])
+        self.assertTrue(all(c[1] == c[2] == 18 for c in caps), caps)
+        self.assertEqual(caps[1][3] - caps[0][3], 20)
+
+    def test_focus_ring(self) -> None:
+        """A fókuszgyűrű az app focus-shadow-ja: elöl a háttér színű belső vonal."""
+        self.page.locator("#search").focus()
+        self.assertTrue(self.style(".search", "boxShadow").startswith("rgb(255, 255, 255) 0px 0px 0px 1px inset"))
+
+    def test_switch(self) -> None:
+        """A kapcsoló gombja bekapcsolva 16 px-szel csúszik; hoverre a kikapcsolt sáv erősebb."""
+        track = ".chrome .switch:not(:has(input:checked)) .track"
+        off = self.style(track, "backgroundColor")
+        self.page.locator(".chrome .switch:not(:has(input:checked))").first.hover()
+        self.page.wait_for_timeout(250)   # a sáv színe .15 s alatt vált
+        self.assertNotEqual(self.style(track, "backgroundColor"), off)
+        self.page.locator(".chrome .switch:not(:has(input:checked))").first.click()
+        self.page.wait_for_timeout(250)
+        moved = self.page.locator(".chrome .switch:has(input:checked) .track").first.evaluate(
+            "t => new DOMMatrix(getComputedStyle(t, '::after').transform).m41")
+        self.assertEqual(moved, 16)
+
+    def test_menu(self) -> None:
+        """A menü az app Menu-je: 4 px-es gutter, a keret a border token, a tétel 10 px-es
+        paddingje; a worktree-fejléc nélküli menüben is."""
+        self.page.locator("#themeBtn").click()
+        self.assertEqual(self.style("#themePop", "paddingTop"), "4px")
+        self.assertTrue(self.style("#themePop", "boxShadow").startswith("rgba(0, 0, 0, 0.08) 0px 0px 0px 1px"))
+        self.assertEqual(self.style("#themePop .option", "paddingLeft"), "10px")
+
+    def test_link(self) -> None:
+        """A szöveges link az app TextLink-je: text-accent, mindig aláhúzva, 3 px-re."""
+        self.open_commit("cds: módosítva")
+        link = ".details .chip button.hash"
+        self.assertEqual(self.style(link, "color"), rgb("#184f95"))
+        self.assertEqual(self.style(link, "textDecorationLine"), "underline")
+        self.assertEqual(self.style(link, "textUnderlineOffset"), "3px")
+
+    def test_segment(self) -> None:
+        """A szegmens választott gombja a sávon belül 1 px-re, a sarka 7; a többi ikon halvány."""
+        self.open_file("README.md")
+        self.page.wait_for_selector(".diff .md-doc")
+        seg, on = self.box(".diff .md-seg"), self.box('.diff .md-seg [aria-pressed="true"]')
+        self.assertEqual((on["y"] - seg["y"], on["height"]), (1, 26))
+        self.assertEqual(self.style('.diff .md-seg [aria-pressed="true"]', "borderTopLeftRadius"), "7px")
+        self.assertEqual(self.style('.diff .md-seg [aria-pressed="false"]', "color"), rgb("#888888"))
+
+    def test_panel_and_text(self) -> None:
+        """A commit-panel az app panelje (keret + shadow-sm); a törzsszöveg sormagassága 20 px;
+        a görgetősáv vékony."""
+        self.open_commit("cds: módosítva")
+        self.assertNotEqual(self.style(".details", "boxShadow"), "none")
+        self.assertEqual(self.style("body", "lineHeight"), "20px")
+        self.assertEqual(self.style("#rows", "scrollbarWidth"), "thin")
+
+    def test_spinner(self) -> None:
+        """A betöltés jele az app Spinner-e: 12 px-es forgó kör a felirat előtt."""
+        size = self.page.evaluate("""() => { const p = document.createElement('p'); p.className = 'diff-note loading';
+          document.body.append(p); const s = getComputedStyle(p, '::before'); const r = [s.width, s.animationName]; p.remove(); return r; }""")
+        self.assertEqual(size, ["12px", "spin"])

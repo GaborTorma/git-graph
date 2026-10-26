@@ -22,7 +22,24 @@
   --pop-shadow:  0 8px 24px rgba(0, 0, 0, .12), 0 2px 6px rgba(0, 0, 0, .08);
   --accent:      #257de0;   /* fill-accent (blue-450) */
   --accent-bg:   rgba(37, 125, 224, .12);
-  --track-off:   rgba(0, 0, 0, .20);
+  --accent-hover: #2171ca;  /* fill-accent-hover */
+  --link:        #184f95;   /* text-accent (blue-600): a szöveges link */
+  /* kitöltések: alpha-1…4 (5 / 10 / 20 / 35 %) */
+  --fill-1:      rgba(11, 11, 11, .05);
+  --fill-2:      rgba(11, 11, 11, .10);
+  --fill-3:      rgba(11, 11, 11, .20);
+  --fill-4:      rgba(11, 11, 11, .35);
+  --btn:         rgba(0, 0, 0, .05);    /* fill-secondary: a secondary gomb */
+  --btn-hover:   rgba(0, 0, 0, .075);   /* + fill-secondary-layer */
+  --field:       rgba(255, 255, 255, .5);   /* fill-field: a beviteli mező */
+  --track-off:   var(--fill-3);   /* a kapcsoló kikapcsolt sávja, hoverre egy fokkal erősebb */
+  --track-hover: var(--fill-4);
+  --seg-on:      var(--pop-bg);   /* a szegmens választott gombja */
+  --shadow-sm:   0 1px 2px rgba(11, 11, 11, .06), 0 2px 8px rgba(11, 11, 11, .08);
+  --focus-ring:  inset 0 0 0 1px var(--bg), 0 0 0 1px var(--accent), 0 0 6px 1px var(--accent-bg);
+  --scrollbar:   hsla(30, 3.3%, 11.8%, .35);
+  --disabled:    .4;
+  --kbd-line:    18%;   /* a billentyűsapka kerete: a szöveg színéből */
   /* git: added / removed / modified / merged / conflicting */
   --add:         #1e9e3c;
   --del:         #cd2054;
@@ -96,8 +113,8 @@
     --fg-1:        #efefef;
     --fg-2:        #9c9c9c;   /* text-secondary (57 %) */
     --fg-3:        #757575;   /* text-muted (40 %) */
-    --border:      rgba(255, 255, 255, .08);
-    --border-soft: rgba(255, 255, 255, .05);
+    --border:      rgba(255, 255, 255, .04);
+    --border-soft: rgba(255, 255, 255, .03);
     --ctrl:        #1f1f1f;   /* surface-3 */
     --ctrl-border: rgba(255, 255, 255, .12);   /* border-line */
     --ctrl-shadow: none;
@@ -105,7 +122,21 @@
     --pop-shadow:  0 8px 24px rgba(0, 0, 0, .32), 0 2px 6px rgba(0, 0, 0, .2);
     --accent:      #257de0;
     --accent-bg:   rgba(37, 125, 224, .12);
-    --track-off:   rgba(255, 255, 255, .20);
+    --track-off:   var(--fill-2);
+    --track-hover: var(--fill-3);
+    --link:        #6da7ec;   /* text-accent (blue-300) */
+    --fill-1:      rgba(255, 255, 255, .05);
+    --fill-2:      rgba(255, 255, 255, .10);
+    --fill-3:      rgba(255, 255, 255, .20);
+    --fill-4:      rgba(255, 255, 255, .35);
+    --btn:         rgba(255, 255, 255, .15);
+    --btn-hover:   rgba(255, 255, 255, .21);
+    --field:       var(--fill-1);
+    --seg-on:      var(--fill-2);
+    --shadow-sm:   0 1px 2px rgba(11, 11, 11, .06), 0 2px 8px rgba(0, 0, 0, .24);
+    --focus-ring:  inset 0 0 0 1px var(--bg), 0 0 0 1px var(--accent), 0 0 6px 1px rgba(24, 79, 149, .6);
+    --scrollbar:   hsla(51, 16.5%, 84.5%, .35);
+    --kbd-line:    22%;
     --tip-bg:      #303030;   /* sötétben a buborék a popover felülete */
     --add:         #32d74b;
     --del:         #ff2c56;
@@ -114,13 +145,13 @@
     --git-conflict: #fa832e;
     --tag-fg:      #e6c06e;
     --lane-0: #3987e5; --lane-0-bg: #257de01f; --lane-0-fg: #6aabf1; --lane-0-bd: #257de066;   /* blue */
-  --lane-1: #d95926; --lane-1-bg: #d25f251f; --lane-1-fg: #f18a59; --lane-1-bd: #d25f2566;   /* orange */
-  --lane-2: #199e70; --lane-2-bg: #019c7f1f; --lane-2-fg: #2bc6a5; --lane-2-bd: #019c7f66;   /* aqua */
-  --lane-3: #c98500; --lane-3-bg: #fbb31514; --lane-3-fg: #e49c06; --lane-3-bd: #fbb3154d;   /* yellow */
-  --lane-4: #d55181; --lane-4-bg: #ce447d1f; --lane-4-fg: #ee7fac; --lane-4-bd: #ce447d66;   /* magenta */
-  --lane-5: #008300; --lane-5-bg: #10a1221f; --lane-5-fg: #53c556; --lane-5-bd: #10a12266;   /* green */
-  --lane-6: #9085e9; --lane-6-bg: #785ee81f; --lane-6-fg: #a89af0; --lane-6-bd: #785ee866;   /* violet */
-  --lane-7: #e66767; --lane-7-bg: #dc3c3d1f; --lane-7-fg: #f17778; --lane-7-bd: #dc3c3d66;   /* red */
+    --lane-1: #d95926; --lane-1-bg: #d25f251f; --lane-1-fg: #f18a59; --lane-1-bd: #d25f2566;   /* orange */
+    --lane-2: #199e70; --lane-2-bg: #019c7f1f; --lane-2-fg: #2bc6a5; --lane-2-bd: #019c7f66;   /* aqua */
+    --lane-3: #c98500; --lane-3-bg: #fbb31514; --lane-3-fg: #e49c06; --lane-3-bd: #fbb3154d;   /* yellow */
+    --lane-4: #d55181; --lane-4-bg: #ce447d1f; --lane-4-fg: #ee7fac; --lane-4-bd: #ce447d66;   /* magenta */
+    --lane-5: #008300; --lane-5-bg: #10a1221f; --lane-5-fg: #53c556; --lane-5-bd: #10a12266;   /* green */
+    --lane-6: #9085e9; --lane-6-bg: #785ee81f; --lane-6-fg: #a89af0; --lane-6-bd: #785ee866;   /* violet */
+    --lane-7: #e66767; --lane-7-bg: #dc3c3d1f; --lane-7-fg: #f17778; --lane-7-bd: #dc3c3d66;   /* red */
     --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
     --ic-teal: #6cc4c0; --ic-blue: #8fb2f5; --ic-purple: #c5aaf0; --ic-pink: #e38fb2;
     --ic-fg: #9c9c9c; --ic-muted: #757575;
@@ -151,8 +182,8 @@
   --fg-1:        #efefef;
   --fg-2:        #9c9c9c;   /* text-secondary (57 %) */
   --fg-3:        #757575;   /* text-muted (40 %) */
-  --border:      rgba(255, 255, 255, .08);
-  --border-soft: rgba(255, 255, 255, .05);
+  --border:      rgba(255, 255, 255, .04);
+  --border-soft: rgba(255, 255, 255, .03);
   --ctrl:        #1f1f1f;   /* surface-3 */
   --ctrl-border: rgba(255, 255, 255, .12);   /* border-line */
   --ctrl-shadow: none;
@@ -160,7 +191,21 @@
   --pop-shadow:  0 8px 24px rgba(0, 0, 0, .32), 0 2px 6px rgba(0, 0, 0, .2);
   --accent:      #257de0;
   --accent-bg:   rgba(37, 125, 224, .12);
-  --track-off:   rgba(255, 255, 255, .20);
+  --track-off:   var(--fill-2);
+  --track-hover: var(--fill-3);
+  --link:        #6da7ec;   /* text-accent (blue-300) */
+  --fill-1:      rgba(255, 255, 255, .05);
+  --fill-2:      rgba(255, 255, 255, .10);
+  --fill-3:      rgba(255, 255, 255, .20);
+  --fill-4:      rgba(255, 255, 255, .35);
+  --btn:         rgba(255, 255, 255, .15);
+  --btn-hover:   rgba(255, 255, 255, .21);
+  --field:       var(--fill-1);
+  --seg-on:      var(--fill-2);
+  --shadow-sm:   0 1px 2px rgba(11, 11, 11, .06), 0 2px 8px rgba(0, 0, 0, .24);
+  --focus-ring:  inset 0 0 0 1px var(--bg), 0 0 0 1px var(--accent), 0 0 6px 1px rgba(24, 79, 149, .6);
+  --scrollbar:   hsla(51, 16.5%, 84.5%, .35);
+  --kbd-line:    22%;
   --tip-bg:      #303030;   /* sötétben a buborék a popover felülete */
   --add:         #32d74b;
   --del:         #ff2c56;
@@ -197,7 +242,8 @@
   color-scheme: dark;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; scrollbar-width: thin; }
+html { scrollbar-color: var(--scrollbar) transparent; }   /* az app görgetősávja */
 
 body {
   margin: 0;
@@ -206,7 +252,7 @@ body {
   font-family: var(--font-ui);
   font-weight: var(--w-body);
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 20px;   /* leading-body */
   -webkit-font-smoothing: antialiased;
   /* Kontroll-sor és lábléc fix, köztük egyetlen görgethető régió. */
   height: 100dvh;
@@ -225,7 +271,7 @@ body {
 /* az Anthropicons-glifa (`icons.js`): kitöltött kontúr, nem vonal */
 .ic .ic-ag { fill: currentColor; stroke: none; }
 button { font: inherit; color: inherit; }
-:focus-visible { outline: 0; box-shadow: 0 0 0 1px var(--accent), 0 0 6px 1px var(--accent-bg); }
+:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 
 /* ── Fejléc-sáv ──────────────────────────────────────────────────────────── */
 .chrome {
@@ -261,30 +307,29 @@ button { font: inherit; color: inherit; }
   display: inline-flex; align-items: center; gap: 7px;
   height: 32px; padding: 0 8px;
   border: 0; border-radius: 8px;
-  background: var(--ctrl);
-  box-shadow: inset 0 0 0 1px var(--ctrl-border), var(--ctrl-shadow);
+  background: var(--btn);   /* az app Menu.TriggerButton-ja: secondary gomb, keret és árnyék nélkül */
   color: var(--fg-2); font-size: 14px; cursor: pointer;
 }
-.select:hover { background: var(--bg-2); }
+.select:hover { background: var(--btn-hover); }
 .select-ic { display: inline-flex; gap: 4px; }
 .select-ic:empty { display: none; }
 .select-label { color: var(--fg-0); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .select .chev { width: 12px; height: 12px; margin-left: 8px;   /* az app választóinak CaretDown-ja (`xs`) */ transition: transform .12s; }
 .select[aria-expanded="true"] .chev { transform: rotate(180deg); }
-.select:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--accent), 0 0 6px 1px var(--accent-bg); }
+.select:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .menu-pop {
   position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
-  min-width: 100%; width: max-content; max-width: 360px; max-height: min(340px, var(--room, 100vh)); overflow: auto;
-  padding: 6px;
-  display: flex; flex-direction: column; gap: 1px;
+  min-width: max(100%, 128px); width: max-content; max-width: 320px; max-height: min(340px, var(--room, 100vh)); overflow: auto;
+  padding: 4px;   /* --cds-menu-gutter */
+  display: flex; flex-direction: column;
   background: var(--pop-bg);
   border-radius: 12px;
-  box-shadow: 0 0 0 1px var(--ctrl-border), var(--pop-shadow);
+  box-shadow: 0 0 0 1px var(--border), var(--pop-shadow);
 }
 .menu-pop[hidden] { display: none; }
 .option {
   display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: center;
-  height: 32px; padding: 0 10px 0 8px;
+  height: 32px; padding: 0 10px;
   border: 0; border-radius: 8px; background: transparent;
   font-size: 14px; color: var(--fg-0); text-align: left; cursor: pointer;
 }
@@ -301,7 +346,7 @@ button { font: inherit; color: inherit; }
 .option .cur {
   --lc-bg: color-mix(in srgb, var(--lc, var(--accent)) 14%, var(--bg));
   --lc-fg: color-mix(in srgb, var(--lc, var(--accent)) 70%, var(--fg-0));
-  margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: var(--w-medium);
+  margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: var(--w-medium);
   background: var(--lc-bg); color: var(--lc-fg);
 }
 /* Ágválasztó: worktree-fejléc, alatta az ágai; a helyi ág és az upstreamje egy
@@ -309,31 +354,31 @@ button { font: inherit; color: inherit; }
 .menu-pop.branches { max-width: 460px; max-height: min(460px, var(--room, 100vh)); padding: 0; gap: 0; overflow: hidden; }
 .menu-pop [hidden] { display: none !important; }   /* a szűrő rejtette (az .option display-e fölé) */
 /* Csak az ágak listája görget; a szűrő és a „Minden ág” fölötte áll. */
-.menu-all { flex: none; padding: 4px 4px 3px; border-bottom: 1px solid var(--border-soft); }
+.menu-all { flex: none; padding: 4px 4px 3px; border-bottom: 1px solid var(--border); }
 .menu-all .option { width: 100%; }
-.menu-grp { display: flex; flex-direction: column; gap: 1px; }
+.menu-grp { display: flex; flex-direction: column; }
 .menu-grp:has(> .menu-wt) > .option.blk > .ln { padding-left: 32px; }   /* a fejléc alá tartozó ágak beljebb */
 /* Elválasztó a `sep` csoport fölött, ha előtte látszik egy csoport. */
 .menu-grp:not([hidden]) ~ .menu-grp.sep::before {
-  content: ""; height: 1px; margin: 3px 6px; background: var(--border-soft);
+  content: ""; height: 1px; margin: 4px 10px; background: var(--border);   /* Menu.Separator */
 }
-.menu-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px; display: flex; flex-direction: column; gap: 1px; }
+.menu-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px; display: flex; flex-direction: column; }
 .menu-list.empty::after { content: "Nincs ilyen ág"; padding: 6px 12px; font-size: 12.5px; color: var(--fg-3); }
 /* A szűrőmező a menü tetején. */
 .menu-search {
   display: flex; flex: none; align-items: center; gap: 8px;
   height: 38px; padding: 0 10px 0 12px;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border);
   color: var(--fg-3);
 }
 .menu-search .ic { width: 16px; height: 16px; flex: none; }   /* az ágak ikonjával egy oszlopban */
 .menu-wt {
   display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 6px 10px 0 8px;
-  font-size: 13px; font-weight: var(--w-medium); color: var(--fg-0);
+  font-size: 13px; font-weight: var(--w-medium); color: var(--fg-3);   /* Menu.GroupLabel: text-muted */
 }
-.menu-wt .ic { width: 16px; height: 16px; flex: none; color: var(--fg-2); }
+.menu-wt .ic { width: 16px; height: 16px; flex: none; color: inherit; }
 .menu-wt .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu-wt .note { margin-left: -4px; font-weight: var(--w-body); font-style: italic; color: var(--fg-3); font-size: 11.5px; }
+.menu-wt .note { margin-left: -4px; font-weight: var(--w-body); font-style: italic; color: var(--fg-3); font-size: 12px; }
 .menu-wt-cur { font-weight: var(--w-bold); }   /* az app bold-ja */
 /* A WIP jele: üres karika, mint a gráfon a „Nem commitolt változások” pontja. */
 .menu-wt .wip {
@@ -388,19 +433,21 @@ button { font: inherit; color: inherit; }
 .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
 .switch .track {
   position: relative; flex: none;
-  width: 34px; height: 20px; border-radius: 10px;   /* a fejlécé nagy, a menüé kicsi, mint az appban */
+  width: 36px; height: 20px; border-radius: 10px;   /* a fejlécé nagy, a menüé kicsi, mint az appban */
   background: var(--track-off);
   transition: background .15s;
 }
+.switch:hover .track, .option.setting:not(:disabled):hover .track { background: var(--track-hover); }
 .switch .track::after {
   content: ""; position: absolute; top: 2px; left: 2px;
   width: 16px; height: 16px; border-radius: 8px;
-  background: #ffffff; box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+  background: #ffffff; box-shadow: var(--shadow-sm);
   transition: transform .15s;
 }
 .switch input:checked + .track { background: var(--accent); }
-.switch input:checked + .track::after { transform: translateX(14px); }
-.switch input:focus-visible + .track { box-shadow: 0 0 0 1px var(--accent), 0 0 6px 1px var(--accent-bg); }
+.switch:hover input:checked + .track { background: var(--accent-hover); }
+.switch input:checked + .track::after { transform: translateX(16px); }
+.switch input:focus-visible + .track { box-shadow: var(--focus-ring); }
 /* Szűrők: ágválasztó + kapcsolók, egy egységként törnek (`fitChrome`). Több
    soros fejlécben az ágválasztó kitölti a sort, a kapcsolók jobbra kerülnek. */
 .filters { display: flex; align-items: center; gap: 18px; flex: 0 1 auto; min-width: 0; }
@@ -417,8 +464,8 @@ button { font: inherit; color: inherit; }
 #remotesBtn { height: 28px; padding: 0 6px 0 8px; font-size: 13px; }
 #remotesBtn .chev { margin-left: 4px; }
 #remotesBtn .select-label { max-width: 140px; }
-#remotesBtn:disabled { cursor: default; opacity: .55; }
-#remotesBtn:disabled:hover { background: var(--ctrl); }
+#remotesBtn:disabled { cursor: default; opacity: var(--disabled); }
+#remotesBtn:disabled:hover { background: var(--btn); }
 /* Szűkös helyen (a sor tördelne) a kapcsolók felirata helyett ikon. */
 .switch .sw-ic { display: none; color: var(--fg-2); }
 .chrome.compact .switch { gap: 6px; }
@@ -430,14 +477,15 @@ button { font: inherit; color: inherit; }
 .tools { margin-left: auto; flex: 1 1 auto; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 
 .search {
-  display: flex; align-items: center; gap: 7px;
-  flex: 1 1 230px; min-width: 120px; height: 32px; padding: 0 8px;
+  display: flex; align-items: center; gap: 6px;
+  flex: 1 1 230px; min-width: 120px; height: 32px; padding: 0 8px 0 12px;
   border-radius: 8px;
-  background: var(--ctrl);
-  box-shadow: inset 0 0 0 1px var(--ctrl-border), var(--ctrl-shadow);
+  background: var(--field);   /* az app TextInput-ja: halvány mező, 1 px keret, hoverre erősebb */
+  box-shadow: inset 0 0 0 1px var(--border);
   color: var(--fg-2);
 }
-.search:focus-within { box-shadow: inset 0 0 0 1px var(--accent), 0 0 6px 1px var(--accent-bg); }
+.search:hover { box-shadow: inset 0 0 0 1px var(--fill-3); }
+.search:focus-within { box-shadow: var(--focus-ring); }
 .search input, .menu-search input {
   flex: 1; min-width: 0; padding: 0;
   border: 0; outline: 0; background: transparent;
@@ -446,12 +494,15 @@ button { font: inherit; color: inherit; }
 .search input:focus-visible, .menu-search input:focus-visible { box-shadow: none; }
 .search input::placeholder, .menu-search input::placeholder { color: var(--fg-3); }
 .search input::-webkit-search-cancel-button { cursor: pointer; }
+/* az app Shortcut-ja: billentyűnként egy sapka, 2 px-es közzel; az egy karakteres négyzet */
+.search .keys { display: inline-flex; gap: 2px; font-size: 12px; color: var(--fg-3); }
 .search kbd {
-  padding: 0 5px; border-radius: 4px;
-  box-shadow: inset 0 0 0 1px var(--border);
-  font-family: var(--font-ui); font-size: 12px; color: var(--fg-3);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: calc(1em + 6px); height: calc(1em + 6px); padding: 0; border-radius: 4px;
+  border: 1px solid color-mix(in srgb, currentColor var(--kbd-line), transparent);
+  font: inherit; line-height: 1;
 }
-.search:focus-within kbd { visibility: hidden; }   /* a helye marad: a mező nem ugrik */
+.search:focus-within .keys { visibility: hidden; }   /* a helye marad: a mező nem ugrik */
 
 /* Témaválasztó (a láblécben): a menü jobbra zárva, felfelé nyílik. */
 .menu-pop.end { left: auto; right: 0; min-width: 170px; }
@@ -459,12 +510,12 @@ button { font: inherit; color: inherit; }
 
 /* Beállítások: a kereső melletti fogaskerék, a menüben kétsoros kapcsolók. */
 .select.gear { width: 32px; padding: 0; justify-content: center; }
-.select.gear[aria-expanded="true"] { background: var(--bg-2); }
+.select.gear[aria-expanded="true"] { background: var(--btn-hover); }
 .menu-pop.settings { width: 280px; }
 .option.setting { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 6px 10px; gap: 12px; }
 .option.setting .txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.option.setting .sub { font-size: 11.5px; line-height: 1.3; color: var(--fg-3); white-space: normal; }
-.option.setting:disabled { cursor: default; opacity: .55; }
+.option.setting .sub { font-size: 12px; line-height: 1.3; color: var(--fg-3); white-space: normal; }
+.option.setting:disabled { cursor: default; opacity: var(--disabled); }
 .option.setting .track {
   position: relative; width: 28px; height: 16px; border-radius: 8px;
   background: var(--track-off); transition: background .15s;
@@ -472,12 +523,13 @@ button { font: inherit; color: inherit; }
 .option.setting .track::after {
   content: ""; position: absolute; top: 2px; left: 2px;
   width: 12px; height: 12px; border-radius: 6px;
-  background: #ffffff; box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+  background: #ffffff; box-shadow: var(--shadow-sm);
   transition: transform .15s;
 }
 .option.setting[aria-checked="true"] .track { background: var(--accent); }
+.option.setting[aria-checked="true"]:not(:disabled):hover .track { background: var(--accent-hover); }
 .option.setting[aria-checked="true"] .track::after { transform: translateX(12px); }
-.menu-note { margin: 4px 10px 6px; font-size: 11.5px; line-height: 1.35; color: var(--del, var(--fg-2)); }
+.menu-note { margin: 4px 10px 6px; font-size: 12px; line-height: 1.35; color: var(--del, var(--fg-2)); }
 
 /* ── Nem commitolt változások ── a saját worktree WIP-je fix sávban a lista fölött:
    mindig látszik. A pontja saját SVG-ben van, a szaggatott vonal innen fut le a
@@ -715,6 +767,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
   background: var(--bg-1);
   border: 1px solid var(--border);
   border-radius: 12px;
+  box-shadow: var(--shadow-sm);   /* shadow-panel-sm: a keret + shadow-sm */
   overflow: auto;   /* a magasságát a `fitPanel` korlátozza: a következő commit is látsszon */
 }
 .details > * { flex-shrink: 0; }   /* korlátozott magasságnál görget, nem nyom össze */
@@ -737,9 +790,8 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .chip .ic { width: 14px; height: 14px; }
 .chip .hash {
   padding: 0; border: 0; background: none;
-  font-family: var(--font-mono); font-size: 13px; color: var(--accent); text-decoration: none; cursor: pointer;
+  font-family: var(--font-mono); font-size: 13px; cursor: pointer;
 }
-.chip button.hash:hover { text-decoration: underline; }
 .chip .hash.plain { color: var(--fg-1); cursor: text; }
 .mini {
   width: 24px; height: 24px; flex: none; padding: 0;
@@ -753,11 +805,14 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .body-text { margin: 0 2px; white-space: pre-wrap; font-size: 13px; line-height: 1.45; color: var(--fg-1); max-width: 72ch; }
 .body-text .more {
   padding: 0; border: 0; background: none; cursor: pointer;
-  font: inherit; color: var(--accent);
+  font: inherit;
 }
-.body-text .more:hover { text-decoration: underline; }
-.gh-link { color: var(--accent); text-decoration: none; }
-.gh-link:hover { text-decoration: underline; }
+/* Szöveges link (az app TextLink-je): text-accent, mindig aláhúzva, a vonal halvány, hoverre teli. */
+.chip button.hash, .body-text .more, .gh-link, .md-link {
+  color: var(--link); text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+}
+:is(.chip button.hash, .body-text .more, .gh-link, .md-link):is(:hover, :focus-visible) { text-decoration-color: currentColor; }
 
 .files { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--border-soft); padding-top: 10px; }
 .files:first-child { border-top: 0; padding-top: 0; }   /* WIP: nincs fejléc fölötte */
@@ -854,11 +909,19 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 }
 .diff-gap {
   margin: 3px 0; padding: 3px 12px;
-  font-family: var(--font-ui); font-size: 11.5px; color: var(--code-no);
+  font-family: var(--font-ui); font-size: 12px; color: var(--code-no);
   border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft);
 }
 .diff-gap:first-child { margin-top: 0; border-top: 0; }
 .diff-note { margin: 0; padding: 4px 12px; font-family: var(--font-ui); font-size: 12px; color: var(--fg-2); }
+/* az app Spinner-e (sm): 12 px, 1,5 px-es vonal, a sáv a keret színe, az ív text-muted */
+.diff-note.loading { display: flex; align-items: center; gap: 6px; }
+.diff-note.loading::before {
+  content: ""; width: 12px; height: 12px; flex: none; box-sizing: border-box; border-radius: 50%;
+  border: 1.5px solid var(--border); border-top-color: var(--fg-3);
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Markdown-diff ── renderelt szöveg; a változott blokk a diff színeivel, a
    bal szélén csíkkal (a háttér magában halvány lehet egy hosszú bekezdésen). */
@@ -866,14 +929,15 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
    fölött, helyet nem foglal (egymás alatti és side-by-side nézetben sem tolja, szűkíti a sorokat) */
 .diff:has(> .md-seg) { position: relative; }
 .md-seg {
-  position: absolute; top: 8px; right: 8px; z-index: 2; display: inline-flex; height: 28px; border-radius: 8px;
-  background: var(--code-tint);
+  position: absolute; top: 8px; right: 8px; z-index: 2; display: inline-flex; height: 28px; padding: 1px; border-radius: 8px;
+  background: var(--fill-1);
 }
+/* a választott a sávon belül, 1 px-re: a sarka a sávénál 1-gyel kisebb, az íveik párhuzamosak */
 .md-seg button {
-  width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
-  border: 0; border-radius: 8px; background: transparent; color: var(--fg-1); cursor: pointer;
+  width: 26px; height: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 7px; background: transparent; color: var(--fg-3); cursor: pointer;
 }
-.md-seg button[aria-pressed="true"] { background: var(--code-bg); color: var(--fg-0); box-shadow: inset 0 0 0 1px var(--border), 0 1px 2px rgba(0, 0, 0, .05); }
+.md-seg button[aria-pressed="true"] { background: var(--seg-on); color: var(--fg-0); box-shadow: inset 0 0 0 1px var(--border), 0 1px 2px rgba(0, 0, 0, .05); }
 .md-seg + .diff-gap { margin-top: 0; border-top: 0; }
 .md-doc { font-family: var(--font-ui); font-size: 13px; line-height: 1.55; color: var(--fg-0); padding: 0 14px 0 0; }
 .md-blk { padding: 1px 0 1px 14px; border-left: 3px solid transparent; }
@@ -897,7 +961,6 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .md-li.md-tight { margin-top: 0; }   /* az ikonos alszint a szülőjéhez tapad */
 .md-li.md-gap { margin-top: 8px; }   /* … és elválik a következő főelemtől */
 .md-mk { flex: none; min-width: 1em; color: var(--fg-2); font-variant-numeric: tabular-nums; }
-.md-link { color: var(--accent); }
 .md-img { font-style: italic; color: var(--fg-2); }
 .md-img::before { content: '['; }
 .md-img::after { content: ']'; }
@@ -906,7 +969,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
   font-size: 12px; line-height: 1.5; color: var(--code-fg);
 }
 .md-cl { padding: 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; border-left: 3px solid transparent; }
-.md-cl.md-skip { color: var(--code-no); font-family: var(--font-ui); font-size: 11.5px; }
+.md-cl.md-skip { color: var(--code-no); font-family: var(--font-ui); font-size: 12px; }
 /* Mermaid: kirajzolva a kódnézet rejtve. A diagramok egymás mellett, ha elférnek
    (a keret a diagram szélességét kapja); a változatot a bal csík jelzi, a
    változott elemet (`md-mmd-ch`) a diff színe — a Mermaid saját, azonosítós
@@ -946,7 +1009,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .md-mmd-fig mark.md-mmd-hl { background: var(--mmd-hl); color: inherit; border-radius: 3px; }
 .md-mmd-fig tspan.md-mmd-hl { fill: var(--mmd-ch) !important; }
 .md-mmd-err {
-  flex: 1 1 100%; margin: 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--del);
+  flex: 1 1 100%; margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--del);
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 /* Képek (`images.js`): a Mermaid-diagramok elrendezésében. Két oldal két egyforma
@@ -1012,7 +1075,7 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
   position: fixed; z-index: 20; transform: translateX(-50%);
   display: flex; align-items: center; gap: 2px; padding: 3px;
   border-radius: 8px; background: var(--ctrl, var(--bg)); box-shadow: inset 0 0 0 1px var(--border), 0 2px 8px rgba(0, 0, 0, .12);
-  font-family: var(--font-ui); font-size: 11.5px; color: var(--fg-1); white-space: nowrap;
+  font-family: var(--font-ui); font-size: 12px; color: var(--fg-1); white-space: nowrap;
   opacity: 0; pointer-events: none; transition: opacity .12s;
 }
 .img-view:has(.img-fig:hover, .img-line:hover, .img-bar:hover) > .img-bar { opacity: 1; pointer-events: auto; }
@@ -1036,7 +1099,7 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
   border: 1px solid var(--border-soft); padding: 3px 8px; text-align: left; vertical-align: top;
   overflow-wrap: break-word;
 }
-.md-table tr.md-skip td { padding: 0 8px; color: var(--code-no); font-size: 11.5px; }
+.md-table tr.md-skip td { padding: 0 8px; color: var(--code-no); font-size: 12px; }
 .md-table th { font-weight: var(--w-header); background: var(--code-tint); }
 .md-table tr.add > th, .md-table tr.del > th { background: inherit; }   /* a változott fejléc a sor színét kapja */
 /* szintaxis */
@@ -1094,8 +1157,6 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
   100% { transform: scale(1);    box-shadow: 0 0 0 4px transparent; }
 }
 .foot .links { justify-self: end; display: flex; align-items: center; gap: 4px; }
-.foot .links .mini { width: 26px; height: 26px; }
-.foot .links .mini:hover { background: var(--bg-3); }
 .foot .links .ic { width: 16px; height: 16px; }
 .foot .links .gh { display: flex; align-items: center; gap: 4px; }
 /* a GitHub-linkek és a téma közt halvány elválasztó */
