@@ -26,9 +26,13 @@ export const setBranchSel = refs => { branchSel = new Set(refs); };
 const cloudIc = (ref, color, size = undefined) => tinted(ref === DATA.meta.base ? 'cloudFill' : 'cloud', color, size);
 /* Ág és upstream együtt (egy helyen állnak, vagy mindkettő kijelölve): egy ikon. */
 const branchCloudIc = (ref, color, size = undefined) => tinted(ref === DATA.meta.base ? 'branchCloudFill' : 'branchCloud', color, size);
-/* Egy helyi ág refjei a menüben: maga, és — remote ágakkal — az élő upstreamje, ha a
-   remote-ja nincs elrejtve. */
-const blockRefs = (b, remote) => (remote && b.upstream && b.track !== 'gone' && remoteShown(b.upstream)
+/* Az upstream csak azonos nevű párként (`origin/x` ↔ `x`) áll a helyi ág mellett: a más nevű
+   (pl. egy `origin/HEAD`-ből indított feature branch `origin/main`-je) csak a távolság alapja
+   (a chipen), a menüben nem párja — a remote ág a saját helyén, a párja mellett van. */
+const pairUp = b => (b.upstream && b.upstream.slice(b.upstream.indexOf('/') + 1) === b.name ? b.upstream : '');
+/* Egy helyi ág refjei a menüben: maga, és — remote ágakkal — az élő, azonos nevű upstreamje,
+   ha a remote-ja nincs elrejtve. */
+const blockRefs = (b, remote) => (remote && pairUp(b) && b.track !== 'gone' && remoteShown(b.upstream)
   ? [b.name, b.upstream] : [b.name]);
 /* Egy worktree-hez tartozó ágak (`owner`). */
 const ownedBy = w => DATA.branches.filter(b => !b.remote && b.owner === w.slug);
@@ -46,8 +50,8 @@ function selView() {
       return [tinted(w.main ? 'mainWorktree' : 'worktree', wtColor(w) || 'var(--fg-2)'), w.main ? 'main' : w.name];
     }
   }
-  const b = DATA.branches.find(x => !x.remote && (x.name === names[0] || x.upstream === names[0]));
-  if (b && names.every(n => n === b.name || n === b.upstream)) {
+  const b = DATA.branches.find(x => !x.remote && (x.name === names[0] || (pairUp(x) && x.upstream === names[0])));
+  if (b && names.every(n => n === b.name || (pairUp(b) && n === b.upstream))) {
     const c = branchColor(b);
     const both = branchSel.has(b.name) && branchSel.has(b.upstream);
     return [both ? branchCloudIc(b.upstream, c) : branchSel.has(b.name) ? tinted('branch', c) : cloudIc(b.upstream, c),
@@ -162,7 +166,11 @@ export function fillBranches() {
   }
   // Csak remote ágak, remote-onként egy fejléc.
   const byRemote = new Map();
-  for (const b of DATA.branches.filter(x => x.remote && remoteShown(x.name))) {
+  // a más nevű upstream (nincs azonos nevű helyi párja) is itt áll: a szerver párosnak vette
+  const paired = new Set(local.map(pairUp).filter(Boolean));
+  const unpaired = [...new Set(local.filter(x => x.upstream && x.track !== 'gone' && !pairUp(x)).map(x => x.upstream))]
+    .filter(n => !paired.has(n)).map(name => ({ name, remote: true }));
+  for (const b of [...DATA.branches.filter(x => x.remote), ...unpaired].filter(x => remoteShown(x.name))) {
     const r = b.name.slice(0, b.name.indexOf('/'));
     byRemote.set(r, [...(byRemote.get(r) || []), b]);
   }

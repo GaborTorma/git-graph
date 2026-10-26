@@ -393,6 +393,37 @@ class MenuIndentTest(CdsCase):
             self.assertAlmostEqual(text, 3.2, delta=0.05)
 
 
+class UpstreamPairTest(CdsCase):
+    """Az ágválasztóban a helyi ág mellett csak az azonos nevű upstream áll."""
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        prepare_cds(repo)
+        git_in(repo, "branch", "-q", "--track", "feat-uj", "origin/main")    # az origin/HEAD-ből indítva
+        git_in(repo, "push", "-q", "origin", "kiserlet-0:masnev")
+        git_in(repo, "branch", "-q", "-u", "origin/masnev", "kiserlet-1")   # más nevű, saját párja nincs
+
+    def blocks(self) -> list:
+        self.page.locator("#branchBtn").click()
+        self.settle()
+        return self.page.locator("#branchPop .option.blk[data-refs]").evaluate_all("bs => bs.map(b => b.dataset.refs)")
+
+    def test_same_name_only(self) -> None:
+        """A `dev` mellett az `origin/dev`; a `main`-ből indított `feat-uj` mellett nincs `origin/main`,
+        az a `main` párja marad."""
+        refs = self.blocks()
+        self.assertIn("dev origin/dev", refs)
+        self.assertIn("main origin/main", refs)
+        self.assertIn("feat-uj", refs)
+        self.assertEqual(sum("origin/main" in r.split() for r in refs), 1)
+
+    def test_unpaired_remote(self) -> None:
+        """A más nevű upstream, amelynek nincs azonos nevű helyi párja, a remote ágak közt látszik."""
+        refs = self.blocks()
+        self.assertIn("kiserlet-1", refs)
+        self.assertIn("origin/masnev", refs)
+
+
 # ── A markdown- és SVG-diff nézetváltója: kétgombos szegmens ──────────────
 
 class SegmentTest(CdsCase):
