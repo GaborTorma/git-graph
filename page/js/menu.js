@@ -9,6 +9,10 @@ export function makeMenu(btn, pop, onPick, onOpen) {
     const r = pop.getBoundingClientRect();
     const room = pop.classList.contains('up') ? r.bottom : innerHeight - r.top;
     pop.style.setProperty('--room', `${Math.max(120, room - 8)}px`);
+    // A hosszú lista (ágválasztó, `--reach`) a lap magasságának ~80 %-áig nyúlhat le; kevés
+    // helynél (alatta 320 px-nél kevesebb maradna) tovább, a lap aljáig.
+    const reach = Math.max(innerHeight * 0.8 - r.top, Math.min(room - 8, 320));
+    pop.style.setProperty('--reach', `${Math.max(120, Math.round(reach))}px`);
   };
   addEventListener('resize', fit);
   const toggle = open => {

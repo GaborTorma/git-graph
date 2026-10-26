@@ -622,3 +622,15 @@ class IconSizesTest(CdsCase):
         """A commit-panel ikonjai (hash-chip, másolás, megnyitás) 16 px-esek, nem 14."""
         self.open_commit("cds: módosítva")
         self.assertEqual(self.sizes(".details .chip svg.ic, .details .mini svg.ic"), {(16, 16)})
+
+    def test_branch_menu_reach(self) -> None:
+        """Az ágválasztó a lap magasságának ~80 %-áig nyúlhat le; alacsony lapon tovább, az aljáig."""
+        for height in (900, 420):
+            self.page.set_viewport_size({"width": 1300, "height": height})
+            self.page.locator("#branchBtn").click()
+            self.settle()
+            top = self.box("#branchPop")["y"]
+            limit = float(self.page.locator("#branchPop").evaluate("p => parseFloat(getComputedStyle(p).maxHeight)"))
+            expected = max(height * 0.8 - top, min(height - top - 8, 320))
+            self.assertAlmostEqual(limit, max(120, round(expected)), delta=1, msg=height)
+            self.page.keyboard.press("Escape")

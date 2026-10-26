@@ -352,7 +352,7 @@ button { font: inherit; color: inherit; }
 }
 /* Ágválasztó: worktree-fejléc, alatta az ágai; a helyi ág és az upstreamje egy
    blokk (egy opció, két sor, szorosan). A pipa a sor jobb szélén, mint az app lenyílóiban. */
-.menu-pop.branches { max-width: 460px; max-height: min(460px, var(--room, 100vh)); padding: 0; gap: 0; overflow: hidden; }
+.menu-pop.branches { max-width: 460px; max-height: var(--reach, var(--room, 100vh)); padding: 0; gap: 0; overflow: hidden; }
 .menu-pop [hidden] { display: none !important; }   /* a szűrő rejtette (az .option display-e fölé) */
 /* Csak az ágak listája görget; a szűrő és a „Minden ág” fölötte áll. */
 .menu-all { flex: none; padding: 4px 4px 3px; border-bottom: 1px solid var(--border); }
