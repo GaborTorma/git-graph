@@ -45,6 +45,7 @@
 - [MCP-alakok a lapon](mcp-wire-format.md) — `listTools()` `{servers}`-t ad, az eredmény a `payload`; GUI-ból minimális PATH
 - [Artifact CSP](artifact-csp.md) — külső fetch tilos; eval, blob-script, `import(blob:)`, CDN-script fut; `data:` nem
 - [Nincs Anthropic Sans a keretben](artifact-no-anthropic-sans.md) — mérve sorszélességgel; a Sans és a Mono a `page_code`-on át, `FontFace`-ként
+- [Ikonméret sűrűségenként](cds-icon-sizes.md) — comfortable: menüben 20 px, pipa bold; több ikonfont-verzió a gyorsítótárban
 - [Artifact capability-k](artifact-capabilities.md) — mi él a fiókon; „AI-powered artifacts” kapcsoló; a `sample` nem a session
 - [sendToClaude a lapról](comments-send-to-claude.md) — a lapot mutató sessionnek megy; egyszeri hozzájárulás
 
