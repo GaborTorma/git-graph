@@ -791,6 +791,8 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .md-h3 { font-size: 14px; }
 .md-h4, .md-h5, .md-h6 { font-size: 13px; }
 .md-li { display: flex; gap: 6px; margin: 2px 0; padding-left: calc(var(--md-ind, 0) * .55em); }
+.md-li.md-tight { margin-top: 0; }   /* az ikonos alszint a szülőjéhez tapad */
+.md-li.md-gap { margin-top: 8px; }   /* … és elválik a következő főelemtől */
 .md-mk { flex: none; min-width: 1em; color: var(--fg-2); font-variant-numeric: tabular-nums; }
 .md-link { color: var(--accent); }
 .md-img { font-style: italic; color: var(--fg-2); }
