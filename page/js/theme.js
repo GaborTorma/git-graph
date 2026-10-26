@@ -36,7 +36,7 @@ function setTheme(mode) {
   const [, label, svgPath] = THEMES.find(t => t[0] === mode) || THEMES[0];
   document.getElementById('themeIcon').innerHTML = svgPath;
   themeBtn.setAttribute('aria-label', `Téma: ${label.toLowerCase()}`);
-  themeBtn.title = `Téma: ${label.toLowerCase()}`;
+  themeBtn.dataset.tip = `Téma: ${label.toLowerCase()}`;
   themePop.innerHTML = THEMES.map(([value, name, path]) =>
     `<button type="button" class="option with-icon" role="option" data-value="${value}" aria-selected="${value === mode}">`
     + `<svg class="ic" viewBox="0 0 16 16" aria-hidden="true">${path}</svg>`

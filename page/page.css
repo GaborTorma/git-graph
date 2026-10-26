@@ -34,6 +34,10 @@
   --critical:    #d03b3b;
   /* a kódnézet (diff) kiemelt felülete: kódblokk, táblázatfej, üres oldal, ábrakeret */
   --code-tint:   color-mix(in srgb, var(--fg-0) 4%, var(--code-bg));
+  /* tooltip: fekete buborék mindkét témában */
+  --tip-bg:      #0b0b0b;
+  --tip-fg:      #ffffff;
+  --tip-sub:     rgba(255, 255, 255, .6);
   --tag-fg:      #8a5a00;
   /* sávok (`laneColor`): szín, badge-háttér, badge-szöveg */
   --lane-0: #2a78d6; --lane-0-bg: #cde2fb; --lane-0-fg: #184f95;   /* blue */
@@ -577,14 +581,18 @@ button { font: inherit; color: inherit; }
 /* Saját tooltip (`#tip`, a natív késve és nem mindig jön): egyetlen fix
    buborék a lap fölött — a lista széle, a sorok rétegei és a ragadós
    napfejléc nem vághatja le, és görgetést sem nyit. A `data-tip` elem fölé,
-   jobbra zárva úszik be, rövid késleltetéssel (`page.js`: `showTip`). */
+   jobbra zárva úszik be, rövid késleltetéssel (`tip.js`: `showTip`). Mint az app
+   buborékjai: egy fő sor (mellette halványan a gyorsbillentyű), alatta a többi kisebb,
+   halványabb. */
 #tip {
-  position: fixed; z-index: 60; padding: 2px 6px; border-radius: 5px; pointer-events: none;
-  background: var(--ctrl); color: var(--fg-1); font: 400 11px/1.4 var(--font-ui); white-space: pre;   /* a badge-é többsoros */
-  box-shadow: 0 0 0 1px var(--ctrl-border), 0 2px 8px rgba(0, 0, 0, .08);
+  position: fixed; z-index: 60; padding: 6px 10px; border-radius: 8px; pointer-events: none;
+  background: var(--tip-bg); color: var(--tip-fg); font: 400 13px/18px var(--font-ui); white-space: pre;
   opacity: 0; transform: translateY(2px); transition: opacity .12s, transform .12s;
 }
 #tip.on { opacity: 1; transform: none; }
+#tip .main { display: block; }
+#tip .sub { display: block; font-size: 12px; line-height: 17px; color: var(--tip-sub); }
+#tip .kbd { margin-left: 8px; color: var(--tip-sub); }
 .meta .author.ini { background: var(--bg-3); color: var(--fg-1); font-size: 9px; font-weight: 600; letter-spacing: .02em; }
 /* A commit összes változása az avatar után, színes cellákban (a Claude app
    diff-jelzője mintájára). */

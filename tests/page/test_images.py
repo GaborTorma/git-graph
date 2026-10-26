@@ -525,7 +525,8 @@ class BarTest(ImageFixture):
     def test_titles(self) -> None:
         """Súgó: a gombok súgójában a teljes lapos nézet billentyűje is áll."""
         self.open_image("logo.png")
-        titles = self.page.locator(".diff .img-bar button").evaluate_all("bs => bs.map(b => b.title)")
+        titles = self.page.locator(".diff .img-bar button").evaluate_all(
+            "bs => bs.map(b => b.dataset.tip + (b.dataset.kbd ? ` (${b.dataset.kbd})` : ''))")
         self.assertEqual(titles, ["Side-by-side (2)", "Swipe (S)", "Onion skin (O)", "Kicsinyítés (−)",
                                   "Nagyítás (+)", "Teljes lapos nézet", "Bezárás (Esc)"])
 

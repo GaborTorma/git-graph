@@ -74,7 +74,8 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
   (az app CSS-ét nem importáljuk). A sávszín a `chart-categorical` 1–8
   (`--lane-<n>`, tint-párral a badge-hez: `lcStyle`); CSS-változó, így
   témaváltáskor a gráf magától átszíneződik. A kód színei a Claude Light /
-  Dark kódszínek. Betűk:
+  Dark kódszínek. Súgó csak a saját buborék (`data-tip`, `tip.js`; natív
+  `title` nincs). Betűk:
   Anthropic Sans / Mono, ahol nincs, a rendszeré; webfont nincs. A
   kontrollok az app mintájára épülnek: kapcsoló (szűkös helyen ikonnal),
   lenyíló menü (`makeMenu`: ágválasztó és téma, natív `<select>` nincs),

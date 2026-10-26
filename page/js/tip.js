@@ -1,7 +1,10 @@
 
-/* Tooltip a `data-tip` elemekre (avatar, diff-címke): egyetlen fix buborék a
-   lap fölött, az elem fölé, jobbra zárva; ha fent nincs hely, alá. Késleltetve
-   jön, hogy az átsuhanó egérre ne villanjon; görgetésre eltűnik. */
+/* Tooltip a `data-tip` elemekre — a lapon minden súgó ez, natív `title` nincs: egyetlen
+   fix buborék a lap fölött, az elem fölé, jobbra zárva; ha fent nincs hely, alá. Az első
+   sor a fő sor (mellette a `data-kbd` gyorsbillentyű), a többi kisebb, halványabb
+   (`.sub`). Késleltetve jön, hogy az átsuhanó egérre ne villanjon; görgetésre eltűnik. */
+import { esc } from './util.js';
+
 const TIP_DELAY = 350;
 const tipEl = document.createElement('div');
 tipEl.id = 'tip';
@@ -14,7 +17,10 @@ function hideTip() {
   tipEl.classList.remove('on');
 }
 function showTip(el) {
-  tipEl.textContent = el.dataset.tip;
+  const [main, ...subs] = el.dataset.tip.split('\n');
+  const kbd = el.dataset.kbd ? `<span class="kbd">${esc(el.dataset.kbd)}</span>` : '';
+  tipEl.innerHTML = `<span class="main">${esc(main)}${kbd}</span>`
+    + subs.map(line => `<span class="sub">${esc(line)}</span>`).join('');
   const r = el.getBoundingClientRect(), t = tipEl.getBoundingClientRect();
   const top = r.top - t.height - 6 >= 0 ? r.top - t.height - 6 : r.bottom + 6;
   tipEl.style.top = `${Math.round(top)}px`;
@@ -25,7 +31,7 @@ document.addEventListener('mouseover', e => {
   const el = /** @type {HTMLElement} */ (e.target).closest?.('[data-tip]');
   if (el === tipFor) return;
   hideTip();
-  if (!el) return;
+  if (!el?.dataset.tip) return;            // üres súgó (pl. a fejléc chipje worktree nélkül)
   tipFor = el;
   tipTimer = setTimeout(() => showTip(el), TIP_DELAY);
 });

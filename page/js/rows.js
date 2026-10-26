@@ -103,7 +103,7 @@ export function render() {
   drawGraph();
   const shown = visible.filter(c => !c.uncommitted).length;   // az ál-sor nem commit
   counter.innerHTML = DATA.meta.totalCommits ? `<b>${shown}</b> / ${DATA.meta.totalCommits}` : '';
-  counter.title = `${shown} commit látszik, összesen ${DATA.meta.totalCommits}`;
+  counter.dataset.tip = `${shown} commit látszik, összesen ${DATA.meta.totalCommits}`;
   if (expanded && visible.some(c => c.sha === expanded)) {
     open(expanded);
     const panel = document.querySelector(OPEN_PANEL);   // a panel saját görgetése megmarad

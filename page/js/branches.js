@@ -89,7 +89,7 @@ export function fillBranches() {
   const line = (refs, ic, name, c3, c2, c1) => {
     const on = refs.every(r => branchSel.has(r));
     return `<span class="ln${on ? ' on' : ''}"><span class="ckc" data-refs="${esc(refs.join(' '))}"`
-      + ` title="${on ? 'kivesz' : 'hozzáad'}">${icon('check', 'ic ck')}</span>`
+      + ` data-tip="${on ? 'kivesz' : 'hozzáad'}">${icon('check', 'ic ck')}</span>`
       + `<span class="col">${ic}</span>`
       + `<span class="name">${name}</span><span class="c3">${c3}</span><span class="c2">${c2}</span><span class="c1">${c1}</span></span>`;
   };
@@ -98,7 +98,7 @@ export function fillBranches() {
   const cell = name => {
     const [a, d] = DATA.meta.tracks?.[name]?.base || [0, 0];
     const tip = esc(distText(name).trim());
-    const one = (arrow, n) => `<span class="dc" title="${tip}"><span>${arrow}</span><span>${n}</span></span>`;
+    const one = (arrow, n) => `<span class="dc" data-tip="${tip}"><span>${arrow}</span><span>${n}</span></span>`;
     return [a ? one('↑', a) : '', d ? one('↓', d) : ''];
   };
   // A helyi ág és az upstreamje közti távolság (`↕`): a két sor közé, jobbra. Az
@@ -109,7 +109,7 @@ export function fillBranches() {
     const tip = [a && `↑${a}: a helyi ${b.name} ennyivel jár előrébb`, d && `↓${d}: a ${b.upstream} ennyivel jár előrébb`]
       .filter(Boolean).join('\n');
     // A jel a többi távolság ↑ és ↓ karaktere egymás fölött: a nyílhegyük ugyanaz.
-    return `<span class="dc gap${odd ? ' warn' : ''}" title="${esc(tip)}"><span class="ud" aria-hidden="true">`
+    return `<span class="dc gap${odd ? ' warn' : ''}" data-tip="${esc(tip)}"><span class="ud" aria-hidden="true">`
       + `<span>↑</span><span>↓</span></span><span>${a && d ? `${a}/${d}` : a || d}</span></span>`;
   };
   const block = b => {
@@ -119,7 +119,7 @@ export function fillBranches() {
     const refs = blockRefs(b, remote), up = refs[1];
     const pair = up && !synced(b);
     // A leválasztott HEAD jele a szélen, a worktree-fejléc WIP-karikájának oszlopában.
-    const detIc = det && `<span class="det" title="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`;
+    const detIc = det && `<span class="det" data-tip="leválasztott HEAD — az ágát a Claude app jegyzi">${icon('detached')}</span>`;
     const [ca, cd] = cell(b.name);
     const c = branchColor(b);
     // Két sornál a soronkénti távolság a belső oszlopban, a szélen a kettejük közti ↕.
@@ -135,13 +135,13 @@ export function fillBranches() {
     const lc = wtColor(w) || 'var(--accent)';
     const ic = tinted(w.main ? 'mainWorktree' : 'worktree', lc);   // a worktree színe, mint a chipjén
     const name = esc(w.main ? 'main' : w.name);
-    const wip = w.dirty ? `<span class="wip" style="color:${lc}" title="nem commitolt változás"></span>` : '';
+    const wip = w.dirty ? `<span class="wip" style="color:${lc}" data-tip="nem commitolt változás"></span>` : '';
     const cur = w.slug === own?.slug;
-    const body = `${ic}<span class="name${cur ? ' menu-wt-cur" title="itt dolgozik az előtérben lévő session' : ''}">${name}</span>${wip}`;
+    const body = `${ic}<span class="name${cur ? ' menu-wt-cur" data-tip="itt dolgozik az előtérben lévő session' : ''}">${name}</span>${wip}`;
     const refs = ownedBy(w).flatMap(b => blockRefs(b, remote));
     return refs.length
       ? `<button type="button" class="option menu-wt" role="option" data-refs="${esc(refs.join(' '))}" data-key="wt:${esc(w.slug)}"`
-        + ` aria-selected="${refs.every(r => branchSel.has(r))}" title="a worktree összes ága">${body}</button>`
+        + ` aria-selected="${refs.every(r => branchSel.has(r))}" data-tip="a worktree összes ága">${body}</button>`
       : `<div class="menu-wt">${body}</div>`;
   };
   /* Egy csoport: fejléc (worktree, remote; a szűrő a nevét is nézi) és az ágai. A `sep`
@@ -210,7 +210,7 @@ function fillRemotes() {
   if (wrap.hidden !== hide || remotesLabel.textContent !== label) {
     wrap.hidden = hide;
     remotesLabel.textContent = label;
-    remotesBtn.title = `Látható remote-ok: ${label.toLowerCase() === 'minden remote' ? 'mind' : label}`;
+    remotesBtn.dataset.tip = `Látható remote-ok: ${label.toLowerCase() === 'minden remote' ? 'mind' : label}`;
     fitChrome();
   }
 }

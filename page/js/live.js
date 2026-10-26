@@ -34,8 +34,8 @@ export function notice(text, stale = false) {
   if (!DATA.commits.length) rowsEl.innerHTML = `<p class="empty">${esc(text)}</p>`;
   foot.className = stale ? 'foot stale' : 'foot';
   liveText.textContent = text;
-  liveText.title = text;
-  liveDot.title = text;
+  liveText.dataset.tip = text;
+  liveDot.dataset.tip = text;
   liveDot.setAttribute('aria-label', stale ? 'Hiba' : 'Kapcsolódás');
   fitFoot();
 }
@@ -132,7 +132,7 @@ export function startLive(src) {
           liveText.textContent = '';
           fitFoot();                            // a hibaüzenet helyén a verzió is elfér
         }
-        liveDot.title = `Élő · frissítve ${clock()}` + change + switched;
+        liveDot.dataset.tip = `Élő · frissítve ${clock()}` + change + switched;
         liveDot.setAttribute('aria-label', 'Élő');
         showVersion(r);
         misses = 0;

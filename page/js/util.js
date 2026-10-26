@@ -8,7 +8,7 @@ export const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt
    és fájl csak pusholt commitnál (`pushed`, a Python jelöli): a helyi a
    GitHubon 404 lenne. A fájl-diff horgonyát (`anchor`) is a Python számolja. */
 export const ghLink = (href, html, cls = 'gh-link', label = '') =>
-  `<a class="${cls}" href="${href}" target="_blank" rel="noopener"${label ? ` aria-label="${esc(label)}" title="${esc(label)}"` : ''}>${html}</a>`;
+  `<a class="${cls}" href="${href}" target="_blank" rel="noopener"${label ? ` aria-label="${esc(label)}" data-tip="${esc(label)}"` : ''}>${html}</a>`;
 
 /* Bájtméret 1024-es alappal: B alatt tizedes nélkül, KB / MB egy tizedessel, tizedesvesszővel
    (ami KB-ban 1024,0-ra kerekedne, már MB). */

@@ -291,6 +291,57 @@ class SegmentTest(CdsCase):
         self.assertEqual(self.page.locator('.diff .md-seg [data-svg-mode="image"]').get_attribute("aria-pressed"), "false")
 
 
+# ── Tooltip: a lap saját, kétszintű buboréka ──────────────────────────────
+
+class TooltipTest(CdsCase):
+    def tip(self) -> dict:
+        self.page.wait_for_selector("#tip.on")
+        return self.page.locator("#tip").evaluate("""t => ({
+          bg: getComputedStyle(t).backgroundColor,
+          lines: [...t.children].map(e => [e.className, e.textContent, getComputedStyle(e).fontSize, getComputedStyle(e).color]),
+        })""")
+
+    def test_multiline(self) -> None:
+        """A 3 soros branch-badge tooltipje: fekete buborék, a fő sor 13 px, a többi 12 px, halványabb."""
+        badge = self.page.locator("#rows .badge.ref-head").first
+        self.assertEqual(len(badge.get_attribute("data-tip").split("\n")), 3)
+        badge.hover()
+        tip = self.tip()
+        self.assertEqual(tip["bg"], rgb("#0b0b0b"))
+        main, *subs = tip["lines"]
+        self.assertEqual(main[2], "13px")
+        self.assertEqual(main[3], rgb("#ffffff"))
+        self.assertEqual(len(subs), 2)
+        for sub in subs:
+            self.assertEqual(sub[0], "sub")
+            self.assertEqual(sub[2], "12px")
+            self.assertEqual(sub[3], rgb("#ffffff", 0.6))
+
+    def test_shortcut(self) -> None:
+        """A képnéző bezáró gombjának buboréka: „Bezárás”, mellette halványan „Esc”."""
+        self.open_file("logo.svg")
+        self.page.wait_for_selector(".diff .img-fig")
+        self.page.locator(".diff .img-fig").first.hover()
+        self.page.locator(".diff [data-img-full]").click()
+        self.settle()                              # a teljes lapos nézet elrendezése (görgetés rejti a buborékot)
+        self.page.locator(".img-full [data-img-close]").hover()
+        self.page.wait_for_selector("#tip.on")
+        main = self.page.locator("#tip > :first-child")
+        self.assertEqual(main.evaluate("e => e.firstChild.textContent"), "Bezárás")
+        kbd = main.locator(".kbd")
+        self.assertEqual(kbd.inner_text(), "Esc")
+        self.assertEqual(kbd.evaluate("e => getComputedStyle(e).color"), rgb("#ffffff", 0.6))
+
+    def test_no_native_title(self) -> None:
+        """Egyetlen elemnek sincs `title` attribútuma — nyitott commit és menü mellett sem."""
+        count = "document.querySelectorAll('[title]').length"
+        self.assertEqual(self.page.evaluate(count), 0)
+        self.open_commit(FILES_SUBJECT)
+        self.page.locator("#branchBtn").click()
+        self.settle()
+        self.assertEqual(self.page.evaluate(count), 0)
+
+
 # ── Állapot-színek ────────────────────────────────────────────────────────
 
 class LiveStateTest(CdsCase):

@@ -39,7 +39,7 @@ const dirHtml = f => `<div class="file-dir"><span></span>${icon('folder', 'ic fi
   <span class="churn">${fmtInt(f.count)} fájl</span><span></span></div>`;
 
 const miniBtn =(name, label, attrs = '') =>
-  `<button class="mini" type="button" aria-label="${esc(label)}" title="${esc(label)}" ${attrs}>${icon(name)}</button>`;
+  `<button class="mini" type="button" aria-label="${esc(label)}" data-tip="${esc(label)}" ${attrs}>${icon(name)}</button>`;
 
 /* Változásjelölő: 6 szegmens, a hozzáadás / törlés arányában. */
 function bars(f) {
@@ -55,9 +55,9 @@ function headHtml(c) {
   const avatar = avatarOf(c);
   const who = `${avatar ? `<img src="${esc(avatar)}" alt="${esc(c.author)}">` : ''}<span class="name">${esc(c.author)}</span>`
       + `<span class="sep">·</span><span>${fmtDate(c.date)}</span>`;
-  const parents = c.parents.map(p => `<button type="button" class="hash" data-jump="${p}" title="Ugrás a szülőre">${p.slice(0, 7)}</button>`
+  const parents = c.parents.map(p => `<button type="button" class="hash" data-jump="${p}" data-tip="Ugrás a szülőre">${p.slice(0, 7)}</button>`
     + miniBtn('open', `Szülő megnyitása: ${p.slice(0, 7)}`, `data-jump="${p}"`)).join('');
-  const parentChip = c.parents.length ? `<span class="chip" title="Szülő${c.parents.length > 1 ? 'k' : ''}">`
+  const parentChip = c.parents.length ? `<span class="chip" data-tip="Szülő${c.parents.length > 1 ? 'k' : ''}">`
     + `${icon('parent')}${parents}</span>` : '';
   const commitChip = '<span class="chip">'
     + `<span class="hash plain">${c.short}</span>`

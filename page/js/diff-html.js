@@ -16,7 +16,7 @@ export function diffHtml(d, lang) {
   const kinds = new Set();
   for (const h of d.hunks) {
     const gap = h.old - oldEnd;
-    const gapHtml = gap > 0 ? `<p class="diff-gap" title="${gap} változatlan sor">···</p>` : '';
+    const gapHtml = gap > 0 ? `<p class="diff-gap" data-tip="${gap} változatlan sor">···</p>` : '';
     const lines = oneSide(h.lines);
     for (const l of lines) kinds.add(l.t);
     // Egy blokk (hunk) a `···`-ig: fókuszálható, a nyilak blokkról blokkra lépnek.
