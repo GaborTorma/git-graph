@@ -265,7 +265,7 @@ body {
 .mono { font-family: var(--font-mono); font-variant-ligatures: none; }
 .ic {
   width: 16px; height: 16px; flex: none;
-  fill: none; stroke: currentColor; stroke-width: 1;
+  fill: none; stroke: currentColor; stroke-width: 1.2;   /* a saját rajzok vonala: az Anthropicons sm glifáié */
   stroke-linecap: round; stroke-linejoin: round;
 }
 /* az Anthropicons-glifa (`icons.js`): kitöltött kontúr, nem vonal */
@@ -314,7 +314,7 @@ button { font: inherit; color: inherit; }
 .select-ic { display: inline-flex; gap: 4px; }
 .select-ic:empty { display: none; }
 .select-label { color: var(--fg-0); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.select .chev { width: 12px; height: 12px; margin-left: 8px;   /* az app választóinak CaretDown-ja (`xs`) */ transition: transform .12s; }
+.select .chev { width: 16px; height: 16px; margin: 0 -3px 0 0; opacity: .6;   /* az app menügombjának CaretDown-ja (`sm`, 60 %) */ transition: transform .12s; }
 .select[aria-expanded="true"] .chev { transform: rotate(180deg); }
 .select:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .menu-pop {
@@ -339,6 +339,7 @@ button { font: inherit; color: inherit; }
    blokkjában soronként, `.ln.on`). */
 /* a menü ikonjai az app comfortable sűrűségében 20 px-esek (`md`), a pipa is (`bold`, akcentus) */
 .option .ic { width: 20px; height: 20px; color: var(--fg-2); }
+.menu-pop .ic { stroke-width: 1; }   /* 20 px-en a saját rajz vonala is az `md` glifáké (1,25 px) */
 .option .ic.ck { width: 20px; height: 20px; color: var(--accent); visibility: hidden; }
 .option[aria-selected="true"] .ic.ck, .blk .ln.on .ic.ck { visibility: visible; }
 .option.with-icon { grid-template-columns: 20px minmax(0, 1fr) 20px; }
@@ -463,7 +464,7 @@ button { font: inherit; color: inherit; }
 .remotes { display: flex; align-items: center; gap: 8px; }
 .remotes .menu[hidden] { display: none; }
 #remotesBtn { height: 28px; padding: 0 6px 0 8px; font-size: 13px; }
-#remotesBtn .chev { margin-left: 4px; }
+#remotesBtn .chev { width: 12px; height: 12px; margin: 0 -2px 0 0; }   /* a kisebb (28 px-es) gombé `xs`, mint az appban */
 #remotesBtn .select-label { max-width: 140px; }
 #remotesBtn:disabled { cursor: default; opacity: var(--disabled); }
 #remotesBtn:disabled:hover { background: var(--btn); }

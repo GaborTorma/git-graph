@@ -77,7 +77,7 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
   4 px-re). A sávszín a `chart-categorical` 1–8 (`--lane-<n>`, a chiphez
   tint-hármassal: `lcStyle`); CSS-változó, így témaváltáskor a gráf magától
   átszíneződik. Az ikonok az app Anthropicons-glifái, ahol van pár (`ic-ag`; a
-  teljes készlet `design/icons/anthropicons.json`), a többi saját, 1 egységes
+  teljes készlet `design/icons/anthropicons.json`), a többi saját, 1,2 egységes
   vonalú rajz. A méretük az app skálája: 16 px (gomb, chip, panel), 12 px (nyilak), a menükben
   20 px (comfortable `md`, `ICONS_MD`; a pipa `bold`, akcentus színű). A kód színei a Claude Light /
   Dark kódszínek. Súgó csak a saját buborék (`data-tip`, `tip.js`; natív

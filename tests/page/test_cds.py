@@ -309,11 +309,13 @@ class ExpandTest(CdsCase):
 
 class ChevronTest(CdsCase):
     def test_chevrons(self) -> None:
-        """A fájlsor és az ágválasztó nyila 12 × 12, mint az app választóinak CaretDown-ja (`xs`)."""
+        """A fájlsor nyila 12 × 12 (`xs`); az ágválasztóé az app menügombjáé: 16 × 16 (`sm`), 60 %-os."""
         self.open_commit(FILES_SUBJECT)
-        for sel in ("#rows .details .file .chev .ic", "#branchBtn .chev"):
-            b = self.box(sel)
-            self.assertEqual((b["width"], b["height"]), (12, 12), sel)
+        b = self.box("#rows .details .file .chev .ic")
+        self.assertEqual((b["width"], b["height"]), (12, 12))
+        b = self.box("#branchBtn .chev")
+        self.assertEqual((b["width"], b["height"]), (16, 16))
+        self.assertEqual(self.style("#branchBtn .chev", "opacity"), "0.6")
 
     def test_file_icons(self) -> None:
         """A fájlikon 16 px, mint az app fájllistájában (a Catppuccin-ikon és az általános is)."""
