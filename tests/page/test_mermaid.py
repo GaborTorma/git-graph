@@ -92,6 +92,20 @@ class MermaidTest(PageTestCase):
             "cs => cs.map(c => getComputedStyle(c).display)")
         self.assertEqual(hidden, ["none", "none"])
 
+    def test_changed_label_color(self) -> None:
+        """A változott csomópont felirata a keretével egyező diff-színű, de nem vastagabb: a többi
+        diff-jelöléshez hasonlóan a szín jelöl, a vastagság a változatlan feliraté."""
+        self.open_file("abra.md")
+        self.figs(".diff-uni")
+        label = ("(f, t) => { const l = [...f.querySelectorAll('.nodeLabel')].find(e => e.textContent.trim() === t),"
+                 " s = getComputedStyle(l); return [s.color, s.fontWeight,"
+                 " getComputedStyle(l.closest('g.node').querySelector('rect, polygon, path')).stroke]; }")
+        fig = self.page.locator(".diff-uni .md-mmd-fig").nth(1)
+        new, same = fig.evaluate(label, "Új"), fig.evaluate(label, "Vég")
+        self.assertEqual(new[0], new[2])          # a felirat színe = a keret diff-színe
+        self.assertNotEqual(same[0], new[0])      # a változatlan felirat nem színes
+        self.assertEqual(new[1], same[1])         # nem vastagabb
+
     def test_split(self) -> None:
         """Széles nézetben egymás mellett: balra a régi, jobbra az új változat."""
         self.resize(1400)

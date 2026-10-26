@@ -938,11 +938,13 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .md-mmd-fig .md-mmd-ch.node :is(rect, circle, ellipse, polygon, path) {
   fill: var(--mmd-bg) !important;
 }
-.md-mmd-fig text.md-mmd-ch, .md-mmd-fig .md-mmd-ch text { fill: var(--mmd-ch) !important; font-weight: 600; }
-.md-mmd-fig span.md-mmd-ch { color: var(--mmd-ch) !important; font-weight: 600; }
+/* a változott elem szövege színes, nem vastagabb — mint a többi diff-jelölés; a
+   flowchart felirata HTML (`span.nodeLabel`) a `g.node` alatt */
+.md-mmd-fig text.md-mmd-ch, .md-mmd-fig .md-mmd-ch text { fill: var(--mmd-ch) !important; }
+.md-mmd-fig span.md-mmd-ch, .md-mmd-fig .md-mmd-ch span { color: var(--mmd-ch) !important; }
 /* a változott szöveg: mint a diff szó-kiemelése (HTML-felirat), SVG-szövegben a színe */
 .md-mmd-fig mark.md-mmd-hl { background: var(--mmd-hl); color: inherit; border-radius: 3px; }
-.md-mmd-fig tspan.md-mmd-hl { fill: var(--mmd-ch) !important; font-weight: 700; }
+.md-mmd-fig tspan.md-mmd-hl { fill: var(--mmd-ch) !important; }
 .md-mmd-err {
   flex: 1 1 100%; margin: 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--del);
   white-space: pre-wrap; overflow-wrap: anywhere;
