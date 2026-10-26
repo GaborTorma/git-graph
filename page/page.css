@@ -28,10 +28,11 @@
   --git-modified: #98801f;
   --git-merged:  #8e6bd9;
   --git-conflict: #c5621b;
-  /* állapot: élő, figyelmeztetés (csak jelként), hiba */
+  /* állapot: élő, figyelmeztetés (csak jelként), hiba; a keresés találata */
   --good:        #0ca30c;
   --warning:     #fab219;
   --critical:    #d03b3b;
+  --highlight:   rgba(250, 178, 25, .33);
   /* a kódnézet (diff) kiemelt felülete: kódblokk, táblázatfej, üres oldal, ábrakeret */
   --code-tint:   color-mix(in srgb, var(--fg-0) 4%, var(--code-bg));
   /* tooltip: fekete buborék mindkét témában */
@@ -535,6 +536,7 @@ button { font: inherit; color: inherit; }
 
 .desc { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; font-size: 14px; color: var(--fg-0); }
 .subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subject mark { background: var(--highlight); color: inherit; border-radius: 3px; }   /* a keresés találata */
 .row.merge .desc { color: var(--fg-2); }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
 /* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra az idő, az avatar és

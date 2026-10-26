@@ -398,3 +398,14 @@ class MonogramTest(CdsCase):
         self.assertIn(colors[0][0], COLLABORATOR)
         self.assertEqual(colors[0][1], rgb("#ffffff"))
 
+
+# ── A keresés találata kiemelt a subjectben ───────────────────────────────
+
+class SearchHighlightTest(CdsCase):
+    def test_highlight(self) -> None:
+        """A „login” szóra keresve a subjectben a szó bg-highlight hátteret kap."""
+        self.page.locator("#search").fill("login")
+        self.settle()
+        mark = self.row("login oldal").locator(".subject mark")
+        self.assertEqual(mark.inner_text(), "login")
+        self.assertEqual(mark.evaluate("e => getComputedStyle(e).backgroundColor"), rgb("#fab219", 0.33))

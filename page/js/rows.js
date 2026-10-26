@@ -8,8 +8,8 @@ import { fitRows } from './layout.js';
 import { commitBySha, focusWt, foreign, fresh, headFiltered, laneColor, worktrees } from './model.js';
 import { badges, linkify, subjectRefs, wtBadge } from './refs.js';
 import { stackDays } from './scroll.js';
-import { DATA, expanded, setExpanded, visible } from './state.js';
-import { esc, fileCount } from './util.js';
+import { DATA, expanded, query, setExpanded, visible } from './state.js';
+import { esc, fileCount, markWords } from './util.js';
 
 /* A diff-címke száma legfeljebb 3 karakter: 999 fölött kerekített ezres (`1k`). */
 const kilo = n => n < 1000 ? String(n) : `${Math.round(n / 1000)}k`;
@@ -105,6 +105,7 @@ export function render() {
   }
   if (day) html += '</section>';
   rowsEl.innerHTML = html || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
+  markWords(rowsEl.querySelectorAll('.subject'), query);
   // A saját HEAD-et az ágválasztó elrejti: a fejléc chipje halványabb (kattintásra minden ág).
   headChip.classList.toggle('head-off', headFiltered());
   fitRows();

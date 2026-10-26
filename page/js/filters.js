@@ -6,7 +6,7 @@ import { makeMenu } from './menu.js';
 import { ancestryOf, focusWt, headFiltered, hiddenRemotes, localReach, remoteRefs, remoteShown, remotesOn, toggleRemote, worktrees } from './model.js';
 import { render } from './rows.js';
 import { revealSha, scrollToSha } from './scroll.js';
-import { DATA, expanded, setBranchKeep, setVisible, visible } from './state.js';
+import { DATA, expanded, setBranchKeep, setQuery, setVisible, visible } from './state.js';
 import { fold, menuOpen, queryWords } from './util.js';
 
 makeMenu(branchBtn, branchPop, o => {
@@ -57,6 +57,7 @@ export function applyFilters() {
   const remotes = remotesOn();
   const refsOnly = /** @type {HTMLInputElement} */ (document.getElementById('onlyRefs')).checked;
   const words = queryWords(searchEl.value);
+  setQuery(words);
   const keep = branch ? ancestryOf(branch) : null;
   setBranchKeep(keep);
   const local = remotes && !hiddenRemotes.size ? null : localReach();
