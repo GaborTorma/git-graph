@@ -74,8 +74,6 @@ interface Branch {
   date: string;
   remote?: boolean;
   upstream?: string;
-  /** az azonos nevű remote ág (`pair_of`): az upstream, ha a neve ugyanaz, vagy a `-u` nélkül pusholt */
-  pair?: string;
   track?: string;
   current?: boolean;
   worktree?: string | null;
@@ -108,7 +106,7 @@ interface Meta {
   remotes: string[];
   /** ág → előtte / mögötte: a remote párjához (`up`), az alapághoz (`base`), és a remote
       ágnál a helyi párjához (`local`) — `branch_tracks`; közös ős nélkül `base` helyett `unrelated` */
-  tracks: Record<string, { up?: [number, number]; pair?: [number, number]; base?: [number, number]; local?: [number, number]; unrelated?: boolean }>;
+  tracks: Record<string, { up?: [number, number]; base?: [number, number]; local?: [number, number]; unrelated?: boolean }>;
   base: string;
 }
 

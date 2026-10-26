@@ -27,8 +27,8 @@ class BranchesTest(HomeTestCase):
         gg.gitio.set_repo(repo)
         tracks = gg.branches.branch_tracks(gg.gitio.default_base())
         self.assertEqual(gg.gitio.default_base(), "origin/main")
-        self.assertEqual(tracks["feat"], {"up": [1, 0], "pair": [1, 0], "base": [2, 0]})   # a pár az upstream
-        self.assertEqual(tracks["main"], {"up": [1, 0], "pair": [1, 0]})   # az alapágnak nincs base-szakasza
+        self.assertEqual(tracks["feat"], {"up": [1, 0], "base": [2, 0]})
+        self.assertEqual(tracks["main"], {"up": [1, 0]})              # az alapágnak nincs base-szakasza
         self.assertEqual(tracks["origin/feat"]["local"], [0, 1])       # a helyi feat egy committal előrébb
         self.assertEqual(tracks["origin/only-remote"], {"base": [2, 0]})
         self.assertEqual(tracks["origin/main"], {"local": [0, 1]})     # az alapág remote-ja: csak a helyi párjához
@@ -40,35 +40,6 @@ class BranchesTest(HomeTestCase):
         gg.graph.mark_pushed(commits, stats)       # a payload csak GitHub-os originnél hívja
         pushed = {c["subject"] for c in commits if c.get("pushed")}
         self.assertEqual(pushed, {"init", "f1", "f2"})                 # a helyi main előfutása nem
-
-    def test_pair_other_upstream(self) -> None:
-        """Az `origin/HEAD`-ből indított ág upstreamje az `origin/main`: az nem a párja; a `-u`
-        nélküli push után az azonos nevű `origin/feat` az, a távolsága ahhoz mérve, és a
-        csak remote ágak közül kimarad. Más nevű upstream, azonos nevű remote nélkül: nincs pár."""
-        bare, repo = self.home / "remote.git", self.home / "work"
-        git_in(self.home, "init", "-q", "--bare", "-b", "main", str(bare))
-        repo.mkdir()
-        run = lambda *a: git_in(repo, *a)  # noqa: E731
-        run("init", "-q", "-b", "main")
-        run("remote", "add", "origin", str(bare))
-        run("commit", "-q", "--allow-empty", "-m", "init")
-        run("push", "-q", "-u", "origin", "main")
-        run("remote", "set-head", "origin", "main")
-        run("switch", "-q", "-c", "feat", "--track", "origin/main")
-        run("commit", "-q", "--allow-empty", "-m", "f1")
-        run("push", "-q", "origin", "feat")                             # -u nélkül
-        run("commit", "-q", "--allow-empty", "-m", "f2")
-        run("branch", "-q", "--track", "masik", "origin/main")
-        gg = self.load()
-        gg.gitio.set_repo(repo)
-        branches = {b["name"]: b for b in gg.branches.collect_branches(gg.worktrees.collect_worktrees())}
-        self.assertEqual((branches["feat"]["upstream"], branches["feat"]["pair"]), ("origin/main", "origin/feat"))
-        self.assertEqual(branches["masik"]["pair"], "")
-        self.assertNotIn("origin/feat", branches)
-        tracks = gg.branches.branch_tracks(gg.gitio.default_base())
-        self.assertEqual(tracks["feat"]["up"], [2, 0])                   # az upstreamhez (origin/main)
-        self.assertEqual(tracks["feat"]["pair"], [1, 0])                 # a párjához (origin/feat)
-        self.assertEqual(tracks["origin/feat"]["local"], [0, 1])
 
     def test_unrelated_history(self) -> None:
         """Közös ős nélkül (`git subtree push` remote-ja) nincs `base` távolság, csak `unrelated` jel;

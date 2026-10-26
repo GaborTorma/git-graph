@@ -8,28 +8,8 @@ from .gitio import FS, admin_dir, ahead_behind, git
 from .worktrees import app_branch
 
 
-def remote_branches() -> list[str]:
-    """A remote ágak rövid neve (`origin/x`), a `*/HEAD` nélkül."""
-    return [n for n in git("for-each-ref", "--format=%(refname:short)", "refs/remotes").split()
-            if "/" in n and not n.endswith("/HEAD")]
-
-
-def pair_of(name: str, upstream: str, remotes: list[str]) -> str:
-    """A helyi ág azonos nevű remote párja: az upstreamje, ha a neve ugyanaz; különben az
-    `<remote>/<név>` (az upstream remote-ján, aztán az `origin`-en, aztán bárhol), ha van.
-    Egy `origin/HEAD`-ből indított feature branch upstreamje az `origin/main` (a git
-    `autoSetupMerge`-e) — az nem a párja; a `-u` nélküli push után az `origin/<név>` az."""
-    if upstream and upstream.split("/", 1)[-1] == name:
-        return upstream
-    have = set(remotes)
-    order = [upstream.split("/", 1)[0]] if upstream else []
-    order += ["origin"] + sorted({r.split("/", 1)[0] for r in remotes})
-    return next((f"{r}/{name}" for r in order if f"{r}/{name}" in have), "")
-
-
 def collect_branches(worktrees: list[dict]) -> list[dict]:
-    """Ágak upstreammel, azonos nevű remote párral (`pair`), ahead/behind számokkal, és hogy
-    melyik worktree-ben vannak kivéve."""
+    """Ágak upstreammel, ahead/behind számokkal, és hogy melyik worktree-ben vannak kivéve."""
     fmt = FS.join(
         [
             "%(refname:short)",
@@ -43,7 +23,6 @@ def collect_branches(worktrees: list[dict]) -> list[dict]:
     head = git("rev-parse", "--abbrev-ref", "HEAD").strip()
     checked_out = {wt["branch"]: wt["slug"] for wt in worktrees if wt["branch"]}
     owners = branch_owners(worktrees)
-    remotes = remote_branches()
     branches = []
     for line in out.splitlines():
         if not line.strip():
@@ -54,7 +33,6 @@ def collect_branches(worktrees: list[dict]) -> list[dict]:
                 "name": name,
                 "sha": sha,
                 "upstream": upstream,
-                "pair": pair_of(name, upstream if track.strip("[]") != "gone" else "", remotes),
                 "track": track.strip("[]"),
                 "date": date,
                 "current": name == head,
@@ -62,8 +40,8 @@ def collect_branches(worktrees: list[dict]) -> list[dict]:
                 "owner": owners.get(name),
             }
         )
-    # A csak remote-on élő ágak (aminek nincs azonos nevű helyi párja) is választhatók.
-    paired = {b["pair"] for b in branches if b["pair"]}
+    # A csak remote-on élő ágak (aminek nincs helyi párja) is választhatók.
+    paired = {b["upstream"] for b in branches if b["upstream"]}
     for line in git("for-each-ref", "--format=%(refname:short)" + FS + "%(objectname:short)"
                     + FS + "%(committerdate:short)", "refs/remotes").splitlines():
         name, sha, date = (line.split(FS) + [""] * 3)[:3]
@@ -107,8 +85,7 @@ def branch_tracks(base: str) -> dict[str, dict]:
     """Ágankénti távolság (`ahead`, `behind`): `base` az alapághoz (amire az
     `origin/HEAD` mutat; magán az alapágon nincs; a remote-only ágaknak is,
     `origin/x` kulccsal; ha van helyi párja, `local` a helyi ághoz), `up` a saját upstreamjéhez
-    (ha van, és nem tűnt el), `pair` az azonos nevű remote párjához (`pair_of`; ha az az
-    upstream, ugyanaz, mint az `up`). Egyetlen `for-each-ref` (git 2.41+:
+    (ha van, és nem tűnt el). Egyetlen `for-each-ref` (git 2.41+:
     `%(ahead-behind:…)`); régebbi gitnél ágankénti `rev-list`. A `base` a `default_base()`.
 
     Közös ős nélkül (pl. egy `git subtree split` / `push` remote-ja) a távolság a két
@@ -134,8 +111,7 @@ def branch_tracks(base: str) -> dict[str, dict]:
     except subprocess.CalledProcessError:
         lines, rich = git("for-each-ref", f"--format={fields}", "refs/heads").splitlines(), False
     out: dict[str, dict] = {}
-    locals_: dict[str, list[int]] = {}             # a pár neve → távolsága a helyi ágtól
-    remotes = remote_branches()
+    locals_: dict[str, list[int]] = {}             # upstream neve → távolsága a helyi ágtól
     for line in lines:
         name, upstream, track, *rest = line.split("\0")
         entry: dict = {}
@@ -143,10 +119,7 @@ def branch_tracks(base: str) -> dict[str, dict]:
             ahead = re.search(r"ahead (\d+)", track)
             behind = re.search(r"behind (\d+)", track)
             entry["up"] = [int(ahead.group(1)) if ahead else 0, int(behind.group(1)) if behind else 0]
-        pair = pair_of(name, upstream if track != "gone" else "", remotes)
-        if pair:
-            entry["pair"] = entry["up"] if pair == upstream else ahead_behind(pair, name)
-            locals_[pair] = entry["pair"][::-1]       # a remote chipjén: a helyi ághoz mérve
+            locals_[upstream] = entry["up"][::-1]     # a remote chipjén: a helyi ághoz mérve
         if base and base.split("/", 1)[-1] != name:
             entry.update(to_base([int(n) for n in rest[0].split()] if rich and rest
                                  else ahead_behind(base, name)))

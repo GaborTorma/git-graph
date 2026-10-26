@@ -394,15 +394,12 @@ class MenuIndentTest(CdsCase):
 
 
 class UpstreamPairTest(CdsCase):
-    """Az ágválasztóban a helyi ág mellett az azonos nevű remote ága áll, akkor is, ha az
-    upstreamje más (a `-u` nélküli push után)."""
+    """Az ágválasztóban a helyi ág mellett csak az azonos nevű upstream áll."""
 
     @classmethod
     def prepare(cls, repo: Path) -> None:
         prepare_cds(repo)
         git_in(repo, "branch", "-q", "--track", "feat-uj", "origin/main")    # az origin/HEAD-ből indítva
-        git_in(repo, "branch", "-q", "--track", "feat-push", "origin/main")
-        git_in(repo, "push", "-q", "origin", "feat-push")                    # -u nélkül: az upstream marad
         git_in(repo, "push", "-q", "origin", "kiserlet-0:masnev")
         git_in(repo, "branch", "-q", "-u", "origin/masnev", "kiserlet-1")   # más nevű, saját párja nincs
 
@@ -419,7 +416,6 @@ class UpstreamPairTest(CdsCase):
         self.assertIn("main origin/main", refs)
         self.assertIn("feat-uj", refs)
         self.assertEqual(sum("origin/main" in r.split() for r in refs), 1)
-        self.assertIn("feat-push origin/feat-push", refs)              # pusholva, más upstreammel is pár
 
     def test_unpaired_remote(self) -> None:
         """A más nevű upstream, amelynek nincs azonos nevű helyi párja, a remote ágak közt látszik."""
