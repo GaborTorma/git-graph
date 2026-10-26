@@ -622,6 +622,11 @@ class IconSizesTest(CdsCase):
         self.page.locator("#themeBtn").click()
         self.assertEqual(self.sizes("#themePop .option > svg.ic:not(.ck)"), {(20, 20)})
 
+    def test_head_chip(self) -> None:
+        """A fejléc HEAD-chipje akkora, mint a sor chipje: 20 px magas, 12 px-es betű."""
+        self.assertEqual(self.box(".head-chip")["height"], self.box("#rows .badge")["height"])
+        self.assertEqual(self.style(".head-chip", "fontSize"), "12px")
+
     def test_panel_icons(self) -> None:
         """A commit-panel ikonjai (hash-chip, másolás, megnyitás) 16 px-esek, nem 14."""
         self.open_commit("cds: módosítva")
