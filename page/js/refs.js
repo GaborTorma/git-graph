@@ -45,7 +45,8 @@ const syncedIcon = ref => ref.default ? 'branchCloudFill' : 'branchCloud';
    Közös ős nélkül (`unrelated`, pl. egy `git subtree push` remote-ja) az alapághoz
    mért szakasz helyén áthúzott lánc: a számok ott a két oldal összes commitja volnának.
    Ami a chipből már kiderül, annak nem jár újabb ikon. */
-const arrows = ([a, b]) => [a && `↑${a}`, b && `↓${b}`].filter(Boolean).join(' ');
+const arrows = ([a, b]) => [a && ['↑', a], b && ['↓', b]].filter(Boolean)
+  .map(([arr, n]) => `<span class="n"><span class="arr">${arr}</span>${n}</span>`).join('');
 /* A worktree távolságai: az ágáé, leválasztott HEAD-nél (nincs ágkulcs) a worktree adja a
    HEAD-commit távolságát az alapágtól. */
 export const wtTrack = w => (w?.branch ? DATA.meta.tracks?.[w.branch] : { base: w?.base }) || {};

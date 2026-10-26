@@ -227,6 +227,23 @@ class BadgeTest(CdsCase):
 
 # ── Git-színek ────────────────────────────────────────────────────────────
 
+class DistanceGapTest(CdsCase):
+    def test_arrow_gap(self) -> None:
+        """A chip távolságában a nyíl és a száma közt 3 px üres tinta, mint a chip két ikonja közt."""
+        self.page.wait_for_function("[...document.fonts].some(f => f.family.replace(/\"/g, '') === 'Anthropic Sans'"
+                                    " && f.status === 'loaded')")
+        self.settle()
+        gaps = self.page.locator("#rows .badge .dist .n").evaluate_all("""ns => ns.map(n => {
+          const arr = n.querySelector('.arr'), num = arr.nextSibling, cs = getComputedStyle(arr);
+          const c = document.createElement('canvas').getContext('2d'); c.font = `${cs.fontWeight} ${cs.fontSize} "Anthropic Sans"`;
+          const r = document.createRange(); r.selectNodeContents(num);
+          return (r.getBoundingClientRect().left - c.measureText(num.textContent).actualBoundingBoxLeft)
+            - (arr.getBoundingClientRect().left + c.measureText(arr.textContent).actualBoundingBoxRight); })""")
+        self.assertTrue(gaps)
+        for gap in gaps:
+            self.assertAlmostEqual(gap, 3, delta=0.4)
+
+
 class GitColorsTest(CdsCase):
     def test_file_colors(self) -> None:
         """Az új fájl neve és a + szám added-zöld, a törölté removed-piros, a módosítotté modified."""

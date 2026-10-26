@@ -722,6 +722,10 @@ button { font: inherit; color: inherit; }
 :is(.badge, .head-chip) .ic.filled { fill: currentColor; }
 /* Az ág távolsága (alapág / upstream): ikon és nyilak, egy szakaszban. */
 :is(.badge, .head-chip) .dist { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
+/* a nyíl és a száma közt 3 px üres tinta, mint a chip két ikonja közt (a nyíl és a számjegy oldalán
+   ~1 px a betű saját helye); két szám közt egy szóköznyi (a 2 px-es köz + 1 px) */
+:is(.badge, .head-chip) .dist .arr { margin-right: 2px; }
+:is(.badge, .head-chip) .dist .n + .n { margin-left: 1px; }
 /* Az alapág helyi párja előrébb jár a remote-jánál: anomália. Osztott chip — a szakasz
    piros felületen, mert a teli (sávszínű) chipen a piros szöveg beleolvadna. */
 :is(.badge, .head-chip) .dist.warn { align-self: stretch; margin: 1px 0; padding: 0 5px; background: var(--critical); color: #ffffff; font-weight: var(--w-header); }
