@@ -168,14 +168,14 @@
   --git-merged:  #b796ff;
   --git-conflict: #fa832e;
   --tag-fg:      #e6c06e;
-  --lane-0: #3987e5; --lane-0-bg: #032042; --lane-0-fg: #6da7ec;   /* blue */
-  --lane-1: #d95926; --lane-1-bg: #371407; --lane-1-fg: #ec835a;   /* orange */
-  --lane-2: #199e70; --lane-2-bg: #022720; --lane-2-fg: #3bbd8c;   /* aqua */
-  --lane-3: #c98500; --lane-3-bg: #311a00; --lane-3-fg: #db9300;   /* yellow */
-  --lane-4: #d55181; --lane-4-bg: #390f1f; --lane-4-fg: #e87ba4;   /* magenta */
-  --lane-5: #008300; --lane-5-bg: #11260f; --lane-5-fg: #55bf50;   /* green */
-  --lane-6: #9085e9; --lane-6-bg: #1d1649; --lane-6-fg: #a096eb;   /* violet */
-  --lane-7: #e66767; --lane-7-bg: #3c0e0e; --lane-7-fg: #ec7e7e;   /* red */
+  --lane-0: #3987e5; --lane-0-bg: #257de01f; --lane-0-fg: #6aabf1; --lane-0-bd: #257de066;   /* blue */
+  --lane-1: #d95926; --lane-1-bg: #d25f251f; --lane-1-fg: #f18a59; --lane-1-bd: #d25f2566;   /* orange */
+  --lane-2: #199e70; --lane-2-bg: #019c7f1f; --lane-2-fg: #2bc6a5; --lane-2-bd: #019c7f66;   /* aqua */
+  --lane-3: #c98500; --lane-3-bg: #fbb31514; --lane-3-fg: #e49c06; --lane-3-bd: #fbb3154d;   /* yellow */
+  --lane-4: #d55181; --lane-4-bg: #ce447d1f; --lane-4-fg: #ee7fac; --lane-4-bd: #ce447d66;   /* magenta */
+  --lane-5: #008300; --lane-5-bg: #10a1221f; --lane-5-fg: #53c556; --lane-5-bd: #10a12266;   /* green */
+  --lane-6: #9085e9; --lane-6-bg: #785ee81f; --lane-6-fg: #a89af0; --lane-6-bd: #785ee866;   /* violet */
+  --lane-7: #e66767; --lane-7-bg: #dc3c3d1f; --lane-7-fg: #f17778; --lane-7-bd: #dc3c3d66;   /* red */
   --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
   --ic-teal: #6cc4c0; --ic-blue: #8fb2f5; --ic-purple: #c5aaf0; --ic-pink: #e38fb2;
   --ic-fg: #9c9c9c; --ic-muted: #757575;

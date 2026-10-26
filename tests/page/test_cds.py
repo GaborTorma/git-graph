@@ -183,6 +183,8 @@ class LaneColorsTest(CdsCase):
         self.page.locator('#themePop [data-value="dark"]').click()
         self.settle()
         self.assertEqual(self.lane_colors()["16"], rgb("#3987e5"))
+        # a kézzel választott sötét téma sávtokenjei a rendszer sötétjéével azonosak (a chip kerete is)
+        self.assertEqual(self.token("--lane-0-bd"), "#257de066")
 
     def test_system_switch(self) -> None:
         """Automatikus témánál a rendszer sötétre váltása is átszínezi a gráfot."""
