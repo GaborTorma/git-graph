@@ -41,6 +41,30 @@ class BranchesTest(HomeTestCase):
         pushed = {c["subject"] for c in commits if c.get("pushed")}
         self.assertEqual(pushed, {"init", "f1", "f2"})                 # a helyi main előfutása nem
 
+    def test_other_name_upstream(self) -> None:
+        """A más nevű upstream (az `origin/main`-ből indított branché) nem számít: nincs upstream,
+        nincs távolság hozzá; a `-u` nélkül pusholt azonos nevű remote ág külön, csak remote ág."""
+        bare, repo = self.home / "remote.git", self.home / "work"
+        git_in(self.home, "init", "-q", "--bare", "-b", "main", str(bare))
+        repo.mkdir()
+        run = lambda *a: git_in(repo, *a)  # noqa: E731
+        run("init", "-q", "-b", "main")
+        run("remote", "add", "origin", str(bare))
+        run("commit", "-q", "--allow-empty", "-m", "init")
+        run("push", "-q", "-u", "origin", "main")
+        run("remote", "set-head", "origin", "main")
+        run("switch", "-q", "-c", "feat", "--track", "origin/main")
+        run("commit", "-q", "--allow-empty", "-m", "f1")
+        run("push", "-q", "origin", "feat")                              # -u nélkül
+        gg = self.load()
+        gg.gitio.set_repo(repo)
+        tracks = gg.branches.branch_tracks(gg.gitio.default_base())
+        self.assertEqual(tracks["feat"], {"base": [1, 0]})
+        self.assertNotIn("local", tracks["origin/feat"])
+        branches = {b["name"]: b for b in gg.branches.collect_branches(gg.worktrees.collect_worktrees())}
+        self.assertEqual((branches["feat"]["upstream"], branches["feat"]["track"]), ("", ""))
+        self.assertTrue(branches["origin/feat"]["remote"])
+
     def test_unrelated_history(self) -> None:
         """Közös ős nélkül (`git subtree push` remote-ja) nincs `base` távolság, csak `unrelated` jel;
         a szétvált, de rokon ágnál (mindkét irány nem nulla) a távolság marad."""
