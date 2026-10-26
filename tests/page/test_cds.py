@@ -364,6 +364,8 @@ class MenuIndentTest(CdsCase):
         # a jelenlegi worktree neve az app bold-ja (560), a többié medium (460)
         self.assertEqual(self.style("#branchPop .menu-wt-cur", "fontWeight"), "560")
         self.assertEqual(self.style("#branchPop .menu-wt .name:not(.menu-wt-cur)", "fontWeight"), "460")
+        # a worktree-fejléc kattintható (kijelöli az ágait): a szövege nem halvány, mint a remote csoporté
+        self.assertEqual(self.style("#branchPop .option.menu-wt", "color"), rgb("#1a1a1a"))
 
     def test_worktree_chip_icons(self) -> None:
         """A worktree-jellel kezdődő chip (a kiemelt körvonalú is): a jel a széltől 4 px-re, a

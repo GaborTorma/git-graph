@@ -375,7 +375,7 @@ button { font: inherit; color: inherit; }
 .menu-search .ic { width: 20px; height: 20px; flex: none; }   /* az ágak ikonjával egy oszlopban */
 .menu-wt {
   display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 6px 10px 0 8px;
-  font-size: 13px; font-weight: var(--w-medium); color: var(--fg-3);   /* Menu.GroupLabel: text-muted */
+  font-size: 13px; font-weight: var(--w-medium); color: var(--fg-3);   /* Menu.GroupLabel: text-muted (a remote csoporté) */
 }
 .menu-wt .ic { width: 20px; height: 20px; flex: none; color: inherit; }
 .menu-wt .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -389,7 +389,7 @@ button { font: inherit; color: inherit; }
 /* A worktree fejléce is opció: rákattintva az összes ága kijelölődik. */
 .option.menu-wt {
   display: flex; height: auto; min-height: 26px; padding: 4px 10px 2px 8px; margin-top: 2px;
-  font-size: 13px; font-weight: var(--w-medium);
+  font-size: 13px; font-weight: var(--w-medium); color: var(--fg-0);   /* kattintható: nem halvány */
 }
 .option.blk { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 3px 0; position: relative; }
 /* A jobb szél három oszlopa (`c3`, `c2`, `c1`), oszloponként egyforma, fix szélességű
