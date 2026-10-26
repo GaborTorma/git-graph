@@ -16,6 +16,9 @@ a `wght` képlete: `E1(stroke, opsz, px)` a `x2.wght` lo/hi tábláján 400–70
 
 **How to apply:** új menüikon a `ICONS_MD`-be (`icons.js`, az `anthropicons.json`
 `icons_md` / `icons_md_bold` készletéből). A `scripts/anthropicons.py` újrafuttatásakor: a
-gyorsítótárban több ikonfont-verzió van (eltérő glifákkal és ikonszámmal); azt válaszd, amelyikkel
-a meglévő `icons` / `icons_xs` készlet nem változik (`git diff` üres), és a névtáblához a
-legbővebb bundle-t (amelyikben a `ListCard` is benne van). Kapcsolódik: [[artifact-no-anthropic-sans]]
+gyorsítótárban több ikonfont-verzió van (395–418 glifa, eltérő rajzzal: a régiben pl. a `Folder`
+belső vonalas, a `Filter` csúszkás). A claude.ai CSS-e (Artifact-keret) a régit hivatkozta, az
+asztali app eszköztára már az újat mutatta (2026-10-26) — a legtöbb glifájú fontot válaszd, a
+névtáblához a legbővebb bundle-t (amelyikben a `ListCard` is benne van). A felhős branch ikon
+(`branchCloud`) ebből számolt rajz: font frissítésekor a Cloud és a GitBranch szerint újra kell
+számolni. Kapcsolódik: [[artifact-no-anthropic-sans]]
