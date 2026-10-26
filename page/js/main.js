@@ -2,6 +2,7 @@
    sorrendjében blob-URL-re teszi, és az importjaikat azokra írja át). A modulok a saját
    eseménykezelőiket betöltéskor felveszik; amit senki nem importál, az itt töltődik be. */
 import { fillBranches } from './branches.js';
+import { loadFont } from './font.js';
 import { hydrate } from './hydrate.js';
 import './keyboard.js';
 import { notice, startLive } from './live.js';
@@ -16,4 +17,6 @@ fillBranches();
 render();
 
 notice('Kapcsolódás a gépeden futó git-graph-hoz…');
-startLive(mcpSource());
+const src = mcpSource();
+startLive(src);
+loadFont(src);

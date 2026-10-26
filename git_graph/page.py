@@ -1,6 +1,7 @@
 """A lap: a publikált betöltő és a `page_code`-dal adott élő kód, fájltípus-ikonok."""
 from __future__ import annotations
 
+import base64
 import functools
 import html
 import json
@@ -23,12 +24,16 @@ LOADER_API = 1   # a betöltő és a `page_code` szerződése — csak a betölt
 # másolatnál (`install_copy`) is `<gyökér>/page/`.
 PAGE_DIR = ROOT / "page"
 PAGE_FILES = ("loader.html", "head.html", "page.css", "body.html", "file-icons.json",
-              "vendor/mermaid.min.js")
+              "vendor/mermaid.min.js", "vendor/anthropic-sans.woff2", "vendor/anthropic-mono.woff2")
 PAGE_ENTRY = "js/main.js"   # a lap belépő modulja; a többit ez húzza be
 # A Mermaid (12.2.0, MIT, `vendor/mermaid.LICENSE`) karcsú egyfájlos buildje
 # (`scripts/mermaid.sh`, ELK-kal): a lap lustán, csak diagramos markdown-diffnél kéri
 # (`page_code` `part: "mermaid"`), blobból futtatja.
-PAGE_PARTS = {"mermaid": "vendor/mermaid.min.js"}
+# Az Anthropic Sans és Mono (a Claude app betűi, változók, állók): az Artifact keretében nincsenek
+# meg, és külső fontot a CSP nem enged — a lap a bájtjaikat kéri (`part: "font"`, `"font-mono"`,
+# base64), és `FontFace`-ként regisztrálja.
+PAGE_PARTS = {"mermaid": "vendor/mermaid.min.js", "font": "vendor/anthropic-sans.woff2",
+              "font-mono": "vendor/anthropic-mono.woff2"}
 _PAGE: dict[str, str] = {}
 
 
@@ -46,7 +51,10 @@ def page_file(name: str) -> str:
     induláskor mindet beolvassa).
     """
     if name not in _PAGE:
-        _PAGE[name] = (PAGE_DIR / name).read_text(encoding="utf-8")
+        path = PAGE_DIR / name
+        # a bináris (font) base64-ként: JSON-ban így utazik
+        _PAGE[name] = (base64.b64encode(path.read_bytes()).decode("ascii") if path.suffix == ".woff2"
+                       else path.read_text(encoding="utf-8"))
     return _PAGE[name]
 
 
@@ -158,12 +166,14 @@ def page_modules() -> list[tuple[str, list[str], list[str]]]:
 def page_code(part: str | None = None) -> dict:
     """A lap élő kódja a betöltőnek (`page_code` tool): head-elemek, body, JS-modul.
 
-    A `part` egy lustán kért darab (`PAGE_PARTS`): akkor csak annak a JS-e.
+    A `part` egy lustán kért darab (`PAGE_PARTS`): akkor csak annak a JS-e, illetve a fonté
+    base64-ben (`woff2`).
     """
     if part is not None:
         if part not in PAGE_PARTS:
             raise ValueError(f"ismeretlen part: {part}")
-        return {"js": page_file(PAGE_PARTS[part])}
+        name = PAGE_PARTS[part]
+        return {"woff2" if name.endswith(".woff2") else "js": page_file(name)}
     return {"head": page_file("head.html") + "<style>\n" + page_file("page.css") + "</style>\n",
             "body": page_file("body.html"),
             "js": PAGE_BOOT.replace("__MODULES__", json.dumps(page_modules(), ensure_ascii=False))}

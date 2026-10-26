@@ -92,6 +92,36 @@ class CdsCase(PageTestCase):
 
 # ── A színek a CDS-tokenek, témánként ──────────────────────────────────────
 
+class FontTest(CdsCase):
+    def test_anthropic_sans(self) -> None:
+        """A lap betűje az Anthropic Sans (a kódé az Anthropic Mono): a git-graph adja, a lap
+        FontFace-ként regisztrálja, és a sorok szövege ezzel rajzolódik (a szélessége az Anthropic
+        Sans-é, nem a tartalék fonté)."""
+        for family in ("Anthropic Sans", "Anthropic Mono"):
+            self.page.wait_for_function(f"[...document.fonts].some(f => f.family.replace(/\"/g, '') === '{family}'"
+                                        " && f.status === 'loaded')")
+        width = """f => { const c = document.createElement('canvas').getContext('2d'); c.font = f;
+          return c.measureText(document.querySelector('#rows .subject').textContent).width; }"""
+        subject = self.page.locator("#rows .subject").first.evaluate("e => e.getBoundingClientRect().width")
+        sans = self.page.evaluate(f"({width})('360 14px \"Anthropic Sans\"')")
+        fallback = self.page.evaluate(f"({width})('360 14px -apple-system, system-ui, sans-serif')")
+        self.assertNotAlmostEqual(sans, fallback, delta=1)
+        self.assertAlmostEqual(subject, sans, delta=1)
+
+
+class FontWeightTest(CdsCase):
+    def test_weights(self) -> None:
+        """A szöveg vastagsága az app tengelyértékei: törzs 360, kontroll 395, fejléc 480; a monó
+        (Anthropic Mono) a környezetéé."""
+        weight = lambda sel: self.style(sel, "fontWeight")   # noqa: E731
+        self.assertEqual(weight("#rows .subject"), "360")
+        self.assertEqual(weight("#branchBtn"), "395")
+        self.assertEqual(weight(".repo-name"), "480")
+        self.open_file("settings.py")
+        self.page.wait_for_selector(".diff .diff-line")
+        self.assertEqual(weight(".diff .diff-line"), "360")
+
+
 class LightTokensTest(CdsCase):
     def test_light_base(self) -> None:
         """Világos téma alapszínei (az app fizzy-lake színtémája): háttér, szöveg, akcentus,
@@ -174,6 +204,7 @@ class BadgeTest(CdsCase):
         self.assertEqual(css("color"), rgb("#1757ac"))
         self.assertEqual(css("boxShadow"), "rgba(37, 125, 224, 0.224) 0px 0px 0px 1.5px inset")
         self.assertEqual(float(css("borderTopLeftRadius")[:-2]), main.bounding_box()["height"] / 4)
+        self.assertEqual(css("fontWeight"), "520")   # az app font-badge tengelyértéke
 
     def test_icons(self) -> None:
         """A chip ikonja 16 px, az első a chip szélétől 4 px-re; a worktree-jel és a branch-ikon
@@ -310,6 +341,9 @@ class MenuIndentTest(CdsCase):
         col = grp.locator(".option.blk .col").first.bounding_box()["x"]
         self.assertGreater(col, head_ic + 16)
         self.assertAlmostEqual(col, head_name, delta=0.5)
+        # a jelenlegi worktree neve az app bold-ja (560), a többié medium (460)
+        self.assertEqual(self.style("#branchPop .menu-wt-cur", "fontWeight"), "560")
+        self.assertEqual(self.style("#branchPop .menu-wt .name:not(.menu-wt-cur)", "fontWeight"), "460")
 
     def test_worktree_chip_icons(self) -> None:
         """A worktree-jellel kezdődő chip (a kiemelt körvonalú is): a jel a széltől 4 px-re, a

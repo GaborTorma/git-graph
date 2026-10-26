@@ -54,8 +54,9 @@ MCP_TOOLS = [
      "inputSchema": {"type": "object", "required": ["repo", "api"], "properties": {
          **_REPO_ARG["properties"],
          "api": {"type": "integer", "description": "a lap betöltőjének szerződés-verziója"},
-         "part": {"type": "string", "enum": ["mermaid"],
-                  "description": "egy lustán kért darab: csak annak a JS-e (a Mermaid-diagramokhoz)"}}},
+         "part": {"type": "string", "enum": ["mermaid", "font", "font-mono"],
+                  "description": "egy lustán kért darab: csak annak a JS-e (a Mermaid-diagramokhoz), "
+                                 "illetve a lap betűje (Anthropic Sans / Mono, base64)"}}},
      "description": "A git-graph lap élő kódja (CSS, HTML, JS) a publikált betöltőnek."},
     # Ír (a repó `git-graph.*` kulcsát és a ~/.git-graph-ot), de csak a git-graph saját
     # beállítását: read-only-nak jelölve az app nem kér kattintásonként megerősítést.

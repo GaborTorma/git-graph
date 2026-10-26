@@ -74,8 +74,16 @@
   --diff-del-hl: #f6c9c9;
   --diff-add-no: #3d7a37;
   --diff-del-no: #c23a3a;
+  /* a betű vastagsága: az app (fizzy-lake típus) tengelyértékei az Anthropic Sans változó fontján —
+     a `font-weight` szám a `wght` tengelyt állítja */
+  --w-body:      360;
+  --w-control:   395;
+  --w-medium:    460;
+  --w-header:    480;
+  --w-badge:     520;
+  --w-bold:      560;
   --font-ui:   "Anthropic Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-mono: "Anthropic Mono", "SF Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: "Anthropic Mono", "SF Mono", ui-monospace, SFMono-Regular, Menlo, monospace;   /* a `font.js` tölti */
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -196,6 +204,7 @@ body {
   background: var(--bg);
   color: var(--fg-1);
   font-family: var(--font-ui);
+  font-weight: var(--w-body);
   font-size: 14px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
@@ -232,12 +241,12 @@ button { font: inherit; color: inherit; }
   border-bottom: 1px solid var(--border);
 }
 .repo { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.repo-name { font-size: 15px; font-weight: 600; color: var(--fg-0); white-space: nowrap; }
+.repo-name { font-size: 15px; font-weight: var(--w-header); color: var(--fg-0); white-space: nowrap; }
 .head-chip {
   display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; overflow: hidden;
   height: 22px; padding: 0 9px; border-radius: 5.5px;   /* a magasság negyede, mint a chipeké */
   background: var(--lc); color: #ffffff;   /* teli, mint a saját HEAD commit-chipje */
-  font-size: 13px; font-weight: 600; white-space: nowrap;
+  font-size: 13px; font-weight: var(--w-header); white-space: nowrap;
   border: 0; font-family: inherit; cursor: pointer;   /* gomb: a lista a HEAD-hez ugrik */
 }
 .head-chip .ic { width: 16px; height: 16px; }
@@ -279,6 +288,7 @@ button { font: inherit; color: inherit; }
   border: 0; border-radius: 8px; background: transparent;
   font-size: 14px; color: var(--fg-0); text-align: left; cursor: pointer;
 }
+.select, .option, .switch, .search input, .menu-search input { font-weight: var(--w-control); }   /* kontroll-szerep */
 .option:hover, .option:focus-visible { outline: 0; box-shadow: none; background: var(--bg-2); }
 /* Az opció ikonjai látszanak; a pipa (`.ck`) csak a kiválasztotton (az ágválasztó
    blokkjában soronként, `.ln.on`). */
@@ -291,7 +301,7 @@ button { font: inherit; color: inherit; }
 .option .cur {
   --lc-bg: color-mix(in srgb, var(--lc, var(--accent)) 14%, var(--bg));
   --lc-fg: color-mix(in srgb, var(--lc, var(--accent)) 70%, var(--fg-0));
-  margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 500;
+  margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: var(--w-medium);
   background: var(--lc-bg); color: var(--lc-fg);
 }
 /* Ágválasztó: worktree-fejléc, alatta az ágai; a helyi ág és az upstreamje egy
@@ -319,12 +329,12 @@ button { font: inherit; color: inherit; }
 .menu-search .ic { width: 16px; height: 16px; flex: none; }   /* az ágak ikonjával egy oszlopban */
 .menu-wt {
   display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 6px 10px 0 8px;
-  font-size: 13px; font-weight: 500; color: var(--fg-0);
+  font-size: 13px; font-weight: var(--w-medium); color: var(--fg-0);
 }
 .menu-wt .ic { width: 16px; height: 16px; flex: none; color: var(--fg-2); }
 .menu-wt .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu-wt .note { margin-left: -4px; font-weight: 400; font-style: italic; color: var(--fg-3); font-size: 11.5px; }
-.menu-wt-cur { font-weight: 700; }
+.menu-wt .note { margin-left: -4px; font-weight: var(--w-body); font-style: italic; color: var(--fg-3); font-size: 11.5px; }
+.menu-wt-cur { font-weight: var(--w-bold); }   /* az app bold-ja */
 /* A WIP jele: üres karika, mint a gráfon a „Nem commitolt változások” pontja. */
 .menu-wt .wip {
   width: 9px; height: 9px; margin-left: auto; flex: none; box-sizing: border-box;
@@ -333,7 +343,7 @@ button { font: inherit; color: inherit; }
 /* A worktree fejléce is opció: rákattintva az összes ága kijelölődik. */
 .option.menu-wt {
   display: flex; height: auto; min-height: 26px; padding: 4px 10px 2px 8px; margin-top: 2px;
-  font-size: 13px; font-weight: 500;
+  font-size: 13px; font-weight: var(--w-medium);
 }
 .option.blk { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 3px 0; position: relative; }
 /* A jobb szél három oszlopa (`c3`, `c2`, `c1`), oszloponként egyforma, fix szélességű
@@ -347,7 +357,7 @@ button { font: inherit; color: inherit; }
 }
 .blk .gap { position: absolute; right: 32px; top: 50%; transform: translateY(-50%); }
 .blk .gap .ud { display: inline-flex; flex-direction: column; align-items: center; line-height: 7px; }
-.blk .gap.warn { color: var(--critical); font-weight: 600; }
+.blk .gap.warn { color: var(--critical); font-weight: var(--w-header); }
 .blk .c1, .blk .gap { --digits: var(--c1-digits); }
 .blk .c2 { --digits: var(--c2-digits); }
 .blk .c3 { --digits: var(--c3-digits); }
@@ -497,7 +507,7 @@ button { font: inherit; color: inherit; }
   height: 20px; display: flex; align-items: center;
   margin-left: var(--graph-w, 72px); padding: 0 16px 0 10px;
   background: var(--bg);   /* felül ragadva az előző sor alja ne kandikáljon ki */
-  font-size: 12px; line-height: 20px; font-weight: 600; color: var(--fg-2);
+  font-size: 12px; line-height: 20px; font-weight: var(--w-header); color: var(--fg-2);
 }
 /* Ha a következő nap fejléce eléri, a felül ragadó egyben eltűnik (JS: `.gone`). */
 .day.gone { visibility: hidden; }
@@ -510,7 +520,7 @@ button { font: inherit; color: inherit; }
   background: var(--border);
 }
 .day .lbl { position: relative; padding-right: 8px; background: var(--bg); }
-.day .cnt { font-weight: 500; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.day .cnt { font-weight: var(--w-medium); color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .day.lead { margin-bottom: -20px; visibility: hidden; }
 .scroll.scrolled .day.lead:not(.gone) { visibility: visible; }
 
@@ -601,7 +611,7 @@ button { font: inherit; color: inherit; }
    halványabb. */
 #tip {   /* a padding az app Tooltipjéé: egysoros 3 × 8, többsoros 6 × 8 px */
   position: fixed; z-index: 60; padding: 3px 8px; border-radius: 6px; pointer-events: none;
-  background: var(--tip-bg); color: var(--tip-fg); font: 400 13px/18px var(--font-ui); white-space: pre;
+  background: var(--tip-bg); color: var(--tip-fg); font: var(--w-body) 13px/18px var(--font-ui); white-space: pre;
   opacity: 0; transform: translateY(2px); transition: opacity .12s, transform .12s;
 }
 #tip.on { opacity: 1; transform: none; }
@@ -610,11 +620,11 @@ button { font: inherit; color: inherit; }
 #tip .sub { display: block; margin-top: 2px; font-size: 11px; line-height: 14px; color: var(--tip-sub); }
 #tip .kbd { margin-left: 8px; font-size: 12px; color: var(--tip-kbd); }
 /* monogram: a szerző munkatárs-színe (`--ini`, rows.js) */
-.meta .author.ini { background: var(--ini, var(--bg-3)); color: #ffffff; font-size: 9px; font-weight: 600; letter-spacing: .02em; }
+.meta .author.ini { background: var(--ini, var(--bg-3)); color: #ffffff; font-size: 9px; font-weight: var(--w-header); letter-spacing: .02em; }
 /* A commit összes változása az avatar után, színes cellákban (a Claude app
    diff-jelzője mintájára). */
 .sum { display: inline-flex; align-items: center; margin-left: 2px;
-       font: 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
+       font: var(--w-body) 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
 /* Fix cellák: fájlszám (2 karakter) | zöld | piros (3-3 karakter: `888`,
    `12k` — a +/− jelet a szín adja), a számok jobbra igazítva: mindhárom
    egy-egy oszlopban áll. */
@@ -622,7 +632,7 @@ button { font: inherit; color: inherit; }
 .sum > .f { flex-basis: 20px; position: relative; color: var(--fg-2);
             background: color-mix(in srgb, var(--fg-2) 14%, var(--bg)); border-radius: 4px 0 0 4px; }
 /* 99 fölött: `99⁺`, a plusz jobbra a címke szélére lóg (felfelé nem) */
-.sum .f sup { position: absolute; top: 0; right: -3px; font: 400 9px/1 var(--font-ui); color: inherit; }
+.sum .f sup { position: absolute; top: 0; right: -3px; font: var(--w-body) 9px/1 var(--font-ui); color: inherit; }
 .sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, var(--bg)); }
 .sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, var(--bg));
           border-radius: 0 4px 4px 0; }
@@ -634,7 +644,8 @@ button { font: inherit; color: inherit; }
   display: inline-flex; align-items: center; gap: 4px; flex: none;
   max-width: 260px; height: 20px; padding: 0 8.5px;   /* 7 px + a 1,5 px-es keret */
   border-radius: 5px;   /* a magasság negyede; a tag az ikonjáról ismerszik meg */
-  font-size: 12px; font-weight: 500; line-height: 15px; white-space: nowrap;
+  /* az app Badge-e: font-badge (a tengelyen 520) — az Anthropic Sans-szal (`font.js`) pontos */
+  font-size: 12px; font-weight: var(--w-badge); line-height: 15px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
 }
 .badge .ic { width: 16px; height: 16px; }
@@ -661,7 +672,7 @@ button { font: inherit; color: inherit; }
 :is(.badge, .head-chip) .dist { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
 /* Az alapág helyi párja előrébb jár a remote-jánál: anomália. Osztott chip — a szakasz
    piros felületen, mert a teli (sávszínű) chipen a piros szöveg beleolvadna. */
-:is(.badge, .head-chip) .dist.warn { align-self: stretch; margin: 1px 0; padding: 0 5px; background: var(--critical); color: #ffffff; font-weight: 600; }
+:is(.badge, .head-chip) .dist.warn { align-self: stretch; margin: 1px 0; padding: 0 5px; background: var(--critical); color: #ffffff; font-weight: var(--w-header); }
 :is(.badge, .head-chip) .div:has(+ .dist.warn) { display: none; }
 /* A chip végén: 1 px-es keret marad körülötte a chip színéből, a sarok a chipével párhuzamos. */
 .badge .dist.warn:last-child { border-radius: 0 3.5px 3.5px 0; }   /* a keret belső íve */
@@ -683,7 +694,7 @@ button { font: inherit; color: inherit; }
   box-shadow: inset 0 0 0 1.5px var(--lc-bd);
 }
 /* A saját worktree HEAD-je teli, más worktree-é halvány, erős kerettel. */
-.badge:is(.ref-head, .ref-detached):not(.other) { background: var(--lc); color: #ffffff; font-weight: 600; }
+.badge:is(.ref-head, .ref-detached):not(.other) { background: var(--lc); color: #ffffff; font-weight: var(--w-header); }
 .badge.other { box-shadow: inset 0 0 0 1.5px var(--lc); }
 /* Ami nem a saját worktree-ben van (más ág, más worktree): halványabb. */
 /* Halvány a sor tartalma, de nem a belső sáv: a lenyitott sor körvonala ugyanolyan
@@ -765,8 +776,8 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
   height: 30px; padding: 0 4px 0 6px; font-size: 13px;
 }
 .file-dir .ic.fic { width: 16px; height: 16px; margin: auto; color: var(--fg-2); }
-.file-dir .path { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--add); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.file-dir .path .dir-st { font-weight: 400; opacity: .7; }
+.file-dir .path { font-family: var(--font-mono); font-size: 13px; font-weight: var(--w-medium); color: var(--add); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-dir .path .dir-st { font-weight: var(--w-body); opacity: .7; }
 .file-dir .churn, .files-note { font-size: 12px; color: var(--fg-2); }
 .files-note { padding: 2px 6px 0 44px; }
 .file:hover { background: var(--bg-2); }
@@ -789,8 +800,8 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .file .fic { width: 16px; height: 16px; display: block; }           /* Catppuccin-ikon */
 .file .ic.fic { width: 16px; height: 16px; margin: auto; color: var(--fg-2); }   /* általános fájlikon: Anthropicons File */
 .file[aria-expanded="true"] .chev { transform: rotate(90deg); }
-.file .path { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--fg-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.file .path .dir, .file .path .dir-st { font-weight: 400; }
+.file .path { font-family: var(--font-mono); font-size: 13px; font-weight: var(--w-medium); color: var(--fg-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file .path .dir, .file .path .dir-st { font-weight: var(--w-body); }
 .file .path .dir { color: var(--fg-2); }
 .file .path.added { color: var(--add); }
 .file .path.deleted { color: var(--del); }
@@ -877,7 +888,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .md-doc blockquote { padding-left: 10px; border-left: 3px solid var(--border); color: var(--fg-1); }
 .md-doc hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
 .md-doc code { font-family: var(--font-mono); font-size: 12px; padding: 0 3px; border-radius: 4px; background: var(--bg-2); }
-.md-h { font-weight: 600; margin: 8px 0 4px; line-height: 1.3; }
+.md-h { font-weight: var(--w-header); margin: 8px 0 4px; line-height: 1.3; }
 .md-h1 { font-size: 18px; }
 .md-h2 { font-size: 16px; }
 .md-h3 { font-size: 14px; }
@@ -1024,7 +1035,7 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
   overflow-wrap: break-word;
 }
 .md-table tr.md-skip td { padding: 0 8px; color: var(--code-no); font-size: 11.5px; }
-.md-table th { font-weight: 600; background: var(--code-tint); }
+.md-table th { font-weight: var(--w-header); background: var(--code-tint); }
 .md-table tr.add > th, .md-table tr.del > th { background: inherit; }   /* a változott fejléc a sor színét kapja */
 /* szintaxis */
 .s-kw { color: var(--syn-kw); }
@@ -1055,7 +1066,7 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
 .foot.stale { grid-template-columns: 1fr auto; }
 .foot.stale .count { display: none; }
 .foot .count { font-variant-numeric: tabular-nums; }
-.foot .count b { color: var(--fg-1); font-weight: 600; }
+.foot .count b { color: var(--fg-1); font-weight: var(--w-header); }
 /* A verzió az élő-állapot után, ha kifér (`fitFoot`); a figyelmeztetés mindig. */
 .foot .ver:not(:empty)::before { content: "·"; margin-right: 7px; color: var(--fg-3); }
 .foot .ver { white-space: nowrap; }

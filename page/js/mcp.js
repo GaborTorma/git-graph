@@ -10,7 +10,9 @@ export function mcpSource() {
            diff: (sha, path, full) => call('file_diff', { sha, path, full }),
            // a kép egy oldala (`old` / `new`), külön hívásban; `image`: a markdown-fájl egy képe
            side: (sha, path, side, image) => call('file_diff', { sha, path, side, ...(image == null ? {} : { image }) }),
-           mermaid: () => /** @type {Promise<{ js: string }>} */ (call('page_code', { api: CTX.api, part: 'mermaid' })) };
+           mermaid: () => /** @type {Promise<{ js: string }>} */ (call('page_code', { api: CTX.api, part: 'mermaid' })),
+           // a lap betűi (Anthropic Sans: `font`, Mono: `font-mono`) base64-ben: a keretben nincsenek meg (`font.js`)
+           font: part => /** @type {Promise<{ woff2: string }>} */ (call('page_code', { api: CTX.api, part })) };
 }
 
 /* MCP-hibakód → teendő. A nem `retryable` hibák nem múlnak el maguktól:

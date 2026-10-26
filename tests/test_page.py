@@ -1,6 +1,7 @@
 """A lap (`page`): betöltő, élő kód, fájltípus-ikonok."""
 from __future__ import annotations
 
+import base64
 import json
 import shutil
 
@@ -57,6 +58,11 @@ class PageTest(HomeTestCase):
         mermaid = gg.page.page_code("mermaid")             # lustán kért darab: csak a JS-e
         self.assertEqual(set(mermaid), {"js"})
         self.assertIn("globalThis.mermaid=", mermaid["js"])
+        font = gg.page.page_code("font")                   # a lap betűje: a woff2 base64-ben
+        self.assertEqual(set(font), {"woff2"})
+        self.assertEqual(base64.b64decode(font["woff2"])[:4], b"wOF2")
+        mono = gg.page.page_code("font-mono")
+        self.assertEqual(base64.b64decode(mono["woff2"])[:4], b"wOF2")
         with self.assertRaises(ValueError):
             gg.page.page_code("nincs")
 
