@@ -1,6 +1,7 @@
 """A lap adatcsomagja (`graph`): refek és az összerakott csomag — worktree-k, WIP-sorok, fájlállapot."""
 from __future__ import annotations
 
+import os
 import time
 from unittest import mock
 
@@ -20,14 +21,17 @@ class GraphTest(HomeTestCase):
 
     def test_mirrors(self) -> None:
         """A közös ős nélküli történet azonos subjectű, szerzőjű és author-dátumú commitja a forrás
-        tükre (`mirrorOf`); a cherry-pick (közös ős van) és a forrás maga nem az."""
+        tükre (`mirrorOf`); a cherry-pick (közös ős van) és a forrás maga nem az. A forrás az
+        alapágé akkor is, ha a mellékág cherry-pickje újabb (a `--date-order`-ben elöl áll)."""
         repo = self.plain_repo()
         run = lambda *a: git_in(repo, *a)  # noqa: E731
         date = "--date=@1780000000 +0000"                                # az author-dátum
-        run("commit", "-q", "--allow-empty", "-m", "forrás", date)
+        with mock.patch.dict(os.environ, {"GIT_COMMITTER_DATE": "@1780000000 +0000"}):
+            run("commit", "-q", "--allow-empty", "-m", "forrás", date)
         src = run("rev-parse", "HEAD").strip()
         run("switch", "-q", "-c", "pick", "HEAD~1")
-        run("cherry-pick", "--allow-empty", src)                       # közös ős: nem tükör
+        with mock.patch.dict(os.environ, {"GIT_COMMITTER_DATE": "@1780000060 +0000"}):
+            run("cherry-pick", "--allow-empty", src)                   # közös ős: nem tükör
         run("switch", "-q", "--orphan", "split")
         run("commit", "-q", "--allow-empty", "-m", "forrás", date)
         mirror = run("rev-parse", "HEAD").strip()
