@@ -29,6 +29,7 @@ class SubtreeShots(SubtreeTest):
         out.mkdir(parents=True, exist_ok=True)
         self.page.screenshot(path=str(out / "graph.png"))
         self.page.locator("#remotesBtn").click()
+        self.page.mouse.move(450, 400)   # a gomb buboréka ne takarja a menüt
         self.settle()
         self.page.screenshot(path=str(out / "remote-filter.png"), clip={"x": 0, "y": 0, "width": 900, "height": 180})
 

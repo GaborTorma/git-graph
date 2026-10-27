@@ -14,6 +14,11 @@ széles (széles Artifact-ablak), **side-by-side** nézetre vált:
 balra a régi, jobbra az új oldal, a cserélt sorok egymás mellett — átméretezéskor
 magától, újratöltés nélkül.
 
+A lenyitott fájlsor és a diffje egy kerek kártya, mint a lenyitott commit: a sor
+hover-színéből nyílik (a közepéről halványul, közben megjelenik a kerete és az árnyéka), a
+tartalma 20 %-ról indulva jelenik meg. Ha a commit csukódik, a lenyitott fájljai vele együtt
+csukódnak, és újranyitva csukva vannak.
+
 A diff nincs a teljes adatban: a lap lenyitáskor kéri, fájlonként (a
 `file_diff` toollal). A commitok diffje gyorstárazva, az
 Uncommitted soré élőben frissül. Egy fájlból legfeljebb 3000 sor látszik.
@@ -36,7 +41,7 @@ változatából. A külső (`http(s)://`) kép alt szöveg marad, a HTML `<img>`
 ## Követelmények
 
 ```gherkin
-Feature: Képek a fájl-diffben
+Feature: A fájl-diff: képek és a lenyitott kártya
 
   Rule: R-1 — A képfájl diffje képet mutat, nem „Bináris fájl.” feliratot
 
@@ -144,12 +149,26 @@ Feature: Képek a fájl-diffben
     Scenario: HTML-kép
       Given a markdownban egy "<img src=\"img/graph.png\" align=\"left\">" HTML-blokk áll
       Then a blokk forrásként, kódként jelenik meg
+
+  Rule: R-5 — A lenyitott fájl kártya, mint a commit: a hoverből nyílik, a committal csukódik
+
+    Scenario: Nyitás a hoverből
+      Given az egér a fájlsoron áll
+      When a Fejlesztő rákattint
+      Then a sor és a lenyíló diff hover-színű, és a közepéről a széléig halványul
+      And közben megjelenik a kerek kerete és az árnyéka, a nyitással együtt érve véget
+
+    Scenario: A commit csukása a fájlt is csukja
+      Given egy commit lenyitva, benne egy lenyitott fájllal
+      When a Fejlesztő becsukja a commitot
+      Then a fájl diffje a committal együtt csukódik
+      And a commit újranyitásakor a fájl csukva van
 ```
 
 ## Használat
 
 - A részletek-panelben a fájlsorra kattintva nyílik és csukódik a diff; a fájlnév a
   GitHub-link.
-- Markdown-fájlnál a jobb felső sarokgomb vált a renderelt és a nyers diff között; SVG-nél a
-  kép és a kód között. A lap mindkettőt megjegyzi.
+- Markdown-fájlnál a jobb felső kétgombos kapcsoló vált a renderelt és a nyers diff között;
+  SVG-nél a kép és a kód között. A lap mindkettőt megjegyzi.
 - A side-by-side nézethez szélesítsd az Artifact ablakát (a diff legalább 1000 px).
