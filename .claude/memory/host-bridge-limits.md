@@ -24,7 +24,8 @@ doksi pedig önmagának ellentmondott.
   („This tool only runs right after you act in this Artifact”). Első próbán a keret
   `not_in_manifest`-et dobott (*„host:git-graph does not offer a tool named "write_file" on this
   device”*), pedig a szerver `list_changed` után újralistázott, és a lap újrapublikálva
-  deklarálta — a megerősítés viselkedése még mérendő.
+  deklarálta; az app újraindítása után működött. Mérve 2026-10-27-én: az első mentéskor az app
+  hozzájárulást kért, a „mindig engedélyezem” pipája után nem kérdezett újra.
 - A `watchTool` `refetchInterval`-ja ~30 s-ra padlózott → a lap `callTool`-lal hív
   ([[host-bridge-long-poll]]).
 - A szerverfolyamatok app-szintűek (`cwd: /`, az app indulásakor indulnak); egy folyamat az app összes
