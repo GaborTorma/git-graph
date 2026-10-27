@@ -965,20 +965,32 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .diff .cm-changedText, .diff .cm-merge-b .cm-changedText { background: var(--diff-add-hl); border-radius: 3px; }
 .diff .cm-deletedChunk, .diff .cm-merge-a .cm-changedLine { background: var(--diff-del); }
 .diff .cm-deletedChunk .cm-deletedText, .diff .cm-merge-a .cm-changedText { background: var(--diff-del-hl); border-radius: 3px; }
-.diff .cm-deletedChunk { padding-left: 6px; user-select: none; }
+.diff .cm-deletedChunk { position: relative; padding-left: 6px; user-select: none; }
 .diff .cm-deletedChunk del { text-decoration: none; }
 .diff .cm-changedLineGutter, .diff .cm-merge-b .cm-changedLineGutter { background: var(--add); }
 .diff .cm-deletedLineGutter, .diff .cm-merge-a .cm-changedLineGutter { background: var(--del); }
 .diff .cm-mergeView .cm-merge-a { border-right: 1px solid var(--border-soft); }
 .diff .cm-mergeSpacer { background: var(--code-tint); }
-.diff .cm-chunkButtons { position: absolute; right: 8px; z-index: 1; }
-.diff .cm-reject {
-  height: 22px; padding: 0 8px; border: 0; border-radius: 6px; cursor: pointer;
-  background: var(--bg-1); color: var(--fg-1); box-shadow: inset 0 0 0 1px var(--border), var(--shadow-sm);
-  font: var(--w-medium) 12px var(--font-ui);
+/* Az elvetés: az Anthropicons ArrowCounterClockwise 12 px-es glifája egy sornyi (18 px) gombon, a blokk
+   első sorában függőlegesen középen, a jobb széltől 1 px-re; egymás mellett a két oldal közti sávban.
+   Mint az app ghost gombja: háttér csak hoverre (fill-1), lenyomva sötétebb (fill-2). */
+.diff .cm-deletedChunk .cm-chunkButtons { position: absolute; top: 0; right: 1px; z-index: 2; height: 19.5px; padding: 0;
+  display: flex; align-items: center; }
+.diff .cm-reject,
+.diff .cm-deletedChunk .cm-chunkButtons .cm-reject {
+  width: 18px; height: 18px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  margin: 0; border: 0; border-radius: 5px; cursor: pointer; background: transparent; color: var(--fg-2); box-shadow: none;
 }
-.diff .cm-reject:hover { color: var(--fg-0); background: var(--bg-2); }
-.cm-diff.editing { box-shadow: inset 0 0 0 1.5px var(--accent); border-radius: 6px; }
+.diff .cm-reject .ic { width: 12px; height: 12px; }
+.diff .cm-reject:hover, .diff .cm-deletedChunk .cm-chunkButtons .cm-reject:hover { background: var(--fill-1); color: var(--fg-0); }
+.diff .cm-reject:active, .diff .cm-deletedChunk .cm-chunkButtons .cm-reject:active { background: var(--fill-2); }
+.diff .cm-merge-revert { width: 20px; background: var(--code-tint); }
+.diff .cm-merge-revert .cm-reject { margin: 0 1px; }
+/* A szerkesztés kerete: a hely mindig megvan (a szerkesztés kezdetén semmi nem mozdul), a tartalom
+   nem lóg rá; a CodeMirror tartalmára a lap fókuszgyűrűje nem kell. */
+.cm-diff { padding: 3px; border-radius: 8px; box-shadow: inset 0 0 0 1.5px transparent; }
+.cm-diff.editing { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.diff .cm-content:focus-visible { box-shadow: none; }
 .diff .cm-cursor { border-left-color: var(--fg-0); }
 .diff .cm-selectionBackground, .diff .cm-focused .cm-selectionBackground { background: var(--accent-bg) !important; }
 .diff .cm-flash { animation: cm-flash 1.6s ease-out; }

@@ -11,6 +11,7 @@
    mentés automatikus (1 s csend után, ⌘S-re azonnal) a `write_file` toolon át, az ismert lemez-
    állapot hashével; a lemez közbeni változását a lap befésüli (kék villanással), ha a nem
    mentett résszel ütközik, mindkét változatot mutatja, és amíg a Fejlesztő nem választ, nem ír. */
+import { icon } from './icons.js';
 import { esc } from './util.js';
 
 const WIDE = 1000;           // ettől a szélességtől egymás mellett
@@ -177,18 +178,23 @@ export class CodeDiff {
     this.mode = mode;
     const collapse = orig !== doc && !d.big ? { collapseUnchanged: { margin: 3, minSize: 4 } } : {};
     if (mode === 'split') {
+      // egymás mellett az elvetés a két oldal közti gomb: a változásblokk a régi oldalra áll vissza
+      const revert = this.editable ? { revertControls: /** @type {'a-to-b'} */ ('a-to-b'), renderRevertControl: () => {
+        const b = rejectButton();
+        b.addEventListener('mousedown', () => setTimeout(() => {
+          if (!this.editing) this.startEditing(this.ed.state.selection.main.head);
+        }));
+        return b;
+      } } : {};
       this.mv = new CM.MergeView({ a: { doc: orig, extensions: this.extensions('a') },
                                    b: { doc, extensions: this.extensions('b') },
-                                   parent: this.root, gutter: true, highlightChanges: true, ...collapse });
+                                   parent: this.root, gutter: true, highlightChanges: true, ...collapse, ...revert });
       this.ed = this.mv.b;
       this.ea = this.mv.a;
     } else {
       const controls = this.editable ? (type, action) => {
         if (type === 'accept') return document.createElement('span');   // az elfogadás stage-elés lenne: nincs
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'cm-reject';
-        b.textContent = 'Elvetés';
+        const b = rejectButton();
         b.onmousedown = e => { action(e); if (!this.editing) this.startEditing(this.ed.state.selection.main.head); };
         return b;
       } : false;
@@ -441,6 +447,17 @@ export class CodeDiff {
     const chunks = this.ed && this.CM.getChunks(this.ed.state)?.chunks;
     return chunks?.length ? this.ed.state.doc.lineAt(Math.min(chunks[0].fromB, this.ed.state.doc.length)).number : 1;
   }
+}
+
+/* Az elvetés gombja: ikon, egy sornyi magas, a súgója a felirat. */
+function rejectButton() {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'cm-reject';
+  b.setAttribute('aria-label', 'Elvetés');
+  b.dataset.tip = 'Elvetés';
+  b.innerHTML = icon('revert');
+  return b;
 }
 
 /* A 2 MB fölötti fájl: a csonkolt hunkokból a két oldal szövege és az új oldal sorszámai — a

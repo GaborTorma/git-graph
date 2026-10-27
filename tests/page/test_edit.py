@@ -35,6 +35,8 @@ FILES = {
     "kulso.py": (text(LINES), changed(**SPREAD)),
     "utkozes.py": (text(LINES), changed(**SPREAD)),
     "elvet.py": (text(LINES), changed(s40="sor_40 = 'uj valtozat'")),
+    "elvet2.py": (text(LINES), changed(s40="sor_40 = 'uj valtozat'")),
+    "keret.py": (text(LINES), changed(**SPREAD)),
     "app.py": ("a = 1\n", "a = 2\n"),
     "README.md": ("# Cím\n", "# Új cím\n"),
     "dump.sql": ("-- régi\n" + "x" * 3_000_000 + "\n", "-- új\n" + "x" * 3_000_000 + "\n"),
@@ -271,12 +273,45 @@ class EditTest(PageTestCase):
     def test_reject_and_undo(self) -> None:
         """A hunk „Elvetés” gombja a régi változatra állítja vissza és menti; a ⌘Z visszahozza és menti."""
         sel = self.diff_of("elvet.py")
-        self.page.locator(f"{sel} .cm-reject").first.dispatch_event("mousedown")
+        btn = self.page.locator(f"{sel} .cm-reject").first
+        line = self.page.locator(f"{sel} .cm-line").first.bounding_box()["height"]
+        box = btn.bounding_box()
+        self.assertLessEqual(box["height"], line)                          # ikon, egy sornyi
+        self.assertEqual(btn.get_attribute("aria-label"), "Elvetés")
+        self.assertEqual(btn.locator("svg").count(), 1)
+        self.assertNotEqual(btn.evaluate("b => getComputedStyle(b).color"), "rgb(255, 255, 255)")   # az ikon látszik
+        self.assertEqual(btn.evaluate("b => getComputedStyle(b).backgroundColor"), "rgba(0, 0, 0, 0)")  # háttér csak hoverre
+        chunk = btn.locator("xpath=ancestor::div[contains(@class, 'cm-deletedChunk')]").bounding_box()
+        self.assertAlmostEqual(box["y"] + box["height"] / 2, chunk["y"] + line / 2, delta=1.5)       # az első sor közepén
+        right = self.page.locator(f"{sel} .cm-content").bounding_box()
+        self.assertLessEqual(right["x"] + right["width"] - (box["x"] + box["width"]), 2)
+        btn.click()
         self.page.wait_for_timeout(1500)
         self.assertNotIn("uj valtozat", self.disk("elvet.py"))
         self.page.keyboard.press("ControlOrMeta+z")
         self.page.wait_for_timeout(1500)
         self.assertIn("uj valtozat", self.disk("elvet.py"))
+
+    def test_reject_side_by_side(self) -> None:
+        """Egymás mellett a két oldal közti ikongomb veti el a változásblokkot, és a mentés a lemezre írja."""
+        self.resize(1300)
+        sel = self.diff_of("elvet2.py")
+        btn = self.page.locator(f"{sel} .cm-merge-revert .cm-reject").first
+        self.assertTrue(btn.is_visible())
+        btn.click()
+        self.page.wait_for_timeout(1500)
+        self.assertNotIn("uj valtozat", self.disk("elvet2.py"))
+
+    def test_edit_frame(self) -> None:
+        """A szerkesztés kék keretén belül van hely (a tartalom nem lóg rá), és a sorszámok után nincs
+        kék fókuszvonal."""
+        sel = self.start("keret.py", 39, 0)
+        frame = self.page.locator(f"{sel} .cm-diff").bounding_box()
+        content = self.page.locator(f"{sel} .cm-editor").bounding_box()
+        self.assertGreaterEqual(content["x"] - frame["x"], 3)
+        self.assertGreaterEqual(frame["x"] + frame["width"] - (content["x"] + content["width"]), 3)
+        ring = self.page.locator(f"{sel} .cm-content").evaluate("e => getComputedStyle(e).boxShadow")
+        self.assertEqual(ring, "none")
 
 
 if __name__ == "__main__":
