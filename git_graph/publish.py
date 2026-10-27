@@ -29,7 +29,8 @@ def artifact_path(repo: Path) -> Path:
 # A lap ezen át éri el a gépen futó git-graph --mcp-t (enélkül use("mcp") null).
 PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
                                      "tools": ["changes", "graph_data", "file_diff",
-                                               "page_code", "settings"]}]}}
+                                               "file_tree", "write_file", "page_code",
+                                               "settings"]}]}}
 
 
 def page_digest(html_page: str) -> str:

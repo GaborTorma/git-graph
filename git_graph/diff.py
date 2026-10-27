@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import base64
 import difflib
+import hashlib
+import json
 import posixpath
 import re
 from pathlib import Path
@@ -35,6 +37,10 @@ IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
 # a host-híd mért, ~4 000 000 karakteres határa alatt (.claude/memory/host-bridge-response-size.md).
 IMAGE_MAX = 2_950_000
 SIDES = ("old", "new")
+# A teljes szöveg oldalanként eddig jön (és eddig szerkeszthető); fölötte a csonkolt diff marad.
+TEXT_MAX = 2_000_000
+TEXT_REPLY_MAX = 3_900_000      # a JSON-kódolt válasz (`\uXXXX`-ekkel nőhet) a host-híd határa alatt
+MARKDOWN_SUFFIXES = {".md", ".markdown", ".mdx"}   # a renderelt nézeté: nem szerkeszthető
 EXTERNAL_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//)")   # `https:`, `data:`, `//host`
 
 
@@ -622,37 +628,117 @@ def image_sources(sha: str) -> tuple:
     return None, ("rev", f"{sha}^1"), ("rev", sha, *parents[2:3])
 
 
+def disk_file(root: Path, path: str) -> Path | None:
+    """A munkakönyvtár egy fájlja (feloldott út), ha a git ismeri (követett, vagy követetlen, de
+    nem ignorált), a worktree-n belül van, és szabályos fájl; különben `None`. A lapról jövő út
+    így nem olvastat (és nem írat) tetszőleges fájlt."""
+    known = git("--literal-pathspecs", "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+                "--", path, repo=root)
+    file = (Path(root) / path).resolve()
+    if path not in known.split("\0") or not file.is_relative_to(Path(root).resolve()) or not file.is_file():
+        return None
+    return file
+
+
+def side_blob(root: Path | None, src: tuple, path: str, limit: int) -> tuple | None:
+    """Egy oldal a forrásából (`image_sources`): `(méret, bájtok)`, a `limit` fölött bájtok nélkül
+    (`None`); ha a fájl azon az oldalon nincs meg: `None`."""
+    if src[0] == "disk":
+        file = disk_file(root, path)
+        if file is None:
+            return None
+        size = file.stat().st_size
+        return size, file.read_bytes() if size <= limit else None
+    for rev in src[1:]:
+        spec = f"{rev}:{path}" if rev else f":0:{path}"
+        found = git_raw("cat-file", "-s", spec, repo=root)
+        if found is not None:
+            size = int(found)
+            return size, git_raw("cat-file", "blob", spec, repo=root) if size <= limit else None
+    return None
+
+
 def image_side(root: Path | None, src: tuple, path: str | None, uri: bool = True) -> dict | None:
     """A kép egy oldala: `{"size", "uri"}` (data URI), az `IMAGE_MAX` fölött vagy `uri` nélkül
-    csak a méret; ha a fájl azon az oldalon nincs meg: `None`. A lemezről csak olyan fájl
-    olvasható, amit a git ismer (követett, vagy követetlen, de nem ignorált), és a worktree-n
-    belül van."""
+    csak a méret; ha a fájl azon az oldalon nincs meg: `None`. A lemezről csak a `disk_file`
+    olvas."""
     kind = IMAGE_TYPES.get(Path(path or "").suffix.lower())
     if not path or not kind:
         return None
-    data = size = None
-    if src[0] == "disk":
-        known = git("ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", path, repo=root)
-        file = (root / path).resolve()
-        if path not in known.split("\0") or not file.is_relative_to(Path(root).resolve()) or not file.is_file():
-            return None
-        size = file.stat().st_size
-        if uri and size <= IMAGE_MAX:
-            data = file.read_bytes()
-    else:
-        for rev in src[1:]:
-            spec = f"{rev}:{path}" if rev else f":0:{path}"
-            found = git_raw("cat-file", "-s", spec, repo=root)
-            if found is not None:
-                size = int(found)
-                data = git_raw("cat-file", "blob", spec, repo=root) if uri and size <= IMAGE_MAX else None
-                break
-        if size is None:
-            return None
+    blob = side_blob(root, src, path, IMAGE_MAX if uri else -1)
+    if blob is None:
+        return None
+    size, data = blob
     side: dict = {"size": size}
     if data is not None:
         side["uri"] = f"data:{kind};base64,{base64.b64encode(data).decode('ascii')}"
     return side
+
+
+def as_text(data: bytes) -> str | None:
+    """A bájtok szövegként: NUL-t tartalmazó (bináris) vagy nem UTF-8 tartalomnál `None`."""
+    if b"\0" in data:
+        return None
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def digest(data: bytes) -> str:
+    """A lemezen lévő tartalom hashe: a lap ezzel menti (`write_file` `base`)."""
+    return hashlib.sha256(data).hexdigest()
+
+
+def editable(sha: str, root: Path | None, new: str, blob: tuple | None) -> bool:
+    """A fájl a lapon szerkeszthető-e: csak az Uncommitted soron, létező, szabályos, a worktree-n
+    belüli (`disk_file`), nem symlink, UTF-8, NUL nélküli, `TEXT_MAX` alatti fájl, ami nem
+    markdown (a renderelt nézeté) és nem kép."""
+    pending = UNCOMMITTED_RE.match(sha)
+    suffix = Path(new).suffix.lower()
+    return bool(pending and pending[1] == "uncommitted" and blob and blob[1] is not None
+                and suffix not in MARKDOWN_SUFFIXES and suffix not in IMAGE_TYPES
+                and not (Path(root) / new).is_symlink() and as_text(blob[1]) is not None)
+
+
+def text_info(sha: str, path: str) -> dict:
+    """A szöveges nézet fejadata (`text`): bináris-e, a két oldal mérete, nagy-e (valamelyik
+    oldal `TEXT_MAX` fölött) és szerkeszthető-e. Nagy fájlnál a csonkolt diff is (`hunks`,
+    `truncated`), különben a lap oldalanként kéri a teljes szöveget (`text_side`)."""
+    old, new = numstat_old_path(path), numstat_new_path(path)
+    root, src_a, src_b = image_sources(sha)
+    blobs = [side_blob(root, src_a, old, TEXT_MAX), side_blob(root, src_b, new, TEXT_MAX)]
+    size = [b[0] if b else None for b in blobs]
+    out: dict = {"binary": any(b and b[1] is not None and as_text(b[1]) is None for b in blobs),
+                 "size": size, "big": any(n is not None and n > TEXT_MAX for n in size),
+                 "editable": editable(sha, root, new, blobs[1])}
+    if out["big"]:
+        diff = text_diff(sha, path)
+        out.update(binary=out["binary"] or diff["binary"], hunks=diff["hunks"], truncated=diff["truncated"])
+    return out
+
+
+def text_side(sha: str, path: str, side: str) -> dict:
+    """Egy oldal teljes szövege: `{"text"}` (`None`, ha a fájl azon az oldalon nincs; bináris /
+    nem UTF-8 / `TEXT_MAX` fölött `binary` / `big` mellett). A forrás a képeké
+    (`image_sources`); a lemezről olvasott oldalnál a bájtok hashe is (`hash`). Ha a
+    JSON-kódolt válasz nem férne át a host-hídon: `big`."""
+    root, src_a, src_b = image_sources(sha)
+    file, src = (numstat_old_path(path), src_a) if side == "old" else (numstat_new_path(path), src_b)
+    blob = side_blob(root, src, file, TEXT_MAX)
+    if blob is None:
+        return {"text": None}
+    if blob[1] is None:
+        return {"text": None, "big": True}
+    text = as_text(blob[1])
+    if text is None:
+        return {"text": None, "binary": True}
+    out: dict = {"text": text}
+    if src[0] == "disk":
+        out["hash"] = digest(blob[1])
+    if len(json.dumps(out)) > TEXT_REPLY_MAX:
+        return {"text": None, "big": True}
+    return out
 
 
 def image_ref(md_path: str, ref: str) -> str:
@@ -672,12 +758,15 @@ def image_ref(md_path: str, ref: str) -> str:
     return out
 
 
-def file_diff(sha: str, path: str, full: bool = False, image: str | None = None, side: str | None = None) -> dict | None:
+def file_diff(sha: str, path: str, full: bool = False, image: str | None = None, side: str | None = None,
+              text: bool = False) -> dict | None:
     """Egy fájl diffje (`text_diff`); képfájlnál a két oldal mérete is (`image`: `old`, `new`).
     A kép maga oldalanként külön hívás (`side`: `old` / `new` → `image_side`), hogy egy válasz
     a host-híd határa alatt maradjon. Az `image` argumentummal a `path` markdown-fájl egy képe
     (`image_ref`): a régi oldalé a régi, az újé az új változatból — `side`-dal az az oldal,
-    nélküle a két oldal mérete, a diff nélkül."""
+    nélküle a két oldal mérete, a diff nélkül. A szöveges (CodeMirror-) nézetnek: `text` a
+    fejadat (`text_info`), a nem képfájl `side`-ja (`text`-tel bármelyiké) az oldal teljes
+    szövege (`text_side`) — a commit által nem érintett fájlé is."""
     if side is not None and side not in SIDES:
         raise ValueError(f"érvénytelen oldal: {side!r}")
     old, new = numstat_old_path(path), numstat_new_path(path)
@@ -685,8 +774,10 @@ def file_diff(sha: str, path: str, full: bool = False, image: str | None = None,
         old, new = image_ref(old, image), image_ref(new, image)
         if Path(new).suffix.lower() not in IMAGE_TYPES:
             raise ValueError(f"nem kép: {image!r}")
-    elif side is not None and Path(new).suffix.lower() not in IMAGE_TYPES:
-        raise ValueError(f"nem kép: {path!r}")
+    elif side is not None and (text or Path(new).suffix.lower() not in IMAGE_TYPES):
+        return text_side(sha, path, side)
+    elif text:
+        return text_info(sha, path)
     if side is not None:
         root, src_a, src_b = image_sources(sha)
         return image_side(root, src_a, old) if side == "old" else image_side(root, src_b, new)
