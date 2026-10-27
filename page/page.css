@@ -595,11 +595,14 @@ button { font: inherit; color: inherit; }
 .row[aria-expanded="true"]:hover .row-in,
 .row[aria-expanded="true"]:focus-visible .row-in {
   background: transparent; border-radius: 12px 12px 0 0;
-  box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 1px 0 var(--border);
+  /* a panel árnyéka (shadow-sm) a fejlécen is, fent és oldalt: alul levágva, a panelébe fut */
+  box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 1px 0 var(--border), var(--shadow-sm);
+  clip-path: inset(-12px -12px 0 -12px);
 }
 .row[aria-expanded="true"] + .details {
   margin-top: -2px; padding-top: 10px; border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0;
   background: transparent;
+  clip-path: inset(0 -12px -12px -12px);   /* a felső árnyéka a fejlécbe esne: levágva */
 }
 
 .desc { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; font-size: 14px; color: var(--fg-0); }

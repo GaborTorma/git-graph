@@ -290,6 +290,18 @@ class ExpandTest(CdsCase):
         self.assertEqual(css(details, "backgroundColor"), TRANSPARENT)
         self.assertAlmostEqual(details.bounding_box()["y"], head.bounding_box()["y"] + head.bounding_box()["height"], delta=1)
 
+    def test_expanded_shadow(self) -> None:
+        """A lenyitott fejlécnek is van árnyéka fent és oldalt (a panelé), alul levágva; a panel
+        felső árnyéka nem esik a fejlécbe."""
+        row = self.row("main-3-2")
+        row.click()
+        self.settle()
+        css = lambda loc, p: loc.evaluate(f"e => getComputedStyle(e)['{p}']")   # noqa: E731
+        head, details = row.locator(".row-in"), self.page.locator("#rows .details")
+        self.assertEqual(css(head, "boxShadow").count("rgba"), 5)       # 3 keretvonal + shadow-sm 2 rétege
+        self.assertEqual(css(head, "clipPath"), "inset(-12px -12px 0px)")
+        self.assertEqual(css(details, "clipPath"), "inset(0px -12px -12px)")
+
     def test_expanded_file(self) -> None:
         """A lenyitott fájlsor és a diffje egy 12 px-es keret; a diff alja 11 px."""
         self.open_file("settings.py")
