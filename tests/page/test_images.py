@@ -216,11 +216,11 @@ class ImagesTest(ImageFixture):
         """R-3 — Az SVG alapból kép (a pár elrendezésében), a gombbal a szöveges diff."""
         self.open_file("icon.svg")
         self.assertEqual(self.figs(), [["img-del", True], ["img-add", True]])
-        self.page.locator(".diff [data-svg-mode]").click()
+        self.page.locator('.diff [data-svg-mode="code"]').click()
         self.page.wait_for_selector(".diff .diff-line")
         self.assertEqual(self.page.locator(".diff .img-fig").count(), 0)
         self.assertIn("blue", self.page.locator(".diff:has([data-svg-mode])").inner_text())
-        self.page.locator(".diff [data-svg-mode]").click()                 # vissza: a lap megjegyzi
+        self.page.locator('.diff [data-svg-mode="image"]').click()         # vissza: a lap megjegyzi
         self.page.wait_for_selector(".diff .img-fig")
 
     def test_markdown_images(self) -> None:
@@ -525,7 +525,8 @@ class BarTest(ImageFixture):
     def test_titles(self) -> None:
         """Súgó: a gombok súgójában a teljes lapos nézet billentyűje is áll."""
         self.open_image("logo.png")
-        titles = self.page.locator(".diff .img-bar button").evaluate_all("bs => bs.map(b => b.title)")
+        titles = self.page.locator(".diff .img-bar button").evaluate_all(
+            "bs => bs.map(b => b.dataset.tip + (b.dataset.kbd ? ` (${b.dataset.kbd})` : ''))")
         self.assertEqual(titles, ["Side-by-side (2)", "Swipe (S)", "Onion skin (O)", "Kicsinyítés (−)",
                                   "Nagyítás (+)", "Teljes lapos nézet", "Bezárás (Esc)"])
 

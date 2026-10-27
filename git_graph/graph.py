@@ -241,15 +241,24 @@ def mark_mirrors(commits: list[dict], base: str) -> None:
             roots[sha] = frozenset(git("rev-list", "--max-parents=0", sha).split())
         return roots[sha]
 
+    def in_base(sha: str) -> bool:
+        try:
+            git("merge-base", "--is-ancestor", sha, base or "HEAD")
+            return True
+        except subprocess.CalledProcessError:
+            return False
+
     base_roots = frozenset(git("rev-list", "--max-parents=0", base or "HEAD").split())
     for group in groups.values():
         sources = [c for c in group if roots_of(c["sha"]) & base_roots]
         for c in group:
             if roots_of(c["sha"]) & base_roots:
                 continue
-            source = next((s for s in sources if not roots_of(s["sha"]) & roots_of(c["sha"])), None)
-            if source:
-                c["mirrorOf"] = source["sha"]
+            cands = [s for s in sources if not roots_of(s["sha"]) & roots_of(c["sha"])]
+            # egy mellékág cherry-pickje is jelölt (közös a gyökere az alapággal): az alapágé
+            # az elsőbb, különben a `--date-order` sorrendje döntene
+            if cands:
+                c["mirrorOf"] = min(cands, key=lambda s: not in_base(s["sha"]))["sha"]
 
 
 SUBTREE_SPLIT_RE = re.compile(r"^git-subtree-split: ([0-9a-f]{40})$", re.M)

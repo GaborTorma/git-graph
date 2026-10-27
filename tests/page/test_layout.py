@@ -52,7 +52,7 @@ class GraphTest(PageTestCase):
 
 
 class FitRowsTest(PageTestCase):
-    WIDTH = 1200                                   # a HEAD sorának badge-ei is egy sorban férnek el
+    WIDTH = 1300                                   # a HEAD sorának badge-ei is egy sorban férnek el (CDS-méretben)
     def row_width(self) -> float:
         return self.page.evaluate("document.querySelector('#rows .row-in').clientWidth")
 
@@ -100,7 +100,7 @@ class StepRowsTest(PageTestCase):
             self.page.wait_for_timeout(150)                       # ne lecsengésnek lássa
             row = self.page.evaluate(TOP_ROW)
             self.assertEqual(row["i"], step, "egy kattanás nem egy commitot lépett")
-            self.assertAlmostEqual(row["top"], 16, delta=1)        # STEP_TOP: a napfejléc alatt
+            self.assertAlmostEqual(row["top"], 20, delta=1)        # STEP_TOP: a napfejléc alatt
             if row["dayBottom"] is not None:
                 self.assertLessEqual(row["dayBottom"], row["top"] + 0.5, "a napfejléc takarja a sort")
         for step in range(1, 4):

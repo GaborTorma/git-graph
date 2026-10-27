@@ -3,16 +3,21 @@
 Git Graph-szerű, élő commit-gráf **bármelyik repóból** — Artifactként a Claude
 appban.
 A gráf a VS Code [`mhutchie.git-graph`](https://marketplace.visualstudio.com/items?itemName=mhutchie.git-graph)
-mintáját követi, a megjelenés a Claude appét: meleg paletta, Claude Light / Dark
-kódszínek, napokra bontott egysoros lista. A soron kattintva lefelé nyílik a
+mintáját követi, a megjelenés a Claude appét: az app design-systemje (CDS, a fizzy-lake
+téma: semleges szürkék, kék akcentus, az app ikonjai, Anthropic Sans és Mono), Claude Light /
+Dark kódszínek, napokra bontott egysoros lista. A soron kattintva lefelé nyílik a
 commit: szerző GitHub-avatarral, szülő(k), GitHub-link, fájlok és
-szintaxisszínezett diff. Ha a helyi ág és a remote-ja ugyanott áll, egy
+szintaxisszínezett diff. A lenyitott commit kerek kártya: a sor hover-színéből nyílik (a
+közepéről halványul, közben megjelenik a kerete), csukáskor a lenyitott fájljai vele együtt
+csukódnak. Ha a helyi ág és a remote-ja ugyanott áll, egy
 badge-ben látszanak, egyetlen felhő-és-ág ikonnal (az alapágé teli). Az ág-badge végén a távolságai,
 csak a nem nulla irány: `↑a ↓b` az alapághoz (amire az `origin/HEAD` mutat —
-mennyit jött az ág, mennyit haladt közben a main), `☁ ↑c ↓d` a remote-társához
-(ha nem egy helyen állnak); a csak remote-os ág badge-én utolsóként `⑂ ↑e ↓f` a
+mennyit jött az ág, mennyit haladt közben a main), `☁ ↑c ↓d` a saját, azonos nevű
+upstreamjéhez (ha nem egy helyen állnak; a más nevű upstream, pl. az `origin/main`-ből
+indított branché, nem számít: `-u`-val pusholva a saját remote branche lesz az); a csak remote-os ág badge-én utolsóként `⑂ ↑e ↓f` a
 helyi párjához. Ha az alapág helyi párja (`main`) előrébb jár a remote-jánál, a
-`☁ ↑` piros (a `main`-en nem dolgozunk, ez anomália). Közös ős nélküli ágon (pl. egy `git subtree push` remote-ja) a távolság helyén
+`☁ ↑` szakasz piros (a `main`-en nem dolgozunk, ez anomália): a halvány chipen halvány
+piros, piros kerettel, a teli chipen teli piros. Közös ős nélküli ágon (pl. egy `git subtree push` remote-ja) a távolság helyén
 áthúzott lánc áll, a commitjai (a fő történet tükrei) halványak, és szaggatott ív köti
 őket a forrásukhoz; több remote-nál a „Remote ágak” melletti menü remote-onként rejt el
 ([Subtree-remote](docs/subtree-remote.md)). Ha a badge nem fér ki, csak a név
@@ -117,7 +122,7 @@ commitjukról, több csonk legyezőszerűen. Ami nem a sajáté, halványabb (a 
 vett ágak a fő checkouté). Az ágválasztó worktree-nként csoportosít: fejléc (a
 sajáté a fejléc chipjének színével), alatta az ágai — amelyikben utoljára ki volt
 véve, a worktree HEAD-reflogja szerint —, a gazdátlanok utánuk, a csak remote ágak a
-végén. A helyi ág és az upstreamje egy opció (ha egy helyen állnak, egy sor a közös
+végén. A menü a lap magasságának ~80 %-áig nyúlhat le. A helyi ág és az azonos nevű upstreamje egy opció (ha egy helyen állnak, egy sor a közös
 felhő-és-ág ikonnal, különben egymás alatt az ág és a felhő): a sorra kattintva mindkettő kijelölődik, egy kipipált sor pipájára
 kattintva csak az kerül ki; ha semmi sem marad, újra minden ág látszik. A worktree
 fejlécére kattintva az összes ága kijelölődik; a gomb ikonja és felirata a

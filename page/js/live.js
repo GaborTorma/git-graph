@@ -15,6 +15,7 @@ import { mcpProblem } from './mcp.js';
 import { focusWt, setFocusAuto } from './model.js';
 import { render } from './rows.js';
 import { DATA, setData } from './state.js';
+import { icon } from './icons.js';
 import { esc, ghLink } from './util.js';
 
 const WAIT_S = 50;          // a nyitva tartott hívás leghosszabb várakozása (a host ~50 s-ig tartja, mérve)
@@ -33,8 +34,8 @@ export function notice(text, stale = false) {
   if (!DATA.commits.length) rowsEl.innerHTML = `<p class="empty">${esc(text)}</p>`;
   foot.className = stale ? 'foot stale' : 'foot';
   liveText.textContent = text;
-  liveText.title = text;
-  liveDot.title = text;
+  liveText.dataset.tip = text;
+  liveDot.dataset.tip = text;
   liveDot.setAttribute('aria-label', stale ? 'Hiba' : 'Kapcsolódás');
   fitFoot();
 }
@@ -52,7 +53,7 @@ function showVersion(f) {
   versionEl.className = stale ? 'ver warn' : 'ver';
   const name = `<span class="name">${ghLink(PLUGIN_URL, 'Git Graph', 'home', 'A Git Graph a GitHubon')} </span>`;
   versionEl.innerHTML = !f.version ? '' : stale
-    ? `${name} v${esc(f.version)} fut, v${esc(f.installed)} telepítve — indítsd újra a Claude appot`
+    ? `${icon('warn')}${name} v${esc(f.version)} fut, v${esc(f.installed)} telepítve — indítsd újra a Claude appot`
     : `${name} v${esc(f.version)}`;
   fitFoot();
 }
@@ -131,7 +132,7 @@ export function startLive(src) {
           liveText.textContent = '';
           fitFoot();                            // a hibaüzenet helyén a verzió is elfér
         }
-        liveDot.title = `Élő · frissítve ${clock()}` + change + switched;
+        liveDot.dataset.tip = `Élő · frissítve ${clock()}` + change + switched;
         liveDot.setAttribute('aria-label', 'Élő');
         showVersion(r);
         misses = 0;

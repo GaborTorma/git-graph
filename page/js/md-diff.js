@@ -318,7 +318,7 @@ function codeViews(b) {
     const code = '<pre class="md-code mono">' + collapse(keep, body, l => (l
       ? `<div class="md-cl${kindOf(l)}">${highlight(l.s, l.hl, b.lang) || ' '}</div>`
       : '<div class="md-cl md-none"> </div>'),
-    n => `<div class="md-cl md-skip" title="${n} változatlan sor">···</div>`) + '</pre>';
+    n => `<div class="md-cl md-skip" data-tip="${n} változatlan sor">···</div>`) + '</pre>';
     // a diagram side-by-side-ban is egyszer, a teljes szélességen (`mdDiffHtml`)
     return b.mermaid && !side ? mermaidHtml(mermaidVersions(lines), code) : code;
   };
@@ -346,7 +346,7 @@ function tableViews(b) {
         + cells(l).map(c => `<${cell}>${mdInline(c.trim(), l.t)}</${cell}>`).join('') + '</tr>';
     };
     return '<div class="md-table"><table>' + collapse(keep, rows, row,
-      n => `<tr class="md-skip"><td colspan="${width}" title="${n} változatlan sor">···</td></tr>`) + '</table></div>';
+      n => `<tr class="md-skip"><td colspan="${width}" data-tip="${n} változatlan sor">···</td></tr>`) + '</table></div>';
   };
 }
 
@@ -499,7 +499,7 @@ export function mdDiffHtml(d) {
   // a side-by-side-ban blokkonként egy sor, balra a régi, jobbra az új változat.
   const view = html => runsOf(shown).map(r => (r.keep
     ? `<div class="hunk md-doc" tabindex="-1">${html(blocks.slice(r.from, r.to))}</div>`
-    : `<p class="diff-gap" title="${r.to - r.from} változatlan blokk">···</p>`)).join('');
+    : `<p class="diff-gap" data-tip="${r.to - r.from} változatlan blokk">···</p>`)).join('');
   const uni = view(list => list.map(b => mdBlockHtml(b)).join(''));
   const kinds = new Set(shownLines.flat().map(l => l.t));
   const next = new Map(blocks.map((b, i) => [b, blocks[i + 1]]));

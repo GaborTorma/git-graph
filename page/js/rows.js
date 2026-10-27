@@ -8,8 +8,8 @@ import { fitRows } from './layout.js';
 import { commitBySha, focusWt, foreign, fresh, headFiltered, laneColor, worktrees } from './model.js';
 import { badges, linkify, subjectRefs, wtBadge } from './refs.js';
 import { stackDays } from './scroll.js';
-import { DATA, expanded, setExpanded, visible } from './state.js';
-import { esc, fileCount } from './util.js';
+import { DATA, expanded, query, setExpanded, visible } from './state.js';
+import { esc, fileCount, markWords } from './util.js';
 
 /* A diff-címke száma legfeljebb 3 karakter: 999 fölött kerekített ezres (`1k`). */
 const kilo = n => n < 1000 ? String(n) : `${Math.round(n / 1000)}k`;
@@ -24,6 +24,14 @@ const diffTag = (files, add, del) => `<span class="sum" data-tip="${files} fájl
 /* `Gábor Torma` → `GT`: a név első két szavának kezdőbetűje. */
 const initials = name => String(name || '?').trim().split(/\s+/).slice(0, 2)
   .map(w => [...w][0] || '').join('').toUpperCase();
+/* A monogram színe: a CDS munkatárs-palettájának egyike (page.css: `--collab-<n>`), a
+   szerző nevéből számolva — ugyanaz a szerző mindig ugyanazt kapja. */
+const COLLABS = 6;
+const collab = name => {
+  let h = 0;
+  for (const ch of String(name || '')) h = (h * 31 + /** @type {number} */ (ch.codePointAt(0))) >>> 0;
+  return `var(--collab-${h % COLLABS})`;
+};
 
 function rowHtml(c) {
   const color = fresh.has(c.sha) ? ` style="color:${laneColor(c.lane)}"` : '';
@@ -44,7 +52,7 @@ function rowHtml(c) {
   // A saját WIP a rögzített sávban ül, napfejléc nélkül: nem mai időnél a nap is kell.
   const pinned = c.uncommitted && c.worktree === focusWt()?.slug;
   const meta = `<span class="meta"><span class="time">${pinned ? pinnedTime(c.date) : fmtTime(c.date)}</span>`
-    + `<span class="author ${av || 'ini'}" data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
+    + `<span class="author ${av || 'ini'}"${av ? '' : ` style="--ini:${collab(c.author)}"`} data-tip="${esc(c.author)}" aria-label="${esc(c.author)}">`
     + `${av ? '' : esc(initials(c.author))}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge',
     foreign(c) && 'foreign', c.mirrorOf && 'mirror'].filter(Boolean).join(' ');
@@ -97,13 +105,14 @@ export function render() {
   }
   if (day) html += '</section>';
   rowsEl.innerHTML = html || '<p class="empty">Nincs a szűrésnek megfelelő commit.</p>';
+  markWords(rowsEl.querySelectorAll('.subject'), query);
   // A saját HEAD-et az ágválasztó elrejti: a fejléc chipje halványabb (kattintásra minden ág).
   headChip.classList.toggle('head-off', headFiltered());
   fitRows();
   drawGraph();
   const shown = visible.filter(c => !c.uncommitted).length;   // az ál-sor nem commit
   counter.innerHTML = DATA.meta.totalCommits ? `<b>${shown}</b> / ${DATA.meta.totalCommits}` : '';
-  counter.title = `${shown} commit látszik, összesen ${DATA.meta.totalCommits}`;
+  counter.dataset.tip = `${shown} commit látszik, összesen ${DATA.meta.totalCommits}`;
   if (expanded && visible.some(c => c.sha === expanded)) {
     open(expanded);
     const panel = document.querySelector(OPEN_PANEL);   // a panel saját görgetése megmarad

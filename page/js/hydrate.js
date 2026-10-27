@@ -37,7 +37,7 @@ export function hydrateFocus() {
   chip.style.setProperty('--lc', (own && wtColor(own)) || 'var(--accent)');
   chip.innerHTML = own ? wtChipInner(own) : icon('branch') + esc(DATA.meta.head || '');
   chip.hidden = !(own || DATA.meta.head);
-  chip.title = !own ? '' : (own.main ? 'fő checkout: ' : 'worktree: ') + own.path
+  chip.dataset.tip = !own ? '' : (own.main ? 'fő checkout: ' : 'worktree: ') + own.path
     + (wts.length < 2 ? ''
       : focusAuto?.known ? '\naz előtérben lévő session itt dolgozik'
       : '\nnincs ismert session a repóban — a fő checkout')

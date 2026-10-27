@@ -8,6 +8,13 @@ from .gitio import FS, admin_dir, ahead_behind, git
 from .worktrees import app_branch
 
 
+def own_upstream(name: str, upstream: str) -> str:
+    """Az upstream, ha az ág saját, azonos nevű remote párja (`origin/x` ↔ `x`); különben üres.
+    A más nevű upstream (pl. az `origin/HEAD`-ből indított feature branché, az `origin/main`) csak
+    a kiindulópont: nem pár, és távolságot sem mérünk hozzá."""
+    return upstream if upstream.split("/", 1)[-1] == name else ""
+
+
 def collect_branches(worktrees: list[dict]) -> list[dict]:
     """Ágak upstreammel, ahead/behind számokkal, és hogy melyik worktree-ben vannak kivéve."""
     fmt = FS.join(
@@ -28,6 +35,8 @@ def collect_branches(worktrees: list[dict]) -> list[dict]:
         if not line.strip():
             continue
         name, sha, upstream, track, date = (line.split(FS) + [""] * 5)[:5]
+        if not own_upstream(name, upstream):
+            upstream = track = ""
         branches.append(
             {
                 "name": name,
@@ -84,8 +93,8 @@ def branch_owners(worktrees: list[dict]) -> dict[str, str]:
 def branch_tracks(base: str) -> dict[str, dict]:
     """Ágankénti távolság (`ahead`, `behind`): `base` az alapághoz (amire az
     `origin/HEAD` mutat; magán az alapágon nincs; a remote-only ágaknak is,
-    `origin/x` kulccsal; ha van helyi párja, `local` a helyi ághoz), `up` a saját upstreamjéhez
-    (ha van, és nem tűnt el). Egyetlen `for-each-ref` (git 2.41+:
+    `origin/x` kulccsal; ha van helyi párja, `local` a helyi ághoz), `up` a saját, azonos nevű
+    upstreamjéhez (`own_upstream`; ha van, és nem tűnt el). Egyetlen `for-each-ref` (git 2.41+:
     `%(ahead-behind:…)`); régebbi gitnél ágankénti `rev-list`. A `base` a `default_base()`.
 
     Közös ős nélkül (pl. egy `git subtree split` / `push` remote-ja) a távolság a két
@@ -115,7 +124,7 @@ def branch_tracks(base: str) -> dict[str, dict]:
     for line in lines:
         name, upstream, track, *rest = line.split("\0")
         entry: dict = {}
-        if upstream and track != "gone":
+        if own_upstream(name, upstream) and track != "gone":
             ahead = re.search(r"ahead (\d+)", track)
             behind = re.search(r"behind (\d+)", track)
             entry["up"] = [int(ahead.group(1)) if ahead else 0, int(behind.group(1)) if behind else 0]

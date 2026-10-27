@@ -20,6 +20,10 @@ export const setExpanded = (/** @type {string | null} */ sha) => { expanded = sh
 export let visible = DATA.commits; // szűrés utáni lista
 export const setVisible = (/** @type {Commit[]} */ list) => { visible = list; };
 
+/** @type {string[]} */
+export let query = [];             // a keresés szavai (`queryWords`): a subjectben kiemelve
+export const setQuery = (/** @type {string[]} */ words) => { query = words; };
+
 /* Az ágszűrő által megtartott commitok (null: nincs ágszűrés) — a fejléc chipje ebből tudja,
    hogy a saját HEAD kiesett-e. */
 export let branchKeep = null;

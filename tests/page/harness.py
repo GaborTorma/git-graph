@@ -113,6 +113,8 @@ class PageTestCase(unittest.TestCase):
 
     page: Page
     WIDTH, HEIGHT = 900, 700
+    COLOR_SCHEME = "light"     # a rendszer témája (`prefers-color-scheme`)
+    INIT = ""                  # a kamu Claude app után futó saját init-szkript (pl. a host-híd hibái)
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -159,12 +161,13 @@ class PageTestCase(unittest.TestCase):
 
     def setUp(self) -> None:
         self.context = self.browser.new_context(viewport={"width": self.WIDTH, "height": self.HEIGHT},
-                                                locale="hu-HU", timezone_id="Europe/Budapest")
+                                                locale="hu-HU", timezone_id="Europe/Budapest",
+                                                color_scheme=self.COLOR_SCHEME)
         self.page = self.context.new_page()
         self.errors: list[str] = []
         self.page.on("pageerror", lambda e: self.errors.append(str(e)))
         self.page.expose_function("__mcp", self.mcp)
-        self.page.add_init_script(FAKE_CLAUDE)
+        self.page.add_init_script(FAKE_CLAUDE + self.INIT)
         self.page.route(URL, lambda route: route.fulfill(
             content_type="text/html", headers={"Content-Security-Policy": CSP}, body=self.html))
         self.page.goto(URL)

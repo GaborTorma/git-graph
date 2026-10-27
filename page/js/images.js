@@ -52,12 +52,12 @@ function figHtml(side, cls, alt) {
 /* A sáv: a nézetek (csak a két képpel változott párnál), Onion skinnél az áttetszőség,
    a zoom és a teljes lapos nézet; a teljes lapos nézetben a bezárás. */
 const barHtml = (modes, tag = 'div') => `<${tag} class="img-bar">${modes ? Object.entries(MODES).map(([m, label]) =>
-  `<button class="mini" data-img-mode="${m}" title="${label} (${MODE_KEYS[m]})">${icon(`img-${m}`)}</button>`).join('')
-  + '<input class="img-opacity" type="range" min="0" max="100" step="1" title="Áttetszőség">' : ''
-}<button class="mini" data-img-zoom="-1" title="Kicsinyítés (−)">${icon('minus')}</button><span class="img-pct"></span
-><button class="mini" data-img-zoom="1" title="Nagyítás (+)">${icon('plus')}</button
-><button class="mini" data-img-full title="Teljes lapos nézet">${icon('expand')}</button
-><button class="mini" data-img-close title="Bezárás (Esc)">${icon('close')}</button></${tag}>`;
+  `<button class="mini" data-img-mode="${m}" aria-label="${label}" data-tip="${label}" data-kbd="${MODE_KEYS[m]}">${icon(`img-${m}`)}</button>`).join('')
+  + '<input class="img-opacity" type="range" min="0" max="100" step="1" aria-label="Áttetszőség" data-tip="Áttetszőség">' : ''
+}<button class="mini" data-img-zoom="-1" aria-label="Kicsinyítés" data-tip="Kicsinyítés" data-kbd="−">${icon('minus')}</button><span class="img-pct"></span
+><button class="mini" data-img-zoom="1" aria-label="Nagyítás" data-tip="Nagyítás" data-kbd="+">${icon('plus')}</button
+><button class="mini" data-img-full aria-label="Teljes lapos nézet" data-tip="Teljes lapos nézet">${icon('expand')}</button
+><button class="mini" data-img-close aria-label="Bezárás" data-tip="Bezárás" data-kbd="Esc">${icon('close')}</button></${tag}>`;
 
 /* A kép két oldala (`image_side`; `null`: azon az oldalon nincs meg) a páros
    elrendezésben. `had` / `has`: van-e régi / új oldal — új fájlnál, új bekezdésnél

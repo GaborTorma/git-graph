@@ -1,5 +1,5 @@
 /* A commit-részletek panelje: nyitás, csukás, kattintások a listában. */
-import { glide, grow, shrink } from './anim.js';
+import { cardState, closeCard, glide, grow, openCard, shrink } from './anim.js';
 import { avatarOf } from './avatars.js';
 import { fmtDate } from './dates.js';
 import { mdRaw, openFiles, setMdRaw, setSvgCode, svgCode, toggleFile } from './diff.js';
@@ -39,7 +39,7 @@ const dirHtml = f => `<div class="file-dir"><span></span>${icon('folder', 'ic fi
   <span class="churn">${fmtInt(f.count)} fájl</span><span></span></div>`;
 
 const miniBtn =(name, label, attrs = '') =>
-  `<button class="mini" type="button" aria-label="${esc(label)}" title="${esc(label)}" ${attrs}>${icon(name)}</button>`;
+  `<button class="mini" type="button" aria-label="${esc(label)}" data-tip="${esc(label)}" ${attrs}>${icon(name)}</button>`;
 
 /* Változásjelölő: 6 szegmens, a hozzáadás / törlés arányában. */
 function bars(f) {
@@ -55,9 +55,9 @@ function headHtml(c) {
   const avatar = avatarOf(c);
   const who = `${avatar ? `<img src="${esc(avatar)}" alt="${esc(c.author)}">` : ''}<span class="name">${esc(c.author)}</span>`
       + `<span class="sep">·</span><span>${fmtDate(c.date)}</span>`;
-  const parents = c.parents.map(p => `<button type="button" class="hash" data-jump="${p}" title="Ugrás a szülőre">${p.slice(0, 7)}</button>`
+  const parents = c.parents.map(p => `<button type="button" class="hash" data-jump="${p}" data-tip="Ugrás a szülőre">${p.slice(0, 7)}</button>`
     + miniBtn('open', `Szülő megnyitása: ${p.slice(0, 7)}`, `data-jump="${p}"`)).join('');
-  const parentChip = c.parents.length ? `<span class="chip" title="Szülő${c.parents.length > 1 ? 'k' : ''}">`
+  const parentChip = c.parents.length ? `<span class="chip" data-tip="Szülő${c.parents.length > 1 ? 'k' : ''}">`
     + `${icon('parent')}${parents}</span>` : '';
   const commitChip = '<span class="chip">'
     + `<span class="hash plain">${c.short}</span>`
@@ -77,6 +77,17 @@ function bodyHtml(c) {
   return `${linkify(head)}… <button type="button" class="more" data-more>több</button>`;
 }
 
+/* A felhasználó csukta be a commitot (`panel`): a lenyitott fájljai vele együtt csukódnak, és
+   legközelebb csukva nyílnak. */
+function foldFiles(panel, sha) {
+  for (const k of [...openFiles]) if (k.startsWith(sha + '\n')) openFiles.delete(k);
+  for (const f of panel.querySelectorAll('.file[aria-expanded="true"]')) {
+    const box = /** @type {HTMLElement} */ (f.nextElementSibling), before = cardState(f);
+    f.setAttribute('aria-expanded', 'false');
+    closeCard(f, box, before, () => { box.hidden = true; });
+  }
+}
+
 export function open(sha, animate = false) {
   // A korábban nyitott panel felcsukódik (felhasználói nyitásnál), az új sor helyben marad.
   const row = document.querySelector(`.row[data-sha="${CSS.escape(sha)}"]`);
@@ -84,6 +95,14 @@ export function open(sha, animate = false) {
   for (const d of old) if (animate && row) d.classList.add('folding'); else d.remove();
   if (row?.nextElementSibling?.classList.contains('folding')) row.nextElementSibling.remove();   // újranyitás csukódás közben
   if (!row) return;
+  // A fejlécek állapota a váltás előtt: a régi a keretéből csukódik, az új a hoveréből nyílik.
+  const heads = new Map(), was = new Map();
+  for (const d of old) {
+    const h = d.previousElementSibling?.querySelector('.row-in');
+    if (h) { heads.set(d, h); was.set(d, cardState(h)); }
+    if (animate) foldFiles(d, /** @type {HTMLElement} */ (d.previousElementSibling)?.dataset.sha || '');
+  }
+  const head = /** @type {HTMLElement} */ (row.querySelector('.row-in')), before = cardState(head);
   document.querySelectorAll('.row').forEach(r => r.setAttribute('aria-expanded', 'false'));
   row.setAttribute('aria-expanded', 'true');
 
@@ -101,7 +120,7 @@ export function open(sha, animate = false) {
         <span class="d" style="color:var(--del)">−${st.del}</span></div>
       ${st.files.map(f => f.count ? dirHtml(f) : `<div class="file" tabindex="-1" data-path="${esc(f.path)}" aria-expanded="false">
         <span class="chev">${icon('chev')}</span>${fileIcon(f)}
-        <span class="path${f.status === 'A' ? ' added' : f.status === 'D' ? ' deleted' : ''}">${pathHtml(f.path, f.dirFrom)}</span>
+        <span class="path${{ A: ' added', D: ' deleted' }[f.status] ?? ' modified'}">${pathHtml(f.path, f.dirFrom)}</span>
         <span class="churn">${f.bin ? sizeHtml(f.size)
           : `${f.add ? `<span class="a">+${f.add}</span>` : ''}${f.del ? `<span class="d">−${f.del}</span>` : ''}${bars(f)}`}</span>
         ${c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : '<span></span>'}</div>
@@ -130,11 +149,14 @@ export function open(sha, animate = false) {
     for (const d of listed) d.style.display = '';
     scroller.scrollTop = from;
     glide(scroller, to - from);
-    for (const d of old) shrink(d, () => { d.remove(); drawGraph(); }, pendingEl.contains(d) ? followPending(el) : undefined);
+    for (const d of old) {
+      const done = () => { d.remove(); drawGraph(); }, follow = pendingEl.contains(d) ? followPending(el) : undefined;
+      if (heads.has(d)) closeCard(heads.get(d), d, was.get(d), done, follow); else shrink(d, done, follow);
+    }
   }
   setExpanded(sha);
   drawGraph();               // a panel alatti sorok lejjebb kerültek
-  if (animate) grow(el);
+  if (animate) openCard(head, el, before);
 }
 
 /* A vágólap az Artifact keretében tiltott lehet: akkor a régi `execCommand`. */
@@ -154,8 +176,9 @@ function onListClick(e) {
   if (e.target.closest('a[href]')) return;   // GitHub-link: nyíljon, a sor ne csukódjon
   const copy = e.target.closest('[data-copy]');
   if (copy) { copyText(copy.dataset.copy, copy); return; }
-  if (e.target.closest('[data-md-mode]')) { setMdRaw(!mdRaw); return; }
-  if (e.target.closest('[data-svg-mode]')) { setSvgCode(!svgCode); return; }
+  const md = e.target.closest('[data-md-mode]'), svg = e.target.closest('[data-svg-mode]');
+  if (md) { if ((md.dataset.mdMode === 'raw') !== mdRaw) setMdRaw(!mdRaw); return; }
+  if (svg) { if ((svg.dataset.svgMode === 'code') !== svgCode) setSvgCode(!svgCode); return; }
   const jump = e.target.closest('[data-jump]');
   if (jump) {
     const target = rowsEl.querySelector(`.row[data-sha="${jump.dataset.jump}"]`);
@@ -194,13 +217,19 @@ export function closeCommit(focusRow = true) {
   if (row && focusRow) select(row);
   if (!panel) { drawGraph(); return; }
   panel.classList.add('folding');
-  shrink(panel, () => {
+  // A sor azonnal csukott állapotú: a fejléce a keretéből a hover-hátterébe vált, a panellel együtt.
+  const own = /** @type {HTMLElement} */ (panel.previousElementSibling);
+  const head = own?.classList.contains('row') ? own.querySelector('.row-in') : null;
+  foldFiles(panel, own?.dataset.sha || '');
+  const done = () => {
     if (!panel.isConnected) return;
-    const own = /** @type {HTMLElement} */ (panel.previousElementSibling);
     panel.remove();
-    if (own?.classList.contains('row') && own.dataset.sha !== expanded) own.setAttribute('aria-expanded', 'false');   // közben újra kinyílhatott
     drawGraph();
-  });
+  };
+  if (!head) { shrink(panel, done); return; }
+  const before = cardState(head);
+  own.setAttribute('aria-expanded', 'false');
+  closeCard(head, panel, before, done);
 }
 
 /* A lista lefelé görgetése bezárja a fix sávban lenyitott saját WIP-panelt: a

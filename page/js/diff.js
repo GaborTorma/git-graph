@@ -3,7 +3,7 @@
    a teljes adatban nincs benne. A commitok diffje nem változik, gyorstárazzuk;
    az Uncommitted soré adatcserekor elavul (`stale`): a régi látszik, amíg az
    új meg nem jön, így a 2 mp-es frissítés nem villog. */
-import { grow, shrink } from './anim.js';
+import { cardState, closeCard, grow, openCard } from './anim.js';
 import { diffHtml } from './diff-html.js';
 import { drawGraph } from './graph.js';
 import { icon } from './icons.js';
@@ -39,10 +39,11 @@ export const setSource = src => { SRC = src; };
 export function toggleFile(fileEl, sha, on, reveal = true) {
   const key = sha + '\n' + fileEl.dataset.path;
   const box = fileEl.nextElementSibling;
+  const before = cardState(fileEl);   // a fájlsor a hoveréből nyílik, a keretéből csukódik
   fileEl.setAttribute('aria-expanded', on ? 'true' : 'false');
   if (!on) {
     openFiles.delete(key);
-    shrink(box, () => { box.hidden = true; drawGraph(); revealCommit(fileEl.closest('.details'), true); });
+    closeCard(fileEl, box, before, () => { box.hidden = true; drawGraph(); revealCommit(fileEl.closest('.details'), true); });
     return;
   }
   openFiles.add(key);
@@ -50,6 +51,7 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
   const lang = langOf(fileEl.dataset.path);
   // Felhasználói nyitásnál a diff (és vele a panel) animálva nő; a nézetbe
   // hozás a végső méretből számol.
+  let opened = false;
   const show = html => {
     if (!fileEl.isConnected || fileEl.getAttribute('aria-expanded') !== 'true') return;
     const fill = () => {
@@ -65,7 +67,13 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
       if (reveal) revealCommit(fileEl.closest('.details'), true);
       if (reveal === true) revealFile(fileEl);
     };
-    if (reveal === true) { grow(box, fill, settle); return; }
+    // Az első tartalom (a „Betöltés…” is) nyitja a kártyát; a később érkező csak a magasságát
+    // viszi tovább onnan, ahol tart — a kártya animációja nem indul újra.
+    if (reveal === true) {
+      if (opened) grow(box, fill, settle); else openCard(fileEl, box, before, fill, settle);
+      opened = true;
+      return;
+    }
     fill();
     settle();
     drawGraph();
@@ -124,8 +132,12 @@ export function setMdRaw(raw) {
   });
 }
 
-const mdModeHtml = () => `<button class="mini md-mode" data-md-mode title="${
-  mdRaw ? 'Renderelt nézet' : 'Nyers diff'}">${icon(mdRaw ? 'text' : 'code')}</button>`;
+/* A nézetváltó: kétgombos szegmens (`[érték, ikon, felirat]`), a választott a lenyomott. */
+const segHtml = (attr, on, ...opts) => `<span class="md-seg" role="group">${opts.map(([value, name, label]) =>
+  `<button type="button" data-${attr}="${value}" aria-pressed="${value === on}" aria-label="${label}" data-tip="${label}">`
+  + `${icon(name)}</button>`).join('')}</span>`;
+const mdModeHtml = () => segHtml('md-mode', mdRaw ? 'raw' : 'rendered',
+  ['rendered', 'text', 'Renderelt nézet'], ['raw', 'code', 'Nyers diff']);
 
 /* Az SVG-fájl: alapból kép, a kapcsolóval a kódja (a szöveges diff); a lap megjegyzi. */
 const SVG_CODE_KEY = 'git-graph:svgCode';
@@ -139,5 +151,4 @@ export function setSvgCode(code) {
   });
 }
 
-const svgModeHtml = () => `<button class="mini md-mode" data-svg-mode title="${
-  svgCode ? 'Kép' : 'Kód'}">${icon(svgCode ? 'image' : 'code')}</button>`;
+const svgModeHtml = () => segHtml('svg-mode', svgCode ? 'code' : 'image', ['image', 'image', 'Kép'], ['code', 'code', 'Kód']);

@@ -1,33 +1,80 @@
 /* ── Tokenek ───────────────────────────────────────────────────────────────
-   A Claude app meleg palettája; a kód színei a „Claude Light / Claude Dark"
-   témáé. Világos az alap; a sötét a rendszer-preferenciára és az explicit
-   [data-theme="dark"] kapcsolóra is él. Minden szín tokenen keresztül megy.   */
+   A Claude app design-systemje (CDS, „comfortable” sűrűség): semleges szürkék,
+   kék akcentus, a git- és az állapot-színek, a sávoké a `chart-categorical`
+   1–8 a tint-párjával (badge-háttér, -szöveg). A kód színei a „Claude Light /
+   Claude Dark" témáé. Világos az alap; a sötét a rendszer-preferenciára és az
+   explicit [data-theme="dark"] kapcsolóra is él. Minden szín tokenen keresztül megy.   */
 :root {
-  --bg:          #ffffff;
-  --bg-1:        #faf9f5;   /* fejléc, lábléc, kártya */
-  --bg-2:        #f5f4ed;   /* hover */
-  --bg-3:        #efede4;   /* kiemelt fájlsor, számláló */
-  --fg-0:        #141413;
-  --fg-1:        #3d3d3a;
-  --fg-2:        #6b6a64;
-  --fg-3:        #9c9a92;
-  --border:      rgba(31, 30, 29, .14);
-  --border-soft: rgba(31, 30, 29, .07);
-  --ctrl:        #ffffff;
-  --ctrl-border: rgba(31, 30, 29, .18);
-  --ctrl-shadow: 0 1px 2px rgba(31, 30, 29, .06);
-  --accent:      #c6613f;
-  --accent-bg:   rgba(217, 119, 87, .13);
-  --track-off:   #e3e1d8;
-  --add:         #3d7a37;
-  --del:         #c23a3a;
-  --del-fill:    #c23a3a;   /* teli piros felület fehér szöveggel */
-  --live:        #3d9a50;
+  --bg:          #ffffff;   /* surface-1: az app oldalháttere */
+  --bg-1:        #ffffff;   /* surface-2: kártya, lábléc */
+  --bg-2:        #f2f2f2;   /* hover: fill-ghost-hover (5 %) a háttéren */
+  --bg-3:        #e5e5e5;   /* kijelölt: fill-ghost-selected (10 %) a háttéren */
+  --fg-0:        #1a1a1a;   /* text-primary (90 %) */
+  --fg-1:        #1a1a1a;
+  --fg-2:        #666666;   /* text-secondary (60 %) */
+  --fg-3:        #888888;   /* text-muted (47 %) */
+  --border:      rgba(0, 0, 0, .08);
+  --border-soft: rgba(0, 0, 0, .05);
+  --ctrl:        #ffffff;   /* surface-3 */
+  --ctrl-border: rgba(0, 0, 0, .12);   /* border-line */
+  --ctrl-shadow: 0 1px 2px rgba(0, 0, 0, .05);
+  --pop-bg:      #ffffff;   /* surface-popover */
+  --pop-shadow:  0 8px 24px rgba(0, 0, 0, .12), 0 2px 6px rgba(0, 0, 0, .08);
+  --accent:      #257de0;   /* fill-accent (blue-450) */
+  --accent-bg:   rgba(37, 125, 224, .12);
+  --accent-hover: #2171ca;  /* fill-accent-hover */
+  --link:        #184f95;   /* text-accent (blue-600): a szöveges link */
+  /* kitöltések: alpha-1…4 (5 / 10 / 20 / 35 %) */
+  --fill-1:      rgba(11, 11, 11, .05);
+  --fill-2:      rgba(11, 11, 11, .10);
+  --fill-3:      rgba(11, 11, 11, .20);
+  --fill-4:      rgba(11, 11, 11, .35);
+  --field:       rgba(255, 255, 255, .5);   /* fill-field: a beviteli mező */
+  --track-off:   var(--fill-3);   /* a kapcsoló kikapcsolt sávja, hoverre egy fokkal erősebb */
+  --track-hover: var(--fill-4);
+  --seg-on:      var(--pop-bg);   /* a szegmens választott gombja */
+  --shadow-sm:   0 1px 2px rgba(11, 11, 11, .06), 0 2px 8px rgba(11, 11, 11, .08);
+  --focus-ring:  inset 0 0 0 1px var(--bg), 0 0 0 1px var(--accent), 0 0 6px 1px var(--accent-bg);
+  --scrollbar:   hsla(30, 3.3%, 11.8%, .35);
+  --disabled:    .4;
+  --kbd-line:    18%;   /* a billentyűsapka kerete: a szöveg színéből */
+  /* git: added / removed / modified / merged / conflicting */
+  --add:         #1e9e3c;
+  --del:         #cd2054;
+  --git-modified: #98801f;
+  --git-merged:  #8e6bd9;
+  --git-conflict: #c5621b;
+  /* állapot: élő, figyelmeztetés (csak jelként), hiba; a keresés találata */
+  --good:        #0ca30c;
+  --warning:     #fab219;
+  --critical:    #d03b3b;
+  --critical-bg: #fad6d6;   /* bg-danger (red-100): halvány piros felület */
+  --critical-fg: #8e2626;   /* text-danger (red-600) */
+  --highlight:   rgba(250, 178, 25, .33);
+  /* a kódnézet (diff) kiemelt felülete: kódblokk, táblázatfej, üres oldal, ábrakeret */
+  --code-tint:   color-mix(in srgb, var(--fg-0) 4%, var(--code-bg));
+  /* tooltip: fekete buborék (sötétben a popover felülete) */
+  --tip-bg:      #0b0b0b;
+  --tip-fg:      #ffffff;
+  --tip-sub:     rgba(255, 255, 255, .57);   /* text-secondary a sötét buborékon */
+  --tip-kbd:     rgba(255, 255, 255, .4);    /* text-muted: a gyorsbillentyű */
   --tag-fg:      #8a5a00;
-  /* fájlikonok (Catppuccin, page/file-icons.json): a sávszínek tónusai */
+  /* sávok (`laneColor`): a vonal színe (chart-categorical), a chip tint-háttere, -szövege és -kerete */
+  --lane-0: #2a78d6; --lane-0-bg: #257de01f; --lane-0-fg: #1757ac; --lane-0-bd: #257de039;   /* blue */
+  --lane-1: #eb6834; --lane-1-bg: #d25f2524; --lane-1-fg: #90370f; --lane-1-bd: #d25f2539;   /* orange */
+  --lane-2: #1baf7a; --lane-2-bg: #019c7f24; --lane-2-fg: #006458; --lane-2-bd: #019c7f39;   /* aqua */
+  --lane-3: #eda100; --lane-3-bg: #fbb31529; --lane-3-fg: #794c02; --lane-3-bd: #fbb3154a;   /* yellow */
+  --lane-4: #e87ba4; --lane-4-bg: #ce447d1f; --lane-4-fg: #902552; --lane-4-bd: #ce447d39;   /* magenta */
+  --lane-5: #008300; --lane-5-bg: #10a12224; --lane-5-fg: #006c10; --lane-5-bd: #10a12241;   /* green */
+  --lane-6: #6250d6; --lane-6-bg: #785ee81f; --lane-6-fg: #5437b8; --lane-6-bd: #785ee839;   /* violet */
+  --lane-7: #e34948; --lane-7-bg: #dc3c3d1f; --lane-7-fg: #a42528; --lane-7-bd: #dc3c3d39;   /* red */
+  /* monogram: a munkatárs-paletta, fehér betűvel, mindkét témában */
+  --collab-0: #7161e0; --collab-1: #c04873; --collab-2: #0f7e5c;
+  --collab-3: #008300; --collab-4: #945d00; --collab-5: #6d6b67;
+  /* fájlikonok (Catppuccin, page/file-icons.json) */
   --ic-red: #c4573a; --ic-orange: #d97757; --ic-yellow: #c08a1e; --ic-green: #3f9455;
   --ic-teal: #2a8e8c; --ic-blue: #4f7fe0; --ic-purple: #8f68cc; --ic-pink: #c4588a;
-  --ic-fg: #6b6a64; --ic-muted: #9c9a92;
+  --ic-fg: #666666; --ic-muted: #888888;
   /* kód */
   --code-bg:     #ffffff;
   --code-fg:     #141413;
@@ -44,36 +91,70 @@
   --diff-del-hl: #f6c9c9;
   --diff-add-no: #3d7a37;
   --diff-del-no: #c23a3a;
+  /* a betű vastagsága: az app (fizzy-lake típus) tengelyértékei az Anthropic Sans változó fontján —
+     a `font-weight` szám a `wght` tengelyt állítja */
+  --w-body:      360;
+  --w-control:   395;
+  --w-medium:    460;
+  --w-header:    480;
+  --w-badge:     520;
+  --w-bold:      560;
   --font-ui:   "Anthropic Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-mono: "Anthropic Mono", "SF Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: "Anthropic Mono", "SF Mono", ui-monospace, SFMono-Regular, Menlo, monospace;   /* a `font.js` tölti */
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:          #262624;
-    --bg-1:        #1f1e1d;
-    --bg-2:        #2d2c2a;
-    --bg-3:        #383734;
-    --fg-0:        #faf9f5;
-    --fg-1:        #e3e1d8;
-    --fg-2:        #a8a69d;
-    --fg-3:        #7f7d76;
-    --border:      rgba(222, 220, 209, .13);
-    --border-soft: rgba(222, 220, 209, .07);
-    --ctrl:        #30302e;
-    --ctrl-border: rgba(222, 220, 209, .16);
+    --bg:          #191919;   /* surface-1 */
+    --bg-1:        #1f1f1f;   /* surface-2 */
+    --bg-2:        #2a2a2a;   /* fill-ghost-hover (7,5 %) a háttéren */
+    --bg-3:        #3b3b3b;   /* fill-ghost-selected (15 %) a háttéren */
+    --fg-0:        #efefef;   /* text-primary (93 %) */
+    --fg-1:        #efefef;
+    --fg-2:        #9c9c9c;   /* text-secondary (57 %) */
+    --fg-3:        #757575;   /* text-muted (40 %) */
+    --border:      rgba(255, 255, 255, .04);
+    --border-soft: rgba(255, 255, 255, .03);
+    --ctrl:        #1f1f1f;   /* surface-3 */
+    --ctrl-border: rgba(255, 255, 255, .12);   /* border-line */
     --ctrl-shadow: none;
-    --accent:      #d97757;
-    --accent-bg:   rgba(217, 119, 87, .17);
-    --track-off:   #4a4946;
-    --add:         #86c473;
-    --del:         #e5806b;
-    --del-fill:    #b8392f;
-    --live:        #6cc47e;
+    --pop-bg:      #303030;   /* surface-popover */
+    --pop-shadow:  0 8px 24px rgba(0, 0, 0, .32), 0 2px 6px rgba(0, 0, 0, .2);
+    --accent:      #257de0;
+    --accent-bg:   rgba(37, 125, 224, .12);
+    --track-off:   var(--fill-2);
+    --track-hover: var(--fill-3);
+    --link:        #6da7ec;   /* text-accent (blue-300) */
+    --fill-1:      rgba(255, 255, 255, .05);
+    --fill-2:      rgba(255, 255, 255, .10);
+    --fill-3:      rgba(255, 255, 255, .20);
+    --fill-4:      rgba(255, 255, 255, .35);
+    --field:       var(--fill-1);
+    --seg-on:      var(--fill-2);
+    --shadow-sm:   0 1px 2px rgba(11, 11, 11, .06), 0 2px 8px rgba(0, 0, 0, .24);
+    --focus-ring:  inset 0 0 0 1px var(--bg), 0 0 0 1px var(--accent), 0 0 6px 1px rgba(24, 79, 149, .6);
+    --scrollbar:   hsla(51, 16.5%, 84.5%, .35);
+    --kbd-line:    22%;
+    --tip-bg:      #303030;   /* sötétben a buborék a popover felülete */
+    --critical-bg: #470f10;   /* red-800 */
+    --critical-fg: #f17778;   /* red-300 */
+    --add:         #32d74b;
+    --del:         #ff2c56;
+    --git-modified: #ffd014;
+    --git-merged:  #b796ff;
+    --git-conflict: #fa832e;
     --tag-fg:      #e6c06e;
+    --lane-0: #3987e5; --lane-0-bg: #257de01f; --lane-0-fg: #6aabf1; --lane-0-bd: #257de066;   /* blue */
+    --lane-1: #d95926; --lane-1-bg: #d25f251f; --lane-1-fg: #f18a59; --lane-1-bd: #d25f2566;   /* orange */
+    --lane-2: #199e70; --lane-2-bg: #019c7f1f; --lane-2-fg: #2bc6a5; --lane-2-bd: #019c7f66;   /* aqua */
+    --lane-3: #c98500; --lane-3-bg: #fbb31514; --lane-3-fg: #e49c06; --lane-3-bd: #fbb3154d;   /* yellow */
+    --lane-4: #d55181; --lane-4-bg: #ce447d1f; --lane-4-fg: #ee7fac; --lane-4-bd: #ce447d66;   /* magenta */
+    --lane-5: #008300; --lane-5-bg: #10a1221f; --lane-5-fg: #53c556; --lane-5-bd: #10a12266;   /* green */
+    --lane-6: #9085e9; --lane-6-bg: #785ee81f; --lane-6-fg: #a89af0; --lane-6-bd: #785ee866;   /* violet */
+    --lane-7: #e66767; --lane-7-bg: #dc3c3d1f; --lane-7-fg: #f17778; --lane-7-bd: #dc3c3d66;   /* red */
     --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
     --ic-teal: #6cc4c0; --ic-blue: #8fb2f5; --ic-purple: #c5aaf0; --ic-pink: #e38fb2;
-    --ic-fg: #a8a69d; --ic-muted: #7f7d76;
+    --ic-fg: #9c9c9c; --ic-muted: #757575;
     --code-bg:     #141413;
     --code-fg:     #ecebe4;
     --code-no:     #7f7d76;
@@ -93,30 +174,56 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg:          #262624;
-  --bg-1:        #1f1e1d;
-  --bg-2:        #2d2c2a;
-  --bg-3:        #383734;
-  --fg-0:        #faf9f5;
-  --fg-1:        #e3e1d8;
-  --fg-2:        #a8a69d;
-  --fg-3:        #7f7d76;
-  --border:      rgba(222, 220, 209, .13);
-  --border-soft: rgba(222, 220, 209, .07);
-  --ctrl:        #30302e;
-  --ctrl-border: rgba(222, 220, 209, .16);
+  --bg:          #191919;   /* surface-1 */
+  --bg-1:        #1f1f1f;   /* surface-2 */
+  --bg-2:        #2a2a2a;   /* fill-ghost-hover (7,5 %) a háttéren */
+  --bg-3:        #3b3b3b;   /* fill-ghost-selected (15 %) a háttéren */
+  --fg-0:        #efefef;   /* text-primary (93 %) */
+  --fg-1:        #efefef;
+  --fg-2:        #9c9c9c;   /* text-secondary (57 %) */
+  --fg-3:        #757575;   /* text-muted (40 %) */
+  --border:      rgba(255, 255, 255, .04);
+  --border-soft: rgba(255, 255, 255, .03);
+  --ctrl:        #1f1f1f;   /* surface-3 */
+  --ctrl-border: rgba(255, 255, 255, .12);   /* border-line */
   --ctrl-shadow: none;
-  --accent:      #d97757;
-  --accent-bg:   rgba(217, 119, 87, .17);
-  --track-off:   #4a4946;
-  --add:         #86c473;
-  --del:         #e5806b;
-  --del-fill:    #b8392f;
-  --live:        #6cc47e;
+  --pop-bg:      #303030;   /* surface-popover */
+  --pop-shadow:  0 8px 24px rgba(0, 0, 0, .32), 0 2px 6px rgba(0, 0, 0, .2);
+  --accent:      #257de0;
+  --accent-bg:   rgba(37, 125, 224, .12);
+  --track-off:   var(--fill-2);
+  --track-hover: var(--fill-3);
+  --link:        #6da7ec;   /* text-accent (blue-300) */
+  --fill-1:      rgba(255, 255, 255, .05);
+  --fill-2:      rgba(255, 255, 255, .10);
+  --fill-3:      rgba(255, 255, 255, .20);
+  --fill-4:      rgba(255, 255, 255, .35);
+  --field:       var(--fill-1);
+  --seg-on:      var(--fill-2);
+  --shadow-sm:   0 1px 2px rgba(11, 11, 11, .06), 0 2px 8px rgba(0, 0, 0, .24);
+  --focus-ring:  inset 0 0 0 1px var(--bg), 0 0 0 1px var(--accent), 0 0 6px 1px rgba(24, 79, 149, .6);
+  --scrollbar:   hsla(51, 16.5%, 84.5%, .35);
+  --kbd-line:    22%;
+  --tip-bg:      #303030;   /* sötétben a buborék a popover felülete */
+  --critical-bg: #470f10;   /* red-800 */
+  --critical-fg: #f17778;   /* red-300 */
+  --add:         #32d74b;
+  --del:         #ff2c56;
+  --git-modified: #ffd014;
+  --git-merged:  #b796ff;
+  --git-conflict: #fa832e;
   --tag-fg:      #e6c06e;
+  --lane-0: #3987e5; --lane-0-bg: #257de01f; --lane-0-fg: #6aabf1; --lane-0-bd: #257de066;   /* blue */
+  --lane-1: #d95926; --lane-1-bg: #d25f251f; --lane-1-fg: #f18a59; --lane-1-bd: #d25f2566;   /* orange */
+  --lane-2: #199e70; --lane-2-bg: #019c7f1f; --lane-2-fg: #2bc6a5; --lane-2-bd: #019c7f66;   /* aqua */
+  --lane-3: #c98500; --lane-3-bg: #fbb31514; --lane-3-fg: #e49c06; --lane-3-bd: #fbb3154d;   /* yellow */
+  --lane-4: #d55181; --lane-4-bg: #ce447d1f; --lane-4-fg: #ee7fac; --lane-4-bd: #ce447d66;   /* magenta */
+  --lane-5: #008300; --lane-5-bg: #10a1221f; --lane-5-fg: #53c556; --lane-5-bd: #10a12266;   /* green */
+  --lane-6: #9085e9; --lane-6-bg: #785ee81f; --lane-6-fg: #a89af0; --lane-6-bd: #785ee866;   /* violet */
+  --lane-7: #e66767; --lane-7-bg: #dc3c3d1f; --lane-7-fg: #f17778; --lane-7-bd: #dc3c3d66;   /* red */
   --ic-red: #e5806b; --ic-orange: #e8946f; --ic-yellow: #e3b25e; --ic-green: #86c473;
   --ic-teal: #6cc4c0; --ic-blue: #8fb2f5; --ic-purple: #c5aaf0; --ic-pink: #e38fb2;
-  --ic-fg: #a8a69d; --ic-muted: #7f7d76;
+  --ic-fg: #9c9c9c; --ic-muted: #757575;
   --code-bg:     #141413;
   --code-fg:     #ecebe4;
   --code-no:     #7f7d76;
@@ -135,15 +242,17 @@
   color-scheme: dark;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; scrollbar-width: thin; }
+html { scrollbar-color: var(--scrollbar) transparent; }   /* az app görgetősávja */
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--fg-1);
   font-family: var(--font-ui);
-  font-size: 13px;
-  line-height: 1.4;
+  font-weight: var(--w-body);
+  font-size: 14px;
+  line-height: 20px;   /* leading-body */
   -webkit-font-smoothing: antialiased;
   /* Kontroll-sor és lábléc fix, köztük egyetlen görgethető régió. */
   height: 100dvh;
@@ -155,12 +264,14 @@ body {
 
 .mono { font-family: var(--font-mono); font-variant-ligatures: none; }
 .ic {
-  width: 14px; height: 14px; flex: none;
-  fill: none; stroke: currentColor; stroke-width: 1.5;
+  width: 16px; height: 16px; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.2;   /* a saját rajzok vonala: az Anthropicons sm glifáié */
   stroke-linecap: round; stroke-linejoin: round;
 }
+/* az Anthropicons-glifa (`icons.js`): kitöltött kontúr, nem vonal */
+.ic .ic-ag { fill: currentColor; stroke: none; }
 button { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 
 /* ── Fejléc-sáv ──────────────────────────────────────────────────────────── */
 .chrome {
@@ -169,113 +280,118 @@ button { font: inherit; color: inherit; }
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px 18px;
-  min-height: 50px;
-  padding: 10px 14px 10px 16px;
+  gap: 10px 16px;
+  min-height: 56px;
+  padding: 12px 16px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
 .repo { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.repo-name { font-size: 14px; font-weight: 600; color: var(--fg-0); white-space: nowrap; }
+.repo-name { font-size: 15px; font-weight: var(--w-header); color: var(--fg-0); white-space: nowrap; }
 .head-chip {
   display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; overflow: hidden;
-  height: 20px; padding: 0 7px; border-radius: 6px;
+  height: 20px; padding: 0 8.5px; border-radius: 5px;   /* a sor chipjével (`.badge`) azonos méret */
   background: var(--lc); color: #ffffff;   /* teli, mint a saját HEAD commit-chipje */
-  font-size: 12px; font-weight: 600; white-space: nowrap;
+  font-size: 12px; font-weight: var(--w-badge); line-height: 15px; white-space: nowrap;
   border: 0; font-family: inherit; cursor: pointer;   /* gomb: a lista a HEAD-hez ugrik */
 }
-.head-chip .ic { width: 13px; height: 13px; }
+.head-chip .ic { width: 16px; height: 16px; }
+.head-chip > .ic:first-child, .head-chip > .wt-lead:first-child { margin-left: -4.5px; }   /* az ikon a széltől 4 px-re */
 .head-chip[hidden] { display: none; }
 .head-chip.head-off { opacity: .5; }   /* az ágválasztó elrejti a HEAD-et */
-.head-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Ágválasztó: saját legördülő menü — a natív <select> listája a macOS kék
    menüjét hozná, ami kilóg az app nyelvéből. */
 .menu { position: relative; }
+/* az app Select-je (outline): mező — halvány háttér, 1 px keret, hoverre és nyitva erősebb keret */
 .select {
-  display: inline-flex; align-items: center; gap: 7px;
-  height: 28px; padding: 0 8px;
-  border: 0; border-radius: 7px;
-  background: var(--ctrl);
-  box-shadow: inset 0 0 0 1px var(--ctrl-border), var(--ctrl-shadow);
-  color: var(--fg-2); font-size: 13px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 8px;
+  border: 0; border-radius: 8px;
+  background: var(--field); box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--fg-2); font-size: 14px; cursor: pointer;
 }
-.select:hover { background: var(--bg-1); }
+.select:hover, .select[aria-expanded="true"] { box-shadow: inset 0 0 0 1px var(--fill-3); }
 .select-ic { display: inline-flex; gap: 4px; }
 .select-ic:empty { display: none; }
 .select-label { color: var(--fg-0); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.select .chev { width: 12px; height: 12px; margin-left: 10px; transition: transform .12s; }
+.select .chev { width: 16px; height: 16px; margin: 0 2px; color: var(--fg-3);   /* a Select CaretDown-ja (`sm`, text-muted, 20 px-es helyen) */ transition: transform .12s; }
 .select[aria-expanded="true"] .chev { transform: rotate(180deg); }
-.select:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--accent), var(--ctrl-shadow); }
+.select:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .menu-pop {
   position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
-  min-width: 100%; width: max-content; max-width: 360px; max-height: min(340px, var(--room, 100vh)); overflow: auto;
-  padding: 4px;
-  display: flex; flex-direction: column; gap: 1px;
-  background: var(--ctrl);
-  border-radius: 10px;
-  box-shadow: 0 0 0 1px var(--ctrl-border), 0 8px 24px rgba(0, 0, 0, .14);
+  min-width: max(100%, 128px); width: max-content; max-width: 320px; max-height: min(340px, var(--room, 100vh)); overflow: auto;
+  padding: 4px;   /* --cds-menu-gutter */
+  display: flex; flex-direction: column;
+  background: var(--pop-bg);
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px var(--border), var(--pop-shadow);
 }
 .menu-pop[hidden] { display: none; }
 .option {
-  display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: center;
-  height: 28px; padding: 0 10px 0 8px;
-  border: 0; border-radius: 6px; background: transparent;
-  font-size: 13px; color: var(--fg-0); text-align: left; cursor: pointer;
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  height: 32px; padding: 0 12px;   /* a Select Item-je: px-md */
+  border: 0; border-radius: 8px; background: transparent;
+  font-size: 14px; color: var(--fg-0); text-align: left; cursor: pointer;
 }
-.option:hover, .option:focus-visible { outline: 0; background: var(--bg-2); }
+.select, .option, .switch, .search input, .menu-search input { font-weight: var(--w-control); }   /* kontroll-szerep */
+.option:hover, .option:focus-visible { outline: 0; box-shadow: none; background: var(--bg-2); }
 /* Az opció ikonjai látszanak; a pipa (`.ck`) csak a kiválasztotton (az ágválasztó
    blokkjában soronként, `.ln.on`). */
-.option .ic { width: 14px; height: 14px; color: var(--fg-2); stroke-width: 1.5; }
-.option .ic.ck { width: 12px; height: 12px; color: var(--accent); stroke-width: 2; visibility: hidden; }
+/* a menü ikonjai az app comfortable sűrűségében 20 px-esek (`md`), a pipa is (`bold`, akcentus) */
+.option .ic { width: 20px; height: 20px; color: var(--fg-2); }
+.menu-pop .ic { stroke-width: 1; }   /* 20 px-en a saját rajz vonala is az `md` glifáké (1,25 px) */
+.option .ic.ck { width: 20px; height: 20px; color: var(--accent); visibility: hidden; }
 .option[aria-selected="true"] .ic.ck, .blk .ln.on .ic.ck { visibility: visible; }
-.option.with-icon { grid-template-columns: 16px minmax(0, 1fr) 14px; }
+.option.with-icon { grid-template-columns: 20px minmax(0, 1fr) 20px; }
 .option .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* A HEAD-jel az ág színében (`--lc`), mint a chipek. */
+/* A HEAD-jel az ág tint-párjában (`--lc-bg`, `--lc-fg`), mint a chipek. */
 .option .cur {
-  margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 500;
-  background: color-mix(in srgb, var(--lc, var(--accent)) 14%, var(--bg));
-  color: color-mix(in srgb, var(--lc, var(--accent)) 70%, var(--fg-0));
+  --lc-bg: color-mix(in srgb, var(--lc, var(--accent)) 14%, var(--bg));
+  --lc-fg: color-mix(in srgb, var(--lc, var(--accent)) 70%, var(--fg-0));
+  margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: var(--w-medium);
+  background: var(--lc-bg); color: var(--lc-fg);
 }
 /* Ágválasztó: worktree-fejléc, alatta az ágai; a helyi ág és az upstreamje egy
-   blokk (egy opció, két sor, szorosan). A pipa oszlopa a fejléc ikonja alatt. */
-.menu-pop.branches { max-width: 460px; max-height: min(460px, var(--room, 100vh)); padding: 0; gap: 0; overflow: hidden; }
+   blokk (egy opció, két sor, szorosan). A pipa a sor jobb szélén, mint az app lenyílóiban. */
+.menu-pop.branches { max-width: 460px; max-height: var(--reach, var(--room, 100vh)); padding: 0; gap: 0; overflow: hidden; }
 .menu-pop [hidden] { display: none !important; }   /* a szűrő rejtette (az .option display-e fölé) */
 /* Csak az ágak listája görget; a szűrő és a „Minden ág” fölötte áll. */
-.menu-all { flex: none; padding: 4px 4px 3px; border-bottom: 1px solid var(--border-soft); }
+.menu-all { flex: none; padding: 4px 4px 3px; border-bottom: 1px solid var(--border); }
 .menu-all .option { width: 100%; }
-.menu-grp { display: flex; flex-direction: column; gap: 1px; }
+.menu-grp { display: flex; flex-direction: column; }
+.menu-grp:has(> .menu-wt) > .option.blk > .ln { padding-left: 40px; }   /* a fejléc alá tartozó ágak beljebb */
 /* Elválasztó a `sep` csoport fölött, ha előtte látszik egy csoport. */
 .menu-grp:not([hidden]) ~ .menu-grp.sep::before {
-  content: ""; height: 1px; margin: 3px 6px; background: var(--border-soft);
+  content: ""; height: 1px; margin: 4px 12px; background: var(--border);   /* Select.Separator: mx-pad-md */
 }
-.menu-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px; display: flex; flex-direction: column; gap: 1px; }
+.menu-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px; display: flex; flex-direction: column; }
 .menu-list.empty::after { content: "Nincs ilyen ág"; padding: 6px 12px; font-size: 12.5px; color: var(--fg-3); }
 /* A szűrőmező a menü tetején. */
 .menu-search {
   display: flex; flex: none; align-items: center; gap: 8px;
-  height: 32px; padding: 0 10px 0 12px;
-  border-bottom: 1px solid var(--border-soft);
+  height: 38px; padding: 0 16px;   /* PopupSearch: pad-md + a gutter, az ágak ikonjával egy oszlopban */
+  border-bottom: 1px solid var(--border);
   color: var(--fg-3);
 }
-.menu-search .ic { width: 14px; height: 14px; flex: none; }
+.menu-search .ic { width: 20px; height: 20px; flex: none; }   /* az ágak ikonjával egy oszlopban */
 .menu-wt {
-  display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 6px 10px 0 8px;
-  font-size: 12.5px; font-weight: 500; color: var(--fg-0);
+  display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 6px 12px 0;
+  font-size: 13px; font-weight: var(--w-medium); color: var(--fg-3);   /* Menu.GroupLabel: text-muted (a remote csoporté) */
 }
-.menu-wt .ic { width: 14px; height: 14px; flex: none; color: var(--fg-2); }
+.menu-wt .ic { width: 20px; height: 20px; flex: none; color: inherit; }
 .menu-wt .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu-wt .note { margin-left: -4px; font-weight: 400; font-style: italic; color: var(--fg-3); font-size: 11.5px; }
-.menu-wt-cur { font-weight: 700; }
+.menu-wt .note { margin-left: -4px; font-weight: var(--w-body); font-style: italic; color: var(--fg-3); font-size: 12px; }
+.menu-wt-cur { font-weight: var(--w-bold); }   /* az app bold-ja */
 /* A WIP jele: üres karika, mint a gráfon a „Nem commitolt változások” pontja. */
 .menu-wt .wip {
-  width: 9px; height: 9px; margin-left: auto; flex: none; box-sizing: border-box;
+  width: 12px; height: 12px; margin: 0 4px 0 auto; flex: none; box-sizing: border-box;   /* mint a gráfon (r 5, 2 px-es vonal); a pipa oszlopának közepén */
   border: 2px solid currentColor; border-radius: 50%;
 }
 /* A worktree fejléce is opció: rákattintva az összes ága kijelölődik. */
 .option.menu-wt {
-  display: flex; height: auto; min-height: 26px; padding: 4px 10px 2px 8px; margin-top: 2px;
-  font-size: 12.5px; font-weight: 500;
+  display: flex; height: auto; min-height: 26px; padding: 4px 12px 2px; margin-top: 2px;
+  font-size: 13px; font-weight: var(--w-medium); color: var(--fg-0);   /* kattintható: nem halvány */
 }
 .option.blk { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 3px 0; position: relative; }
 /* A jobb szél három oszlopa (`c3`, `c2`, `c1`), oszloponként egyforma, fix szélességű
@@ -285,53 +401,56 @@ button { font: inherit; color: inherit; }
 .blk .dc {
   display: flex; justify-content: space-between; align-items: center;
   width: calc(var(--digits, 2) * 1ch + 11px);   /* nyíl + az oszlop leghosszabb száma (a lap állítja) */
-  font-size: 11px; color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap;
+  font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-.blk .gap { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+.blk .gap { position: absolute; right: 38px; top: 50%; transform: translateY(-50%); }
 .blk .gap .ud { display: inline-flex; flex-direction: column; align-items: center; line-height: 7px; }
-.blk .gap.warn { color: var(--del); font-weight: 600; }
+.blk .gap.warn { color: var(--critical); font-weight: var(--w-header); }
 .blk .c1, .blk .gap { --digits: var(--c1-digits); }
 .blk .c2 { --digits: var(--c2-digits); }
 .blk .c3 { --digits: var(--c3-digits); }
 .blk .c1, .blk .c2, .blk .c3 {
-  display: flex; justify-content: flex-end; font-size: 11px;
+  display: flex; justify-content: flex-end; font-size: 12px;
   min-width: calc(var(--digits, 2) * 1ch + min(var(--digits, 2), 1) * 11px);
 }
 .blk .ln {
-  display: grid; grid-template-columns: 14px 14px minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center;
-  height: 20px; padding: 0 10px 0 8px;
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto 20px; gap: 8px; align-items: center;
+  height: 24px; padding: 0 12px;
 }
 .blk .col { display: inline-flex; }
-/* A pipa külön kattintható: kipipáltnál kivesz, máskor (hoverre halványan) hozzáad. */
-.blk .ckc { display: inline-flex; margin: -4px; padding: 4px; border-radius: 4px; }
+/* A pipa külön kattintható: kipipáltnál kivesz, máskor (hoverre halványan) hozzáad. Mindig
+   az utolsó oszlopban áll: a távolság nélküli sorban („Minden ág”) is egy vonalban a többivel. */
+.blk .ckc { display: inline-flex; margin: -4px; padding: 4px; border-radius: 4px; order: 1; grid-column: -2 / -1; }
 .blk .ckc[data-refs]:hover .ic.ck { visibility: visible; }
 .blk .ln:not(.on) .ckc:hover .ic.ck { opacity: .4; }
 .blk .det { display: inline-flex; color: var(--fg-3); }
-.blk .det .ic { width: 13px; height: 13px; color: inherit; }
+.blk .det .ic { width: 12px; height: 12px; color: inherit; }   /* `xs` */
 .blk .c1 .det { margin-right: -2px; }   /* a közepe a WIP-karika (9 px) közepén */
 
 
 .switch {
   display: inline-flex; align-items: center; gap: 8px;
-  font-size: 13px; color: var(--fg-1); cursor: pointer; user-select: none;
+  font-size: 14px; color: var(--fg-1); cursor: pointer; user-select: none;
   white-space: nowrap;
 }
 .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
 .switch .track {
   position: relative; flex: none;
-  width: 26px; height: 16px; border-radius: 8px;
+  width: 36px; height: 20px; border-radius: 10px;   /* a fejlécé nagy, a menüé kicsi, mint az appban */
   background: var(--track-off);
   transition: background .15s;
 }
+.switch:hover .track, .option.setting:not(:disabled):hover .track { background: var(--track-hover); }
 .switch .track::after {
   content: ""; position: absolute; top: 2px; left: 2px;
-  width: 12px; height: 12px; border-radius: 6px;
-  background: #ffffff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+  width: 16px; height: 16px; border-radius: 8px;
+  background: #ffffff; box-shadow: var(--shadow-sm);
   transition: transform .15s;
 }
 .switch input:checked + .track { background: var(--accent); }
-.switch input:checked + .track::after { transform: translateX(10px); }
-.switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.switch:hover input:checked + .track { background: var(--accent-hover); }
+.switch input:checked + .track::after { transform: translateX(16px); }
+.switch input:focus-visible + .track { box-shadow: var(--focus-ring); }
 /* Szűrők: ágválasztó + kapcsolók, egy egységként törnek (`fitChrome`). Több
    soros fejlécben az ágválasztó kitölti a sort, a kapcsolók jobbra kerülnek. */
 .filters { display: flex; align-items: center; gap: 18px; flex: 0 1 auto; min-width: 0; }
@@ -345,11 +464,11 @@ button { font: inherit; color: inherit; }
 /* A „Remote ágak” kapcsoló és mellette a remote-szűrő (több remote-nál) egy egység. */
 .remotes { display: flex; align-items: center; gap: 8px; }
 .remotes .menu[hidden] { display: none; }
-#remotesBtn { height: 24px; padding: 0 6px 0 8px; font-size: 12.5px; }
-#remotesBtn .chev { margin-left: 4px; }
+#remotesBtn { height: 28px; padding: 0 6px 0 8px; font-size: 13px; }
+#remotesBtn .chev { width: 12px; height: 12px; margin: 0 -2px 0 0; }   /* a kisebb (28 px-es) gombé `xs`, mint az appban */
 #remotesBtn .select-label { max-width: 140px; }
-#remotesBtn:disabled { cursor: default; opacity: .55; }
-#remotesBtn:disabled:hover { background: var(--ctrl); }
+#remotesBtn:disabled { cursor: default; opacity: var(--disabled); }
+#remotesBtn:disabled:hover { box-shadow: inset 0 0 0 1px var(--border); }
 /* Szűkös helyen (a sor tördelne) a kapcsolók felirata helyett ikon. */
 .switch .sw-ic { display: none; color: var(--fg-2); }
 .chrome.compact .switch { gap: 6px; }
@@ -361,53 +480,58 @@ button { font: inherit; color: inherit; }
 .tools { margin-left: auto; flex: 1 1 auto; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 
 .search {
-  display: flex; align-items: center; gap: 7px;
-  flex: 1 1 230px; min-width: 120px; height: 28px; padding: 0 8px;
-  border-radius: 7px;
-  background: var(--ctrl);
-  box-shadow: inset 0 0 0 1px var(--ctrl-border), var(--ctrl-shadow);
+  display: flex; align-items: center; gap: 6px;
+  flex: 1 1 230px; min-width: 120px; height: 32px; padding: 0 8px 0 12px;
+  border-radius: 8px;
+  background: var(--field);   /* az app TextInput-ja: halvány mező, 1 px keret, hoverre erősebb */
+  box-shadow: inset 0 0 0 1px var(--border);
   color: var(--fg-2);
 }
-.search:focus-within { box-shadow: inset 0 0 0 1px var(--accent), var(--ctrl-shadow); }
+.search:hover { box-shadow: inset 0 0 0 1px var(--fill-3); }
+.search:focus-within { box-shadow: var(--focus-ring); }
 .search input, .menu-search input {
   flex: 1; min-width: 0; padding: 0;
   border: 0; outline: 0; background: transparent;
-  color: var(--fg-0); font: inherit; font-size: 13px;
+  color: var(--fg-0); font: inherit; font-size: 14px;
 }
+.search input:focus-visible, .menu-search input:focus-visible { box-shadow: none; }
 .search input::placeholder, .menu-search input::placeholder { color: var(--fg-3); }
 .search input::-webkit-search-cancel-button { cursor: pointer; }
+/* az app Shortcut-ja: billentyűnként egy sapka, 2 px-es közzel; az egy karakteres négyzet */
+.search .keys { display: inline-flex; gap: 2px; font-size: 12px; color: var(--fg-3); }
 .search kbd {
-  padding: 0 5px; border-radius: 4px;
-  box-shadow: inset 0 0 0 1px var(--border);
-  font-family: var(--font-ui); font-size: 11px; color: var(--fg-3);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: calc(1em + 6px); height: calc(1em + 6px); padding: 0; border-radius: 4px;
+  border: 1px solid color-mix(in srgb, currentColor var(--kbd-line), transparent);
+  font: inherit; line-height: 1;
 }
-.search:focus-within kbd { visibility: hidden; }   /* a helye marad: a mező nem ugrik */
+.search:focus-within .keys { visibility: hidden; }   /* a helye marad: a mező nem ugrik */
 
 /* Témaválasztó (a láblécben): a menü jobbra zárva, felfelé nyílik. */
 .menu-pop.end { left: auto; right: 0; min-width: 170px; }
 .menu-pop.up { top: auto; bottom: calc(100% + 6px); }
 
 /* Beállítások: a kereső melletti fogaskerék, a menüben kétsoros kapcsolók. */
-.select.gear { width: 28px; padding: 0; justify-content: center; }
-.select.gear[aria-expanded="true"] { background: var(--bg-1); }
+.select.gear { width: 32px; padding: 0; justify-content: center; }
 .menu-pop.settings { width: 280px; }
-.option.setting { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 6px 10px; gap: 12px; }
+.option.setting { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 6px 12px; gap: 12px; }
 .option.setting .txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.option.setting .sub { font-size: 11.5px; line-height: 1.3; color: var(--fg-3); white-space: normal; }
-.option.setting:disabled { cursor: default; opacity: .55; }
+.option.setting .sub { font-size: 12px; line-height: 1.3; color: var(--fg-3); white-space: normal; }
+.option.setting:disabled { cursor: default; opacity: var(--disabled); }
 .option.setting .track {
-  position: relative; width: 26px; height: 16px; border-radius: 8px;
+  position: relative; width: 28px; height: 16px; border-radius: 8px;
   background: var(--track-off); transition: background .15s;
 }
 .option.setting .track::after {
   content: ""; position: absolute; top: 2px; left: 2px;
   width: 12px; height: 12px; border-radius: 6px;
-  background: #ffffff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+  background: #ffffff; box-shadow: var(--shadow-sm);
   transition: transform .15s;
 }
 .option.setting[aria-checked="true"] .track { background: var(--accent); }
-.option.setting[aria-checked="true"] .track::after { transform: translateX(10px); }
-.menu-note { margin: 4px 10px 6px; font-size: 11.5px; line-height: 1.35; color: var(--del, var(--fg-2)); }
+.option.setting[aria-checked="true"]:not(:disabled):hover .track { background: var(--accent-hover); }
+.option.setting[aria-checked="true"] .track::after { transform: translateX(12px); }
+.menu-note { margin: 4px 12px 6px; font-size: 12px; line-height: 1.35; color: var(--del, var(--fg-2)); }
 
 /* ── Nem commitolt változások ── a saját worktree WIP-je fix sávban a lista fölött:
    mindig látszik. A pontja saját SVG-ben van, a szaggatott vonal innen fut le a
@@ -434,10 +558,10 @@ button { font: inherit; color: inherit; }
    gráf-oszloptól jobbra van: a sávok vonala alatta sem szakad meg. */
 .day {
   position: sticky; top: 0; z-index: 3;
-  height: 16px; display: flex; align-items: center;
+  height: 20px; display: flex; align-items: center;
   margin-left: var(--graph-w, 72px); padding: 0 16px 0 10px;
   background: var(--bg);   /* felül ragadva az előző sor alja ne kandikáljon ki */
-  font-size: 11.5px; line-height: 16px; font-weight: 600; color: var(--fg-2);
+  font-size: 12px; line-height: 20px; font-weight: var(--w-header); color: var(--fg-2);
 }
 /* Ha a következő nap fejléce eléri, a felül ragadó egyben eltűnik (JS: `.gone`). */
 .day.gone { visibility: hidden; }
@@ -450,39 +574,47 @@ button { font: inherit; color: inherit; }
   background: var(--border);
 }
 .day .lbl { position: relative; padding-right: 8px; background: var(--bg); }
-.day .cnt { font-weight: 500; color: var(--fg-3); font-variant-numeric: tabular-nums; }
-.day.lead { margin-bottom: -16px; visibility: hidden; }
+.day .cnt { font-weight: var(--w-medium); color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.day.lead { margin-bottom: -20px; visibility: hidden; }
 .scroll.scrolled .day.lead:not(.gone) { visibility: visible; }
 
 /* A sor háttere a belső sávon: a gráf-oszlop szabadon marad, a pöttyöket
    (`#lanes`, a sorok MÖGÖTT) semmi nem takarja. */
 .row {
   display: flex; align-items: stretch;
-  width: 100%; height: 30px; padding: 2px 12px 2px var(--graph-w, 72px);
+  width: 100%; height: 34px; padding: 2px 12px 2px var(--graph-w, 72px);
   border: 0; background: transparent; text-align: left; cursor: pointer;
 }
 .row-in {
   flex: 1; min-width: 0;
   display: flex; align-items: center; gap: 12px;
-  padding: 0 10px; border-radius: 7px;
-  transition: box-shadow .18s, border-radius .18s;   /* a lenyitott kártya körvonala */
+  padding: 0 10px; border-radius: 8px;
 }
 .row:hover .row-in { background: var(--bg-2); }
-/* A lenyitott sor és a panele egy kártya: a sor a fejléce (a hover színével —
-   semleges, a sávszínű badge-ek a narancsos háttéren beleolvadtak), a panel
-   felső széle az elválasztó. */
-.row[aria-expanded="true"] .row-in {
-  background: var(--bg-2); border-radius: 10px 10px 0 0;
-  box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 1px 0 var(--border);
+.row:focus-visible { outline: 0; box-shadow: none; }
+/* Billentyűzetes kijelölés: halvány háttér + vékony akcentus-keret. */
+.row:focus-visible .row-in { background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--accent); }
+/* A lenyitott sor és a panele egy keret (mint az app „Outputs” kártyája): a fejléc háttér
+   nélkül, a kerete (fent, oldalt) a panelében (lent, oldalt) folytatódik. A panel a
+   felcsukódása alatt is a sor alatt marad (a sor már csukott): a szelektor nem a nyitott
+   sorra szól. A nyílás és a csukás: `openCard`, `closeCard` (anim.js). */
+.row[aria-expanded="true"] .row-in,
+.row[aria-expanded="true"]:hover .row-in,
+.row[aria-expanded="true"]:focus-visible .row-in {
+  background: transparent; border-radius: 12px 12px 0 0;
+  /* a panel árnyéka (shadow-sm) a fejlécen is, fent és oldalt: alul levágva, a panelébe fut */
+  box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 1px 0 var(--border), var(--shadow-sm);
+  clip-path: inset(-12px -12px 0 -12px);
 }
-.row[aria-expanded="true"] + .details { margin-top: -2px; border-top-left-radius: 0; border-top-right-radius: 0; }
-.row:focus-visible { outline: 0; }
-/* Billentyűzetes kijelölés: halvány háttér + vékony narancs keret. */
-.row:focus-visible .row-in { background: var(--bg-2); box-shadow: inset 0 0 0 1.5px var(--accent); }
-.row[aria-expanded="true"]:focus-visible .row-in { background: var(--bg-2); }
+.row + .details {
+  margin-top: -2px; padding-top: 10px; border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0;
+  background: transparent;
+  clip-path: inset(0 -12px -12px -12px);   /* a felső árnyéka a fejlécbe esne: levágva */
+}
 
-.desc { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--fg-0); }
+.desc { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; font-size: 14px; color: var(--fg-0); }
 .subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subject mark { background: var(--highlight); color: inherit; border-radius: 3px; }   /* a keresés találata */
 .row.merge .desc { color: var(--fg-2); }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
 /* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra az idő, az avatar és
@@ -492,9 +624,9 @@ button { font: inherit; color: inherit; }
    csúszik, a blokk az utolsó sorukban jobbra zár, ha ott sincs hely, alá. */
 /* A plusz magasság alul kell (a kiemelés alja ne érjen a badge-hez / blokkhoz):
    a sor nő, a belső sáv ugyanennyi alsó paddinget kap, a tartalom helye marad. */
-.row.two, .row.tight { height: 52px; }
+.row.two, .row.tight { height: 58px; }
 .row:is(.two, .tight) .row-in { padding-bottom: 1px; }
-.row.three { height: auto; min-height: 71px; }
+.row.three { height: auto; min-height: 80px; }
 .row.three .row-in { padding: 4px 10px 5px; }
 .row.two .row-in { flex-direction: column; align-items: stretch; justify-content: center; gap: 3px; }
 .row.two .desc { flex: none; }
@@ -518,41 +650,47 @@ button { font: inherit; color: inherit; }
 .br { display: none; }
 .row.uncommitted .subject { font-style: italic; color: var(--fg-2); }
 .meta {
-  flex: none; display: flex; align-items: center; gap: 6px;
-  font-size: 12px; color: var(--fg-2); white-space: nowrap;
+  flex: none; display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--fg-2); white-space: nowrap;
 }
 .meta .sep { color: var(--fg-3); }
 .meta .time { font-variant-numeric: tabular-nums; }
 /* A szerző arca: avatar vagy monogram, egyforma körben */
 .meta .author { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none;
-                width: 16px; height: 16px; border-radius: 8px;
+                width: 20px; height: 20px; border-radius: 10px;
                 box-shadow: 0 0 0 1px var(--border); }
 /* a kép a `.av<n>` osztály háttere (page.js) — longhand, hogy azt ne írja felül */
 .meta .author { background-position: center; background-size: cover; background-repeat: no-repeat; }
 /* Saját tooltip (`#tip`, a natív késve és nem mindig jön): egyetlen fix
    buborék a lap fölött — a lista széle, a sorok rétegei és a ragadós
    napfejléc nem vághatja le, és görgetést sem nyit. A `data-tip` elem fölé,
-   jobbra zárva úszik be, rövid késleltetéssel (`page.js`: `showTip`). */
-#tip {
-  position: fixed; z-index: 60; padding: 2px 6px; border-radius: 5px; pointer-events: none;
-  background: var(--ctrl); color: var(--fg-1); font: 400 11px/1.4 var(--font-ui); white-space: pre;   /* a badge-é többsoros */
-  box-shadow: 0 0 0 1px var(--ctrl-border), 0 2px 8px rgba(0, 0, 0, .08);
+   jobbra zárva úszik be, rövid késleltetéssel (`tip.js`: `showTip`). Mint az app
+   buborékjai: egy fő sor (mellette halványan a gyorsbillentyű), alatta a többi kisebb,
+   halványabb. */
+#tip {   /* a padding az app Tooltipjéé: egysoros 3 × 8, többsoros 6 × 8 px */
+  position: fixed; z-index: 60; padding: 3px 8px; border-radius: 6px; pointer-events: none;
+  background: var(--tip-bg); color: var(--tip-fg); font: var(--w-body) 13px/18px var(--font-ui); white-space: pre;
   opacity: 0; transform: translateY(2px); transition: opacity .12s, transform .12s;
 }
 #tip.on { opacity: 1; transform: none; }
-.meta .author.ini { background: var(--bg-3); color: var(--fg-1); font-size: 8px; font-weight: 600; letter-spacing: .02em; }
+#tip:has(.sub) { padding: 6px 8px; }
+#tip .main { display: block; }
+#tip .sub { display: block; margin-top: 2px; font-size: 11px; line-height: 14px; color: var(--tip-sub); }
+#tip .kbd { margin-left: 8px; font-size: 12px; color: var(--tip-kbd); }
+/* monogram: a szerző munkatárs-színe (`--ini`, rows.js) */
+.meta .author.ini { background: var(--ini, var(--bg-3)); color: #ffffff; font-size: 9px; font-weight: var(--w-header); letter-spacing: .02em; }
 /* A commit összes változása az avatar után, színes cellákban (a Claude app
    diff-jelzője mintájára). */
 .sum { display: inline-flex; align-items: center; margin-left: 2px;
-       font: 10px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
+       font: var(--w-body) 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
 /* Fix cellák: fájlszám (2 karakter) | zöld | piros (3-3 karakter: `888`,
    `12k` — a +/− jelet a szín adja), a számok jobbra igazítva: mindhárom
    egy-egy oszlopban áll. */
-.sum > span { box-sizing: border-box; flex: 0 0 24px; padding: 2px 3px; text-align: right; }
-.sum > .f { flex-basis: 18px; position: relative; color: var(--fg-2);
+.sum > span { box-sizing: border-box; flex: 0 0 27px; padding: 2px 3px; text-align: right; }
+.sum > .f { flex-basis: 20px; position: relative; color: var(--fg-2);
             background: color-mix(in srgb, var(--fg-2) 14%, var(--bg)); border-radius: 4px 0 0 4px; }
 /* 99 fölött: `99⁺`, a plusz jobbra a címke szélére lóg (felfelé nem) */
-.sum .f sup { position: absolute; top: 0; right: -3px; font: 400 9px/1 var(--font-ui); color: inherit; }
+.sum .f sup { position: absolute; top: 0; right: -3px; font: var(--w-body) 9px/1 var(--font-ui); color: inherit; }
 .sum .a { color: var(--add); background: color-mix(in srgb, var(--add) 16%, var(--bg)); }
 .sum .d { color: var(--del); background: color-mix(in srgb, var(--del) 16%, var(--bg));
           border-radius: 0 4px 4px 0; }
@@ -562,12 +700,18 @@ button { font: inherit; color: inherit; }
 /* ── Ref-badge-ek ───────────────────────────────────────────────────────── */
 .badge {
   display: inline-flex; align-items: center; gap: 4px; flex: none;
-  max-width: 260px; height: 18px; padding: 0 6px;
-  border-radius: 6px;
-  font-size: 11px; font-weight: 500; line-height: 18px; white-space: nowrap;
+  max-width: 260px; height: 20px; padding: 0 8.5px;   /* 7 px + a 1,5 px-es keret */
+  border-radius: 5px;   /* a magasság negyede; a tag az ikonjáról ismerszik meg */
+  /* az app Badge-e: font-badge (a tengelyen 520) — az Anthropic Sans-szal (`font.js`) pontos */
+  font-size: 12px; font-weight: var(--w-badge); line-height: 15px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
 }
-.badge .ic { width: 12px; height: 12px; }
+.badge .ic { width: 16px; height: 16px; }
+/* az első ikon a chip szélétől 4 px-re, mint az app Badge-én */
+.badge > .ic:first-child, .badge > .wt-lead:first-child { margin-left: -4.5px; }
+.badge-name { padding-bottom: .05em; }
+/* az ikon és a szöveg közt 3,2 px, mint az app Badge-én */
+:is(.badge, .head-chip) > svg.ic:has(+ :is(.badge-name, .chip-name)) { margin-right: -0.8px; }
 /* Ha nem fér ki, csak a név rövidül (`…`); az ikonok, az elválasztó és a
    távolság-szakaszok nem nyomódnak össze. */
 .badge > *, .head-chip > * { flex: none; }
@@ -579,32 +723,46 @@ button { font: inherit; color: inherit; }
 .badge > .badge-name, .head-chip > .chip-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* A remote-on is ugyanott áll: felhő az ág neve után. */
 :is(.badge, .head-chip) .synced { display: inline-flex; align-items: center; gap: 3px; margin-left: 1px; opacity: .8; }
-:is(.badge, .head-chip) .synced.wt-lead { margin: 0 -2px 0 0; }   /* a worktree-jel elöl, a branch-ikonhoz tapad */
+:is(.badge, .head-chip) .synced.wt-lead { margin-right: -1px; }   /* a worktree-jel elöl, 3 px-re a branch-ikontól */
 :is(.badge, .head-chip) .div { align-self: stretch; width: 1px; margin: 3px 1px; background: currentColor; opacity: .3; }
 :is(.badge, .head-chip) .ic.filled { fill: currentColor; }
 /* Az ág távolsága (alapág / upstream): ikon és nyilak, egy szakaszban. */
 :is(.badge, .head-chip) .dist { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
-/* Az alapág helyi párja előrébb jár a remote-jánál: anomália. Osztott chip — a szakasz
-   piros felületen, mert a teli (sávszínű) chipen a piros szöveg beleolvadna. */
-:is(.badge, .head-chip) .dist.warn { align-self: stretch; margin: 1px 0; padding: 0 5px; background: var(--del-fill); color: #ffffff; font-weight: 600; }
+/* a nyíl és a száma közt 3 px üres tinta, mint a chip két ikonja közt (a nyíl és a számjegy oldalán
+   ~1 px a betű saját helye); két szám közt egy szóköznyi (a 2 px-es köz + 1 px) */
+:is(.badge, .head-chip) .dist .arr { margin-right: 2px; }
+:is(.badge, .head-chip) .dist .n + .n { margin-left: 1px; }
+/* Az alapág helyi párja előrébb jár a remote-jánál: anomália. Osztott chip — a halvány chipen
+   a szakasz halvány piros, és piros a chip kerete; a teli (sávszínű) chipen a szakasz teli
+   piros, keret nélkül (a piros szöveg, a keret beleolvadna). */
+:is(.badge, .head-chip) .dist.warn { align-self: stretch; margin: 1.5px 0; padding: 0 5px; background: var(--critical-bg); color: var(--critical-fg); font-weight: var(--w-header); }
+:is(.head-chip, .badge:is(.ref-head, .ref-detached):not(.other)) .dist.warn { margin: 0; background: var(--critical); color: #ffffff; }
+/* a teli chipen a szakasz a chip teljes magassága, a jobb széle a chip sarka */
+:is(.head-chip, .badge:is(.ref-head, .ref-detached):not(.other)) .dist.warn:last-child { margin-right: -8.5px; border-radius: 0 5px 5px 0; }
 :is(.badge, .head-chip) .div:has(+ .dist.warn) { display: none; }
-/* A chip végén: 1 px-es keret marad körülötte a chip színéből, a sarok a chipével párhuzamos. */
-:is(.badge, .head-chip) .dist.warn:last-child { border-radius: 0 5px 5px 0; }
-.badge .dist.warn:last-child { margin-right: -5px; }
-.head-chip .dist.warn:last-child { margin-right: -6px; }
-.head-chip .div { margin: 3px 2px; }
+/* A halvány chip végén: a keret körülötte marad, a sarok a chipével párhuzamos. */
+.badge .dist.warn:last-child { border-radius: 0 3.5px 3.5px 0; }   /* a keret belső íve */
+.head-chip .dist.warn:last-child { border-radius: 0 5px 5px 0; }
+.badge .dist.warn:last-child { margin-right: -7px; }   /* a keret belül marad */
+.head-chip .dist.warn:last-child { margin-right: -8.5px; }
 :is(.badge, .head-chip) .synced:has(.wt-ic) { opacity: 1; }   /* a worktree-jel teljes erővel, a felhő visszafogott */
-/* Az ág, a HEAD és a tag a commit sávjának színét viseli (`--lc`, page.js).
-   A szöveg a sávszín és az előtér keveréke: világos témában sötétebb,
-   sötétben világosabb — a vonalnak szánt színek szövegként gyengék lennének. */
+/* Az ág, a HEAD és a tag a commit sávjának színét viseli (`--lc`), a chip a sáv CDS
+   tint-párját (`--lc-bg`, `--lc-fg`: `lcStyle`); keret a szöveg 25 %-a. Sávon kívüli
+   színnél a pár a szín és a háttér, illetve az előtér keveréke. */
 .badge:is(.ref-branch, .ref-remote, .ref-tag, .ref-release, .ref-pr, .ref-issue, .ref-stash), .badge.other {
-  background: color-mix(in srgb, var(--lc) 14%, var(--bg));
-  color: color-mix(in srgb, var(--lc) 70%, var(--fg-0));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc) 38%, var(--bg));
+  --lc-bg: color-mix(in srgb, var(--lc) 12%, transparent);
+  --lc-fg: color-mix(in srgb, var(--lc) 70%, var(--fg-0));
+  --lc-bd: color-mix(in srgb, var(--lc) 22%, transparent);
+  background: var(--lc-bg);
+  color: var(--lc-fg);
+  /* a 1,5 px-es keret árnyékként: kerekítés nélkül, a tartalom helyét nem mozdítja */
+  box-shadow: inset 0 0 0 1.5px var(--lc-bd);
 }
 /* A saját worktree HEAD-je teli, más worktree-é halvány, erős kerettel. */
-.badge:is(.ref-head, .ref-detached):not(.other) { background: var(--lc); color: #ffffff; font-weight: 600; }
-.badge.other { box-shadow: inset 0 0 0 1.5px var(--lc); font-weight: 500; }
+.badge:is(.ref-head, .ref-detached):not(.other) { background: var(--lc); color: #ffffff; font-weight: var(--w-header); }
+.badge.other { box-shadow: inset 0 0 0 1.5px var(--lc); }
+/* A halvány chip kerete piros, ha az alapág helyi párja pusholatlan commitot hordoz (`.dist.warn`). */
+.badge:not(:is(.ref-head, .ref-detached):not(.other)):has(.dist.warn) { box-shadow: inset 0 0 0 1.5px var(--critical); }
 /* Ami nem a saját worktree-ben van (más ág, más worktree): halványabb. */
 /* Halvány a sor tartalma, de nem a belső sáv: a lenyitott sor körvonala ugyanolyan
    erős, mint a panelé. (A `.desc` a kétsoros elrendezésben `display: contents`,
@@ -612,105 +770,122 @@ button { font: inherit; color: inherit; }
 .row.foreign .row-in > :not(.desc), .row.foreign .desc > * { opacity: .55; }
 /* A tükör-commit (egy subtree-remote másolata) ugyanígy: a forrása a fő történetben van. */
 .row.mirror .row-in > :not(.desc), .row.mirror .desc > * { opacity: .55; }
-.badge.ref-tag { border-radius: 9px; }   /* a tag az alakjáról ismerszik meg: teljesen kerek chip */
-.badge.ref-release { border-radius: 9px; }   /* a release a tagjét is jelenti: ugyanaz az alak */
 /* A stash chipje szaggatott kerettel: félretett munka, nem ág. */
-.badge.ref-stash { box-shadow: none; border: 1px dashed color-mix(in srgb, var(--lc) 55%, var(--bg)); }
+.badge.ref-stash { box-shadow: none; padding: 0 7px; border: 1.5px dashed color-mix(in srgb, var(--lc) 55%, transparent); }
 a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitHub-link */
 
 /* ── Commit-részletek ───────────────────────────────────────────────────── */
 .details {
   margin: 2px 12px 10px var(--graph-w, 72px);   /* a gráf-oszlop szabadon marad */
-  padding: 14px 16px;
-  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px 18px 8px;
+  display: flex; flex-direction: column; gap: 14px;
   background: var(--bg-1);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);   /* shadow-panel-sm: a keret + shadow-sm */
   overflow: auto;   /* a magasságát a `fitPanel` korlátozza: a következő commit is látsszon */
+  position: relative;   /* a lenyíló diff hover-rétege (`.hover-fill`) benne, vele görög és vágódik */
 }
+/* Nyitáskor a fejléc hover-háttere a teljes, növekvő kártyán: a szöveg alatt (negatív z: a
+   gazdája rétegében, a háttere fölött), a közepéről halványul el (`openCard`). */
+.hover-fill { position: absolute; z-index: -1; pointer-events: none; }
 .details > * { flex-shrink: 0; }   /* korlátozott magasságnál görget, nem nyom össze */
 .pending .details { position: relative; z-index: 2; }
 .d-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 /* A szerző kitölti a sort, így egy sorban a chipek jobbra kerülnek; ha
    nem férnek mellé, a saját sorukban balra zárva kezdődnek (nem lógnak jobbra). */
-.who { flex: 1 0 auto; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--fg-2); }
+.who { flex: 1 0 auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg-2); }
 .who .name { color: var(--fg-1); }
 .who .sep { color: var(--fg-3); }
 .who.face-only :is(.name, .sep) { display: none; }   /* `fitWho`: a név a tooltipben */
-.who img { width: 22px; height: 22px; border-radius: 11px; box-shadow: 0 0 0 1px var(--border); }
+.who img { width: 24px; height: 24px; border-radius: 12px; box-shadow: 0 0 0 1px var(--border); }
 .chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .chip {
-  height: 28px; display: inline-flex; align-items: center; gap: 5px;
-  padding: 0 4px 0 8px; border-radius: 7px;
+  height: 32px; display: inline-flex; align-items: center; gap: 5px;
+  padding: 0 4px 0 8px; border-radius: 8px;
   background: var(--ctrl); box-shadow: inset 0 0 0 1px var(--ctrl-border);
-  font-size: 12px; color: var(--fg-2);
+  font-size: 13px; color: var(--fg-2);
 }
-.chip .ic { width: 13px; height: 13px; }
+.chip .ic { width: 16px; height: 16px; }
 .chip .hash {
   padding: 0; border: 0; background: none;
-  font-family: var(--font-mono); font-size: 12px; color: var(--accent); text-decoration: none; cursor: pointer;
+  font-family: var(--font-mono); font-size: 13px; cursor: pointer;
 }
-.chip button.hash:hover { text-decoration: underline; }
 .chip .hash.plain { color: var(--fg-1); cursor: text; }
 .mini {
-  width: 20px; height: 20px; flex: none; padding: 0;
+  width: 24px; height: 24px; flex: none; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  border: 0; border-radius: 5px; background: transparent; color: var(--fg-2); cursor: pointer;
+  border: 0; border-radius: 6px; background: transparent; color: var(--fg-2); cursor: pointer;
 }
-.mini .ic { width: 12px; height: 12px; }
+.mini .ic { width: 16px; height: 16px; }
 .mini:hover { background: var(--bg-2); color: var(--fg-0); }
 .mini.done { color: var(--add); }
 
-.body-text { margin: 0 2px; white-space: pre-wrap; font-size: 12px; line-height: 1.3; color: var(--fg-1); max-width: 72ch; }
+.body-text { margin: 0 2px; white-space: pre-wrap; font-size: 13px; line-height: 1.45; color: var(--fg-1); max-width: 72ch; }
 .body-text .more {
   padding: 0; border: 0; background: none; cursor: pointer;
-  font: inherit; color: var(--accent);
+  font: inherit;
 }
-.body-text .more:hover { text-decoration: underline; }
-.gh-link { color: var(--accent); text-decoration: none; }
-.gh-link:hover { text-decoration: underline; }
+/* Szöveges link (az app TextLink-je): text-accent, mindig aláhúzva, a vonal halvány, hoverre teli. */
+.chip button.hash, .body-text .more, .gh-link, .md-link {
+  color: var(--link); text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+}
+:is(.chip button.hash, .body-text .more, .gh-link, .md-link):is(:hover, :focus-visible) { text-decoration-color: currentColor; }
 
 .files { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--border-soft); padding-top: 10px; }
 .files:first-child { border-top: 0; padding-top: 0; }   /* WIP: nincs fejléc fölötte */
-.files-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-2); }
+.files-head { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg-2); }
 .files-head .n {
-  height: 18px; padding: 0 6px; border-radius: 9px; line-height: 18px;
+  height: 20px; padding: 0 6px; border-radius: 10px; line-height: 20px;
   background: var(--bg-3); color: var(--fg-1);
 }
 .file {
-  display: grid; grid-template-columns: 14px 16px minmax(0, 1fr) auto 20px; gap: 6px; align-items: center;
-  height: 26px; padding: 0 4px 0 6px; border-radius: 6px;
-  font-size: 12.5px; cursor: pointer;
+  display: grid; grid-template-columns: 16px 16px minmax(0, 1fr) auto 24px; gap: 6px; align-items: center;
+  height: 30px; padding: 0 4px 0 6px; border-radius: 8px;
+  font-size: 13px; cursor: pointer;
 }
 .file-dir {   /* összevont követetlen mappa: mint a .file, de nem nyílik */
-  display: grid; grid-template-columns: 14px 16px minmax(0, 1fr) auto 20px; gap: 6px; align-items: center;
-  height: 26px; padding: 0 4px 0 6px; font-size: 12.5px;
+  display: grid; grid-template-columns: 16px 16px minmax(0, 1fr) auto 24px; gap: 6px; align-items: center;
+  height: 30px; padding: 0 4px 0 6px; font-size: 13px;
 }
-.file-dir .ic.fic { width: 13px; height: 13px; margin: auto; color: var(--fg-2); }
-.file-dir .path { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--add); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.file-dir .path .dir-st { font-weight: 400; opacity: .7; }
+.file-dir .ic.fic { width: 16px; height: 16px; margin: auto; color: var(--fg-2); }
+.file-dir .path { font-family: var(--font-mono); font-size: 13px; font-weight: var(--w-medium); color: var(--add); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-dir .path .dir-st { font-weight: var(--w-body); opacity: .7; }
 .file-dir .churn, .files-note { font-size: 12px; color: var(--fg-2); }
-.files-note { padding: 2px 6px 0 42px; }
+.files-note { padding: 2px 6px 0 44px; }
 .file:hover { background: var(--bg-2); }
-.file[aria-expanded="true"] { background: var(--bg-3); }
+/* A lenyitott fájl és a diffje egy keret, mint a lenyitott commit és a panele. */
+.file[aria-expanded="true"], .file[aria-expanded="true"]:hover {
+  background: transparent; border-radius: 12px 12px 0 0;
+  /* mint a lenyitott commit: a diff árnyéka (shadow-sm) a fejlécen is, alul levágva */
+  box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 1px 0 var(--border), var(--shadow-sm);
+  clip-path: inset(-12px -12px 0 -12px);
+}
+.file + .diff {
+  margin-top: -4px; padding-top: 8px; border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0;
+  background: transparent;
+  box-shadow: var(--shadow-sm); clip-path: inset(0 -12px -12px -12px);   /* mint a commit panele */
+}
 .file:focus { outline: 0; }
-.file:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.file:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
 /* Kijelölt diff-blokk: outline, mert a sorok háttere eltakarná az inset árnyékot. */
 .hunk:focus { outline: 0; }
-.hunk:focus-visible { outline: 1.5px solid var(--accent); outline-offset: -1.5px; border-radius: 3px; }
+.hunk:focus-visible { box-shadow: none; outline: 1.5px solid var(--accent); outline-offset: -1.5px; border-radius: 3px; }
 .file .chev { display: flex; color: var(--fg-2); transition: transform .12s; }
-.file .chev .ic { width: 12px; height: 12px; color: var(--fg-2); }
+.file .chev .ic { width: 12px; height: 12px; margin: auto; color: var(--fg-2); }   /* CaretRight (`xs`) */
 .file .fic { width: 16px; height: 16px; display: block; }           /* Catppuccin-ikon */
-.file .ic.fic { width: 13px; height: 13px; margin: auto; color: var(--fg-2); }   /* általános fájlikon */
+.file .ic.fic { width: 16px; height: 16px; margin: auto; color: var(--fg-2); }   /* általános fájlikon: Anthropicons File */
 .file[aria-expanded="true"] .chev { transform: rotate(90deg); }
-.file .path { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--fg-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.file .path .dir, .file .path .dir-st { font-weight: 400; }
+.file .path { font-family: var(--font-mono); font-size: 13px; font-weight: var(--w-medium); color: var(--fg-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file .path .dir, .file .path .dir-st { font-weight: var(--w-body); }
 .file .path .dir { color: var(--fg-2); }
 .file .path.added { color: var(--add); }
 .file .path.deleted { color: var(--del); }
+.file .path.modified { color: var(--git-modified); }
 .file .path .dir-st { opacity: .7; }
 .file .path .rename-arrow { font-size: 16px; line-height: 0; }
-.churn { display: flex; align-items: center; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.churn { display: flex; align-items: center; gap: 6px; font-size: 13px; font-variant-numeric: tabular-nums; }
 .churn .a { color: var(--add); }
 .churn .d { color: var(--del); }
 .churn .tag { color: var(--fg-2); }
@@ -722,14 +897,15 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 /* ── Fájl-diff ── a Claude app kódnézetének színeivel: sorszám · jel · szöveg,
    a cserélt szavak erősebb háttérrel. */
 .diff {
-  margin: 2px 0 6px;
+  margin: 2px 0 3px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--code-bg);
   color: var(--code-fg);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
-  padding: 6px 0;
+  /* az alsó padding = a sarok sugara − a keret: a tartalom (a csík, a sor háttere) a görbület előtt ér véget */
+  padding: 6px 0 11px;
   overflow: hidden;
   container-type: inline-size;         /* a nézetet a saját szélessége dönti el */
 }
@@ -747,7 +923,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .diff .add.only, .diff .del.only { background: none; }
 .split-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .split-row .half + .half { border-left: 1px solid var(--border-soft); }
-.half.none { background: var(--bg-1); }
+.half.none { background: var(--code-tint); }
 .diff-split { display: none; }
 @container (min-width: 1000px) {
   .diff-uni { display: none; }
@@ -755,23 +931,36 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 }
 .diff-gap {
   margin: 3px 0; padding: 3px 12px;
-  font-family: var(--font-ui); font-size: 11.5px; color: var(--code-no);
+  font-family: var(--font-ui); font-size: 12px; color: var(--code-no);
   border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft);
 }
 .diff-gap:first-child { margin-top: 0; border-top: 0; }
 .diff-note { margin: 0; padding: 4px 12px; font-family: var(--font-ui); font-size: 12px; color: var(--fg-2); }
+/* az app Spinner-e (sm): 12 px, 1,5 px-es vonal, a sáv a keret színe, az ív text-muted */
+.diff-note.loading { display: flex; align-items: center; gap: 6px; }
+.diff-note.loading::before {
+  content: ""; width: 12px; height: 12px; flex: none; box-sizing: border-box; border-radius: 50%;
+  border: 1.5px solid var(--border); border-top-color: var(--fg-3);
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Markdown-diff ── renderelt szöveg; a változott blokk a diff színeivel, a
    bal szélén csíkkal (a háttér magában halvány lehet egy hosszú bekezdésen). */
-/* a nézetváltó lebegő gomb a jobb felső sarokban: a tartalom fölött, helyet nem
-   foglal (egymás alatti és side-by-side nézetben sem tolja, szűkíti a sorokat) */
-.diff:has(> .md-mode) { position: relative; }
-.diff .md-mode {
-  position: absolute; top: 6px; right: 6px; z-index: 2; width: 24px; height: 24px;
-  background: var(--code-bg); box-shadow: inset 0 0 0 1px var(--ctrl-border), var(--ctrl-shadow);
+/* a nézetváltó kétgombos szegmens (renderelt | forrás) a jobb felső sarokban: a tartalom
+   fölött, helyet nem foglal (egymás alatti és side-by-side nézetben sem tolja, szűkíti a sorokat) */
+.diff:has(> .md-seg) { position: relative; }
+.md-seg {
+  position: absolute; top: 8px; right: 8px; z-index: 2; display: inline-flex; height: 28px; padding: 1px; border-radius: 8px;
+  background: var(--fill-1);
 }
-.diff .md-mode:hover { background: var(--bg-2); }
-.md-mode + .diff-gap { margin-top: 0; border-top: 0; }
+/* a választott a sávon belül, 1 px-re: a sarka a sávénál 1-gyel kisebb, az íveik párhuzamosak */
+.md-seg button {
+  width: 26px; height: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 7px; background: transparent; color: var(--fg-3); cursor: pointer;
+}
+.md-seg button[aria-pressed="true"] { background: var(--seg-on); color: var(--fg-0); box-shadow: inset 0 0 0 1px var(--border), 0 1px 2px rgba(0, 0, 0, .05); }
+.md-seg + .diff-gap { margin-top: 0; border-top: 0; }
 .md-doc { font-family: var(--font-ui); font-size: 13px; line-height: 1.55; color: var(--fg-0); padding: 0 14px 0 0; }
 .md-blk { padding: 1px 0 1px 14px; border-left: 3px solid transparent; }
 /* a háttér és a `mark` a nyers diff `.add` / `.del` szabályaiból jön, itt csak a csík */
@@ -785,7 +974,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .md-doc blockquote { padding-left: 10px; border-left: 3px solid var(--border); color: var(--fg-1); }
 .md-doc hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
 .md-doc code { font-family: var(--font-mono); font-size: 12px; padding: 0 3px; border-radius: 4px; background: var(--bg-2); }
-.md-h { font-weight: 600; margin: 8px 0 4px; line-height: 1.3; }
+.md-h { font-weight: var(--w-header); margin: 8px 0 4px; line-height: 1.3; }
 .md-h1 { font-size: 18px; }
 .md-h2 { font-size: 16px; }
 .md-h3 { font-size: 14px; }
@@ -794,16 +983,15 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .md-li.md-tight { margin-top: 0; }   /* az ikonos alszint a szülőjéhez tapad */
 .md-li.md-gap { margin-top: 8px; }   /* … és elválik a következő főelemtől */
 .md-mk { flex: none; min-width: 1em; color: var(--fg-2); font-variant-numeric: tabular-nums; }
-.md-link { color: var(--accent); }
 .md-img { font-style: italic; color: var(--fg-2); }
 .md-img::before { content: '['; }
 .md-img::after { content: ']'; }
 .md-code {
-  margin: 4px 0 4px 17px; padding: 4px 0; border-radius: 6px; background: var(--bg-1);
+  margin: 4px 0 4px 17px; padding: 4px 0; border-radius: 6px; background: var(--code-tint);
   font-size: 12px; line-height: 1.5; color: var(--code-fg);
 }
 .md-cl { padding: 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; border-left: 3px solid transparent; }
-.md-cl.md-skip { color: var(--code-no); font-family: var(--font-ui); font-size: 11.5px; }
+.md-cl.md-skip { color: var(--code-no); font-family: var(--font-ui); font-size: 12px; }
 /* Mermaid: kirajzolva a kódnézet rejtve. A diagramok egymás mellett, ha elférnek
    (a keret a diagram szélességét kapja); a változatot a bal csík jelzi, a
    változott elemet (`md-mmd-ch`) a diff színe — a Mermaid saját, azonosítós
@@ -818,7 +1006,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .md-mmd-half:first-child:not(:only-child) { justify-content: flex-end; }
 .md-mmd-fig {
   box-sizing: border-box; max-width: 100%; padding: 8px;
-  border: 1px solid var(--border-soft); border-radius: 6px; background: var(--bg-1);
+  border: 1px solid var(--border-soft); border-radius: 6px; background: var(--code-tint);
   overflow-x: auto;
 }
 /* a bal csík csak az egészében új / törölt diagramé; nem `.add` / `.del`: azokat a
@@ -835,13 +1023,15 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .md-mmd-fig .md-mmd-ch.node :is(rect, circle, ellipse, polygon, path) {
   fill: var(--mmd-bg) !important;
 }
-.md-mmd-fig text.md-mmd-ch, .md-mmd-fig .md-mmd-ch text { fill: var(--mmd-ch) !important; font-weight: 600; }
-.md-mmd-fig span.md-mmd-ch { color: var(--mmd-ch) !important; font-weight: 600; }
+/* a változott elem szövege színes, nem vastagabb — mint a többi diff-jelölés; a
+   flowchart felirata HTML (`span.nodeLabel`) a `g.node` alatt */
+.md-mmd-fig text.md-mmd-ch, .md-mmd-fig .md-mmd-ch text { fill: var(--mmd-ch) !important; }
+.md-mmd-fig span.md-mmd-ch, .md-mmd-fig .md-mmd-ch span { color: var(--mmd-ch) !important; }
 /* a változott szöveg: mint a diff szó-kiemelése (HTML-felirat), SVG-szövegben a színe */
 .md-mmd-fig mark.md-mmd-hl { background: var(--mmd-hl); color: inherit; border-radius: 3px; }
-.md-mmd-fig tspan.md-mmd-hl { fill: var(--mmd-ch) !important; font-weight: 700; }
+.md-mmd-fig tspan.md-mmd-hl { fill: var(--mmd-ch) !important; }
 .md-mmd-err {
-  flex: 1 1 100%; margin: 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--del);
+  flex: 1 1 100%; margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--del);
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 /* Képek (`images.js`): a Mermaid-diagramok elrendezésében. Két oldal két egyforma
@@ -863,7 +1053,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .img-over .img-fig { border-color: var(--border); }
 .img-fig {
   box-sizing: border-box; max-width: 100%; padding: 5px;
-  border: 1px solid var(--border); border-radius: 6px; background: var(--bg-1);
+  border: 1px solid var(--border); border-radius: 6px; background: var(--code-tint);
 }
 .img-pane { position: relative; overflow: hidden; user-select: none; touch-action: none; }
 .img-fig img {
@@ -907,7 +1097,7 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
   position: fixed; z-index: 20; transform: translateX(-50%);
   display: flex; align-items: center; gap: 2px; padding: 3px;
   border-radius: 8px; background: var(--ctrl, var(--bg)); box-shadow: inset 0 0 0 1px var(--border), 0 2px 8px rgba(0, 0, 0, .12);
-  font-family: var(--font-ui); font-size: 11.5px; color: var(--fg-1); white-space: nowrap;
+  font-family: var(--font-ui); font-size: 12px; color: var(--fg-1); white-space: nowrap;
   opacity: 0; pointer-events: none; transition: opacity .12s;
 }
 .img-view:has(.img-fig:hover, .img-line:hover, .img-bar:hover) > .img-bar { opacity: 1; pointer-events: auto; }
@@ -931,8 +1121,8 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
   border: 1px solid var(--border-soft); padding: 3px 8px; text-align: left; vertical-align: top;
   overflow-wrap: break-word;
 }
-.md-table tr.md-skip td { padding: 0 8px; color: var(--code-no); font-size: 11.5px; }
-.md-table th { font-weight: 600; background: var(--bg-1); }
+.md-table tr.md-skip td { padding: 0 8px; color: var(--code-no); font-size: 12px; }
+.md-table th { font-weight: var(--w-header); background: var(--code-tint); }
 .md-table tr.add > th, .md-table tr.del > th { background: inherit; }   /* a változott fejléc a sor színét kapja */
 /* szintaxis */
 .s-kw { color: var(--syn-kw); }
@@ -947,37 +1137,39 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
   flex: none;
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px;
   /* a pötty közepe az első sáv vonalán (X0 = 16 px); jobbra ugyanennyi az ikonokig */
-  min-height: 30px; padding: 6px 8.5px 6px 12.5px;
+  min-height: 34px; padding: 6px 8.5px 6px 12.5px;
   border-top: 1px solid var(--border);
   background: var(--bg-1);
-  font-size: 11.5px; color: var(--fg-2);
+  font-size: 12px; color: var(--fg-2);
 }
 /* A bal padding a pulzáló pötty gyűrűjének helye (az overflow különben levágná). */
 .foot .live { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
               padding: 5px 0 5px 6px; margin: -5px 0 -5px -6px; }
 .foot .dot { width: 7px; height: 7px; border-radius: 4px; background: var(--fg-3); flex: none; }
-.foot.on .dot { background: var(--live); }
-.foot.stale .dot { background: var(--del); }
-.foot.stale .live { color: var(--del); }
+.foot.on .dot { background: var(--good); }
+.foot.stale .dot { background: var(--critical); }
+.foot.stale .live { color: var(--critical); }
 /* Hibánál a commitszám helyét is az üzenet kapja. */
 .foot.stale { grid-template-columns: 1fr auto; }
 .foot.stale .count { display: none; }
 .foot .count { font-variant-numeric: tabular-nums; }
-.foot .count b { color: var(--fg-1); font-weight: 600; }
+.foot .count b { color: var(--fg-1); font-weight: var(--w-header); }
 /* A verzió az élő-állapot után, ha kifér (`fitFoot`); a figyelmeztetés mindig. */
 .foot .ver:not(:empty)::before { content: "·"; margin-right: 7px; color: var(--fg-3); }
 .foot .ver { white-space: nowrap; }
 .foot .ver.cut, .foot .ver.short .name { display: none; }
 .foot .ver .home { color: inherit; text-decoration: none; }
 .foot .ver .home:hover { text-decoration: underline; }
-.foot .ver.warn { color: var(--del); white-space: normal; }
+/* a figyelmeztetés jele a warning-sárga, a szövege olvasható */
+.foot .ver.warn { color: var(--fg-1); white-space: normal; }
+.foot .ver.warn .ic { width: 16px; height: 16px; margin-right: 4px; vertical-align: -3px; color: var(--warning); }
 .foot .live:has(.ver.warn) { white-space: normal; }
 /* Élőben a pötty folyamatosan pulzál: zölden, ha jön az adat, pirosan, ha a
    frissítés elakadt. Élőben szöveg nincs, csak a verzió (elválasztó nélkül). */
 #liveText:empty { display: none; }
 #liveText:empty + .ver::before { content: none; }
-.foot.on .dot { --pulse: var(--live); }
-.foot.stale .dot { --pulse: var(--del); }
+.foot.on .dot { --pulse: var(--good); }
+.foot.stale .dot { --pulse: var(--critical); }
 @media (prefers-reduced-motion: no-preference) {
   .foot:is(.on, .stale) .dot { animation: live-pulse 1.6s ease-out infinite; }
 }
@@ -987,9 +1179,7 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
   100% { transform: scale(1);    box-shadow: 0 0 0 4px transparent; }
 }
 .foot .links { justify-self: end; display: flex; align-items: center; gap: 4px; }
-.foot .links .mini { width: 22px; height: 22px; }
-.foot .links .mini:hover { background: var(--bg-3); }
-.foot .links .ic { width: 14px; height: 14px; }
+.foot .links .gh .ic { width: 16px; height: 16px; }   /* a témamenü ikonja a menüé (20) */
 .foot .links .gh { display: flex; align-items: center; gap: 4px; }
 /* a GitHub-linkek és a téma közt halvány elválasztó */
 .foot .links .gh:not(:empty)::after { content: ""; width: 1px; height: 14px; margin: 0 3px; background: var(--border); }

@@ -143,11 +143,11 @@ class MdDiffTest(PageTestCase):
     @contextmanager
     def raw_view(self):
         """A markdown nyers diffje; a végén vissza (a lap megjegyzi), hiba esetén is."""
-        self.page.locator("[data-md-mode]").first.click()
+        self.page.locator('[data-md-mode="raw"]').first.click()
         try:
             yield
         finally:
-            self.page.locator("[data-md-mode]").first.click()
+            self.page.locator('[data-md-mode="rendered"]').first.click()
 
     def test_one_sided_paragraph(self) -> None:
         self.open_file("doksi.md")
@@ -328,15 +328,15 @@ class MdDiffTest(PageTestCase):
         ])
 
     def test_md_toggle_floats(self) -> None:
-        """A nézetváltó lebegő gomb: nem foglal helyet, a tartalom a diff tetején kezdődik, mindkét nézetben."""
+        """A nézetváltó lebegő szegmens: nem foglal helyet, a tartalom a diff tetején kezdődik, mindkét nézetben."""
         self.open_file("kihagy.md")
         for width, view in ((1400, ".diff-split"), (900, ".diff-uni")):
             self.resize(width)
             box, first = self.page.evaluate(
-                f"[document.querySelector('.diff:has(.md-mode)'), document.querySelector('{view}').firstElementChild]"
+                f"[document.querySelector('.diff:has(.md-seg)'), document.querySelector('{view}').firstElementChild]"
                 ".map(e => e.getBoundingClientRect().top)")
             self.assertLess(first - box, 10, view)        # csak a doboz belső margója, nincs üres sor
-        self.assertEqual(self.page.locator(".md-mode").evaluate("b => getComputedStyle(b).position"), "absolute")
+        self.assertEqual(self.page.locator(".md-seg").evaluate("b => getComputedStyle(b).position"), "absolute")
 
     def test_raw_one_sided_run(self) -> None:
         """Nyers side-by-side, csak beszúrásos futam: a sorok felülről egymás mellett (nincs lyuk), és az

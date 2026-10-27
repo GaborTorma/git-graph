@@ -11,14 +11,15 @@ Használat és felépítés: [README.md](../README.md).
 | --- | --- |
 | `bin/git-graph` | a `git-graph` parancs: a `git_graph` csomag vékony belépője (a hook és a Bash eszköz ezt futtatja) |
 | `git_graph/` | a Python-oldal: `gitio` (git-hívások, `REPO`), `graph` (a `graph_data` csomagja: commitok, refek, összerakás), `stats` (fájlstatisztika), `worktrees` (worktree-k, WIP-sor), `branches` (ágak, távolságok), `lanes` (sávkiosztás), `diff`, `avatars`, `page` (betöltő, `page_code`, ikonok), `registry` (slug, `repos.json`, sessionök), `claude_app` (az app session-fókusza), `watch` (a `changes` long-pollja), `publish`, `mcp` (`--mcp`), `install` (stabil másolat, frissítés, leszerelés), `hook` (`--session-hook`), `cli`, `state` (`~/.git-graph`, atomi írás) |
-| `page/` | a lap: `loader.html` (az Artifact betöltője, `build()`), `head.html`, `page.css`, `body.html`, `js/` (a lap ES-moduljai, belépő: `main.js`; a `page_code` köti össze), `file-icons.json` (fájltípus-ikonok, generált), `vendor/` (a Mermaid 12.2.0 karcsú egyfájlos buildje + licencek, `scripts/mermaid.sh`; lustán, `page_code` `part: "mermaid"`) |
-| `page/js/` | `state` (közös állapot + setterek), `dom`, `util`, `dates`, `icons`, `model` (saját worktree, színek, elérhetőség), `avatars`, `graph` (SVG), `anim`, `layout`, `scroll`, `panel`, `syntax`, `diff-html`, `md-diff`, `mermaid` (diagramok a markdown-diffben), `diff` (fájl-diff), `refs` (chipek), `details` (commit-panel), `rows` (`render`), `hydrate`, `menu`, `branches` (ágválasztó), `filters`, `keyboard`, `theme`, `settings`, `mcp`, `live` (`startLive`), `tip`, `main` |
+| `page/` | a lap: `loader.html` (az Artifact betöltője, `build()`), `head.html`, `page.css`, `body.html`, `js/` (a lap ES-moduljai, belépő: `main.js`; a `page_code` köti össze), `file-icons.json` (fájltípus-ikonok, generált), `vendor/` (a Mermaid 12.2.0 karcsú egyfájlos buildje + licencek, `scripts/mermaid.sh`; lustán, `page_code` `part: "mermaid"`; az Anthropic Sans és Mono `anthropic-sans.woff2`, `anthropic-mono.woff2`, a Claude app betűi, `part: "font"`, `"font-mono"`) |
+| `page/js/` | `state` (közös állapot + setterek), `dom`, `util`, `dates`, `icons`, `model` (saját worktree, színek, elérhetőség), `avatars`, `graph` (SVG), `anim`, `layout`, `scroll`, `panel`, `syntax`, `diff-html`, `md-diff`, `mermaid` (diagramok a markdown-diffben), `diff` (fájl-diff), `refs` (chipek), `details` (commit-panel), `rows` (`render`), `hydrate`, `menu`, `branches` (ágválasztó), `filters`, `keyboard`, `theme`, `settings`, `mcp`, `live` (`startLive`), `tip`, `font` (az Anthropic Sans és Mono regisztrálása), `main` |
 | `scripts/check-page.mjs` | a lap moduljainak szintaxisa és összekötése (import ↔ export) Node-ban, futtatás nélkül — a Check része |
 | `page/js/types.d.ts`, `page/tsconfig.json` | a lap típusai (`graph_data`, `GIT_GRAPH`) a `tsc --checkJs`-hez — a lapra nem kerül |
 | `scripts/mermaid.sh` | a `page/vendor/mermaid.min.js` karcsú buildje (esbuild, a nehéz diagramtípusok helyén csonk, ELK-kal) és a licencek — kézzel, frissítéskor; a host-híd határa alatt kell maradnia |
 | `scripts/screenshots.py` | a funkcióoldalak képei (`docs/img/<funkció>/`) a `tests/page` fixture-repóiból — kézzel, UI-változáskor (`/workflow:docs`) |
+| `scripts/anthropicons.py` | a `design/icons/anthropicons.json` előállítása az app ikonfontjából és a CDS-bundle névtáblájából (a gyorsítótárból kibontva) — kézzel, frissítéskor |
 | `scripts/file-icons.py` | a `page/file-icons.json` előállítása a Catppuccin VS Code ikonjaiból (MIT, verzióra rögzítve) — kézzel, frissítéskor |
-| `design/icons/` | a Fejlesztő ikonrajzainak forrása (CorelDRAW, pl. `cloud-branch-icon.cdr` → a `branchCloud` SVG-je) — a projekt nem használja, csak az SVG újrarajzolásához |
+| `design/icons/` | ikonforrások, a lapra nem kerülnek: a Fejlesztő rajzai (CorelDRAW, pl. `cloud-branch-icon.cdr` → a `branchCloud` SVG-je) és az app teljes Anthropicons-készlete SVG-útként (`anthropicons.json`, innen kerül a lapra, ami kell) |
 | `tests/` | modulonként egy `test_<modul>.py`, kamu `HOME`-mal (`helpers.py`: a csomag friss betöltése, eldobható repók, MCP-kliens); `test_mcp.py` a füstteszt: `git-graph --mcp` stdio-n a working tree-ből, és a stabil másolatból; `tests/page/`: a lap viselkedése headless Chromiumban (Playwright, `harness.py`: valódi betöltő + `git-graph --mcp`, fixture-repó) |
 | `ruff.toml`, `biome.json` | lint: Python (3.9-célverzióval) és a `page/` JS / CSS / HTML-je |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
@@ -68,9 +69,24 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
 
 - **Nyelv**: magyar — a kommentek és a generált UI feliratai.
 - **Megjelenés**: a Claude app nyelvét követi (a Git Graph-ból a gráf marad).
-  Meleg palettát használ, és a Claude Light / Dark kódszíneket. Betűk:
-  Anthropic Sans / Mono, ahol nincs, a rendszeré; webfont nincs. A
-  kontrollok az app mintájára épülnek: kapcsoló (szűkös helyen ikonnal),
+  Az app design-systemjét (CDS, „comfortable” sűrűség, a jelenlegi „fizzy-lake”
+  színtémával) használja: semleges szürkék, kék akcentus, git- és állapot-színek,
+  14 px-es alapszöveg, 32 px-es kontrollok — az értékek a `page.css` tokenjeiben,
+  témánként (az app CSS-ét nem importáljuk). A chip az app Badge-e (20 px, tint
+  háttér, 1,5 px-es keret, a sarok a magasság negyede, 16 px-es ikon a széltől
+  4 px-re). A sávszín a `chart-categorical` 1–8 (`--lane-<n>`, a chiphez
+  tint-hármassal: `lcStyle`); CSS-változó, így témaváltáskor a gráf magától
+  átszíneződik. Az ikonok az app Anthropicons-glifái, ahol van pár (`ic-ag`; a
+  teljes készlet `design/icons/anthropicons.json`), a többi saját, 1,2 egységes
+  vonalú rajz. A méretük az app skálája: 16 px (gomb, chip, panel), 12 px (nyilak), a menükben
+  20 px (comfortable `md`, `ICONS_MD`; a pipa `bold`, akcentus színű). A kód színei a Claude Light /
+  Dark kódszínek. Súgó csak a saját buborék (`data-tip`, `tip.js`; natív
+  `title` nincs). Betű: az Anthropic Sans, a kódé az Anthropic Mono (a keretben nincsenek meg,
+  külső fontot a CSP nem enged): a vendorolt woff2-ket a `page_code` adja base64-ben (`part:
+  "font"`, `"font-mono"`), a lap `FontFace`-ként regisztrálja (`font.js`); addig és hiba esetén a
+  rendszerfont. A vastagság az app tengelyértékei (`--w-*`: törzs 360 … bold 560). A
+  kontrollok az app komponenseinek méreteit és tokenjeit követik (Select: a lenyíló és a fogaskerék mező-gombja, TextInput,
+  Switch, Menu, SegmentedControl, TextLink, Shortcut, Spinner): kapcsoló (szűkös helyen ikonnal),
   lenyíló menü (`makeMenu`: ágválasztó és téma, natív `<select>` nincs),
   ikonok inline stroke-SVG-ként (`ICONS`). A fájltípus-ikonok a Catppuccin
   készletéből jönnek, a lap `--ic-*` színeire kötve: a szerver rendeli a
@@ -82,7 +98,8 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
   lendületét a `coasting` szűri — miért: [scroll-step-rows](memory/scroll-step-rows.md)).
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
   futnia kell, `pip install` nélkül. Ne hozz be libet. A lap egyetlen külső
-  JS-e a vendorolt Mermaid (`page/vendor/`, verzióra rögzítve). A lintek (ruff, Biome),
+  JS-e a vendorolt Mermaid (`page/vendor/`, verzióra rögzítve), fontjai a vendorolt
+  Anthropic Sans és Mono. A lintek (ruff, Biome),
   a `tsc` és a Playwright csak fejlesztői eszközök, `uvx` / `uv run --with` / `pnpm dlx`
   futtatja őket, verzióra rögzítve.
 - **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a
