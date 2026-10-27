@@ -48,6 +48,8 @@
   --good:        #0ca30c;
   --warning:     #fab219;
   --critical:    #d03b3b;
+  --critical-bg: #fad6d6;   /* bg-danger (red-100): halvány piros felület */
+  --critical-fg: #8e2626;   /* text-danger (red-600) */
   --highlight:   rgba(250, 178, 25, .33);
   /* a kódnézet (diff) kiemelt felülete: kódblokk, táblázatfej, üres oldal, ábrakeret */
   --code-tint:   color-mix(in srgb, var(--fg-0) 4%, var(--code-bg));
@@ -134,6 +136,8 @@
     --scrollbar:   hsla(51, 16.5%, 84.5%, .35);
     --kbd-line:    22%;
     --tip-bg:      #303030;   /* sötétben a buborék a popover felülete */
+    --critical-bg: #470f10;   /* red-800 */
+    --critical-fg: #f17778;   /* red-300 */
     --add:         #32d74b;
     --del:         #ff2c56;
     --git-modified: #ffd014;
@@ -201,6 +205,8 @@
   --scrollbar:   hsla(51, 16.5%, 84.5%, .35);
   --kbd-line:    22%;
   --tip-bg:      #303030;   /* sötétben a buborék a popover felülete */
+  --critical-bg: #470f10;   /* red-800 */
+  --critical-fg: #f17778;   /* red-300 */
   --add:         #32d74b;
   --del:         #ff2c56;
   --git-modified: #ffd014;
@@ -726,11 +732,15 @@ button { font: inherit; color: inherit; }
    ~1 px a betű saját helye); két szám közt egy szóköznyi (a 2 px-es köz + 1 px) */
 :is(.badge, .head-chip) .dist .arr { margin-right: 2px; }
 :is(.badge, .head-chip) .dist .n + .n { margin-left: 1px; }
-/* Az alapág helyi párja előrébb jár a remote-jánál: anomália. Osztott chip — a szakasz
-   piros felületen, mert a teli (sávszínű) chipen a piros szöveg beleolvadna. */
-:is(.badge, .head-chip) .dist.warn { align-self: stretch; margin: 1px 0; padding: 0 5px; background: var(--critical); color: #ffffff; font-weight: var(--w-header); }
+/* Az alapág helyi párja előrébb jár a remote-jánál: anomália. Osztott chip — a halvány chipen
+   a szakasz halvány piros, és piros a chip kerete; a teli (sávszínű) chipen a szakasz teli
+   piros, keret nélkül (a piros szöveg, a keret beleolvadna). */
+:is(.badge, .head-chip) .dist.warn { align-self: stretch; margin: 1.5px 0; padding: 0 5px; background: var(--critical-bg); color: var(--critical-fg); font-weight: var(--w-header); }
+:is(.head-chip, .badge:is(.ref-head, .ref-detached):not(.other)) .dist.warn { margin: 0; background: var(--critical); color: #ffffff; }
+/* a teli chipen a szakasz a chip teljes magassága, a jobb széle a chip sarka */
+:is(.head-chip, .badge:is(.ref-head, .ref-detached):not(.other)) .dist.warn:last-child { margin-right: -8.5px; border-radius: 0 5px 5px 0; }
 :is(.badge, .head-chip) .div:has(+ .dist.warn) { display: none; }
-/* A chip végén: 1 px-es keret marad körülötte a chip színéből, a sarok a chipével párhuzamos. */
+/* A halvány chip végén: a keret körülötte marad, a sarok a chipével párhuzamos. */
 .badge .dist.warn:last-child { border-radius: 0 3.5px 3.5px 0; }   /* a keret belső íve */
 .head-chip .dist.warn:last-child { border-radius: 0 5px 5px 0; }
 .badge .dist.warn:last-child { margin-right: -7px; }   /* a keret belül marad */
@@ -751,6 +761,8 @@ button { font: inherit; color: inherit; }
 /* A saját worktree HEAD-je teli, más worktree-é halvány, erős kerettel. */
 .badge:is(.ref-head, .ref-detached):not(.other) { background: var(--lc); color: #ffffff; font-weight: var(--w-header); }
 .badge.other { box-shadow: inset 0 0 0 1.5px var(--lc); }
+/* A halvány chip kerete piros, ha az alapág helyi párja pusholatlan commitot hordoz (`.dist.warn`). */
+.badge:not(:is(.ref-head, .ref-detached):not(.other)):has(.dist.warn) { box-shadow: inset 0 0 0 1.5px var(--critical); }
 /* Ami nem a saját worktree-ben van (más ág, más worktree): halványabb. */
 /* Halvány a sor tartalma, de nem a belső sáv: a lenyitott sor körvonala ugyanolyan
    erős, mint a panelé. (A `.desc` a kétsoros elrendezésben `display: contents`,

@@ -317,6 +317,47 @@ class ExpandTest(CdsCase):
         self.assertEqual(css(diff, "paddingBottom"), "11px")
 
 
+# ── A pusholatlan alapág: halvány chipen halvány piros + piros keret, teli chipen teli piros ──
+
+class WarnBadgeTest(CdsCase):
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        prepare_cds(repo)
+        git_in(repo, "switch", "-q", "main")
+        git_in(repo, "commit", "-q", "--allow-empty", "-m", "main: helyben előreszalad")
+        git_in(repo, "switch", "-q", "dev")
+
+    def test_tinted_chip(self) -> None:
+        """A nem HEAD helyi `main` (halvány chip) szakasza halvány piros, a szöveg piros, és a chip
+        kerete piros."""
+        chip = self.page.locator("#rows .badge:has(.dist.warn)").first
+        warn = chip.locator(".dist.warn")
+        self.assertEqual(warn.evaluate("e => getComputedStyle(e).backgroundColor"), rgb("#fad6d6"))
+        self.assertEqual(warn.evaluate("e => getComputedStyle(e).color"), rgb("#8e2626"))
+        self.assertIn(rgb("#d03b3b"), chip.evaluate("e => getComputedStyle(e).boxShadow"))
+
+
+class WarnHeadTest(CdsCase):
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        prepare_cds(repo)
+        git_in(repo, "switch", "-q", "main")
+        git_in(repo, "commit", "-q", "--allow-empty", "-m", "main: helyben előreszalad")
+
+    def test_filled_chip(self) -> None:
+        """A HEAD `main` (teli chip) szakasza teli piros, fehér szöveggel, és a chipnek nincs piros
+        kerete — a fejlécen és a sorban is."""
+        for sel in (".head-chip:has(.dist.warn)", "#rows .badge.ref-head:has(.dist.warn)"):
+            chip = self.page.locator(sel).first
+            warn = chip.locator(".dist.warn")
+            self.assertEqual(warn.evaluate("e => getComputedStyle(e).backgroundColor"), rgb("#d03b3b"))
+            self.assertEqual(warn.evaluate("e => getComputedStyle(e).color"), rgb("#ffffff"))
+            self.assertNotIn(rgb("#d03b3b"), chip.evaluate("e => getComputedStyle(e).boxShadow"))
+
+
+            self.assertEqual(warn.bounding_box()["height"], chip.bounding_box()["height"])   # teljes magasságú
+            self.assertAlmostEqual(warn.bounding_box()["x"] + warn.bounding_box()["width"],
+                                   chip.bounding_box()["x"] + chip.bounding_box()["width"], delta=.5)
 # ── Lenyitás: a hover a teljes kártyán, középről halványul; a keret vele együtt ──
 
 # Az elem futó animációi: időtartam, görbe, vége.
