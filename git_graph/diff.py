@@ -40,7 +40,6 @@ SIDES = ("old", "new")
 # A teljes szöveg oldalanként eddig jön (és eddig szerkeszthető); fölötte a csonkolt diff marad.
 TEXT_MAX = 2_000_000
 TEXT_REPLY_MAX = 3_900_000      # a JSON-kódolt válasz (`\uXXXX`-ekkel nőhet) a host-híd határa alatt
-MARKDOWN_SUFFIXES = {".md", ".markdown", ".mdx"}   # a renderelt nézeté: nem szerkeszthető
 EXTERNAL_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//)")   # `https:`, `data:`, `//host`
 
 
@@ -692,12 +691,12 @@ def digest(data: bytes) -> str:
 
 def editable(sha: str, root: Path | None, new: str, blob: tuple | None) -> bool:
     """A fájl a lapon szerkeszthető-e: csak az Uncommitted soron, létező, szabályos, a worktree-n
-    belüli (`disk_file`), nem symlink, UTF-8, NUL nélküli, `TEXT_MAX` alatti fájl, ami nem
-    markdown (a renderelt nézeté) és nem kép."""
+    belüli (`disk_file`), nem symlink, UTF-8, NUL nélküli, `TEXT_MAX` alatti fájl, ami nem kép (a
+    markdown a forrása, a lap nyers nézetében)."""
     pending = UNCOMMITTED_RE.match(sha)
     suffix = Path(new).suffix.lower()
     return bool(pending and pending[1] == "uncommitted" and blob and blob[1] is not None
-                and suffix not in MARKDOWN_SUFFIXES and suffix not in IMAGE_TYPES
+                and suffix not in IMAGE_TYPES
                 and not (Path(root) / new).is_symlink() and as_text(blob[1]) is not None)
 
 
@@ -707,8 +706,7 @@ def head_target(sha: str, new: str, blob: tuple | None) -> tuple | None:
     a fájl az Uncommitted sorba kerül. Más commitnál, eltérő lemeznél: `None`."""
     if not SHA_RE.match(sha) or not blob or blob[1] is None or as_text(blob[1]) is None:
         return None
-    suffix = Path(new).suffix.lower()
-    if suffix in MARKDOWN_SUFFIXES or suffix in IMAGE_TYPES:
+    if Path(new).suffix.lower() in IMAGE_TYPES:
         return None
     for wt in worktree_list():
         if not wt["head"] or not wt["head"].startswith(sha):

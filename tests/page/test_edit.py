@@ -39,6 +39,7 @@ FILES = {
     "keret.py": (text(LINES), changed(**SPREAD)),
     "app.py": ("a = 1\n", "a = 2\n"),
     "README.md": ("# Cím\n", "# Új cím\n"),
+    "leiras.md": ("# Leírás\n\nElső bekezdés.\n", "# Leírás\n\nMásodik bekezdés.\n"),
     "dump.sql": ("-- régi\n" + "x" * 3_000_000 + "\n", "-- új\n" + "x" * 3_000_000 + "\n"),
     "bin/git-graph": ("#!/usr/bin/env python3\nprint('git-graph')\n", None),
 }
@@ -141,7 +142,8 @@ class EditTest(PageTestCase):
         self.page.keyboard.press("Escape")
 
     def test_not_editable(self) -> None:
-        """A Stage-elt sor, a commit sor, az Uncommitted sor markdownja, képe és 3 MB-os fájlja nem szerkeszthető."""
+        """A Stage-elt sor, a commit sor, az Uncommitted sor renderelt markdownja, képe és 3 MB-os fájlja nem
+        szerkeszthető."""
         cases = [("Stage-elt", "app.py"), ("Nem commitolt", "dump.sql")]
         for subject, name in cases:
             with self.subTest(f"{subject} {name}"):
@@ -168,6 +170,26 @@ class EditTest(PageTestCase):
                 self.page.wait_for_timeout(500)
                 box.dblclick()
                 self.assertEqual(box.locator("[contenteditable=true]").count(), 0)
+
+    def test_markdown_source(self) -> None:
+        """A markdown forrása a nyers nézetben dupla kattintásra szerkeszthető, és a mentés a lemezre kerül."""
+        with self.subTest("Adott az Uncommitted sor leiras.md-je nyers nézetben"):
+            self.wip()
+            self.page.locator('.details .file[data-path="leiras.md"]').click()
+            self.page.wait_for_selector('.details .file[data-path="leiras.md"] + .diff .md-doc')
+            self.page.locator('.details .file[data-path="leiras.md"] + .diff [data-md-mode="raw"]').click()
+            sel = '.details .file[data-path="leiras.md"] + .diff'
+            self.page.wait_for_selector(f"{sel} .cm-editor")
+            self.settle()
+        with self.subTest("Ha a forrás 3. sorára duplán kattint és gépel"):
+            self.dblclick(sel, 3, 0)
+            self.page.wait_for_function(f"({CURSOR})({sel!r})[2] === 'true'")
+            self.page.keyboard.type("Szerkesztve. ")
+            self.page.keyboard.press("Escape")
+        with self.subTest("Akkor a szöveg a lemezen"):
+            self.page.wait_for_function(f"({CURSOR})({sel!r})[2] !== 'true'")
+            self.page.wait_for_timeout(300)
+            self.assertIn("Szerkesztve. Második bekezdés.", self.disk("leiras.md"))
 
     def test_live_marking(self) -> None:
         """Egy változatlan sorba gépelt szó a sort gépelés közben változottként jelöli."""

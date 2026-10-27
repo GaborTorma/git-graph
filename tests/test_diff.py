@@ -578,17 +578,30 @@ class EditableTest(TextCase):
         self.assertEqual(sides["new"], {"text": "x = 9\n", "hash": hashlib.sha256(b"x = 9\n").hexdigest()})
 
     def test_not_editable(self) -> None:
-        """Nem szerkeszthető: a markdown, a kép, a Stage-elt sor, a nem HEAD commit és a törölt fájl."""
-        # Adott egy markdown és egy SVG a munkakönyvtárban, és egy törölt fájl
+        """Nem szerkeszthető: a kép, a Stage-elt sor, a nem HEAD commit és a törölt fájl."""
+        # Adott egy SVG a munkakönyvtárban, és egy törölt fájl
         repo, gg, parent, _, wip = self.text_repo()
-        (repo / "README.md").write_text("# cím\n", encoding="utf-8")
         (repo / "logo.svg").write_text("<svg/>\n", encoding="utf-8")
         (repo / "ok.txt").unlink()
         # Ha a lap a szöveges nézetüket kéri
         # Akkor egyik sem szerkeszthető
-        for row, path in ((wip, "README.md"), (wip, "logo.svg"), (wip, "ok.txt"),
+        for row, path in ((wip, "logo.svg"), (wip, "ok.txt"),
                           (wip.replace("uncommitted", "staged"), "app.py"), (parent, "app.py")):
             self.assertFalse(gg.diff.file_diff(row, path, text=True)["editable"], f"{row} {path}")
+
+    def test_markdown(self) -> None:
+        """A markdown forrása szerkeszthető: az Uncommitted soron és a tiszta HEAD-commitban is."""
+        # Adott egy commitolt markdown
+        repo, gg, _, _, wip = self.text_repo()
+        (repo / "README.md").write_text("# cím\n", encoding="utf-8")
+        git_in(repo, "add", "README.md")
+        git_in(repo, "commit", "-qm", "readme")
+        head = git_in(repo, "rev-parse", "HEAD").strip()
+        # Ha a lap a szöveges nézetét kéri
+        # Akkor a HEAD-commitban és az Uncommitted soron is szerkeszthető
+        self.assertEqual(gg.diff.file_diff(head, "README.md", text=True)["write"], wip)
+        (repo / "README.md").write_text("# új cím\n", encoding="utf-8")
+        self.assertTrue(gg.diff.file_diff(wip, "README.md", text=True)["editable"])
 
     def test_unchanged_on_wip(self) -> None:
         """A WIP soron a nem módosult fájl is szerkeszthető, a két oldala egyezik."""
