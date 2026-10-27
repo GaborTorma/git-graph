@@ -10,6 +10,7 @@ import { clock } from './dates.js';
 import { diffCache, setSource } from './diff.js';
 import { rowsEl, scroller } from './dom.js';
 import { applyFilters } from './filters.js';
+import { refreshFull } from './full.js';
 import { hydrate, hydrateFocus } from './hydrate.js';
 import { mcpFatal, mcpProblem } from './mcp.js';
 import { focusWt, setFocusAuto } from './model.js';
@@ -120,6 +121,7 @@ export function startLive(src) {
           fillBranches();
           applyFilters();
           scroller.scrollTop = top;
+          refreshFull();
           change = `\nutolsó változás ${clock()}: adat ${Math.round(td)} ms,`
             + ` kirajzolva ${Math.round(performance.now() - t1)} ms alatt`;
         }

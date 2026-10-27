@@ -121,8 +121,10 @@ searchEl.addEventListener('input', () => {
 });
 
 /* ⌘F / Ctrl+F a keresőbe (a lap saját keresője helyett); Escape előbb a
-   keresést üríti, aztán a kinyitott commitot csukja be. */
+   keresést üríti, aztán a kinyitott commitot csukja be. A kódnézetben (CodeMirror) a
+   billentyűk az övéi: a ⌘F a fájlban keres, az Esc a szerkesztést zárja. */
 document.addEventListener('keydown', e => {
+  if (/** @type {HTMLElement} */ (e.target).closest?.('.cm-editor')) return;
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
     e.preventDefault();
     searchEl.focus();

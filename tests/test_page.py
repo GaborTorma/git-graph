@@ -58,6 +58,10 @@ class PageTest(HomeTestCase):
         mermaid = gg.page.page_code("mermaid")             # lustán kért darab: csak a JS-e
         self.assertEqual(set(mermaid), {"js"})
         self.assertIn("globalThis.mermaid=", mermaid["js"])
+        cm = gg.page.page_code("codemirror")               # a kódszerkesztő: a host-híd határa alatt
+        self.assertEqual(set(cm), {"js"})
+        self.assertIn("globalThis.CM=", cm["js"])
+        self.assertLess(len(json.dumps(cm)), 3_900_000)
         font = gg.page.page_code("font")                   # a lap betűje: a woff2 base64-ben
         self.assertEqual(set(font), {"woff2"})
         self.assertEqual(base64.b64decode(font["woff2"])[:4], b"wOF2")

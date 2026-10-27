@@ -15,9 +15,76 @@
    kirajzolva, vagy ha hibás, a kódnézet látszik. A `![alt](út)` kép képként
    (`images.js`): a csak képből álló bekezdés a régi és az új változatával, mint a
    diagram; a szövegbeli a helyén, oldalanként a saját változatából. */
-import { KIND, alignRows, annotate, kindOf, oneSide, partnerOf, untouched } from './diff-html.js';
+import { icon } from './icons.js';
 import { LANGS, highlight } from './syntax.js';
 import { esc, ghLink } from './util.js';
+
+/* A sor párja: a Python `p`-je (a párja indexe a hunkban, mindkét irányban)
+   sorobjektumként — a diff betöltésekor (`annotate`), hogy a nézetek a saját
+   szeletükön (kódblokk, táblázat, blokkok) is megtalálják. */
+const PAIR = new WeakMap();
+const partnerOf = l => PAIR.get(l) ?? null;
+function annotate(d) {
+  for (const h of d.hunks) for (const l of h.lines) if (l.p != null) PAIR.set(l, h.lines[l.p]);
+}
+
+const KIND = { ' ': '', '+': ' add', '-': ' del' };
+const kindOf = l => KIND[l.t] + (l.only ? ' only' : '');
+
+/* Változott-e a sor (a Python `w`-je): `same` — a szavai mind megvannak a
+   másik oldalon (vagy üres sor); `words` / `whole` — szavai változtak / egészében
+   új vagy törölt. `untouched`: a `t` oldalon egy sem változott. */
+const changed = l => l.t !== ' ' && l.w !== 'same';
+const untouched = (ls, t) => !ls.some(l => l.t === t && changed(l));
+
+/* A sor a Python `v`-je (a megjelenése) szerint: az érintetlen (`drop`) és a
+   változatlan (`same`) jel nélkül, a szavanként változott párja (`only`)
+   semleges háttérrel; az egészében új / törölt (nincs `v`) teljes színű. */
+const look = l => (l.v === 'drop' || l.v === 'same' ? { ...l, t: ' ' } : l.v === 'only' ? { ...l, only: true } : l);
+
+/* Az egymás alatti nézet sorai: az érintetlen oldal (`drop`) kimarad —
+   a másik oldal a kiemelt szavaival mindent elmond. */
+function oneSide(lines) {
+  return lines.filter(l => l.v !== 'drop').map(look);
+}
+
+/* Side-by-side sorai (`annotate` után): [{ a: régi, b: új, ctx }]. A változatlan
+   sor mindkét oldalon (`ctx`), a törölt blokk és az utána jövő hozzáadott blokk
+   párjai (`partnerOf`) egy sorba — ugyanaz a párosítás, amiből a Python a
+   szó-kiemelést számolja. A két pár közti pár nélküli törölt és új sorok egymás
+   mellé kerülnek (a többlet egyedül, a másik oldal `null`). Egészében egyoldalú
+   futamban (csak beszúrás / csak törlés) az érintetlen oldal változatlanként
+   látszik, a párok nem számítanak: a két oldal felülről, lyuk nélkül. */
+function alignRows(L) {
+  const at = new Map(L.map((l, i) => [l, i]));
+  const see = l => l && look(l);
+  const rows = [];
+  for (let i = 0; i < L.length;) {
+    if (L[i].t === ' ') { rows.push({ a: L[i], b: L[i], ctx: true }); i++; continue; }
+    let j = i; while (j < L.length && L[j].t === '-') j++;
+    let k = j; while (k < L.length && L[k].t === '+') k++;
+    const row = (d, n) => rows.push({ a: see(d), b: see(n) });
+    const pair = d => { const x = at.get(partnerOf(L[d])); return x >= j && x < k ? x : null; };
+    const run = L.slice(i, k);
+    const pairs = [];
+    if (!untouched(run, '-') && !untouched(run, '+')) {
+      for (let d = i, last = j; d < j; d++) {
+        const p = pair(d);
+        if (p != null && p >= last) { pairs.push([d, p]); last = p + 1; }
+      }
+    }
+    let d0 = i, a0 = j;
+    for (const [d, p] of [...pairs, [j, k]]) {
+      for (let x = 0; x < Math.max(d - d0, p - a0); x++) {
+        row(d0 + x < d ? L[d0 + x] : null, a0 + x < p ? L[a0 + x] : null);
+      }
+      if (d < j) row(L[d], L[p]);
+      d0 = d + 1; a0 = p + 1;
+    }
+    i = k;
+  }
+  return rows;
+}
 
 const MD_CONTEXT = 1;          // blokk (a táblázatban sor)
 const MD_CODE_CONTEXT = 3;     // a kódblokkban sor, mint a git diffjében
@@ -494,12 +561,13 @@ export function mdDiffHtml(d) {
     if (changed[i] && heading >= 0) shown[heading] = true;
     if (b.type === 'h') heading = i;
   });
-  // Egy blokk (hunk) a `···`-ig: fókuszálható, a nyilak blokkról blokkra lépnek.
+  // Egy blokk (hunk) a résig: fókuszálható, a nyilak blokkról blokkra lépnek.
   // Mint a nyers diffnél: egymás alatti és side-by-side nézet, a szélesség dönt;
   // a side-by-side-ban blokkonként egy sor, balra a régi, jobbra az új változat.
-  const view = html => runsOf(shown).map(r => (r.keep
+  const view = html => runsOf(shown).map((r, i) => (r.keep
     ? `<div class="hunk md-doc" tabindex="-1">${html(blocks.slice(r.from, r.to))}</div>`
-    : `<p class="diff-gap" data-tip="${r.to - r.from} változatlan blokk">···</p>`)).join('');
+    : `<button type="button" class="diff-gap" data-gap="${i}">${icon('caretUpDown')}${r.to - r.from} változatlan blokk</button>`
+      + `<template data-gap-body="${i}"><div class="hunk md-doc" tabindex="-1">${html(blocks.slice(r.from, r.to))}</div></template>`)).join('');
   const uni = view(list => list.map(b => mdBlockHtml(b)).join(''));
   const kinds = new Set(shownLines.flat().map(l => l.t));
   const next = new Map(blocks.map((b, i) => [b, blocks[i + 1]]));
@@ -527,4 +595,14 @@ export function syncRows(root) {
   const heights = pairs.map(([a, b]) => a.map((x, i) =>
     Math.max(x.getBoundingClientRect().height, b[i].getBoundingClientRect().height)));
   pairs.forEach(([a, b], k) => a.forEach((x, i) => { x.style.height = b[i].style.height = `${heights[k][i]}px`; }));
+}
+
+/* A változatlan rés (`data-gap`) egy kattintásra egyben nyílik, mindkét nézetben (egymás alatt és
+   side-by-side): a kimaradt blokkok (a `<template>`-ben várnak) a helyükre kerülnek. */
+export function openGaps(gap) {
+  const root = gap.closest('.diff') || gap.parentElement, at = gap.dataset.gap;
+  root.querySelectorAll(`[data-gap="${at}"]`).forEach(g => g.remove());
+  root.querySelectorAll(`template[data-gap-body="${at}"]`).forEach(t => t.replaceWith(/** @type {HTMLTemplateElement} */ (t).content));
+  syncRows(root);
+  return root;
 }

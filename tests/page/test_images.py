@@ -217,7 +217,7 @@ class ImagesTest(ImageFixture):
         self.open_file("icon.svg")
         self.assertEqual(self.figs(), [["img-del", True], ["img-add", True]])
         self.page.locator('.diff [data-svg-mode="code"]').click()
-        self.page.wait_for_selector(".diff .diff-line")
+        self.page.wait_for_selector(".diff .cm-line")
         self.assertEqual(self.page.locator(".diff .img-fig").count(), 0)
         self.assertIn("blue", self.page.locator(".diff:has([data-svg-mode])").inner_text())
         self.page.locator('.diff [data-svg-mode="image"]').click()         # vissza: a lap megjegyzi

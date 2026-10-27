@@ -75,6 +75,7 @@
   --ic-red: #c4573a; --ic-orange: #d97757; --ic-yellow: #c08a1e; --ic-green: #3f9455;
   --ic-teal: #2a8e8c; --ic-blue: #4f7fe0; --ic-purple: #8f68cc; --ic-pink: #c4588a;
   --ic-fg: #666666; --ic-muted: #888888;
+  --ic-caret-up-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M5.22 6.52Q5.04 6.7 4.8 6.7Q4.56 6.7 4.37 6.52Q4.21 6.34 4.21 6.09Q4.21 5.85 4.38 5.68L7.58 2.48Q7.76 2.3 8 2.3Q8.24 2.3 8.42 2.48L11.62 5.68Q11.79 5.85 11.79 6.1Q11.79 6.34 11.63 6.52Q11.45 6.7 11.2 6.7Q10.96 6.7 10.78 6.52L8 3.75ZM4.38 10.32Q4.21 10.15 4.21 9.9Q4.21 9.66 4.37 9.48Q4.55 9.3 4.8 9.3Q5.04 9.3 5.22 9.48L8 12.25L10.78 9.48Q10.96 9.3 11.2 9.3Q11.44 9.3 11.63 9.48Q11.79 9.66 11.79 9.91Q11.79 10.15 11.62 10.32L8.42 13.52Q8.24 13.7 8 13.7Q7.76 13.7 7.58 13.52Z'/%3E%3C/svg%3E");   /* CaretUpDown: a CodeMirror rése (`cm-collapsedLines`) */
   /* kód */
   --code-bg:     #ffffff;
   --code-fg:     #141413;
@@ -513,6 +514,7 @@ button { font: inherit; color: inherit; }
 
 /* Beállítások: a kereső melletti fogaskerék, a menüben kétsoros kapcsolók. */
 .select.gear { width: 32px; padding: 0; justify-content: center; }
+#fullBtn[hidden] { display: none; }   /* a teljes nézet gombja: csak nyitott commitnál */
 .menu-pop.settings { width: 280px; }
 .option.setting { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 6px 12px; gap: 12px; }
 .option.setting .txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -909,31 +911,33 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
   overflow: hidden;
   container-type: inline-size;         /* a nézetet a saját szélessége dönti el */
 }
-.diff-line, .half { display: grid; grid-template-columns: 5ch 2.5ch minmax(0, 1fr); padding-right: 10px; }
-.diff .no { color: var(--code-no); text-align: right; padding-right: 1.2ch; user-select: none; }
-.diff .sg { user-select: none; }
-.diff .tx { white-space: pre-wrap; overflow-wrap: anywhere; }
 .diff .add { background: var(--diff-add); }
 .diff .del { background: var(--diff-del); }
-.diff .add .no, .diff .add .sg { color: var(--diff-add-no); }
-.diff .del .no, .diff .del .sg { color: var(--diff-del-no); }
 .diff .add mark { background: var(--diff-add-hl); color: inherit; border-radius: 3px; }
 .diff .del mark { background: var(--diff-del-hl); color: inherit; border-radius: 3px; }
 /* csak beszúrás / csak törlés (`only`): a sor háttere semleges, csak a szó színes */
 .diff .add.only, .diff .del.only { background: none; }
-.split-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-.split-row .half + .half { border-left: 1px solid var(--border-soft); }
-.half.none { background: var(--code-tint); }
 .diff-split { display: none; }
 @container (min-width: 1000px) {
   .diff-uni { display: none; }
   .diff-split { display: block; }
 }
-.diff-gap {
-  margin: 3px 0; padding: 3px 12px;
-  font-family: var(--font-ui); font-size: 12px; color: var(--code-no);
-  border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft);
+/* A változatlan rés (a CodeMirror `collapseUnchanged`-e és a markdown blokkjai): egy kattintásra
+   egyben nyílik; az app diffjének fel-le nyilával. */
+.diff-gap, .diff .cm-collapsedLines {
+  display: flex; align-items: center; gap: 6px; width: 100%; margin: 3px 0; padding: 3px 12px; box-sizing: border-box;
+  border: 0; border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft);
+  background: var(--code-tint); color: var(--code-no); cursor: pointer;
+  font-family: var(--font-ui); font-size: 12px; text-align: left;
 }
+.diff-gap:hover, .diff .cm-collapsedLines:hover { color: var(--fg-1); background: var(--fill-1); }
+.diff-gap .ic { width: 12px; height: 12px; }
+.diff .cm-collapsedLines::before {
+  content: ""; width: 12px; height: 12px; flex: none; background: currentColor;
+  -webkit-mask: var(--ic-caret-up-down) center / contain no-repeat; mask: var(--ic-caret-up-down) center / contain no-repeat;
+}
+.diff .cm-collapsedLines::after { content: none; }
+.diff .cm-collapsedLines { margin: 0; }   /* a CodeMirror a blokk magasságát margó nélkül méri: a margó elcsúsztatná a sorokat */
 .diff-gap:first-child { margin-top: 0; border-top: 0; }
 .diff-note { margin: 0; padding: 4px 12px; font-family: var(--font-ui); font-size: 12px; color: var(--fg-2); }
 /* az app Spinner-e (sm): 12 px, 1,5 px-es vonal, a sáv a keret színe, az ív text-muted */
@@ -944,6 +948,55 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
   animation: spin 1s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── CodeMirror-diff ── a Claude kódnézetének színeivel (a szintaxis a `cm.js` HighlightStyle-ja):
+   a hozzáadott sor zöld, a törölt (egymás alatt a nem szerkeszthető blokk) piros, a cserélt
+   rész erősebb háttérrel. A szerkesztés kék kerettel, a külső változás kék villanással. */
+.cm-diff { position: relative; }
+.diff .cm-editor { background: transparent; color: var(--code-fg); font-size: 13px; }
+.diff .cm-editor.cm-focused { outline: 0; }
+.diff .cm-scroller { font-family: var(--font-mono); font-variant-ligatures: none; line-height: 1.5; }
+.diff .cm-content { padding: 0; caret-color: var(--fg-0); }
+.diff .cm-line { padding: 0 10px 0 6px; }
+.diff .cm-gutters { background: transparent; border: 0; color: var(--code-no); }
+.diff .cm-lineNumbers .cm-gutterElement { min-width: 4ch; padding: 0 .6ch 0 1ch; }
+.diff .cm-changeGutter { width: 3px; padding: 0; }
+.diff .cm-changedLine, .diff .cm-merge-b .cm-changedLine { background: var(--diff-add); }
+.diff .cm-changedText, .diff .cm-merge-b .cm-changedText { background: var(--diff-add-hl); border-radius: 3px; }
+.diff .cm-deletedChunk, .diff .cm-merge-a .cm-changedLine { background: var(--diff-del); }
+.diff .cm-deletedChunk .cm-deletedText, .diff .cm-merge-a .cm-changedText { background: var(--diff-del-hl); border-radius: 3px; }
+.diff .cm-deletedChunk { padding-left: 6px; user-select: none; }
+.diff .cm-deletedChunk del { text-decoration: none; }
+.diff .cm-changedLineGutter, .diff .cm-merge-b .cm-changedLineGutter { background: var(--add); }
+.diff .cm-deletedLineGutter, .diff .cm-merge-a .cm-changedLineGutter { background: var(--del); }
+.diff .cm-mergeView .cm-merge-a { border-right: 1px solid var(--border-soft); }
+.diff .cm-mergeSpacer { background: var(--code-tint); }
+.diff .cm-chunkButtons { position: absolute; right: 8px; z-index: 1; }
+.diff .cm-reject {
+  height: 22px; padding: 0 8px; border: 0; border-radius: 6px; cursor: pointer;
+  background: var(--bg-1); color: var(--fg-1); box-shadow: inset 0 0 0 1px var(--border), var(--shadow-sm);
+  font: var(--w-medium) 12px var(--font-ui);
+}
+.diff .cm-reject:hover { color: var(--fg-0); background: var(--bg-2); }
+.cm-diff.editing { box-shadow: inset 0 0 0 1.5px var(--accent); border-radius: 6px; }
+.diff .cm-cursor { border-left-color: var(--fg-0); }
+.diff .cm-selectionBackground, .diff .cm-focused .cm-selectionBackground { background: var(--accent-bg) !important; }
+.diff .cm-flash { animation: cm-flash 1.6s ease-out; }
+@keyframes cm-flash { from { background-color: color-mix(in srgb, var(--accent) 35%, transparent); } to { background-color: transparent; } }
+.diff .cm-panels { background: var(--bg-1); color: var(--fg-0); border-color: var(--border); font-family: var(--font-ui); }
+.diff .cm-panel.cm-search input, .diff .cm-panel.cm-search button { font: inherit; font-size: 12px; }
+.diff .cm-searchMatch { background: var(--highlight); }
+/* ütközés: a két változat és a két gomb, a szerkesztő fölött */
+.cm-conflict { margin: 4px 8px 8px; padding: 8px 10px; border-radius: 8px; background: var(--accent-bg);
+  font-family: var(--font-ui); font-size: 13px; color: var(--fg-0); }
+.cm-conflict p { margin: 0 0 6px; }
+.cm-conflict-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-bottom: 6px; }
+.cm-conflict-pair pre { margin: 2px 0 0; padding: 4px 6px; border-radius: 6px; background: var(--code-bg);
+  font: 12px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cm-conflict-btns { display: flex; gap: 8px; }
+.cm-conflict .btn { height: 28px; padding: 0 10px; border: 0; border-radius: 8px; cursor: pointer;
+  background: var(--bg-1); color: var(--fg-0); box-shadow: inset 0 0 0 1px var(--border); font: var(--w-medium) 13px var(--font-ui); }
+.cm-conflict .btn:hover { background: var(--bg-2); }
 
 /* ── Markdown-diff ── renderelt szöveg; a változott blokk a diff színeivel, a
    bal szélén csíkkal (a háttér magában halvány lehet egy hosszú bekezdésen). */
@@ -1187,3 +1240,43 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ── Teljes nézet ── az Artifact-keretet kitöltő réteg: fent a commit, középen a diff, jobbra a fa. */
+.fv { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: var(--bg); color: var(--fg-0); }
+.fv-head { flex: none; display: flex; align-items: flex-start; gap: 12px; padding: 12px 12px 10px 16px; border-bottom: 1px solid var(--border); }
+.fv-title { flex: 1; min-width: 0; }
+.fv-subject { margin: 0; font-size: 15px; font-weight: var(--w-header); line-height: 1.4; }
+.fv-body { margin: 4px 0 0; max-height: 7.5em; overflow: auto; font-size: 13px; line-height: 1.5; color: var(--fg-1); white-space: pre-wrap; }
+.fv-main { flex: 1; min-height: 0; display: flex; }
+.fv-center { flex: 1; min-width: 0; overflow: auto; padding: 0 12px 16px; }
+.fv-path { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 8px; height: 36px; background: var(--bg);
+  font-family: var(--font-mono); font-size: 13px; font-weight: var(--w-medium); }
+.fv-path .fic { width: 16px; height: 16px; flex: none; }
+.fv-path.deleted .path { color: var(--del); text-decoration: line-through; }
+.fv-box { margin: 0; }
+.fv-resize { flex: none; width: 5px; margin: 0 -2px; z-index: 4; cursor: col-resize; border-left: 2px solid transparent; }
+.fv-resize:hover, .fv-resize.on { border-left-color: var(--accent); }
+.fv-tree { flex: none; min-width: 200px; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg-1); }
+.fv-tools { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px; }
+.fv-search { flex: 1 1 auto; height: 28px; padding: 0 8px; }
+.fv-search .ic { width: 14px; height: 14px; flex: none; }
+.fv-search input { font-size: 13px; }
+.fv-all[aria-pressed="true"] { color: var(--accent); background: var(--accent-bg); }
+.fv-list { flex: 1; min-height: 0; overflow: auto; padding: 0 4px 8px; }
+.fv-row { display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px 0 calc(4px + var(--depth) * 14px);
+  border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.fv-row:hover { background: var(--bg-2); }
+.fv-row.sel, .fv-row.sel-in { background: var(--fill-2); }
+.fv-row.sel:hover, .fv-row.sel-in:hover { background: var(--fill-3, var(--fill-2)); }
+.fv-row .chev { width: 12px; flex: none; display: flex; color: var(--fg-2); transition: transform .12s; }
+.fv-row .chev .ic { width: 12px; height: 12px; }
+.fv-dir[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.fv-row .fic { width: 16px; height: 16px; flex: none; }
+.fv-row .ic.fic { color: var(--fg-2); }
+.fv-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fv-row .churn { flex: none; font-size: 12px; }
+.fv-row.added .name { color: var(--add); }
+.fv-row.deleted .name { color: var(--del); }
+.fv-file.deleted .name { text-decoration: line-through; }
+.fv-row.modified .name { color: var(--git-modified); }
+.fv-empty { margin: 8px; font-size: 12px; color: var(--fg-2); }

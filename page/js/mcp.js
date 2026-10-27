@@ -10,6 +10,14 @@ export function mcpSource() {
            diff: (sha, path, full) => call('file_diff', { sha, path, full }),
            // a kép egy oldala (`old` / `new`), külön hívásban; `image`: a markdown-fájl egy képe
            side: (sha, path, side, image) => call('file_diff', { sha, path, side, ...(image == null ? {} : { image }) }),
+           // a kódnézet: a fájl adatai (`text`), oldalanként a teljes szöveg (`textSide`)
+           text: (sha, path) => call('file_diff', { sha, path, text: true }),
+           textSide: (sha, path, side) => call('file_diff', { sha, path, side, text: true }),
+           // a teljes nézet fája: a commit (WIP soron a munkakönyvtár) fájljai; `dir`: egy mappa, `grep`: tartalomkeresés
+           tree: (sha, opts = {}) => call('file_tree', { sha, ...opts }),
+           // az Uncommitted sor fájljának mentése, az ismert lemezállapot (`base`) hashével
+           write: (sha, path, text, base) => call('write_file', { sha, path, text, base }),
+           codemirror: () => /** @type {Promise<{ js: string }>} */ (call('page_code', { api: CTX.api, part: 'codemirror' })),
            mermaid: () => /** @type {Promise<{ js: string }>} */ (call('page_code', { api: CTX.api, part: 'mermaid' })),
            // a lap betűi (Anthropic Sans: `font`, Mono: `font-mono`) base64-ben: a keretben nincsenek meg (`font.js`)
            font: part => /** @type {Promise<{ woff2: string }>} */ (call('page_code', { api: CTX.api, part })) };

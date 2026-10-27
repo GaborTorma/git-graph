@@ -10,11 +10,12 @@ Használat és felépítés: [README.md](../README.md).
 | Útvonal | Mi ez |
 | --- | --- |
 | `bin/git-graph` | a `git-graph` parancs: a `git_graph` csomag vékony belépője (a hook és a Bash eszköz ezt futtatja) |
-| `git_graph/` | a Python-oldal: `gitio` (git-hívások, `REPO`), `graph` (a `graph_data` csomagja: commitok, refek, összerakás), `stats` (fájlstatisztika), `worktrees` (worktree-k, WIP-sor), `branches` (ágak, távolságok), `lanes` (sávkiosztás), `diff`, `avatars`, `page` (betöltő, `page_code`, ikonok), `registry` (slug, `repos.json`, sessionök), `claude_app` (az app session-fókusza), `watch` (a `changes` long-pollja), `publish`, `mcp` (`--mcp`), `install` (stabil másolat, frissítés, leszerelés), `hook` (`--session-hook`), `cli`, `state` (`~/.git-graph`, atomi írás) |
-| `page/` | a lap: `loader.html` (az Artifact betöltője, `build()`), `head.html`, `page.css`, `body.html`, `js/` (a lap ES-moduljai, belépő: `main.js`; a `page_code` köti össze), `file-icons.json` (fájltípus-ikonok, generált), `vendor/` (a Mermaid 12.2.0 karcsú egyfájlos buildje + licencek, `scripts/mermaid.sh`; lustán, `page_code` `part: "mermaid"`; az Anthropic Sans és Mono `anthropic-sans.woff2`, `anthropic-mono.woff2`, a Claude app betűi, `part: "font"`, `"font-mono"`) |
-| `page/js/` | `state` (közös állapot + setterek), `dom`, `util`, `dates`, `icons`, `model` (saját worktree, színek, elérhetőség), `avatars`, `graph` (SVG), `anim`, `layout`, `scroll`, `panel`, `syntax`, `diff-html`, `md-diff`, `mermaid` (diagramok a markdown-diffben), `diff` (fájl-diff), `refs` (chipek), `details` (commit-panel), `rows` (`render`), `hydrate`, `menu`, `branches` (ágválasztó), `filters`, `keyboard`, `theme`, `settings`, `mcp`, `live` (`startLive`), `tip`, `font` (az Anthropic Sans és Mono regisztrálása), `main` |
+| `git_graph/` | a Python-oldal: `gitio` (git-hívások, `REPO`), `graph` (a `graph_data` csomagja: commitok, refek, összerakás), `stats` (fájlstatisztika), `worktrees` (worktree-k, WIP-sor), `branches` (ágak, távolságok), `lanes` (sávkiosztás), `diff`, `files` (a teljes nézet fája, `git grep`, a `write_file` író tool), `avatars`, `page` (betöltő, `page_code`, ikonok), `registry` (slug, `repos.json`, sessionök), `claude_app` (az app session-fókusza), `watch` (a `changes` long-pollja), `publish`, `mcp` (`--mcp`), `install` (stabil másolat, frissítés, leszerelés), `hook` (`--session-hook`), `cli`, `state` (`~/.git-graph`, atomi írás) |
+| `page/` | a lap: `loader.html` (az Artifact betöltője, `build()`), `head.html`, `page.css`, `body.html`, `js/` (a lap ES-moduljai, belépő: `main.js`; a `page_code` köti össze), `file-icons.json` (fájltípus-ikonok, generált), `vendor/` (a Mermaid 12.2.0 karcsú egyfájlos buildje + licencek, `scripts/mermaid.sh`; lustán, `page_code` `part: "mermaid"`; a CodeMirror 6 + `@codemirror/merge` buildje, `scripts/codemirror.sh`, `part: "codemirror"`; az Anthropic Sans és Mono `anthropic-sans.woff2`, `anthropic-mono.woff2`, a Claude app betűi, `part: "font"`, `"font-mono"`) |
+| `page/js/` | `state` (közös állapot + setterek), `dom`, `util`, `dates`, `icons`, `model` (saját worktree, színek, elérhetőség), `avatars`, `graph` (SVG), `anim`, `layout`, `scroll`, `panel`, `syntax` (a markdown kódblokkjai), `cm` (minden kóddiff: CodeMirror, szerkesztés, mentés), `md-diff`, `mermaid` (diagramok a markdown-diffben), `diff` (fájl-diff), `refs` (chipek), `details` (commit-panel), `full` (teljes nézet fájlfával), `rows` (`render`), `hydrate`, `menu`, `branches` (ágválasztó), `filters`, `keyboard`, `theme`, `settings`, `mcp`, `live` (`startLive`), `tip`, `font` (az Anthropic Sans és Mono regisztrálása), `main` |
 | `scripts/check-page.mjs` | a lap moduljainak szintaxisa és összekötése (import ↔ export) Node-ban, futtatás nélkül — a Check része |
 | `page/js/types.d.ts`, `page/tsconfig.json` | a lap típusai (`graph_data`, `GIT_GRAPH`) a `tsc --checkJs`-hez — a lapra nem kerül |
+| `scripts/codemirror.sh` | a `page/vendor/codemirror.min.js` buildje (esbuild, verzióra rögzített `@codemirror/*` és Lezer-nyelvek) és a licencek — kézzel, frissítéskor |
 | `scripts/mermaid.sh` | a `page/vendor/mermaid.min.js` karcsú buildje (esbuild, a nehéz diagramtípusok helyén csonk, ELK-kal) és a licencek — kézzel, frissítéskor; a host-híd határa alatt kell maradnia |
 | `scripts/screenshots.py` | a funkcióoldalak képei (`docs/img/<funkció>/`) a `tests/page` fixture-repóiból — kézzel, UI-változáskor (`/workflow:docs`) |
 | `scripts/anthropicons.py` | a `design/icons/anthropicons.json` előállítása az app ikonfontjából és a CDS-bundle névtáblájából (a gyorsítótárból kibontva) — kézzel, frissítéskor |
@@ -97,13 +98,15 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
   a sor a napfejléc alá igazodik; a simító egérszoftverek régi irányú
   lendületét a `coasting` szűri — miért: [scroll-step-rows](memory/scroll-step-rows.md)).
 - **Függőség**: kizárólag Python 3 stdlib. Ez szándékos — az eszköznek bárhol
-  futnia kell, `pip install` nélkül. Ne hozz be libet. A lap egyetlen külső
-  JS-e a vendorolt Mermaid (`page/vendor/`, verzióra rögzítve), fontjai a vendorolt
+  futnia kell, `pip install` nélkül. Ne hozz be libet. A lap külső
+  JS-e a vendorolt Mermaid és CodeMirror (`page/vendor/`, verzióra rögzítve), fontjai a vendorolt
   Anthropic Sans és Mono. A lintek (ruff, Biome),
   a `tsc` és a Playwright csak fejlesztői eszközök, `uvx` / `uv run --with` / `pnpm dlx`
   futtatja őket, verzióra rögzítve.
 - **Minden git-hívás olvas.** A script sosem módosít repót. Kivétel a
-  `.git/config` `git-graph.*` kulcsai — lokális, sosem commitolódik. A kimenet a
+  `.git/config` `git-graph.*` kulcsai — lokális, sosem commitolódik —, és a `write_file`
+  tool: az Uncommitted sor szerkesztett fájlját írja, csak ismert worktree munkakönyvtárába
+  (`.git/`, `..`, abszolút út, kifelé mutató symlink tilos), a git állapotához nem nyúl. A kimenet a
   repón kívül, `~/.git-graph/<slug>/`; a projektmappába nem írunk.
 - **Hálózat csak az avatarért.** GitHub-os repónál a szerzők képét a Python
   tölti le háttérszálon (`avatars_for`). Noreply címnél közvetlenül, különben az

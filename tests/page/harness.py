@@ -34,13 +34,19 @@ DAY = 86400
 T0 = 1_780_000_000          # 2026 májusa; a commitok napjai innen előre
 
 # A kamu Claude app: `window.claude.use('mcp')` → a host-híd. A hívás a Python
-# oldalra megy (`__mcp`); a nyitva tartott `changes` megszakításig függ.
+# oldalra megy (`__mcp`); a nyitva tartott `changes` megszakításig függ, vagy amíg a teszt
+# `__poke()`-kal meg nem válaszoltatja (a repó külső változása: `PageTestCase.poke`).
 FAKE_CLAUDE = r"""
+const waiting = [];
+window.__poke = () => waiting.splice(0).forEach(go => go());
 window.claude = { use: async name => name !== 'mcp' ? null : {
   callTool: (server, tool, args, opts = {}) => {
     if (tool === 'changes' && args.wait > 0) {
-      return new Promise((_, reject) => opts.signal?.addEventListener('abort',
-        () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))));
+      return new Promise((resolve, reject) => {
+        opts.signal?.addEventListener('abort',
+          () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+        waiting.push(() => window.__mcp(tool, { ...args, wait: 0 }).then(r => resolve({ payload: JSON.parse(r).value })));
+      });
     }
     return window.__mcp(tool, args).then(r => {
       const { ok, value } = JSON.parse(r);
@@ -123,6 +129,7 @@ class PageTestCase(unittest.TestCase):
         (home / ".git-graph").mkdir()
         repo = home / "repo"
         make_history(repo)
+        cls.repo = repo
         cls.prepare(repo)
         (home / ".git-graph" / "repos.json").write_text(json.dumps({SLUG: str(repo)}), encoding="utf-8")
         cls.client = McpClient(SCRIPT, home)
@@ -187,6 +194,12 @@ class PageTestCase(unittest.TestCase):
             " && a.effect?.getComputedTiming().endTime !== Infinity)")
         self.page.wait_for_timeout(250)
         self.page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
+
+    def poke(self) -> None:
+        """A nyitva tartott `changes` hívás most válaszol: a lap az élő frissítést futtatja."""
+        self.page.evaluate("window.__poke()")
+        self.page.wait_for_timeout(400)
+        self.settle()
 
     def resize(self, width: int) -> None:
         self.page.set_viewport_size({"width": width, "height": self.HEIGHT})

@@ -2,8 +2,9 @@
 import { cardState, closeCard, glide, grow, openCard, shrink } from './anim.js';
 import { avatarOf } from './avatars.js';
 import { fmtDate } from './dates.js';
-import { mdRaw, openFiles, setMdRaw, setSvgCode, svgCode, toggleFile } from './diff.js';
+import { forgetFile, mdRaw, openFiles, setMdRaw, setSvgCode, svgCode, toggleFile } from './diff.js';
 import { OPEN_PANEL, pendingEl, rowsEl, scroller } from './dom.js';
+import { showFullBtn } from './full.js';
 import { drawGraph } from './graph.js';
 import { fileIcon, icon } from './icons.js';
 import { fitWho } from './layout.js';
@@ -80,7 +81,7 @@ function bodyHtml(c) {
 /* A felhasználó csukta be a commitot (`panel`): a lenyitott fájljai vele együtt csukódnak, és
    legközelebb csukva nyílnak. */
 function foldFiles(panel, sha) {
-  for (const k of [...openFiles]) if (k.startsWith(sha + '\n')) openFiles.delete(k);
+  for (const k of [...openFiles]) if (k.startsWith(sha + '\n')) forgetFile(k);
   for (const f of panel.querySelectorAll('.file[aria-expanded="true"]')) {
     const box = /** @type {HTMLElement} */ (f.nextElementSibling), before = cardState(f);
     f.setAttribute('aria-expanded', 'false');
@@ -155,6 +156,7 @@ export function open(sha, animate = false) {
     }
   }
   setExpanded(sha);
+  showFullBtn();
   drawGraph();               // a panel alatti sorok lejjebb kerültek
   if (animate) openCard(head, el, before);
 }
@@ -205,7 +207,8 @@ rowsEl.addEventListener('click', onListClick);
 pendingEl.addEventListener('click', onListClick);
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && expanded && !menuOpen()) closeCommit();
+  // szerkesztés közben az Esc a szerkesztést zárja (a CodeMirror kezeli, `defaultPrevented`)
+  if (e.key === 'Escape' && expanded && !menuOpen() && !e.defaultPrevented) closeCommit();
 });
 
 /* Bezárás felcsukással: a commit azonnal zárt (`expanded`), a panel a
@@ -214,6 +217,7 @@ export function closeCommit(focusRow = true) {
   const row = expanded && rowOf(visible.find(c => c.sha === expanded));
   const panel = document.querySelector(OPEN_PANEL);
   setExpanded(null);
+  showFullBtn();
   if (row && focusRow) select(row);
   if (!panel) { drawGraph(); return; }
   panel.classList.add('folding');

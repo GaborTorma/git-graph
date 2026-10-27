@@ -6,7 +6,8 @@
                   Shift-tel merge-nél a másik ág; H a HEAD (a ⌘H az appot rejti)
    Fájl-szint:    ↑/↓ a fájlokon, → kinyitja a diffet, ← becsukja; bezárt
                   fájlon ← vissza a commitra.
-   Beviteli mezőben és nyitott menünél a billentyűk a saját dolgukat végzik. */
+   Beviteli mezőben, a kódnézetben (CodeMirror) és nyitott menünél a billentyűk a saját
+   dolgukat végzik; a teljes nézet a sajátjait elkapja (`full.js`). */
 import { closeCommit, open } from './details.js';
 import { toggleFile } from './diff.js';
 import { OPEN_PANEL, rowsEl, scroller } from './dom.js';
@@ -28,7 +29,7 @@ function enterFirstHunk(fileEl) {
     const first = hunksOf(fileEl)[0];
     if (first && document.activeElement === fileEl) select(first);
     // kész: van blokk, vagy végleges üzenet jött (bináris, üres, hiba) — a betöltésre vár
-    return Boolean(first) || fileEl.nextElementSibling.querySelector('.diff-note:not(.loading)') !== null;
+    return Boolean(first) || fileEl.nextElementSibling.querySelector('.diff-note:not(.loading), .cm-diff') !== null;
   };
   if (go()) return;
   const box = fileEl.nextElementSibling;
@@ -62,7 +63,7 @@ function relative(c, dir, other) {
   return DATA.commits.find(x => other ? x.parents.slice(1).includes(c.sha) : x.parents[0] === c.sha);
 }
 document.addEventListener('keydown', e => {
-  if (e.altKey || /** @type {HTMLElement} */ (e.target).closest('input, textarea, .menu-pop')
+  if (e.altKey || e.defaultPrevented || /** @type {HTMLElement} */ (e.target).closest('input, textarea, .menu-pop, .cm-editor')
       || menuOpen()) return;
   const active = document.activeElement;
   const hunk = active?.closest?.('.hunk');
