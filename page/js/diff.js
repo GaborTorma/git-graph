@@ -148,7 +148,7 @@ export function fileContent(box, sha, path, key, paint, o = {}) {
     loadCM(() => SRC.codemirror()).then(CM => {
       const known = codeViews.get(key);
       if (known) { reuse(known); return; }
-      const fresh = new CodeDiff(CM, d, { lang: cmLang(path), write: (text, base) => SRC.write(sha, path, text, base) });
+      const fresh = new CodeDiff(CM, d, { lang: cmLang(path), write: (text, base, row) => SRC.write(row ?? sha, path, text, base) });
       codeViews.set(key, fresh);
       place(fresh);
     }, e => note(`<p class="diff-note">A kódnézet nem tölthető be: ${esc(e?.message || e?.code || e)}</p>`));
@@ -170,7 +170,9 @@ async function codeText(sha, path) {
   const [old, now] = await Promise.all(['old', 'new'].map(s => SRC.textSide(sha, path, s)));
   if (old.binary || now.binary) return { binary: true };
   if (old.big || now.big) return fromHunks(await SRC.diff(sha, path, false));
-  return { old: old.text, new: now.text, hash: now.hash ?? null, editable: Boolean(meta.editable) };
+  // a HEAD-commit tiszta fájlja: a mentés sora (`write`, az Uncommitted sor) és a lemez hashe a fejadatból
+  return { old: old.text, new: now.text, hash: now.hash ?? meta.hash ?? null, editable: Boolean(meta.editable),
+           write: meta.write ?? null };
 }
 
 /* A kép két oldala oldalanként külön hívással (`file_diff` `side`): egy válasz így a host-híd

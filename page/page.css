@@ -514,7 +514,6 @@ button { font: inherit; color: inherit; }
 
 /* Beállítások: a kereső melletti fogaskerék, a menüben kétsoros kapcsolók. */
 .select.gear { width: 32px; padding: 0; justify-content: center; }
-#fullBtn[hidden] { display: none; }   /* a teljes nézet gombja: csak nyitott commitnál */
 .menu-pop.settings { width: 280px; }
 .option.setting { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 6px 12px; gap: 12px; }
 .option.setting .txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }

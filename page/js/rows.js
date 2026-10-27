@@ -2,7 +2,6 @@
 import { avatarClass } from './avatars.js';
 import { dayKey, dayLabel, fmtTime, pinnedTime } from './dates.js';
 import { open } from './details.js';
-import { showFullBtn } from './full.js';
 import { OPEN_PANEL, counter, headChip, pendingEl, rowsEl } from './dom.js';
 import { drawGraph, setOtherWip } from './graph.js';
 import { fitRows } from './layout.js';
@@ -118,7 +117,7 @@ export function render() {
     open(expanded);
     const panel = document.querySelector(OPEN_PANEL);   // a panel saját görgetése megmarad
     if (panel) panel.scrollTop = panelTop;
-  } else { setExpanded(null); showFullBtn(); }
+  } else setExpanded(null);
   stackDays();
   const back = keepPath && expanded
     ? [...document.querySelectorAll(`${OPEN_PANEL} .file`)].find(f => f.dataset.path === keepPath)

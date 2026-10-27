@@ -173,7 +173,7 @@ export class CodeDiff {
     const CM = this.CM, d = this.d;
     const doc = this.ed ? this.ed.state.doc.toString() : (d.new ?? '');
     const orig = d.old ?? '';
-    const wasEditing = this.editing;
+    const wasEditing = this.editing, head = this.ed?.state.selection.main.head ?? 0;
     this.destroy();
     this.mode = mode;
     const collapse = orig !== doc && !d.big ? { collapseUnchanged: { margin: 3, minSize: 4 } } : {};
@@ -205,7 +205,7 @@ export class CodeDiff {
       ] }) });
       this.ea = null;
     }
-    if (wasEditing) this.startEditing(this.ed.state.selection.main.head);
+    if (wasEditing) this.startEditing(head);
   }
 
   destroy() {
@@ -277,7 +277,7 @@ export class CodeDiff {
     if (text === this.saved) return;
     this.saving = (async () => {
       try {
-        const r = await this.o.write(text, this.base);
+        const r = await this.o.write(text, this.base, this.d.write);
         if (r?.ok) { this.base = r.hash; this.seen.add(r.hash); this.saved = text; this.note(''); }
         else if (r?.conflict) this.external(r.text, r.hash);
       } catch (e) {
@@ -398,8 +398,9 @@ export class CodeDiff {
   /* Élő frissítés: az új adat (a régi oldal is változhatott — az Uncommitted soron az index). */
   update(d) {
     if (!this.ed) { this.set(d); return; }
-    const one = x => x.old == null || x.new == null || x.old === x.new || x.big;
-    if (one(d) !== one(this.d) || Boolean(d.big) !== Boolean(this.d.big)) {
+    // Csak a csonkolt (2 MB fölötti) nézet ki- és bekapcsolása épít újra; a többi változás helyben
+    // (a régi oldal is), szerkesztés közben a kurzor és a mentés sora marad.
+    if (Boolean(d.big) !== Boolean(this.d.big)) {
       const keepText = this.editing ? this.text() : null;
       this.set(d);
       if (keepText != null) this.d = { ...this.d, new: keepText };
@@ -411,7 +412,7 @@ export class CodeDiff {
       if (this.ea) this.ea.dispatch({ changes: this.changes(orig, next) });
       else this.ed.dispatch({ effects: CM.originalDocChangeEffect(this.ed.state, this.changes(orig, next)) });
     }
-    this.d = { ...this.d, old: d.old, editable: d.editable };
+    this.d = { ...this.d, old: d.old, editable: d.editable, write: d.write ?? this.d.write };
     this.editable = Boolean(d.editable && !d.big);
     if (this.editable) this.external(d.new, d.hash);
     else if ((d.new ?? '') !== this.text()) {
@@ -420,6 +421,7 @@ export class CodeDiff {
       this.d = { ...this.d, new: d.new };
       this.flash(ch);
     }
+    this.layout();                      // egyoldalúból kétoldalú lett: szélesen egymás mellett
   }
 
   /* ── Görgetés ── a nézet egy sora (az új oldalé) a görgető régió tetején. */

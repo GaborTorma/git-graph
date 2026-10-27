@@ -5,13 +5,15 @@
    kereső név szerint szűr, `?` előtaggal a tartalomban keres (`git grep`). A fa szélessége
    húzható (legalább 200 px), a lap megjegyzi. A nézet a commit gombjával nyílik, ott, ahol a
    Fejlesztő állt (a lenyitott fájl látszó sora) — a gomb ezért az eszközsorban, a görgetőn kívül
-   van, amíg egy commit nyitva van; Esc-re bezárul, és a panelben a kijelölt fájl
+   van; nyitott commit nélkül a saját worktree mostani állapota nyílik (a WIP sor, tisztán a HEAD),
+   minden fájllal. A HEAD-commit tiszta fájlja is szerkeszthető: az első mentéstől a fájl a WIP
+   soré, a nézet átvált rá; Esc-re bezárul, és a panelben a kijelölt fájl
    lenyitva, odagörgetve marad. A nézet billentyűit a réteg elkapja (a lap navigációja áll). */
 import { editingDiff } from './cm.js';
 import { codeViews, fileContent, forgetFile, onModeChange, mdRaw, setMdRaw, setSvgCode, source, svgCode, toggleFile } from './diff.js';
 import { OPEN_PANEL, pendingEl, scroller } from './dom.js';
 import { fileIcon, icon } from './icons.js';
-import { commitBySha } from './model.js';
+import { commitBySha, focusWt } from './model.js';
 import { revealFile } from './panel.js';
 import { linkify } from './refs.js';
 import { DATA, expanded } from './state.js';
@@ -27,8 +29,16 @@ let fv = null;
 /* Az eszközsor gombja: amíg egy commit (vagy WIP sor) nyitva van. */
 const fullBtn = /** @type {HTMLButtonElement} */ (document.getElementById('fullBtn'));
 fullBtn.innerHTML = icon('expand');
-fullBtn.addEventListener('click', () => openFull(expanded));
-export const showFullBtn = () => { fullBtn.hidden = !expanded; };
+fullBtn.addEventListener('click', () => (expanded ? openFull(expanded) : openOwn()));
+
+/* Nyitott commit nélkül: a saját worktree mostani állapota — a nem commitolt sora, ha van, különben a
+   HEAD-commitja —, minden fájllal (ebből választ a Fejlesztő). */
+function openOwn() {
+  const wt = focusWt();
+  if (!wt) return;
+  const wip = DATA.commits.find(c => c.uncommitted && !c.staged && c.worktree === wt.slug);
+  openFull(wip ? wip.sha : wt.head, true);
+}
 
 /* A `--numstat` átnevezése (`a => b`, `dir/{a => b}/x`): az új út. */
 const newPath = p => (p.includes(' => ')
@@ -172,9 +182,28 @@ function selectFile(path, line = null) {
   if (line == null) center.scrollTop = 0;
 }
 
+/* A HEAD-commit fájljának első mentése után megjelent a worktree nem commitolt sora: a nézet arra vált,
+   a kódnézet (és a szerkesztés) a helyén marad, az új kulcson. */
+function toWip() {
+  const view = fv.key && codeViews.get(fv.key), row = view?.d.write;
+  if (!row || fv.sha === row || !commitBySha(row)) return;
+  const key = `fv\n${row}\n${fv.path}`;
+  codeViews.delete(fv.key);
+  codeViews.set(key, view);
+  fv.sha = row;
+  fv.key = key;
+  fv.tree = null;
+  if (fv.all) loadTree();
+  const c = commitBySha(row);
+  fv.el.querySelector('.fv-subject').textContent = c.subject;
+  fv.el.querySelector('.fv-body')?.remove();
+}
+
 /* Élő frissítés (a WIP sor új adata): a fa és a nyitott fájl újra (a kódnézet helyben frissül). */
 export function refreshFull() {
-  if (!fv || !commitBySha(fv.sha)) return;
+  if (!fv) return;
+  toWip();
+  if (!commitBySha(fv.sha)) return;
   if (fv.all && fv.sha.startsWith('*')) loadTree();
   renderTree();
   if (fv.path) {
@@ -243,11 +272,12 @@ function handoff(sha) {
   return { path: first ? newPath(first.path) : null, line: null };
 }
 
-export function openFull(sha) {
+/** @param {string} sha @param {boolean} [all] minden fájllal, kijelölt fájl nélkül */
+export function openFull(sha, all = false) {
   if (!sha || fv) return;
   const c = commitBySha(sha);
   if (!c) return;
-  const { path, line } = handoff(sha);
+  const { path, line } = all ? { path: null, line: null } : handoff(sha);
   const el = document.createElement('div');
   el.className = 'fv';
   el.setAttribute('role', 'dialog');
@@ -263,12 +293,17 @@ export function openFull(sha) {
     + `<button type="button" class="mini fv-all" aria-pressed="false" aria-label="Minden fájl" data-tip="Minden fájl">${icon('list')}</button>`
     + '</div><div class="fv-list"></div></div></div>';
   document.body.append(el);
-  fv = { sha, el, path: null, key: null, all: false, tree: null, loaded: new Set(), query: '', grep: null,
+  fv = { sha, el, path: null, key: null, all, tree: null, loaded: new Set(), query: '', grep: null,
          opened: new Set(), closed: new Set() };
   el.addEventListener('click', onClick);
   el.querySelector('.fv-search input').addEventListener('input', e => onQuery(/** @type {HTMLInputElement} */ (e.target).value));
   el.querySelector('.fv-resize').addEventListener('pointerdown', onResize);
   addEventListener('keydown', onKey, true);
+  el.querySelector('.fv-all').setAttribute('aria-pressed', String(all));
+  if (all) {
+    el.querySelector('.fv-box').innerHTML = '<p class="diff-note">Válassz egy fájlt a fából.</p>';
+    loadTree();
+  }
   if (path) selectFile(path, line); else renderTree();
 }
 

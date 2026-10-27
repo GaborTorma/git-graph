@@ -461,7 +461,8 @@ class TextSidesTest(TextCase):
         info = gg.diff.file_diff(sha, "app.py", text=True)
         sides = self.sides(gg, sha, "app.py")
         # Akkor a két oldal teljes szövege jön, a commitnál hash nélkül
-        self.assertEqual(info, {"binary": False, "size": [12, 12], "big": False, "editable": False})
+        self.assertEqual({k: info[k] for k in ("binary", "size", "big")}, {"binary": False, "size": [12, 12], "big": False})
+        self.assertNotIn("hunks", info)
         self.assertEqual(sides, {"old": {"text": "x = 1\ny = 2\n"}, "new": {"text": "x = 1\ny = 3\n"}})
 
     def test_missing_side(self) -> None:
@@ -527,6 +528,41 @@ class TextSidesTest(TextCase):
         self.assertEqual(side, {"text": None, "big": True})
 
 
+class HeadEditTest(TextCase):
+    """A tiszta worktree HEAD-commitjának fájlja szerkeszthető: a mentés az Uncommitted sorba megy."""
+
+    def test_clean_head_file(self) -> None:
+        """A HEAD-commit lemezen változatlan fájlja szerkeszthető, a mentés sora és a lemez hashe jön."""
+        # Adott a tiszta munkakönyvtár, a HEAD-ben az "ok.txt"
+        _, gg, _, sha, wip = self.text_repo()
+        # Ha a lap a HEAD-commit "ok.txt"-jének szöveges nézetét kéri
+        info = gg.diff.file_diff(sha, "ok.txt", text=True)
+        # Akkor szerkeszthető, a mentés a WIP sorba, a hash a lemezé
+        self.assertTrue(info["editable"])
+        self.assertEqual(info["write"], wip)
+        self.assertEqual(info["hash"], hashlib.sha256("változatlan\n".encode()).hexdigest())
+
+    def test_dirty_file(self) -> None:
+        """Ha a lemezen már más áll, mint a HEAD-ben, a HEAD-commitban nem szerkeszthető (a WIP sorban az)."""
+        # Adott az "app.py" módosítva a lemezen
+        repo, gg, _, sha, _ = self.text_repo()
+        (repo / "app.py").write_text("x = 5\n", encoding="utf-8")
+        # Ha a lap a HEAD-commit "app.py"-jét kéri
+        # Akkor nem szerkeszthető
+        self.assertFalse(gg.diff.file_diff(sha, "app.py", text=True)["editable"])
+
+    def test_write_lands_in_wip(self) -> None:
+        """A mentés a `write` sorral a munkakönyvtárba ír."""
+        # Adott a HEAD-commit "ok.txt"-je szerkeszthetően
+        repo, gg, _, sha, _ = self.text_repo()
+        info = gg.diff.file_diff(sha, "ok.txt", text=True)
+        # Ha a lap a `write` sorral ment
+        out = gg.files.write_file(info["write"], "ok.txt", "módosítva\n", info["hash"])
+        # Akkor a fájl a lemezen
+        self.assertTrue(out["ok"])
+        self.assertEqual((repo / "ok.txt").read_text(encoding="utf-8"), "módosítva\n")
+
+
 class EditableTest(TextCase):
     def test_uncommitted(self) -> None:
         """Az Uncommitted soron a szöveges fájl szerkeszthető, az új oldal a lemez hashével jön."""
@@ -542,16 +578,16 @@ class EditableTest(TextCase):
         self.assertEqual(sides["new"], {"text": "x = 9\n", "hash": hashlib.sha256(b"x = 9\n").hexdigest()})
 
     def test_not_editable(self) -> None:
-        """Nem szerkeszthető: a markdown, a kép, a Stage-elt sor, a commit és a törölt fájl."""
+        """Nem szerkeszthető: a markdown, a kép, a Stage-elt sor, a nem HEAD commit és a törölt fájl."""
         # Adott egy markdown és egy SVG a munkakönyvtárban, és egy törölt fájl
-        repo, gg, _, sha, wip = self.text_repo()
+        repo, gg, parent, _, wip = self.text_repo()
         (repo / "README.md").write_text("# cím\n", encoding="utf-8")
         (repo / "logo.svg").write_text("<svg/>\n", encoding="utf-8")
         (repo / "ok.txt").unlink()
         # Ha a lap a szöveges nézetüket kéri
         # Akkor egyik sem szerkeszthető
         for row, path in ((wip, "README.md"), (wip, "logo.svg"), (wip, "ok.txt"),
-                          (wip.replace("uncommitted", "staged"), "app.py"), (sha, "app.py")):
+                          (wip.replace("uncommitted", "staged"), "app.py"), (parent, "app.py")):
             self.assertFalse(gg.diff.file_diff(row, path, text=True)["editable"], f"{row} {path}")
 
     def test_unchanged_on_wip(self) -> None:

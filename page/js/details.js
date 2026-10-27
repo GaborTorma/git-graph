@@ -4,7 +4,6 @@ import { avatarOf } from './avatars.js';
 import { fmtDate } from './dates.js';
 import { forgetFile, mdRaw, openFiles, setMdRaw, setSvgCode, svgCode, toggleFile } from './diff.js';
 import { OPEN_PANEL, pendingEl, rowsEl, scroller } from './dom.js';
-import { showFullBtn } from './full.js';
 import { drawGraph } from './graph.js';
 import { fileIcon, icon } from './icons.js';
 import { fitWho } from './layout.js';
@@ -156,7 +155,6 @@ export function open(sha, animate = false) {
     }
   }
   setExpanded(sha);
-  showFullBtn();
   drawGraph();               // a panel alatti sorok lejjebb kerültek
   if (animate) openCard(head, el, before);
 }
@@ -217,7 +215,6 @@ export function closeCommit(focusRow = true) {
   const row = expanded && rowOf(visible.find(c => c.sha === expanded));
   const panel = document.querySelector(OPEN_PANEL);
   setExpanded(null);
-  showFullBtn();
   if (row && focusRow) select(row);
   if (!panel) { drawGraph(); return; }
   panel.classList.add('folding');

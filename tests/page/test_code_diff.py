@@ -74,6 +74,9 @@ class CodeDiffTest(PageTestCase):
             new_top = self.page.locator(f"{sel} .cm-changedLine").first.bounding_box()["y"]
             self.assertLess(old.bounding_box()["y"], new_top)
             self.assertNotEqual(old.get_attribute("contenteditable"), "true")
+        with self.subTest("És a kód az Anthropic Mono betűvel"):
+            family = self.page.locator(f"{sel} .cm-line").first.evaluate("e => getComputedStyle(e).fontFamily")
+            self.assertTrue(family.startswith('"Anthropic Mono"'), family)
         with self.subTest("És a megváltozott rész erősebb háttérrel"):
             bg = self.page.evaluate(f"""() => {{ const c = document.querySelector('{sel} .cm-changedLine .cm-changedText');
               return [getComputedStyle(c).backgroundColor, getComputedStyle(c.closest('.cm-changedLine')).backgroundColor]; }}""")

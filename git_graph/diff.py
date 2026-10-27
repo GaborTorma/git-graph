@@ -701,9 +701,28 @@ def editable(sha: str, root: Path | None, new: str, blob: tuple | None) -> bool:
                 and not (Path(root) / new).is_symlink() and as_text(blob[1]) is not None)
 
 
+def head_target(sha: str, new: str, blob: tuple | None) -> tuple | None:
+    """A tiszta worktree HEAD-commitjának fájlja szerkeszthető, ha a lemezen még a HEAD-beli
+    tartalom áll: `(a mentés sora — *uncommitted:<slug>, a lemez hashe)`; az első mentés után
+    a fájl az Uncommitted sorba kerül. Más commitnál, eltérő lemeznél: `None`."""
+    if not SHA_RE.match(sha) or not blob or blob[1] is None or as_text(blob[1]) is None:
+        return None
+    suffix = Path(new).suffix.lower()
+    if suffix in MARKDOWN_SUFFIXES or suffix in IMAGE_TYPES:
+        return None
+    for wt in worktree_list():
+        if not wt["head"] or not wt["head"].startswith(sha):
+            continue
+        file = disk_file(wt["path"], new)
+        if file and not (Path(wt["path"]) / new).is_symlink() and file.read_bytes() == blob[1]:
+            return f"*uncommitted:{slug_for(wt['path'])}", digest(blob[1])
+    return None
+
+
 def text_info(sha: str, path: str) -> dict:
     """A szöveges nézet fejadata (`text`): bináris-e, a két oldal mérete, nagy-e (valamelyik
-    oldal `TEXT_MAX` fölött) és szerkeszthető-e. Nagy fájlnál a csonkolt diff is (`hunks`,
+    oldal `TEXT_MAX` fölött) és szerkeszthető-e — a HEAD-commit tiszta fájljánál a mentés sorával
+    (`write`) és a lemez hashével (`hash`, `head_target`). Nagy fájlnál a csonkolt diff is (`hunks`,
     `truncated`), különben a lap oldalanként kéri a teljes szöveget (`text_side`)."""
     old, new = numstat_old_path(path), numstat_new_path(path)
     root, src_a, src_b = image_sources(sha)
@@ -712,6 +731,9 @@ def text_info(sha: str, path: str) -> dict:
     out: dict = {"binary": any(b and b[1] is not None and as_text(b[1]) is None for b in blobs),
                  "size": size, "big": any(n is not None and n > TEXT_MAX for n in size),
                  "editable": editable(sha, root, new, blobs[1])}
+    target = None if out["editable"] or out["big"] else head_target(sha, new, blobs[1])
+    if target:                                    # a HEAD-commit tiszta fájlja: a mentés a WIP sorba
+        out.update(editable=True, write=target[0], hash=target[1])
     if out["big"]:
         diff = text_diff(sha, path)
         out.update(binary=out["binary"] or diff["binary"], hunks=diff["hunks"], truncated=diff["truncated"])

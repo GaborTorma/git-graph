@@ -314,5 +314,36 @@ class EditTest(PageTestCase):
         self.assertEqual(ring, "none")
 
 
+class CleanEditTest(PageTestCase):
+    """Tiszta worktree-ben (nincs WIP sor) a HEAD-commit fájlja szerkeszthető; az első mentéstől a
+    fájl a WIP soré, a teljes nézet átvált rá."""
+
+    def test_edit_from_head(self) -> None:
+        # Adott: nincs nem commitolt változás, egy commit sincs lenyitva
+        self.assertEqual(self.page.locator(".row.uncommitted").count(), 0)
+        self.page.locator("#fullBtn").click()
+        self.page.wait_for_selector('.fv-file[data-path="main-0-0.txt"]')
+        self.page.locator('.fv-file[data-path="main-0-0.txt"]').click()
+        self.page.wait_for_selector(".fv-box .cm-editor")
+        self.settle()
+        # Ha a Fejlesztő duplán kattint, gépel és ment
+        x, y = self.page.evaluate(f"({COORDS})", [".fv-box", 1, 0])
+        self.page.mouse.dblclick(x, y)
+        self.page.wait_for_function(f"({CURSOR})('.fv-box')[2] === 'true'")
+        self.page.keyboard.type("elso ")
+        self.page.keyboard.press("ControlOrMeta+s")
+        self.page.wait_for_timeout(300)
+        self.assertEqual((self.repo / "main-0-0.txt").read_text(encoding="utf-8"), "elso main-0-0\n")
+        # Akkor megjelenik a WIP sor, a nézet átvált rá, a szerkesztés folytatható
+        self.poke()
+        self.assertEqual(self.page.locator(".row.uncommitted").count(), 1)
+        self.assertEqual(self.page.locator(".fv-subject").inner_text(), "Nem commitolt változások")
+        self.assertEqual(self.page.evaluate(f"({CURSOR})('.fv-box')")[2], "true")
+        self.page.keyboard.type("masodik ")
+        self.page.keyboard.press("ControlOrMeta+s")
+        self.page.wait_for_timeout(300)
+        self.assertEqual((self.repo / "main-0-0.txt").read_text(encoding="utf-8"), "elso masodik main-0-0\n")
+
+
 if __name__ == "__main__":
     unittest.main()

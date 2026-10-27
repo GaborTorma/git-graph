@@ -97,14 +97,19 @@ class FullViewTest(PageTestCase):
         self.assertEqual(self.page.locator(".fv-row.sel .name").inner_text(), "diff.js")
         self.assertLess(self.page.locator(".fv-center").bounding_box()["x"], self.page.locator(".fv-tree").bounding_box()["x"])
 
-    def test_button_only_with_open_commit(self) -> None:
-        """A teljes nézet gombja az eszközsorban csak nyitott commitnál látszik."""
-        self.assertFalse(self.page.locator("#fullBtn").is_visible())
-        self.open_commit()
+    def test_open_without_commit(self) -> None:
+        """Nyitott commit nélkül az eszközsor gombja a saját worktree állapotát nyitja, minden fájllal,
+        kijelölt fájl nélkül."""
+        # Adott: egy commit sincs lenyitva
         self.assertTrue(self.page.locator("#fullBtn").is_visible())
-        self.page.keyboard.press("Escape")
-        self.settle()
-        self.assertFalse(self.page.locator("#fullBtn").is_visible())
+        # Ha a Fejlesztő a teljes nézet gombjára kattint
+        self.page.locator("#fullBtn").click()
+        self.page.wait_for_selector('.fv-row[data-dir="hooks"]')
+        # Akkor a fában minden fájl, a kapcsoló bekapcsolva, középen a választás kérése
+        self.assertEqual(self.page.locator(".fv-all").get_attribute("aria-pressed"), "true")
+        self.assertIn("README.md", self.tree())
+        self.assertEqual(self.page.locator(".fv-subject").inner_text(), SUBJECT)
+        self.assertIn("Válassz egy fájlt", self.page.locator(".fv-box").inner_text())
 
     def test_open_without_open_file(self) -> None:
         """Lenyitott fájl nélkül az első módosult fájl (a git_graph/diff.py) diffje, az első változásnál."""
