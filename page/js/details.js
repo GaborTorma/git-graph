@@ -77,6 +77,17 @@ function bodyHtml(c) {
   return `${linkify(head)}… <button type="button" class="more" data-more>több</button>`;
 }
 
+/* A felhasználó csukta be a commitot (`panel`): a lenyitott fájljai vele együtt csukódnak, és
+   legközelebb csukva nyílnak. */
+function foldFiles(panel, sha) {
+  for (const k of [...openFiles]) if (k.startsWith(sha + '\n')) openFiles.delete(k);
+  for (const f of panel.querySelectorAll('.file[aria-expanded="true"]')) {
+    const box = /** @type {HTMLElement} */ (f.nextElementSibling), before = cardState(f);
+    f.setAttribute('aria-expanded', 'false');
+    closeCard(f, box, before, () => { box.hidden = true; });
+  }
+}
+
 export function open(sha, animate = false) {
   // A korábban nyitott panel felcsukódik (felhasználói nyitásnál), az új sor helyben marad.
   const row = document.querySelector(`.row[data-sha="${CSS.escape(sha)}"]`);
@@ -89,6 +100,7 @@ export function open(sha, animate = false) {
   for (const d of old) {
     const h = d.previousElementSibling?.querySelector('.row-in');
     if (h) { heads.set(d, h); was.set(d, cardState(h)); }
+    if (animate) foldFiles(d, /** @type {HTMLElement} */ (d.previousElementSibling)?.dataset.sha || '');
   }
   const head = /** @type {HTMLElement} */ (row.querySelector('.row-in')), before = cardState(head);
   document.querySelectorAll('.row').forEach(r => r.setAttribute('aria-expanded', 'false'));
@@ -208,6 +220,7 @@ export function closeCommit(focusRow = true) {
   // A sor azonnal csukott állapotú: a fejléce a keretéből a hover-hátterébe vált, a panellel együtt.
   const own = /** @type {HTMLElement} */ (panel.previousElementSibling);
   const head = own?.classList.contains('row') ? own.querySelector('.row-in') : null;
+  foldFiles(panel, own?.dataset.sha || '');
   const done = () => {
     if (!panel.isConnected) return;
     panel.remove();

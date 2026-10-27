@@ -3,7 +3,7 @@
    a teljes adatban nincs benne. A commitok diffje nem változik, gyorstárazzuk;
    az Uncommitted soré adatcserekor elavul (`stale`): a régi látszik, amíg az
    új meg nem jön, így a 2 mp-es frissítés nem villog. */
-import { cardState, closeCard, openCard } from './anim.js';
+import { cardState, closeCard, grow, openCard } from './anim.js';
 import { diffHtml } from './diff-html.js';
 import { drawGraph } from './graph.js';
 import { icon } from './icons.js';
@@ -51,6 +51,7 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
   const lang = langOf(fileEl.dataset.path);
   // Felhasználói nyitásnál a diff (és vele a panel) animálva nő; a nézetbe
   // hozás a végső méretből számol.
+  let opened = false;
   const show = html => {
     if (!fileEl.isConnected || fileEl.getAttribute('aria-expanded') !== 'true') return;
     const fill = () => {
@@ -66,7 +67,13 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
       if (reveal) revealCommit(fileEl.closest('.details'), true);
       if (reveal === true) revealFile(fileEl);
     };
-    if (reveal === true) { openCard(fileEl, box, before, fill, settle); return; }
+    // Az első tartalom (a „Betöltés…” is) nyitja a kártyát; a később érkező csak a magasságát
+    // viszi tovább onnan, ahol tart — a kártya animációja nem indul újra.
+    if (reveal === true) {
+      if (opened) grow(box, fill, settle); else openCard(fileEl, box, before, fill, settle);
+      opened = true;
+      return;
+    }
     fill();
     settle();
     drawGraph();

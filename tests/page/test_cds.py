@@ -315,6 +315,8 @@ class ExpandTest(CdsCase):
         self.assertEqual(css(diff, "borderBottomLeftRadius"), "12px")
         self.assertEqual(css(diff, "borderTopWidth"), "0px")
         self.assertEqual(css(diff, "paddingBottom"), "11px")
+        self.assertEqual(css(file, "boxShadow").count("rgba"), 5)       # mint a commit: keret + shadow-sm
+        self.assertEqual(css(diff, "clipPath"), "inset(0px -12px -12px)")
 
 
 # ── A pusholatlan alapág: halvány chipen halvány piros + piros keret, teli chipen teli piros ──
@@ -353,11 +355,11 @@ class WarnHeadTest(CdsCase):
             self.assertEqual(warn.evaluate("e => getComputedStyle(e).backgroundColor"), rgb("#d03b3b"))
             self.assertEqual(warn.evaluate("e => getComputedStyle(e).color"), rgb("#ffffff"))
             self.assertNotIn(rgb("#d03b3b"), chip.evaluate("e => getComputedStyle(e).boxShadow"))
-
-
             self.assertEqual(warn.bounding_box()["height"], chip.bounding_box()["height"])   # teljes magasságú
             self.assertAlmostEqual(warn.bounding_box()["x"] + warn.bounding_box()["width"],
                                    chip.bounding_box()["x"] + chip.bounding_box()["width"], delta=.5)
+
+
 # ── Lenyitás: a hover a teljes kártyán, középről halványul; a keret vele együtt ──
 
 # Az elem futó animációi: időtartam, görbe, vége.
@@ -405,6 +407,103 @@ class CardAnimTest(CdsCase):
         self.settle()
         self.assertEqual(self.page.locator("#rows .details").count(), 0)
         self.assertEqual(row.locator(".row-in").evaluate("e => getComputedStyle(e).backgroundColor"), rgb("#f2f2f2"))
+
+    def test_frame_through_hover(self) -> None:
+        """Hoverrel nyitva a fejléc kerete átlátszóból a hover színén át jut a valódi színéig."""
+        row = self.row("main-3-2")
+        row.hover()
+        self.settle()
+        row.click()
+        keys = row.locator(".row-in").evaluate("e => e.getAnimations()[0].effect.getKeyframes().map(k => k.boxShadow)")
+        self.assertEqual(len(keys), 3)
+        self.assertIn("rgb(242, 242, 242)", keys[1])
+
+    def test_close_leave(self) -> None:
+        """Ha csukás közben lemegy az egér a sorról, a háttér onnan a hover nélküli színébe megy
+        tovább, és a csukódással együtt ér véget."""
+        row = self.row("main-3-2")
+        row.click()
+        row.hover()
+        self.settle()
+        row.click()
+        self.page.mouse.move(5, 5)
+        bg = row.locator(".row-in").evaluate("""e => e.getAnimations().map(a => a.effect.getKeyframes())
+          .filter(k => k[0].backgroundColor).map(k => k.at(-1).backgroundColor)""")
+        self.assertEqual(bg, [TRANSPARENT])
+
+    def test_close_forgets_files(self) -> None:
+        """A commit becsukásakor a lenyitott fájljai vele együtt csukódnak (animálva), és újranyitva
+        csukva vannak."""
+        self.open_commit(FILES_SUBJECT)
+        file = self.page.locator("#rows .details .file").first
+        file.click()
+        self.page.wait_for_selector("#rows .details .diff:not([hidden])")
+        self.settle()
+        row = self.page.locator("#rows .row[aria-expanded='true']")
+        row.click()
+        self.assertEqual(file.get_attribute("aria-expanded"), "false")
+        self.assertGreater(file.evaluate("e => e.nextElementSibling.getAnimations().length"), 0)   # csukódik
+        self.settle()
+        self.open_commit(FILES_SUBJECT)
+        self.assertEqual(self.page.locator("#rows .details .file[aria-expanded='true']").count(), 0)
+
+    def test_fill_corners(self) -> None:
+        """A hover-réteg alsó sarka végig a panelé (12 px): nem lóg ki a kerek sarokból."""
+        row = self.row("main-3-2")
+        row.hover()
+        self.settle()
+        row.click()
+        radii = self.page.locator("#rows .hover-fill").evaluate(
+            "e => e.getAnimations()[0].effect.getKeyframes().map(k => k.borderRadius)")
+        self.assertTrue(all(r == "12px" or r.endswith(" 12px 12px") for r in radii), radii)   # 4 egyforma: „12px”
+
+    def test_seam(self) -> None:
+        """Nyitás közben a lenyíló rész teteje végig a fejléc alján van (nem törtpixelen, nincs
+        rés): az illesztésnél nem látszik vonal."""
+        row = self.row("main-3-2")
+        row.hover()
+        self.settle()
+        row.click()
+        self.page.evaluate("document.getAnimations().forEach(a => a.pause())")
+        for t in (30, 60, 120):
+            gap = self.page.evaluate(f"""(() => {{
+              document.getAnimations().forEach(a => {{ if (a.effect.getComputedTiming().duration === 200) a.currentTime = {t} }});
+              const h = document.querySelector('#rows .row[aria-expanded=true] .row-in').getBoundingClientRect();
+              return document.querySelector('#rows .details').getBoundingClientRect().top - h.bottom; }})()""")
+            self.assertEqual(gap, 0, t)
+        self.page.evaluate("document.getAnimations().forEach(a => a.play())")
+
+    def test_close_while_opening(self) -> None:
+        """Nyitás közben becsukva a fejléc a csukás végén keret nélküli: a félúton lévő keret nem
+        marad meg, és a hover-réteg is eltűnik."""
+        row = self.row("main-3-2")
+        row.hover()
+        self.settle()
+        row.click()
+        self.page.wait_for_timeout(60)
+        row.click()
+        keys = row.locator(".row-in").evaluate(
+            "e => e.getAnimations().map(a => a.effect.getKeyframes().at(-1).boxShadow).filter(Boolean)")
+        self.assertEqual(keys, ["none"])
+        self.assertEqual(self.page.locator("#rows .hover-fill").count(), 0)
+
+    def test_open_fades_content(self) -> None:
+        """Nyitáskor a panel tartalma 20 %-ról indul, és az idő felére teljesen látszik."""
+        row = self.row("main-3-2")
+        row.click()
+        keys = self.page.locator("#rows .details > *").first.evaluate(
+            "e => e.getAnimations()[0].effect.getKeyframes().map(k => [Math.round(k.computedOffset * 100), k.opacity])")
+        self.assertEqual(keys, [[0, "0.2"], [50, "1"], [100, "1"]])
+
+    def test_close_fades_content(self) -> None:
+        """Csukáskor a panel tartalma az idő 2/3-áig látszik, onnan 20 %-ig halványul."""
+        row = self.row("main-3-2")
+        row.click()
+        self.settle()
+        row.click()
+        keys = self.page.locator("#rows .details.folding > *").first.evaluate(
+            "e => e.getAnimations()[0].effect.getKeyframes().map(k => [Math.round(k.computedOffset * 100), k.opacity])")
+        self.assertEqual(keys, [[0, "1"], [67, "1"], [100, "0.2"]])
 
     def test_file_hover_fill(self) -> None:
         """A fájlsor is a hoveréből nyílik: a réteg a panelben ül, vele görög."""

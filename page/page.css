@@ -858,11 +858,14 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 /* A lenyitott fájl és a diffje egy keret, mint a lenyitott commit és a panele. */
 .file[aria-expanded="true"], .file[aria-expanded="true"]:hover {
   background: transparent; border-radius: 12px 12px 0 0;
-  box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 1px 0 var(--border);
+  /* mint a lenyitott commit: a diff árnyéka (shadow-sm) a fejlécen is, alul levágva */
+  box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 1px 0 var(--border), var(--shadow-sm);
+  clip-path: inset(-12px -12px 0 -12px);
 }
 .file + .diff {
   margin-top: -4px; padding-top: 8px; border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0;
   background: transparent;
+  box-shadow: var(--shadow-sm); clip-path: inset(0 -12px -12px -12px);   /* mint a commit panele */
 }
 .file:focus { outline: 0; }
 .file:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
