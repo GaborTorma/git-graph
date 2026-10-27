@@ -317,6 +317,67 @@ class ExpandTest(CdsCase):
         self.assertEqual(css(diff, "paddingBottom"), "11px")
 
 
+# ── Lenyitás: a hover a teljes kártyán, középről halványul; a keret vele együtt ──
+
+# Az elem futó animációi: időtartam, görbe, vége.
+TIMINGS = """e => e.getAnimations().map(a => {
+  const t = a.effect.getComputedTiming();
+  return [t.duration, t.easing, Math.round(a.startTime + t.endTime)];
+})"""
+
+
+class CardAnimTest(CdsCase):
+    def test_open_hover_fill(self) -> None:
+        """Hoverrel nyitva a hover-háttér a teljes, növekvő kártyán indul, és a lenyílással,
+        a keretével együtt, ugyanazon a görbén 200 ms alatt ér véget; utána nincs nyoma."""
+        row = self.row("main-3-2")
+        row.hover()
+        self.settle()
+        row.click()
+        fill = self.page.locator("#rows .hover-fill")
+        self.assertEqual(fill.count(), 1)
+        self.assertIn("rgb(242, 242, 242)", fill.evaluate("e => e.getAnimations()[0].effect.getKeyframes()[0].boxShadow"))
+        self.page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")   # elindultak
+        timings = [t for loc in (fill, row.locator(".row-in"), self.page.locator("#rows .details"))
+                   for t in loc.evaluate(TIMINGS)]
+        self.assertEqual({(d, e) for d, e, _ in timings}, {(200, "cubic-bezier(0.2, 0.7, 0.3, 1)")})
+        self.assertEqual(len({end for *_, end in timings}), 1)          # egyszerre érnek véget
+        self.settle()
+        self.assertEqual(fill.count(), 0)
+
+    def test_close_to_hover(self) -> None:
+        """Csukáskor nincs hover-réteg: a sor azonnal csukott, a panel a felcsukódás alatt is
+        keret (felül nyitott), és a sor a keretéből a hover-hátterébe vált, a panellel együtt."""
+        row = self.row("main-3-2")
+        row.click()
+        row.hover()
+        self.settle()
+        row.click()
+        self.assertEqual(row.get_attribute("aria-expanded"), "false")
+        self.assertEqual(self.page.locator("#rows .hover-fill").count(), 0)
+        panel = self.page.locator("#rows .details.folding")
+        self.assertEqual(panel.evaluate("e => getComputedStyle(e).borderTopWidth"), "0px")
+        self.page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")   # elindultak
+        timings = row.locator(".row-in").evaluate(TIMINGS) + panel.evaluate(TIMINGS)
+        self.assertEqual({(d, e) for d, e, _ in timings}, {(200, "cubic-bezier(0.7, 0, 0.8, 0.3)")})
+        self.assertEqual(len({end for *_, end in timings}), 1)
+        self.settle()
+        self.assertEqual(self.page.locator("#rows .details").count(), 0)
+        self.assertEqual(row.locator(".row-in").evaluate("e => getComputedStyle(e).backgroundColor"), rgb("#f2f2f2"))
+
+    def test_file_hover_fill(self) -> None:
+        """A fájlsor is a hoveréből nyílik: a réteg a panelben ül, vele görög."""
+        self.open_commit(FILES_SUBJECT)
+        file = self.page.locator("#rows .details .file").first
+        file.hover()
+        self.settle()
+        file.click()
+        self.page.wait_for_selector("#rows .details .hover-fill", state="attached")
+        self.settle()
+        self.assertEqual(self.page.locator("#rows .hover-fill").count(), 0)
+        self.assertEqual(file.get_attribute("aria-expanded"), "true")
+
+
 # ── Nyilak: 16 px ─────────────────────────────────────────────────────────
 
 class ChevronTest(CdsCase):

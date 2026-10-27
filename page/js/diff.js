@@ -3,7 +3,7 @@
    a teljes adatban nincs benne. A commitok diffje nem változik, gyorstárazzuk;
    az Uncommitted soré adatcserekor elavul (`stale`): a régi látszik, amíg az
    új meg nem jön, így a 2 mp-es frissítés nem villog. */
-import { grow, shrink } from './anim.js';
+import { cardState, closeCard, openCard } from './anim.js';
 import { diffHtml } from './diff-html.js';
 import { drawGraph } from './graph.js';
 import { icon } from './icons.js';
@@ -39,10 +39,11 @@ export const setSource = src => { SRC = src; };
 export function toggleFile(fileEl, sha, on, reveal = true) {
   const key = sha + '\n' + fileEl.dataset.path;
   const box = fileEl.nextElementSibling;
+  const before = cardState(fileEl);   // a fájlsor a hoveréből nyílik, a keretéből csukódik
   fileEl.setAttribute('aria-expanded', on ? 'true' : 'false');
   if (!on) {
     openFiles.delete(key);
-    shrink(box, () => { box.hidden = true; drawGraph(); revealCommit(fileEl.closest('.details'), true); });
+    closeCard(fileEl, box, before, () => { box.hidden = true; drawGraph(); revealCommit(fileEl.closest('.details'), true); });
     return;
   }
   openFiles.add(key);
@@ -65,7 +66,7 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
       if (reveal) revealCommit(fileEl.closest('.details'), true);
       if (reveal === true) revealFile(fileEl);
     };
-    if (reveal === true) { grow(box, fill, settle); return; }
+    if (reveal === true) { openCard(fileEl, box, before, fill, settle); return; }
     fill();
     settle();
     drawGraph();

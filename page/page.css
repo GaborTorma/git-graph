@@ -583,14 +583,15 @@ button { font: inherit; color: inherit; }
   flex: 1; min-width: 0;
   display: flex; align-items: center; gap: 12px;
   padding: 0 10px; border-radius: 8px;
-  transition: box-shadow .18s, border-radius .18s;   /* a lenyitott kártya körvonala */
 }
 .row:hover .row-in { background: var(--bg-2); }
 .row:focus-visible { outline: 0; box-shadow: none; }
 /* Billentyűzetes kijelölés: halvány háttér + vékony akcentus-keret. */
 .row:focus-visible .row-in { background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--accent); }
 /* A lenyitott sor és a panele egy keret (mint az app „Outputs” kártyája): a fejléc háttér
-   nélkül, a kerete (fent, oldalt) a panelében (lent, oldalt) folytatódik. */
+   nélkül, a kerete (fent, oldalt) a panelében (lent, oldalt) folytatódik. A panel a
+   felcsukódása alatt is a sor alatt marad (a sor már csukott): a szelektor nem a nyitott
+   sorra szól. A nyílás és a csukás: `openCard`, `closeCard` (anim.js). */
 .row[aria-expanded="true"] .row-in,
 .row[aria-expanded="true"]:hover .row-in,
 .row[aria-expanded="true"]:focus-visible .row-in {
@@ -599,7 +600,7 @@ button { font: inherit; color: inherit; }
   box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 1px 0 var(--border), var(--shadow-sm);
   clip-path: inset(-12px -12px 0 -12px);
 }
-.row[aria-expanded="true"] + .details {
+.row + .details {
   margin-top: -2px; padding-top: 10px; border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0;
   background: transparent;
   clip-path: inset(0 -12px -12px -12px);   /* a felső árnyéka a fejlécbe esne: levágva */
@@ -771,7 +772,11 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
   border-radius: 12px;
   box-shadow: var(--shadow-sm);   /* shadow-panel-sm: a keret + shadow-sm */
   overflow: auto;   /* a magasságát a `fitPanel` korlátozza: a következő commit is látsszon */
+  position: relative;   /* a lenyíló diff hover-rétege (`.hover-fill`) benne, vele görög és vágódik */
 }
+/* Nyitáskor a fejléc hover-háttere a teljes, növekvő kártyán: a szöveg alatt (negatív z: a
+   gazdája rétegében, a háttere fölött), a közepéről halványul el (`openCard`). */
+.hover-fill { position: absolute; z-index: -1; pointer-events: none; }
 .details > * { flex-shrink: 0; }   /* korlátozott magasságnál görget, nem nyom össze */
 .pending .details { position: relative; z-index: 2; }
 .d-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -843,7 +848,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
   background: transparent; border-radius: 12px 12px 0 0;
   box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 1px 0 var(--border);
 }
-.file[aria-expanded="true"] + .diff {
+.file + .diff {
   margin-top: -4px; padding-top: 8px; border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0;
   background: transparent;
 }
