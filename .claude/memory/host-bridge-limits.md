@@ -18,7 +18,8 @@ doksi pedig önmagának ellentmondott.
   appban fut. A deklaráció a session szervere nélkül is átmegy, csak figyelmeztet (*„no successful
   call to it was observed in this session”*).
 - Nem read-only toolra az app hívásonként megerősítést kérhet → minden tool `readOnlyHint: true`, a
-  `settings` is.
+  `settings` is. Kivétel a `write_file` (#56, a WIP sor mentése): őszintén író; hogy a „mindig
+  engedélyezem” után az app nem kérdez újra, még mérendő.
 - A `watchTool` `refetchInterval`-ja ~30 s-ra padlózott → a lap `callTool`-lal hív
   ([[host-bridge-long-poll]]).
 - A szerverfolyamatok app-szintűek (`cwd: /`, az app indulásakor indulnak); egy folyamat az app összes
