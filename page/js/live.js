@@ -11,7 +11,7 @@ import { diffCache, setSource } from './diff.js';
 import { rowsEl, scroller } from './dom.js';
 import { applyFilters } from './filters.js';
 import { hydrate, hydrateFocus } from './hydrate.js';
-import { mcpProblem } from './mcp.js';
+import { mcpFatal, mcpProblem } from './mcp.js';
 import { focusWt, setFocusAuto } from './model.js';
 import { render } from './rows.js';
 import { DATA, setData } from './state.js';
@@ -147,8 +147,8 @@ export function startLive(src) {
           pause = Math.max(RETRY_MS, e.retryAfterMs || 0);   // átmeneti hiba: csendben, gyorsan újra
         } else {
           notice(mcpProblem(e), true);
-          if (!e?.retryable) return;            // magától nem javul: nincs több kör
-          pause = Math.max(IDLE_MS, e.retryAfterMs || 0) * 2;
+          if (mcpFatal(e)) return;              // magától nem javul: nincs több kör
+          pause = Math.max(IDLE_MS, e?.retryAfterMs || 0) * 2;
         }
       }
       if (pause) await new Promise(done => { resume = done; setTimeout(done, pause); });

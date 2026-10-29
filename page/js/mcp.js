@@ -15,8 +15,13 @@ export function mcpSource() {
            font: part => /** @type {Promise<{ woff2: string }>} */ (call('page_code', { api: CTX.api, part })) };
 }
 
-/* MCP-hibakód → teendő. A nem `retryable` hibák nem múlnak el maguktól:
-   ott megáll a pollozás (újratöltés próbálja újra). */
+/* Végleges hiba: a lap engedélye vagy az app configja hiányzik — újrapróba nem segít, itt
+   megáll a pollozás (újratöltés próbálja újra). A többi akkor is elmúlhat, ha nem
+   `retryable`: pl. `upstream_error`, ha a nyitott hívás a gép alvása alatt lejárt, és az app
+   közben újraindította a szervert. */
+export const mcpFatal = e => ['server_not_connected', 'cancelled', 'not_in_manifest'].includes(e?.code);
+
+/* MCP-hibakód → teendő. */
 export function mcpProblem(e) {
   switch (e?.code) {
     case 'server_not_connected':
