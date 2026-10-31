@@ -1,8 +1,11 @@
 ---
 name: mod-limits
-description: Claude Code modból az Artifact open és read megy, a publish nem (az auto mód elutasítja); a classic.* események nem jönnek; a mod-panel nem DOM
+description: "Claude Code modból az Artifact open és read megy; a publish csak felhasználói műveletből (slash command, $.ui.ask + consent), kérés nélkül nem; a classic.* események nem jönnek; a mod-panel nem DOM"
 metadata:
+  node_type: memory
   type: project
+  originSessionId: d1b66ed6-bb87-473f-9f58-41922cfc1afa
+  modified: 2026-10-31T11:44:42.446Z
 ---
 
 Mérve 2026-10-09-én (Claude Code 2.1.293), eldobható moddal, auto módban:
@@ -14,6 +17,13 @@ Mérve 2026-10-09-én (Claude Code 2.1.293), eldobható moddal, auto módban:
   segít: az `Artifact(publish)` / `Artifact(<URL>)` forma nem illeszkedik, a tág `Artifact` csak az
   `open`-t viszi. A `consent` mezőt kódba írt szöveggel nem mértük: az auto mód már a megírását is
   megkerülésnek vette.
+- **Felhasználói műveletből a publish megy** (mérve 2026-10-31, Claude Code 2.1.316, auto mód): a mod
+  saját slash commandja (`command.run`) `$.tool.call` `Artifact` `publish`-t hív. Új lap `consent`
+  nélkül: 2,9 s, URL-t ad. Ugyanez `$.ui.ask` + valódi „Igen” kattintás után, a `consent`-ben a
+  kattintás szövegével (`The user pressed "Igen" on "…"`): 0,8 s (változatlan újraküldés,
+  `unchanged: true`). A `consent` a `ToolCallReserved` mezője, emberi körként jut a jogosultság-ellenőrzéshez.
+- Kérés nélküli publisht (`session.start`-ból) 2.1.316-on nem mértünk: az auto mód már a kód
+  megírását blokkolta. Másik sessionből meglévő Artifact frissítését (`url` + `read`) sem.
 - `classic.SessionStart` / `classic.PostToolUse` a modban nem fut le, akkor sem, ha a plugin hookja
   illeszkedik (`tool.call` igen).
 - A hook `additionalContext`-je `session.append` `door: 'hook-context'` sorként átírható.
@@ -22,5 +32,6 @@ Mérve 2026-10-09-én (Claude Code 2.1.293), eldobható moddal, auto módban:
 
 **Why:** ezért a hook publikáltat, a mod nyit meg ([[hook-publishes-mod-opens]]).
 
-**How to apply:** modból csak `open` és `read`; ami publikálás, az a session dolga. Újranyitás:
+**How to apply:** modból kérés nélkül csak `open` és `read`; publikálás modból csak a felhasználó
+műveletére (command, kattintás) — különben a session dolga. Újranyitás:
 [[artifact-open-paths]].
