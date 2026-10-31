@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: d1b66ed6-bb87-473f-9f58-41922cfc1afa
-  modified: 2026-10-31T11:44:42.446Z
+  modified: 2026-10-31T11:46:52.387Z
 ---
 
 Mérve 2026-10-09-én (Claude Code 2.1.293), eldobható moddal, auto módban:
@@ -29,6 +29,13 @@ Mérve 2026-10-09-én (Claude Code 2.1.293), eldobható moddal, auto módban:
 - A hook `additionalContext`-je `session.append` `door: 'hook-context'` sorként átírható.
 - A mod-panel (`$.ui.open` + `ui.render`) saját elemfa (`Box`, `Text`, `Svg`…): DOM, HTML, script
   nincs → a lap nem mehet mod-panelbe.
+- Újranézve 2026-10-31-én (a mod-API típusai, 2.1.309-es skill, CLI 2.1.316): még mindig nincs
+  HTML / iframe / webview elem. A desktop táblája: `Box`, `Text`, `Button`, `Input`, `Select`,
+  `Svg`, `Link`, `Code`, `Markdown`, `Client`. A `Client` „surface module” is ugyanezt az elemfát
+  rajzolja (`ClientElements`; nincs DOM, timer, `eval`). A legközelebbi az `Svg`
+  `isInteractive: true`: script nélküli sandbox-keret (hover, CSS `:hover`, `<title>`), a scriptet
+  és az eseménykezelőt kiszűri; `source` max. 131 072 karakter. A gráf így csak statikus SVG-ként,
+  a sor-, panel- és diff-logika újraírásával férne be.
 
 **Why:** ezért a hook publikáltat, a mod nyit meg ([[hook-publishes-mod-opens]]).
 
