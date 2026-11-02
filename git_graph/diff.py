@@ -37,6 +37,7 @@ IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
 # a host-híd mért, ~4 000 000 karakteres határa alatt (.claude/memory/host-bridge-response-size.md).
 IMAGE_MAX = 2_950_000
 SIDES = ("old", "new")
+TEXT_SIDES = (*SIDES, "disk")      # a szöveges nézetnek: a worktree HEAD-commitjának fájlja a lemezen is
 # A teljes szöveg oldalanként eddig jön (és eddig szerkeszthető); fölötte a csonkolt diff marad.
 TEXT_MAX = 2_000_000
 TEXT_REPLY_MAX = 3_900_000      # a JSON-kódolt válasz (`\uXXXX`-ekkel nőhet) a host-híd határa alatt
@@ -700,27 +701,30 @@ def editable(sha: str, root: Path | None, new: str, blob: tuple | None) -> bool:
                 and not (Path(root) / new).is_symlink() and as_text(blob[1]) is not None)
 
 
-def head_target(sha: str, new: str, blob: tuple | None) -> tuple | None:
-    """A tiszta worktree HEAD-commitjának fájlja szerkeszthető, ha a lemezen még a HEAD-beli
-    tartalom áll: `(a mentés sora — *uncommitted:<slug>, a lemez hashe)`; az első mentés után
-    a fájl az Uncommitted sorba kerül. Más commitnál, eltérő lemeznél: `None`."""
-    if not SHA_RE.match(sha) or not blob or blob[1] is None or as_text(blob[1]) is None:
-        return None
-    if Path(new).suffix.lower() in IMAGE_TYPES:
+def head_target(sha: str, new: str) -> tuple | None:
+    """A worktree HEAD-commitjának fájlja a lemezen: `(a mentés sora — *uncommitted:<slug>, a lemez
+    hashe, a lemez szövege)`. A lap a commit diffjét a lemez szövegével mutatja (a WIP eltérései
+    külön rétegben), és oda ment. Más commitnál, hiányzó, symlink, bináris, `TEXT_MAX` fölötti vagy
+    képfájlnál: `None`."""
+    if not SHA_RE.match(sha) or Path(new).suffix.lower() in IMAGE_TYPES:
         return None
     for wt in worktree_list():
         if not wt["head"] or not wt["head"].startswith(sha):
             continue
         file = disk_file(wt["path"], new)
-        if file and not (Path(wt["path"]) / new).is_symlink() and file.read_bytes() == blob[1]:
-            return f"*uncommitted:{slug_for(wt['path'])}", digest(blob[1])
+        if not file or (Path(wt["path"]) / new).is_symlink() or file.stat().st_size > TEXT_MAX:
+            return None
+        data = file.read_bytes()
+        text = as_text(data)
+        return None if text is None else (f"*uncommitted:{slug_for(wt['path'])}", digest(data), text)
     return None
 
 
 def text_info(sha: str, path: str) -> dict:
     """A szöveges nézet fejadata (`text`): bináris-e, a két oldal mérete, nagy-e (valamelyik
-    oldal `TEXT_MAX` fölött) és szerkeszthető-e — a HEAD-commit tiszta fájljánál a mentés sorával
-    (`write`) és a lemez hashével (`hash`, `head_target`). Nagy fájlnál a csonkolt diff is (`hunks`,
+    oldal `TEXT_MAX` fölött) és szerkeszthető-e — a worktree HEAD-commitjának fájljánál a mentés
+    sorával (`write`), a lemez hashével (`hash`) és `wip`-pel: a lemez szövege a `disk` oldal
+    (`head_target`). Nagy fájlnál a csonkolt diff is (`hunks`,
     `truncated`), különben a lap oldalanként kéri a teljes szöveget (`text_side`)."""
     old, new = numstat_old_path(path), numstat_new_path(path)
     root, src_a, src_b = image_sources(sha)
@@ -729,9 +733,9 @@ def text_info(sha: str, path: str) -> dict:
     out: dict = {"binary": any(b and b[1] is not None and as_text(b[1]) is None for b in blobs),
                  "size": size, "big": any(n is not None and n > TEXT_MAX for n in size),
                  "editable": editable(sha, root, new, blobs[1])}
-    target = None if out["editable"] or out["big"] else head_target(sha, new, blobs[1])
-    if target:                                    # a HEAD-commit tiszta fájlja: a mentés a WIP sorba
-        out.update(editable=True, write=target[0], hash=target[1])
+    target = None if out["editable"] or out["big"] or out["binary"] else head_target(sha, new)
+    if target:                                    # a HEAD-commit fájlja: a lemez szövege, a mentés a WIP sorba
+        out.update(editable=True, wip=True, write=target[0], hash=target[1])
     if out["big"]:
         diff = text_diff(sha, path)
         out.update(binary=out["binary"] or diff["binary"], hunks=diff["hunks"], truncated=diff["truncated"])
@@ -742,7 +746,14 @@ def text_side(sha: str, path: str, side: str) -> dict:
     """Egy oldal teljes szövege: `{"text"}` (`None`, ha a fájl azon az oldalon nincs; bináris /
     nem UTF-8 / `TEXT_MAX` fölött `binary` / `big` mellett). A forrás a képeké
     (`image_sources`); a lemezről olvasott oldalnál a bájtok hashe is (`hash`). Ha a
-    JSON-kódolt válasz nem férne át a host-hídon: `big`."""
+    JSON-kódolt válasz nem férne át a host-hídon: `big`. A `disk` oldal a worktree HEAD-commitjának
+    fájlja a lemezen (`head_target`), hash-sel; más commitnál nincs."""
+    if side == "disk":
+        target = head_target(sha, numstat_new_path(path))
+        if not target:
+            return {"text": None}
+        out = {"text": target[2], "hash": target[1]}
+        return {"text": None, "big": True} if len(json.dumps(out)) > TEXT_REPLY_MAX else out
     root, src_a, src_b = image_sources(sha)
     file, src = (numstat_old_path(path), src_a) if side == "old" else (numstat_new_path(path), src_b)
     blob = side_blob(root, src, file, TEXT_MAX)
@@ -786,8 +797,9 @@ def file_diff(sha: str, path: str, full: bool = False, image: str | None = None,
     (`image_ref`): a régi oldalé a régi, az újé az új változatból — `side`-dal az az oldal,
     nélküle a két oldal mérete, a diff nélkül. A szöveges (CodeMirror-) nézetnek: `text` a
     fejadat (`text_info`), a nem képfájl `side`-ja (`text`-tel bármelyiké) az oldal teljes
-    szövege (`text_side`) — a commit által nem érintett fájlé is."""
-    if side is not None and side not in SIDES:
+    szövege (`text_side`) — a commit által nem érintett fájlé is; a `disk` oldal (`text`-tel) a
+    worktree HEAD-commitjának fájlja a lemezen."""
+    if side is not None and side not in (TEXT_SIDES if text and image is None else SIDES):
         raise ValueError(f"érvénytelen oldal: {side!r}")
     old, new = numstat_old_path(path), numstat_new_path(path)
     if image is not None:

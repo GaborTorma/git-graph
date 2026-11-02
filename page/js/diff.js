@@ -167,9 +167,14 @@ async function codeText(sha, path) {
   const meta = await SRC.text(sha, path);
   if (meta.binary) return { binary: true };
   if (meta.big) return fromHunks(meta);
-  const [old, now] = await Promise.all(['old', 'new'].map(s => SRC.textSide(sha, path, s)));
-  if (old.binary || now.binary) return { binary: true };
-  if (old.big || now.big) return fromHunks(await SRC.diff(sha, path, false));
+  // a worktree HEAD-commitja (`wip`): a dokumentum a lemez szövege, a HEAD-beli a WIP-rétegnek
+  const [old, now, disk] = await Promise.all(['old', 'new', ...(meta.wip ? ['disk'] : [])].map(s => SRC.textSide(sha, path, s)));
+  if (old.binary || now.binary || disk?.binary) return { binary: true };
+  if (old.big || now.big || disk?.big) return fromHunks(await SRC.diff(sha, path, false));
+  if (disk && disk.text != null) {
+    return { old: old.text, new: disk.text, head: now.text ?? '', hash: disk.hash ?? meta.hash ?? null,
+             editable: Boolean(meta.editable), write: meta.write ?? null };
+  }
   // a HEAD-commit tiszta fájlja: a mentés sora (`write`, az Uncommitted sor) és a lemez hashe a fejadatból
   return { old: old.text, new: now.text, hash: now.hash ?? meta.hash ?? null, editable: Boolean(meta.editable),
            write: meta.write ?? null };

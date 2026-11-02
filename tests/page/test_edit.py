@@ -147,7 +147,7 @@ class EditTest(PageTestCase):
         self.page.keyboard.press("Escape")
 
     def test_not_editable(self) -> None:
-        """A Stage-elt sor, a commit sor, az Uncommitted sor renderelt markdownja, képe és 3 MB-os fájlja nem
+        """A Stage-elt sor, egy régebbi commit sor, az Uncommitted sor renderelt markdownja, képe és 3 MB-os fájlja nem
         szerkeszthető."""
         cases = [("Stage-elt", "app.py"), ("Nem commitolt", "dump.sql")]
         for subject, name in cases:
@@ -158,8 +158,8 @@ class EditTest(PageTestCase):
                 self.assertNotEqual(self.page.evaluate(f"({CURSOR})", sel)[2], "true")
                 if name == "dump.sql":
                     self.assertIn("a diff túl hosszú", self.page.locator(sel).inner_text())
-        with self.subTest("egy commit sor app.py"):
-            self.page.locator("#rows .row", has_text="szerk: app módosítva").click()
+        with self.subTest("egy régebbi commit sor app.py"):            # a HEAD-commit szerkeszthető (WIP-réteg)
+            self.page.locator("#rows .row", has_text="szerk: alap").click()
             self.settle()
             self.page.locator('#rows .details .file[data-path="app.py"]').click()
             sel = '#rows .details .file[data-path="app.py"] + .diff'

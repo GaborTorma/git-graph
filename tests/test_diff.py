@@ -543,13 +543,25 @@ class HeadEditTest(TextCase):
         self.assertEqual(info["hash"], hashlib.sha256("változatlan\n".encode()).hexdigest())
 
     def test_dirty_file(self) -> None:
-        """Ha a lemezen már más áll, mint a HEAD-ben, a HEAD-commitban nem szerkeszthető (a WIP sorban az)."""
+        """Ha a lemezen már más áll, mint a HEAD-ben, a HEAD-commitban is szerkeszthető: a lemez oldalával
+        (`wip`), a mentés sorával és a lemez hashével."""
         # Adott az "app.py" módosítva a lemezen
-        repo, gg, _, sha, _ = self.text_repo()
+        repo, gg, _, sha, wip = self.text_repo()
         (repo / "app.py").write_text("x = 5\n", encoding="utf-8")
         # Ha a lap a HEAD-commit "app.py"-jét kéri
-        # Akkor nem szerkeszthető
-        self.assertFalse(gg.diff.file_diff(sha, "app.py", text=True)["editable"])
+        info = gg.diff.file_diff(sha, "app.py", text=True)
+        # Akkor szerkeszthető, a lemez oldala külön kérhető
+        self.assertTrue(info["editable"])
+        self.assertTrue(info["wip"])
+        self.assertEqual(info["write"], wip)
+        self.assertEqual(info["hash"], hashlib.sha256(b"x = 5\n").hexdigest())
+        self.assertEqual(gg.diff.file_diff(sha, "app.py", side="disk", text=True),
+                         {"text": "x = 5\n", "hash": hashlib.sha256(b"x = 5\n").hexdigest()})
+
+    def test_disk_side_only_on_head(self) -> None:
+        """A lemez oldala csak a worktree HEAD-commitjánál van: régebbi commitnál nincs szöveg."""
+        _, gg, parent, _, _ = self.text_repo()
+        self.assertEqual(gg.diff.file_diff(parent, "app.py", side="disk", text=True), {"text": None})
 
     def test_write_lands_in_wip(self) -> None:
         """A mentés a `write` sorral a munkakönyvtárba ír."""

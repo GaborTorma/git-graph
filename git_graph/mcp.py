@@ -50,9 +50,10 @@ MCP_TOOLS = [
          "text": {"type": "boolean", "description": "a szöveges nézet fejadata (binary, size, big, "
                                                     "editable; nagy fájlnál a csonkolt hunkok); "
                                                     "a `side`-dal az oldal szövege képfájlnál is"},
-         "side": {"type": "string", "enum": ["old", "new"],
+         "side": {"type": "string", "enum": ["old", "new", "disk"],
                   "description": "egy oldal: képfájlnál vagy az `image` képénél a kép (data URI), "
-                                 "különben a fájl teljes szövege (text; a lemezről olvasottnál hash)"}}},
+                                 "különben a fájl teljes szövege (text; a lemezről olvasottnál hash); "
+                                 "a `disk` (text-tel) a worktree HEAD-commitjának fájlja a lemezen"}}},
      "description": "Egy fájl diffje egy commitban, hunkokra és sorokra bontva; képfájlnál a "
                     "két oldal mérete is, a kép oldalanként a `side`-dal (data URI); a `side` "
                     "szöveges fájlnál az oldal teljes szövege (2 MB-ig)."},
