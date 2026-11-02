@@ -343,16 +343,44 @@ try { if (localStorage.getItem(SIDE_KEY) === '1') queueMicrotask(openSide); } ca
 
 /* A panel fájlfejlécének ikonja: a fájl teljes képernyőn, az első változásánál. */
 export function openFromPanel(fileEl, sha) {
-  openFull(sha, newPath(fileEl.dataset.path));
+  // A panel élő nézete (a szerkesztett szöveg, a mentés sora, a visszavonás) költözik át, nem épül új a
+  // commit tartalmából; bezáráskor visszakerül a panelbe (`dropView`).
+  const path = newPath(fileEl.dataset.path), panelKey = `${sha}\n${fileEl.dataset.path}`, fvKey = `fv\n${sha}\n${path}`;
+  const view = codeViews.get(panelKey);
+  if (view) {
+    if (editingDiff() === view) view.stopEditing();
+    codeViews.delete(panelKey);
+    codeViews.set(fvKey, view);
+  }
+  if (!openFull(sha, path, { borrowed: view ? { key: panelKey, fvKey } : null }) && view) {
+    codeViews.delete(fvKey);
+    codeViews.set(panelKey, view);
+  }
+}
+
+/* A teljes képernyő fájlnézete megszűnik: a panelből kölcsönzött visszakerül a panelbe (a lenyitott
+   fájl dobozába), a többi lefut és eldobódik (`forgetFile`). */
+function dropView() {
+  const b = fv.borrowed;
+  if (!b || fv.key !== b.fvKey) { if (fv.key) forgetFile(fv.key); return; }
+  fv.borrowed = null;
+  const view = codeViews.get(b.fvKey);
+  codeViews.delete(b.fvKey);
+  const sha = b.key.slice(0, b.key.indexOf('\n')), raw = b.key.slice(b.key.indexOf('\n') + 1);
+  const f = expanded === sha && panelFile(newPath(raw));
+  if (!view || !f || f.getAttribute('aria-expanded') !== 'true') { view?.dispose(); return; }
+  codeViews.set(b.key, view);
+  fileContent(/** @type {HTMLElement} */ (f.nextElementSibling), sha, raw, b.key, fill => fill());
 }
 
 /** @param {string} sha @param {string} path
-    @param {{ line?: number | null, all?: boolean, clean?: boolean }} [o] `all`: minden fájllal;
-    `clean`: a tiszta worktree HEAD-je (a diff-szűrő letiltva) */
+    @param {{ line?: number | null, all?: boolean, clean?: boolean, borrowed?: any }} [o] `all`: minden
+    fájllal; `clean`: a tiszta worktree HEAD-je (a diff-szűrő letiltva); `borrowed`: a panelből átvett nézet
+    @returns {boolean} megnyílt-e */
 export function openFull(sha, path, o = {}) {
-  if (!sha || fv) return;
+  if (!sha || fv) return false;
   const c = commitBySha(sha);
-  if (!c) return;
+  if (!c) return false;
   const all = Boolean(o.all), clean = Boolean(o.clean);
   const bar = document.createElement('div');
   bar.className = 'fv-bar';
@@ -368,7 +396,7 @@ export function openFull(sha, path, o = {}) {
     + `${treeHtml(all, clean)}</div>`;
   document.body.append(el);
   document.body.classList.add('fv-on');
-  fv = { ...newTree(el, sha, all, clean), bar, key: null };
+  fv = { ...newTree(el, sha, all, clean), bar, key: null, borrowed: o.borrowed ?? null };
   el.addEventListener('click', onFullClick);
   bar.addEventListener('click', onFullClick);
   el.querySelector('.fv-search input').addEventListener('input', e => onQuery(fv, /** @type {HTMLInputElement} */ (e.target).value));
@@ -376,6 +404,7 @@ export function openFull(sha, path, o = {}) {
   addEventListener('keydown', onKey, true);
   if (all) loadTree(fv);
   selectFile(path, o.line ?? null);
+  return true;
 }
 
 /* A fájl tartalma középen; `line`: ide görget (alapból az első változáshoz). */
@@ -383,7 +412,7 @@ function selectFile(path, line = null) {
   if (!fv) return;
   const ed = editingDiff();
   if (ed && fv.el.contains(ed.root)) ed.stopEditing();
-  if (fv.key) forgetFile(fv.key);
+  dropView();
   fv.path = path;
   fv.key = `fv\n${fv.sha}\n${path}`;
   renderTree(fv);
@@ -408,6 +437,7 @@ function selectFile(path, line = null) {
 /* A HEAD-commit fájljának első mentése után megjelent a worktree nem commitolt sora: a nézet arra vált,
    a kódnézet (és a szerkesztés) a helyén marad, az új kulcson. */
 function toWip() {
+  if (fv.borrowed) return;              // a panel nézete: a helyén ír a WIP sorba, és oda tér vissza
   const view = fv.key && codeViews.get(fv.key), row = view?.d.write;
   if (!row || fv.sha === row || !commitBySha(row)) return;
   const key = `fv\n${row}\n${fv.path}`;
@@ -443,7 +473,7 @@ function closeFull() {
   const { sha, path, el, bar } = fv;
   const ed = editingDiff();
   if (ed && el.contains(ed.root)) ed.stopEditing();
-  if (fv.key) forgetFile(fv.key);
+  dropView();
   el.remove();
   bar.remove();
   document.body.classList.remove('fv-on');

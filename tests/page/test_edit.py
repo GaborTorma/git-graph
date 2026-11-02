@@ -367,6 +367,9 @@ class CleanEditTest(PageTestCase):
         self.page.wait_for_timeout(300)
         self.assertEqual((self.repo / "main-0-0.txt").read_text(encoding="utf-8"), "elso masodik main-0-0\n")
 
+class PanelHeadEditTest(PageTestCase):
+    """A HEAD-commit fájlja a panelben (saját repó: a CleanEditTest is a HEAD-commit fájlját írja)."""
+
     def test_edit_in_panel_from_head(self) -> None:
         """A HEAD-commit lenyitott fájlja a panelben: az első mentés után megjelenik a WIP sor, és a
         szerkesztés a helyén folytatható, a következő mentés is a lemezre íródik."""
@@ -395,6 +398,48 @@ class CleanEditTest(PageTestCase):
         self.page.wait_for_timeout(300)
         self.assertEqual((self.repo / "main-4-5.txt").read_text(encoding="utf-8"), "elso masodik main-4-5\n")
 
+
+class PanelFullEditTest(PageTestCase):
+    """A panelben szerkesztett HEAD-commit fájl teljes képernyőn (saját repó, mint fent)."""
+
+    def test_full_after_panel_edit(self) -> None:
+        """A panelben szerkesztett HEAD-commit fájl teljes képernyőn a módosításokkal nyílik, ott is szerkeszthető,
+        és bezárva a panelben is megvannak."""
+        # Adott: a HEAD-commit main-4-5.txt-je a panelben szerkesztve, mentve, a WIP sor megjelent
+        self.page.locator("#rows .row", has_text="main-4-5").click()
+        self.settle()
+        self.page.locator('.details .file[data-path="main-4-5.txt"]').click()
+        sel = '.details .file[data-path="main-4-5.txt"] + .diff'
+        self.page.wait_for_selector(f"{sel} .cm-editor")
+        self.settle()
+        x, y = self.page.evaluate(f"({COORDS})", [sel, 1, 0])
+        self.page.mouse.dblclick(x, y)
+        self.page.wait_for_function(f"({CURSOR})({sel!r})[2] === 'true'")
+        self.page.keyboard.type("elso ")
+        self.page.keyboard.press("ControlOrMeta+s")
+        self.page.wait_for_timeout(300)
+        self.poke()
+        self.page.wait_for_selector(".row.uncommitted")
+        self.settle()
+        # Ha a Fejlesztő a fájl teljes képernyő ikonjára kattint
+        self.page.locator('.details .file[data-path="main-4-5.txt"] [data-full]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.settle()
+        # Akkor a módosítás látszik, és tovább szerkeszthető
+        self.assertIn("elso main-4-5", self.page.locator(".fv-box .cm-content").inner_text())
+        x, y = self.page.evaluate(f"({COORDS})", [".fv-box", 1, 0])
+        self.page.mouse.dblclick(x, y)
+        self.page.wait_for_function(f"({CURSOR})('.fv-box')[2] === 'true'")
+        self.page.keyboard.type("masodik ")
+        self.page.keyboard.press("ControlOrMeta+s")
+        self.page.wait_for_timeout(300)
+        self.assertEqual((self.repo / "main-4-5.txt").read_text(encoding="utf-8"), "masodik elso main-4-5\n")
+        # És bezárva a panelben is a módosított szöveg áll
+        self.page.keyboard.press("Escape")
+        self.page.keyboard.press("Escape")
+        self.settle()
+        self.assertEqual(self.page.locator(".fv").count(), 0)
+        self.assertIn("masodik elso main-4-5", self.page.locator(f"{sel} .cm-content").inner_text())
 
 if __name__ == "__main__":
     unittest.main()
