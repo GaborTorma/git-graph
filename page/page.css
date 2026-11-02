@@ -857,7 +857,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .mini:hover { background: var(--bg-2); color: var(--fg-0); }
 .mini.done { color: var(--add); }
 
-.body-text { margin: 0 2px; white-space: pre-wrap; font-size: 13px; line-height: 1.45; color: var(--fg-1); max-width: 72ch; }
+.body-text { margin: 0 2px; white-space: pre-wrap; font-size: 13px; line-height: 1.45; color: var(--fg-1); }   /* csak a saját sortörésénél és a panel szélénél törik */
 .body-text .more {
   padding: 0; border: 0; background: none; cursor: pointer;
   font: inherit;

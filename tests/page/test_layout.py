@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import unittest
 
-from harness import PageTestCase
+from pathlib import Path
+
+from harness import PageTestCase, git_in
 
 # Minden listasor közepe és a hozzá legközelebbi commit-pötty (r 4: commit, r 5:
 # merge / ál-sor) közepe, a képernyőn mérve. A `drawGraph` a sorok `offsetTop`-jából
@@ -108,6 +110,24 @@ class StepRowsTest(PageTestCase):
             self.page.wait_for_timeout(150)
             self.assertEqual(self.page.evaluate(TOP_ROW)["i"], 8 - step)
 
+
+
+class BodyWrapTest(PageTestCase):
+    """A commit bodyja csak a saját sortörésénél és a panel szélénél törik, nem 72 karakternél."""
+    WIDTH = 1300
+    LINE = "Egy hosszabb body-sor, ami jóval több hetvenkét karakternél, de a széles panelben egy sorban elfér."
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        git_in(repo, "commit", "-q", "--allow-empty", "-m", f"body: hosszú sor\n\n{cls.LINE}\nMásodik sor.")
+
+    def test_long_line_one_row(self) -> None:
+        """A 100 karakteres sor széles panelben egy sor, a második sor a saját sortörésénél kezdődik."""
+        self.page.locator("#rows .row", has_text="body: hosszú sor").click()
+        self.settle()
+        body = self.page.locator(".details .body-text")
+        line = float(body.evaluate("e => parseFloat(getComputedStyle(e).lineHeight)"))
+        self.assertLess(body.bounding_box()["height"], 2.5 * line)
 
 if __name__ == "__main__":
     unittest.main()
