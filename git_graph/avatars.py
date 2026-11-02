@@ -97,8 +97,9 @@ def fetch_avatar(owner_repo: str, email: str, sha: str) -> str | None:
     if m:
         src = f"https://github.com/{m[1]}.png?size={AVATAR_SIZE}"
     else:
-        info = json.loads(http_get(f"https://api.github.com/repos/{owner_repo}/commits/{sha}")[0])
-        src = (info.get("author") or {}).get("avatar_url")
+        # A commit-lista egy eleme: a `commits/<sha>` a fájlok patchét is hozza, ami a képlimitnél nagyobb lehet.
+        info = json.loads(http_get(f"https://api.github.com/repos/{owner_repo}/commits?sha={sha}&per_page=1")[0])
+        src = ((info[0] if info else {}).get("author") or {}).get("avatar_url")
         if not src:
             return None
         src += ("&" if "?" in src else "?") + f"s={AVATAR_SIZE}"

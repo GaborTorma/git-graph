@@ -83,3 +83,39 @@ class AvatarTest(HomeTestCase):
         # És AVATAR_RETRY múlva újrapróbál
         later = time.time() + gg.avatars.AVATAR_RETRY + 60
         self.assertGreaterEqual(later - cache["a@x.hu"]["at"], gg.avatars.AVATAR_TTL)
+
+
+class FetchAvatarTest(HomeTestCase):
+    def test_big_commit(self) -> None:
+        """A sok patchet hozó commit szerzőjének képe is megjön (a válasz nagyobb a képlimitnél)."""
+        # Adott a GitHub: a commit adata 80 KB (a fájlok patchével), a kép kicsi
+        gg = self.load()
+        author = {"avatar_url": "https://avatars.githubusercontent.com/u/1?v=4"}
+        big = json.dumps({"author": author, "files": [{"patch": "x" * 80_000}]}).encode()
+        pages = {"https://api.github.com/repos/o/r/commits/" + "a" * 40: big,
+                 "https://api.github.com/repos/o/r/commits?sha=" + "a" * 40 + "&per_page=1": json.dumps(
+                     [{"author": author}]).encode(),
+                 "https://avatars.githubusercontent.com/u/1?v=4&s=44": b"\x89PNG kep"}
+
+        class Resp:
+            def __init__(self, url: str) -> None:
+                self.body = pages[url]
+                self.headers = type("H", (), {"get_content_type": lambda _s: "image/png" if "avatars" in url
+                                              else "application/json"})()
+
+            def read(self, n: int = -1) -> bytes:
+                return self.body if n < 0 else self.body[:n]
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_: object) -> None:
+                return None
+
+        real = gg.avatars.urllib.request.urlopen
+        self.addCleanup(setattr, gg.avatars.urllib.request, "urlopen", real)
+        gg.avatars.urllib.request.urlopen = lambda req, timeout=0: Resp(req.full_url)
+        # Ha a lap a szerző képét kéri
+        img = gg.avatars.fetch_avatar("o/r", "a@x.hu", "a" * 40)
+        # Akkor a kép data URI-ként jön
+        self.assertEqual(img, "data:image/png;base64,iVBORyBrZXA=")
