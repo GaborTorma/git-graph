@@ -17,10 +17,14 @@ Kiderült a #56 (CodeMirror-diff, WIP-szerkesztés) közben, 2026-10-27-én (Cod
 - **Újrarajzolás**: a `render()` minden adatcserénél újraépíti a commit-panelt. A kódnézet
   (`CodeDiff`) ezért kulcsonként él (`codeViews`), és a gyökere átköltözik az új dobozba; ha már ott
   van, nem nyúlunk hozzá (különben a görgetés és a fókusz elugrik).
+- **A merge `scanLimit`-je**: a `MergeView` és az `unifiedMergeView` alap `diffConfig`-ja
+  `{scanLimit: 500}`. Ha a változások együtt ennél nagyobbak (pl. 13+/11− sor egy 450 soros fájlban),
+  a diff feladja, és a fájl nagy részét egy blokkban változottnak jelöli. A `diffConfig: {scanLimit:
+  1e9, timeout: 1500}` (`DIFF_CONFIG`) pontos, a 2 MB-os fájlt az időkorlát védi.
 - **Saját mentés visszhangja**: a mentés előtt indult lekérdezés régi lemezállapota nem külső
   változás — a `CodeDiff.seen` a látott / saját írású hasheket szűri.
 
-**Why:** mindhárom órákig tartó, a tesztben egy sorral elcsúszó vagy elnyelt billentyűként jelentkező hiba volt.
+**Why:** mind órákig tartó, a tesztben egy sorral elcsúszó vagy elnyelt billentyűként jelentkező hiba volt.
 
 **How to apply:** CM-widget stílusánál ne használj margót; új lapszintű billentyűkezelő a `.cm-editor`
 célpontot hagyja ki; a kódnézetet ne építsd újra adatcserénél ([[page-modules-blob-linking]]).
