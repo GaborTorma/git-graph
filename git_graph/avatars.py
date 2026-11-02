@@ -113,12 +113,18 @@ def fetch_avatars(repo_url_: str, todo: dict[str, str]) -> None:
     owner_repo = repo_url_[len("https://github.com/"):]
     for email, sha in todo.items():
         try:
-            img = fetch_avatar(owner_repo, email, sha)
+            img, failed = fetch_avatar(owner_repo, email, sha), False
         except (OSError, ValueError):
-            img = None
+            img, failed = None, True
         with _AVATAR_LOCK:
             cache = avatar_cache()
-            cache[email] = {"img": img, "at": time.time()}
+            at = time.time()
+            old = cache.get(email)
+            if failed and isinstance(old, dict) and old.get("img"):
+                # Átmeneti hiba (offline, rate limit, 5xx): a meglévő kép marad, és
+                # `AVATAR_RETRY` múlva újrapróbáljuk, nem a heti `AVATAR_TTL` után.
+                img, at = old["img"], at - AVATAR_TTL + AVATAR_RETRY
+            cache[email] = {"img": img, "at": at}
             try:
                 place(json.dumps(cache).encode("utf-8"), avatars_path(), 0o644)
             except OSError as exc:

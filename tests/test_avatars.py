@@ -51,3 +51,35 @@ class AvatarTest(HomeTestCase):
         self.assertIsNone(cache["regi@x.hu"]["img"])
         self.assertEqual(gg.avatars.avatars_for(commits, "https://github.com/o/r"),
                          {"42+nev@users.noreply.github.com": "data:image/png;base64,BBBB"})
+
+    def test_transient_error_keeps_image(self) -> None:
+        """Átmeneti letöltési hiba (`OSError`, `ValueError`) a meglévő képet nem törli: a kép
+        marad, az újrapróba `AVATAR_RETRY` múlva jön, nem a heti `AVATAR_TTL` után."""
+        gg = self.load()
+        # Adott: egy lejárt, de jó kép, és egy kép nélküli, lejárt bejegyzés
+        old = time.time() - gg.avatars.AVATAR_TTL - 60
+        img = "data:image/png;base64,AAAA"
+        self.write_cache({"a@x.hu": {"img": img, "at": old},
+                          "b@x.hu": {"img": None, "at": old}})
+        errors = iter([OSError("offline"), ValueError("rossz JSON")])
+
+        def failing_fetch(owner_repo: str, email: str, sha: str) -> str | None:
+            raise next(errors)
+
+        gg.avatars.fetch_avatar = failing_fetch
+        commits = [{"sha": "1" * 40, "email": "a@x.hu", "pushed": True},
+                   {"sha": "2" * 40, "email": "b@x.hu", "pushed": True}]
+        # Ha a frissítés közben a letöltés elbukik
+        self.assertEqual(gg.avatars.avatars_for(commits, "https://github.com/o/r"), {"a@x.hu": img})
+        deadline = time.monotonic() + 5
+        while gg.avatars._AVATAR_JOBS and time.monotonic() < deadline:
+            time.sleep(0.02)
+        # Akkor a kép megmarad, a kép nélküli bejegyzés None marad
+        cache = json.loads((self.state / "avatars.json").read_text(encoding="utf-8"))
+        self.assertEqual(cache["a@x.hu"]["img"], img)
+        self.assertIsNone(cache["b@x.hu"]["img"])
+        self.assertEqual(gg.avatars.avatars_for(commits, "https://github.com/o/r"), {"a@x.hu": img})
+        self.assertEqual(gg.avatars._AVATAR_JOBS, set())                      # most nem próbál újra
+        # És AVATAR_RETRY múlva újrapróbál
+        later = time.time() + gg.avatars.AVATAR_RETRY + 60
+        self.assertGreaterEqual(later - cache["a@x.hu"]["at"], gg.avatars.AVATAR_TTL)
