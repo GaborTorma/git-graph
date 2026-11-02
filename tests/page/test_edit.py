@@ -367,6 +367,34 @@ class CleanEditTest(PageTestCase):
         self.page.wait_for_timeout(300)
         self.assertEqual((self.repo / "main-0-0.txt").read_text(encoding="utf-8"), "elso masodik main-0-0\n")
 
+    def test_edit_in_panel_from_head(self) -> None:
+        """A HEAD-commit lenyitott fájlja a panelben: az első mentés után megjelenik a WIP sor, és a
+        szerkesztés a helyén folytatható, a következő mentés is a lemezre íródik."""
+        # Adott: tiszta worktree, a HEAD-commit lenyitva, benne a main-4-5.txt
+        self.page.locator("#rows .row", has_text="main-4-5").click()
+        self.settle()
+        self.page.locator('.details .file[data-path="main-4-5.txt"]').click()
+        sel = '.details .file[data-path="main-4-5.txt"] + .diff'
+        self.page.wait_for_selector(f"{sel} .cm-editor")
+        self.settle()
+        # Ha a Fejlesztő duplán kattint, gépel és ment
+        x, y = self.page.evaluate(f"({COORDS})", [sel, 1, 0])
+        self.page.mouse.dblclick(x, y)
+        self.page.wait_for_function(f"({CURSOR})({sel!r})[2] === 'true'")
+        self.page.keyboard.type("elso ")
+        self.page.keyboard.press("ControlOrMeta+s")
+        self.page.wait_for_timeout(300)
+        self.assertEqual((self.repo / "main-4-5.txt").read_text(encoding="utf-8"), "elso main-4-5\n")
+        # Akkor megjelenik a WIP sor, és a szerkesztés a helyén folytatható
+        self.poke()
+        self.page.wait_for_selector(".row.uncommitted")
+        self.settle()
+        self.assertEqual(self.page.evaluate(f"({CURSOR})({sel!r})")[2], "true")
+        self.page.keyboard.type("masodik ")
+        self.page.keyboard.press("ControlOrMeta+s")
+        self.page.wait_for_timeout(300)
+        self.assertEqual((self.repo / "main-4-5.txt").read_text(encoding="utf-8"), "elso masodik main-4-5\n")
+
 
 if __name__ == "__main__":
     unittest.main()

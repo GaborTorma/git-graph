@@ -110,6 +110,7 @@ export class CodeDiff {
     this.conflict = null;
     this.timer = 0;
     this.saving = null;
+    this.detached = false;           // a HEAD-commit fájlja mentés után: a WIP sorba ír (`update`)
     this.edit = new CM.Compartment();
     this.set(d);
     this.root.addEventListener('dblclick', e => this.onDblclick(e));
@@ -278,7 +279,12 @@ export class CodeDiff {
     this.saving = (async () => {
       try {
         const r = await this.o.write(text, this.base, this.d.write);
-        if (r?.ok) { this.base = r.hash; this.seen.add(r.hash); this.saved = text; this.note(''); }
+        if (r?.ok) {
+          this.base = r.hash; this.seen.add(r.hash); this.saved = text; this.note('');
+          // a HEAD-commit fájlja: a lemez már eltér tőle, a szerver nem adja szerkeszthetőnek — a nézet
+          // a saját szövegével szerkeszthető marad (a WIP sorba ír), amíg a WIP sor adata át nem veszi
+          if (this.d.write) this.detached = true;
+        }
         else if (r?.conflict) this.external(r.text, r.hash);
       } catch (e) {
         this.note(`A mentés nem sikerült: ${e?.message || e?.code || e}`);
@@ -398,6 +404,8 @@ export class CodeDiff {
   /* Élő frissítés: az új adat (a régi oldal is változhatott — az Uncommitted soron az index). */
   update(d) {
     if (!this.ed) { this.set(d); return; }
+    if (this.detached && !d.editable) return;   // a HEAD-commit sora: a régi tartalom nem írja felül
+    this.detached = false;
     // Csak a csonkolt (2 MB fölötti) nézet ki- és bekapcsolása épít újra; a többi változás helyben
     // (a régi oldal is), szerkesztés közben a kurzor és a mentés sora marad.
     if (Boolean(d.big) !== Boolean(this.d.big)) {
