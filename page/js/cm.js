@@ -17,6 +17,9 @@ import { esc } from './util.js';
 const WIDE = 1000;           // ettől a szélességtől egymás mellett
 const SAVE_MS = 1000;        // ennyi csend után ment
 const FLASH_MS = 1600;       // a külső változás kék villanása
+/* A merge nézetek alapja `scanLimit: 500`: sok szétszórt változásnál a diff feladja, és egy nagy
+   blokkot jelöl. A korlát helyett időkorlát: a 2 MB-os fájl sem akasztja meg a lapot. */
+const DIFF_CONFIG = { scanLimit: 1e9, timeout: 1500 };
 
 let lib = null;              // a CodeMirror betöltésének ígérete; hibánál a következő próba újrakéri
 export function loadCM(get) {
@@ -189,7 +192,8 @@ export class CodeDiff {
       } } : {};
       this.mv = new CM.MergeView({ a: { doc: orig, extensions: this.extensions('a') },
                                    b: { doc, extensions: this.extensions('b') },
-                                   parent: this.root, gutter: true, highlightChanges: true, ...collapse, ...revert });
+                                   parent: this.root, gutter: true, highlightChanges: true, diffConfig: DIFF_CONFIG,
+                                   ...collapse, ...revert });
       this.ed = this.mv.b;
       this.ea = this.mv.a;
     } else {
@@ -202,7 +206,7 @@ export class CodeDiff {
       this.ed = new CM.EditorView({ parent: this.root, state: CM.EditorState.create({ doc, extensions: [
         ...this.extensions('b'),
         CM.unifiedMergeView({ original: orig, gutter: true, highlightChanges: true, syntaxHighlightDeletions: true,
-                              mergeControls: controls, ...collapse }),
+                              mergeControls: controls, diffConfig: DIFF_CONFIG, ...collapse }),
       ] }) });
       this.ea = null;
     }

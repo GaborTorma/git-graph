@@ -26,6 +26,10 @@ EDGE_NEW = numbered(45, {30: "valtozott 30"})
 # Markdown: a két változott bekezdés között 8 változatlan — a szomszédaik látszanak, 6 csukva.
 MD_OLD = "".join(f"Bekezdés {i}.\n\n" for i in range(1, 11))
 MD_NEW = MD_OLD.replace("Bekezdés 1.", "Bekezdés egy.").replace("Bekezdés 10.", "Bekezdés tíz.")
+# Sok szétszórt változás (a merge alap `scanLimit`-je fölött): a diff csak a valódi változásokat jelöli.
+SPREAD_OLD = "".join(f"const ertek_{i} = szamol('{'x' * 40}', {i});\n" for i in range(400))
+SPREAD_NEW = "".join((f"const ertek_{i} = szamol('{'y' * 40}', {i}, uj);\n" if i % 20 == 5 else f"const ertek_{i} = szamol('{'x' * 40}', {i});\n")
+                     for i in range(400))
 CSV_OLD = "".join(f"{i},{'x' * 110}\n" for i in range(12000))
 CSV_NEW = CSV_OLD.replace("0,x", "0,y", 1).replace("11999,x", "11999,y")
 LANGS = {
@@ -52,7 +56,7 @@ class CodeDiffTest(PageTestCase):
     @classmethod
     def prepare(cls, repo: Path) -> None:
         commit_versions(repo, {"kod.py": (OLD_PY, NEW_PY), "res.txt": (GAP_OLD, GAP_NEW), "szel.txt": (EDGE_OLD, EDGE_NEW),
-                               "bekezdes.md": (MD_OLD, MD_NEW), "data.csv": (CSV_OLD, CSV_NEW), **LANGS}, cls.SUBJECT)
+                               "bekezdes.md": (MD_OLD, MD_NEW), "szort.js": (SPREAD_OLD, SPREAD_NEW), "data.csv": (CSV_OLD, CSV_NEW), **LANGS}, cls.SUBJECT)
 
     def opened(self, name: str) -> str:
         """A fájl lenyitva; vissza a diffje szelektora."""
@@ -114,6 +118,14 @@ class CodeDiffTest(PageTestCase):
         """A kommentes tsconfig.json a JSON-elemzővel színezett (a string is színes)."""
         sel = self.opened("tsconfig.json")
         self.assertIn('"a"', self.page.evaluate(f"({COLORED})", sel))
+
+    def test_many_scattered_changes(self) -> None:
+        """20 szétszórt sorcsere egy 400 soros fájlban: pontosan 20 sor változott, nem egy nagy blokk."""
+        sel = self.opened("szort.js")
+        changed = self.page.evaluate(f"""() => {{
+          const v = CM.EditorView.findFromDOM(document.querySelector('{sel} .cm-editor'));
+          return CM.getChunks(v.state).chunks.reduce((n, c) => n + v.state.doc.lineAt(c.toB).number - v.state.doc.lineAt(c.fromB).number, 0); }}""")
+        self.assertEqual(changed, 20)
 
     def test_big_file(self) -> None:
         """A 12 000 soros, 1,4 MB-os data.csv teljes egészében, csonkolás nélkül."""
