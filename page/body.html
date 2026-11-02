@@ -43,11 +43,7 @@
     <input type="search" id="search" placeholder="Keresés" aria-label="Commitok keresése: üzenet, szerző, hash, ág" autocomplete="off" spellcheck="false">
     <span class="keys"><kbd>⌘</kbd><kbd>F</kbd></span>
   </label>
-  <button type="button" class="select gear" id="fullBtn" aria-label="Teljes nézet" data-tip="Teljes nézet"></button>
-  <div class="menu">
-    <button type="button" class="select gear" id="settingsBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Beállítások" data-tip="Beállítások"></button>
-    <div class="menu-pop end settings" id="settingsPop" role="menu" aria-label="Beállítások" hidden></div>
-  </div>
+  <button type="button" class="select gear" id="sideBtn" aria-pressed="false" aria-label="Fájlok" data-tip="Fájlok"></button>
   </div>
 </div>
 
@@ -71,6 +67,10 @@
         <svg class="ic" id="themeIcon" viewBox="0 0 16 16" aria-hidden="true"></svg>
       </button>
       <span class="menu-pop end up" id="themePop" role="listbox" aria-label="Téma" hidden></span>
+    </span>
+    <span class="menu">
+      <button type="button" class="mini" id="settingsBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Beállítások" data-tip="Beállítások"></button>
+      <span class="menu-pop end up settings" id="settingsPop" role="menu" aria-label="Beállítások" hidden></span>
     </span>
   </span>
 </div>

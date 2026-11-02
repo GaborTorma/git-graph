@@ -100,8 +100,13 @@ class EditTest(PageTestCase):
         self.page.wait_for_function(f"({CURSOR})({sel!r})[2] === 'true'")
         return sel
 
-    def full_view(self) -> None:
-        self.page.locator("#fullBtn").click()
+    def full_view(self, name: str) -> None:
+        """A WIP sor `name` fájlja teljes képernyőn (a fejléce ikonjával; ha csukva, előbb lenyitva)."""
+        file = self.page.locator(f'.details .file[data-path="{name}"]')
+        if file.get_attribute("aria-expanded") != "true":
+            file.click()
+            self.settle()
+        file.locator("[data-full]").click()
         self.page.wait_for_selector(".fv")
         self.settle()
 
@@ -129,7 +134,7 @@ class EditTest(PageTestCase):
     def test_unchanged_file_editable(self) -> None:
         """A WIP sor összes fájl nézetében a nem módosult bin/git-graph dupla kattintásra szerkeszthető."""
         self.wip()
-        self.full_view()
+        self.full_view("app.py")
         self.page.locator(".fv-diff").click()
         self.page.wait_for_selector('.fv-row[data-dir="bin"]')
         self.page.locator('.fv-row[data-dir="bin"]').click()
@@ -201,9 +206,7 @@ class EditTest(PageTestCase):
     def test_escape_in_full_view(self) -> None:
         """A teljes nézetbeli szerkesztésből Esc-re kilép, a függő mentés lefut, a nézet nyitva marad."""
         self.wip()
-        self.page.locator('.details .file[data-path="kilep.py"]').click()
-        self.settle()
-        self.full_view()
+        self.full_view("kilep.py")
         self.page.wait_for_selector(".fv .fv-box .cm-editor")
         self.settle()
         self.dblclick(".fv-box", 20, 0)
@@ -218,9 +221,7 @@ class EditTest(PageTestCase):
     def test_leave_by_click(self) -> None:
         """A fában egy másik fájlra kattintva a szerkesztés véget ér, és a függő mentés lefut."""
         self.wip()
-        self.page.locator('.details .file[data-path="katt.py"]').click()
-        self.settle()
-        self.full_view()
+        self.full_view("katt.py")
         self.page.wait_for_selector(".fv .fv-box .cm-editor")
         self.settle()
         self.dblclick(".fv-box", 20, 0)
@@ -343,10 +344,10 @@ class CleanEditTest(PageTestCase):
     def test_edit_from_head(self) -> None:
         # Adott: nincs nem commitolt változás, egy commit sincs lenyitva
         self.assertEqual(self.page.locator(".row.uncommitted").count(), 0)
-        self.page.locator("#fullBtn").click()
-        self.page.wait_for_selector('.fv-file[data-path="main-0-0.txt"]')
-        self.page.locator('.fv-file[data-path="main-0-0.txt"]').click()
-        self.page.wait_for_selector(".fv-box .cm-editor")
+        self.page.locator("#sideBtn").click()
+        self.page.wait_for_selector('.side .fv-file[data-path="main-0-0.txt"]')
+        self.page.locator('.side .fv-file[data-path="main-0-0.txt"]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
         self.settle()
         # Ha a Fejlesztő duplán kattint, gépel és ment
         x, y = self.page.evaluate(f"({COORDS})", [".fv-box", 1, 0])

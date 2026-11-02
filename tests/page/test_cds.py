@@ -159,7 +159,7 @@ class SizesTest(CdsCase):
         self.assertEqual(self.style("#rows .badge", "fontSize"), "12px")
         self.assertEqual(self.box("#rows .badge")["height"], 20)
         self.assertEqual(self.box("#rows .row:not(:has(.refs))")["height"], 34)
-        for ctrl in (".search", "#branchBtn", "#settingsBtn"):
+        for ctrl in (".search", "#branchBtn", "#sideBtn"):
             self.assertEqual(self.box(ctrl)["height"], 32, ctrl)
             self.assertEqual(self.style(ctrl, "borderTopLeftRadius"), "8px", ctrl)
         track = self.box(".chrome .switch .track")
@@ -785,8 +785,8 @@ class SearchHighlightTest(CdsCase):
 
 class ControlsTest(CdsCase):
     def test_trigger_button(self) -> None:
-        """A lenyíló gomb és a fogaskerék az app Select-je: halvány mező, 1 px-es keret, hoverre erősebb."""
-        for btn in ("#branchBtn", "#settingsBtn"):
+        """A lenyíló gomb és a sidebar gombja az app Select-je: halvány mező, 1 px-es keret, hoverre erősebb."""
+        for btn in ("#branchBtn", "#sideBtn"):
             self.assertEqual(self.style(btn, "backgroundColor"), "rgba(255, 255, 255, 0.5)", btn)
             self.assertEqual(self.style(btn, "boxShadow"), "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px inset", btn)
             self.page.locator(btn).hover()
