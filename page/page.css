@@ -990,7 +990,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .diff .cm-changedLineGutter, .diff .cm-merge-b .cm-changedLineGutter { background: var(--add); }
 .diff .cm-deletedLineGutter, .diff .cm-merge-a .cm-changedLineGutter { background: var(--del); }
 .diff .cm-mergeView .cm-merge-a { border-right: 1px solid var(--border-soft); }
-.diff .cm-mergeSpacer { background: var(--code-tint); }
+.diff .cm-mergeSpacer, .diff .cm-wipSpacer { background: var(--code-tint); }
 /* Az elvetés: az Anthropicons ArrowCounterClockwise 12 px-es glifája egy sornyi (18 px) gombon, a blokk
    első sorában függőlegesen középen, a jobb széltől 1 px-re; egymás mellett a két oldal közti sávban.
    Mint az app ghost gombja: háttér csak hoverre (fill-1), lenyomva sötétebb (fill-2). */

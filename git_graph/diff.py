@@ -7,6 +7,7 @@ import hashlib
 import json
 import posixpath
 import re
+import subprocess
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -701,15 +702,28 @@ def editable(sha: str, root: Path | None, new: str, blob: tuple | None) -> bool:
                 and not (Path(root) / new).is_symlink() and as_text(blob[1]) is not None)
 
 
+def unchanged_since(sha: str, head: str, path: str) -> bool:
+    """A `path` a `sha` commit óta nem változott a `head`-ig: a `sha` őse a `head`-nek, és a fájl a
+    kettőben ugyanaz a blob."""
+    try:
+        git("merge-base", "--is-ancestor", sha, head)
+        a, b = git("rev-parse", f"{sha}:{path}", f"{head}:{path}").split()
+    except (subprocess.CalledProcessError, ValueError):
+        return False
+    return a == b
+
+
 def head_target(sha: str, new: str) -> tuple | None:
-    """A worktree HEAD-commitjának fájlja a lemezen: `(a mentés sora — *uncommitted:<slug>, a lemez
-    hashe, a lemez szövege)`. A lap a commit diffjét a lemez szövegével mutatja (a WIP eltérései
-    külön rétegben), és oda ment. Más commitnál, hiányzó, symlink, bináris, `TEXT_MAX` fölötti vagy
-    képfájlnál: `None`."""
+    """A worktree fájlja a lemezen, ha a `sha` a worktree HEAD-commitja, vagy egy régebbi commit, amely
+    óta a fájl nem változott: `(a mentés sora — *uncommitted:<slug>, a lemez hashe, a lemez szövege)`.
+    A lap a commit diffjét a lemez szövegével mutatja (a WIP eltérései külön rétegben), és oda ment. Más
+    commitnál, hiányzó, symlink, bináris, `TEXT_MAX` fölötti vagy képfájlnál: `None`."""
     if not SHA_RE.match(sha) or Path(new).suffix.lower() in IMAGE_TYPES:
         return None
-    for wt in worktree_list():
-        if not wt["head"] or not wt["head"].startswith(sha):
+    wts = [wt for wt in worktree_list() if wt["head"]]
+    # a HEAD-commitja előre; a régebbi commit csak akkor, ha a fájl azóta nem változott
+    for wt in sorted(wts, key=lambda w: not w["head"].startswith(sha)):
+        if not wt["head"].startswith(sha) and not unchanged_since(sha, wt["head"], new):
             continue
         file = disk_file(wt["path"], new)
         if not file or (Path(wt["path"]) / new).is_symlink() or file.stat().st_size > TEXT_MAX:

@@ -33,17 +33,19 @@ class WipCase(PageTestCase):
     @classmethod
     def prepare(cls, repo: Path) -> None:
         (repo / "app.py").write_text(text(BASE), encoding="utf-8")
-        git_in(repo, "add", "app.py")
+        (repo / "masik.py").write_text(text(BASE[:20]), encoding="utf-8")    # a HEAD nem módosítja
+        git_in(repo, "add", "app.py", "masik.py")
         git_in(repo, "commit", "-qm", "wip: alap")
         (repo / "app.py").write_text(text(HEAD), encoding="utf-8")
         git_in(repo, "commit", "-qam", "wip: a commit")
         (repo / "app.py").write_text(text(DISK), encoding="utf-8")
+        (repo / "masik.py").write_text(text(changed(BASE[:20], s5="s5 = 'lemez'")), encoding="utf-8")
 
-    def open_app(self, subject: str = "wip: a commit") -> None:
+    def open_app(self, subject: str = "wip: a commit", name: str = "app.py") -> None:
         self.page.locator("#rows .row", has_text=subject).click()
         self.settle()
-        self.page.locator('.details .file[data-path="app.py"]').click()
-        self.page.wait_for_selector(f"{SEL} .cm-editor")
+        self.page.locator(f'.details .file[data-path="{name}"]').click()
+        self.page.wait_for_selector(f'.details .file[data-path="{name}"] + .diff .cm-editor')
         self.settle()
 
     def line(self, txt: str):
@@ -79,8 +81,19 @@ class WipLayerTest(WipCase):
         red = [t.strip() for t in self.page.locator(f"{SEL} .cm-deletedChunk").all_inner_texts()]
         self.assertNotIn("s12 = 12", red)
 
+    def test_older_commit_unchanged_since(self) -> None:
+        """Régebbi commitban, ha a fájl azóta nem változott (masik.py), a lemez szövege kék réteggel, és
+        szerkeszthető."""
+        self.open_app("wip: alap", "masik.py")
+        sel = '.details .file[data-path="masik.py"] + .diff'
+        line = self.page.locator(f"{sel} .cm-line", has_text="s5 = 'lemez'")
+        self.assertIn("cm-wipLine", line.get_attribute("class"))
+        self.assertIn("s5 = 5", self.page.locator(f"{sel} .cm-wipDeleted").first.inner_text())
+        line.dblclick()
+        self.page.wait_for_function(f"document.querySelector('{sel} .cm-content').contentEditable === 'true'")
+
     def test_older_commit_no_layer(self) -> None:
-        """Régebbi commitban nincs WIP-réteg."""
+        """Régebbi commitban, ha a fájl azóta változott (app.py), nincs WIP-réteg."""
         self.open_app("wip: alap")
         self.assertEqual(self.page.locator(f"{SEL} .cm-wipLine, {SEL} .cm-wipDeleted").count(), 0)
 
@@ -138,6 +151,24 @@ class WipReopenTest(WipCase):
         line = self.line("s20 = 'kivul'")
         self.assertTrue(line.is_visible())
         self.assertIn("cm-wipLine", line.get_attribute("class"))
+
+
+class WipSplitTest(WipCase):
+    """Egymás mellett (széles panel) is csukott a változatlan rész: csak a WIP-eltérést tartalmazó rés nyílik ki,
+    a két oldalon együtt."""
+    WIDTH = 1400
+
+    def test_split_gaps(self) -> None:
+        self.open_app()
+        self.assertEqual(self.page.locator(f"{SEL} .cm-mergeView .cm-editor").count(), 2)
+        right = f"{SEL} .cm-merge-b .cm-line"
+        self.assertTrue(self.page.locator(right, has_text="s35 = 'wip'").is_visible())
+        self.assertFalse(self.page.locator(right, has_text="s5 = 5").is_visible())
+        self.assertFalse(self.page.locator(right, has_text="s90 = 90").is_visible())
+        # a két oldal egy magasságban: a 35. sor bal és jobb oldali változata egy vonalban
+        left = self.page.locator(f"{SEL} .cm-merge-a .cm-line", has_text="s36 = 36").bounding_box()
+        right = self.page.locator(f"{SEL} .cm-merge-b .cm-line", has_text="s36 = 36").bounding_box()
+        self.assertLessEqual(abs(left["y"] - right["y"]), 2)
 
 if __name__ == "__main__":
     unittest.main()

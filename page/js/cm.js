@@ -117,12 +117,13 @@ function wipKit(CM) {
     ignoreEvent() { return true; }
   }
   const build = (diff, state, head) => {
-    if (head == null) return { head, deco: CM.Decoration.none, chunks: [] };
-    const doc = state.doc, a = CM.Text.of(head.split('\n')), ranges = [];
+    if (head == null) return { head, deco: CM.Decoration.none, chunks: [], blocks: [] };
+    const doc = state.doc, a = CM.Text.of(head.split('\n')), ranges = [], blocks = [];
     const chunks = CM.Chunk.build(a, doc, DIFF_CONFIG);
     for (const ch of chunks) {
       // a blokk vége a következő sor eleje (a sorvég a blokké): a HEAD-beli sorok sorvég nélkül
       const old = ch.toA > ch.fromA ? a.sliceString(ch.fromA, ch.toA).replace(/\n$/, '') : null;
+      blocks.push({ pos: Math.min(ch.fromB, doc.length), lines: old == null ? 0 : old.split('\n').length });
       if (old != null || diff.editable) {
         ranges.push(CM.Decoration.widget({ widget: new WipBlock(diff, ch, old, a), block: true, side: -1 })
           .range(doc.lineAt(Math.min(ch.fromB, doc.length)).from));
@@ -133,7 +134,7 @@ function wipKit(CM) {
         }
       }
     }
-    return { head, deco: CM.Decoration.set(ranges, true), chunks };
+    return { head, deco: CM.Decoration.set(ranges, true), chunks, blocks };
   };
   const field = diff => CM.StateField.define({
     create: s => build(diff, s, diff.d.head ?? null),
@@ -147,11 +148,11 @@ function wipKit(CM) {
   // változásait látja; ez mindkét diffét. Kattintásra a rés egyben nyílik.
   const setGaps = CM.StateEffect.define(), openGap = CM.StateEffect.define();
   class Gap extends CM.WidgetType {
-    constructor(n) { super(); this.n = n; }
-    eq(o) { return o.n === this.n; }
-    toDOM(view) {
+    constructor(n, i, onOpen) { super(); Object.assign(this, { n, i, onOpen }); }
+    eq(o) { return o.n === this.n && o.i === this.i; }
+    toDOM() {
       const el = Object.assign(document.createElement('div'), { className: 'cm-collapsedLines', textContent: `${this.n} változatlan sor` });
-      el.addEventListener('click', () => view.dispatch({ effects: openGap.of(view.posAtDOM(el)) }));
+      el.addEventListener('click', () => this.onOpen(this.i));
       return el;
     }
     ignoreEvent(e) { return e instanceof MouseEvent; }
@@ -169,8 +170,8 @@ function wipKit(CM) {
     },
     provide: f => CM.EditorView.decorations.from(f),
   });
-  /* A rések: a merge és a WIP változott soraitól 3 sornyi margóval, legalább 4 sor. */
-  const gapSet = (state, wipChunks) => {
+  /* A rések sorai ([első, utolsó]): a merge és a WIP változott soraitól 3 sornyi margóval, legalább 4 sor. */
+  const gapLines = (state, wipChunks) => {
     const doc = state.doc, changed = new Uint8Array(doc.lines + 2);
     const mark = (from, to) => {
       for (let n = doc.lineAt(Math.min(from, doc.length)).number, last = doc.lineAt(Math.min(Math.max(from, to - 1), doc.length)).number; n <= last; n++) changed[n] = 1;
@@ -183,11 +184,14 @@ function wipKit(CM) {
       let end = n;
       while (end < doc.lines && !changed[end + 1]) end++;
       const from = n === 1 ? 1 : n + 3, to = end === doc.lines ? end : end - 3;
-      if (to - from + 1 >= 4) ranges.push(CM.Decoration.replace({ widget: new Gap(to - from + 1), block: true }).range(doc.line(from).from, doc.line(to).to));
+      if (to - from + 1 >= 4) ranges.push([from, to]);
       n = end + 1;
     }
-    return CM.Decoration.set(ranges);
+    return ranges;
   };
+  /* A rések dekorációja; a kattintás `onOpen(i)`: a hívó nyitja ki (egymás mellett a két oldalon együtt). */
+  const gapDeco = (doc, lines, onOpen) => CM.Decoration.set(lines.map(([from, to], i) =>
+    CM.Decoration.replace({ widget: new Gap(to - from + 1, i, onOpen), block: true }).range(doc.line(from).from, doc.line(to).to)));
   /* A merge alapja: a szülő, rajta a WIP azon blokkjaival, amelyek a commit blokkjait nem érintik —
      így a merge (alap → lemez) csak a commit változását jelöli; az átfedő blokk a szülőé marad. */
   const base = (parent, head, doc) => {
@@ -204,7 +208,29 @@ function wipKit(CM) {
     }
     return changes.length ? CM.ChangeSet.of(changes, p.length).apply(p).toString() : parent;
   };
-  wipShared = { setHead, field, gaps, setGaps, openGap, gapSet, base };
+  /* Egymás mellett a narancs blokk csak a jobb oldalon foglal helyet: a bal oldalon ugyanakkora üres hely
+     (`cm-wipSpacer`, mint a merge saját térköze), így a két oldal egy vonalban marad. */
+  const setSpacers = CM.StateEffect.define();
+  class Spacer extends CM.WidgetType {
+    constructor(px) { super(); this.px = px; }
+    eq(o) { return o.px === this.px; }
+    toDOM() { return Object.assign(document.createElement('div'), { className: 'cm-wipSpacer', style: `height:${this.px}px` }); }
+    get estimatedHeight() { return this.px; }
+  }
+  const spacers = CM.StateField.define({
+    create: () => CM.Decoration.none,
+    update(deco, tr) {
+      deco = deco.map(tr.changes);
+      for (const e of tr.effects) {
+        if (e.is(setSpacers)) {
+          deco = CM.Decoration.set(e.value.map(s => CM.Decoration.widget({ widget: new Spacer(s.px), block: true, side: -1 }).range(s.pos)), true);
+        }
+      }
+      return deco;
+    },
+    provide: f => CM.EditorView.decorations.from(f),
+  });
+  wipShared = { setHead, field, gaps, setGaps, openGap, gapLines, gapDeco, base, setSpacers, spacers };
   return wipShared;
 }
 
@@ -307,7 +333,7 @@ export class CodeDiff {
     const layer = wip ? [this.wipField] : [];
     // WIP-eltérés nélkül (a lemez a HEAD-beli) a merge rése marad; különben a saját, mindkét diffhez
     const ownGaps = wip && d.head !== doc;
-    const collapse = orig !== doc && !d.big && !(wip && d.head !== doc) ? { collapseUnchanged: { margin: 3, minSize: 4 } } : {};
+    const collapse = orig !== doc && !d.big && !ownGaps ? { collapseUnchanged: { margin: 3, minSize: 4 } } : {};
     if (mode === 'split') {
       // egymás mellett az elvetés a két oldal közti gomb: a változásblokk a régi oldalra áll vissza
       const revert = this.editable && !wip ? { revertControls: /** @type {'a-to-b'} */ ('a-to-b'), renderRevertControl: () => {
@@ -317,12 +343,14 @@ export class CodeDiff {
         }));
         return b;
       } } : {};
-      this.mv = new CM.MergeView({ a: { doc: orig, extensions: this.extensions('a') },
-                                   b: { doc, extensions: [...this.extensions('b'), ...layer] },
+      this.mv = new CM.MergeView({ a: { doc: orig, extensions: [...this.extensions('a'), ...(wip ? [wip.spacers, wip.gaps] : [])] },
+                                   b: { doc, extensions: [...this.extensions('b'), ...layer, ...(wip ? [wip.gaps] : [])] },
                                    parent: this.root, gutter: true, highlightChanges: true, diffConfig: DIFF_CONFIG,
                                    ...collapse, ...revert });
       this.ed = this.mv.b;
       this.ea = this.mv.a;
+      if (wip) this.alignWip();
+      if (ownGaps) this.collapseWip();
     } else {
       const controls = this.editable && !wip ? (type, action) => {
         if (type === 'accept') return document.createElement('span');   // az elfogadás stage-elés lenne: nincs
@@ -337,7 +365,7 @@ export class CodeDiff {
         ...layer, ...(ownGaps ? [wip.gaps] : []),
       ] }) });
       this.ea = null;
-      if (ownGaps) this.ed.dispatch({ effects: wip.setGaps.of(wip.gapSet(this.ed.state, this.ed.state.field(this.wipField).chunks)) });
+      if (ownGaps) this.collapseWip();
     }
     if (wasEditing) this.startEditing(head);
   }
@@ -419,7 +447,50 @@ export class CodeDiff {
   rebase() {
     if (!this.ed || !this.wipField || this.d.head == null) return;
     this.setOriginal(wipKit(this.CM).base(this.d.old ?? '', this.d.head, this.text()));
+    this.alignWip();
   }
+
+  /* Egymás mellett a jobb oldal pozíciójának sora a bal oldalon: a merge blokkjai előtti
+     sorszám-eltéréssel (a blokkokon kívül a két oldal sorai azonosak). */
+  lineToA(pos) {
+    const a = this.ea.state.doc, b = this.ed.state.doc, merge = this.CM.getChunks(this.ed.state)?.chunks || [];
+    const count = (doc, from, to) => (to > from ? doc.lineAt(to - 1).number - doc.lineAt(from).number + 1 : 0);
+    let delta = 0;
+    for (const c of merge) if (c.toB <= pos) delta += count(a, c.fromA, c.toA) - count(b, c.fromB, c.toB);
+    return Math.max(1, Math.min(a.lines, b.lineAt(pos).number + delta));
+  }
+
+  /* Egymás mellett, WIP-réteggel: a bal oldalon a narancs blokkok helye (`spacers`), így a két oldal
+     egy vonalban marad; a merge blokkjában állót a merge maga igazítja (a blokk tetejéhez). */
+  alignWip() {
+    if (!this.ea || !this.wipField) return;
+    // a sor tényleges magassága (a `defaultLineHeight` a betűé, a sorköz nélkül)
+    const line = this.ed.contentDOM.querySelector('.cm-line:not(.cm-wipLine)');
+    const CM = this.CM, h = line?.getBoundingClientRect().height || this.ed.defaultLineHeight;
+    const merge = CM.getChunks(this.ed.state)?.chunks || [];
+    const list = this.ed.state.field(this.wipField).blocks
+      .filter(x => x.lines && !merge.some(c => c.fromB <= x.pos && x.pos <= c.toB))
+      .map(x => ({ pos: this.ea.state.doc.line(this.lineToA(x.pos)).from, px: x.lines * h }));
+    this.ea.dispatch({ effects: wipKit(CM).setSpacers.of(list) });
+  }
+
+  /* A saját változatlan-rés a merge és a WIP változásaihoz; egymás mellett a két oldalon azonos sorokkal,
+     egy kattintás mindkettőt nyitja. */
+  collapseWip() {
+    const kit = wipKit(this.CM), b = this.ed.state;
+    const lines = kit.gapLines(b, b.field(this.wipField).chunks);
+    const linesA = this.ea ? lines.map(([f, t]) => {
+      const from = this.lineToA(b.doc.line(f).from);
+      return [from, from + (t - f)];
+    }) : null;
+    const open = i => {
+      this.ed.dispatch({ effects: kit.openGap.of(this.ed.state.doc.line(lines[i][0]).from) });
+      if (linesA) this.ea.dispatch({ effects: kit.openGap.of(this.ea.state.doc.line(linesA[i][0]).from) });
+    };
+    this.ed.dispatch({ effects: kit.setGaps.of(kit.gapDeco(b.doc, lines, open)) });
+    if (linesA) this.ea.dispatch({ effects: kit.setGaps.of(kit.gapDeco(this.ea.state.doc, linesA, open)) });
+  }
+
 
   /* A WIP-blokk elvetése: a dokumentum `ch` része a HEAD-beli (`head`) változatra áll vissza; a
      szerkesztés elindul, a mentés a szokásos úton megy. */

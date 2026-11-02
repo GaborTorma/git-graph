@@ -558,10 +558,25 @@ class HeadEditTest(TextCase):
         self.assertEqual(gg.diff.file_diff(sha, "app.py", side="disk", text=True),
                          {"text": "x = 5\n", "hash": hashlib.sha256(b"x = 5\n").hexdigest()})
 
-    def test_disk_side_only_on_head(self) -> None:
-        """A lemez oldala csak a worktree HEAD-commitjánál van: régebbi commitnál nincs szöveg."""
+    def test_disk_side_not_after_change(self) -> None:
+        """Régebbi commitnál, ha a fájl azóta változott, nincs lemez oldala, és nem szerkeszthető."""
         _, gg, parent, _, _ = self.text_repo()
         self.assertEqual(gg.diff.file_diff(parent, "app.py", side="disk", text=True), {"text": None})
+        self.assertFalse(gg.diff.file_diff(parent, "app.py", text=True)["editable"])
+
+    def test_older_commit_unchanged_since(self) -> None:
+        """Régebbi commitnál, ha a fájl azóta nem változott (a HEAD-beli ugyanaz), a lemez oldalával
+        szerkeszthető, a mentés a worktree WIP sorába."""
+        # Adott az "ok.txt" a szülő commitban, a HEAD nem módosítja, a lemezen átírva
+        repo, gg, parent, _, wip = self.text_repo()
+        (repo / "ok.txt").write_text("átírva\n", encoding="utf-8")
+        # Ha a lap a szülő commit "ok.txt"-jét kéri
+        info = gg.diff.file_diff(parent, "ok.txt", text=True)
+        # Akkor szerkeszthető, a lemez oldala jön
+        self.assertTrue(info["editable"])
+        self.assertTrue(info["wip"])
+        self.assertEqual(info["write"], wip)
+        self.assertEqual(gg.diff.file_diff(parent, "ok.txt", side="disk", text=True)["text"], "átírva\n")
 
     def test_write_lands_in_wip(self) -> None:
         """A mentés a `write` sorral a munkakönyvtárba ír."""
