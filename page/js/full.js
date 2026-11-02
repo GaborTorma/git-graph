@@ -1,6 +1,8 @@
-/* ── Teljes nézet ── a commit (vagy a WIP sor) az Artifact-keretet kitöltő rétegen: fent a subject
-   és a body, középen egy fájl diffje (`fileContent`: a CodeMirror, a markdown, a kép), jobbra a
-   fájlfa. A diff-szűrő bekapcsolva a sor változott fájljait mutatja (a mappaláncok összevonva),
+/* ── Teljes nézet ── a commit (vagy a WIP sor) az eszközsor és a lábléc közti rétegen: az eszközsorban
+   balra a repó neve és a HEAD-chip marad, a szűrők és a kereső helyén a subject és az X; középen a
+   kijelölt fájl diffje (`fileContent`: a CodeMirror, a markdown, a kép) — kijelölt fájl nélkül a
+   gráf (a lap maga, a fa mellett, használható) —, jobbra a fájlfa; a kijelölt fájlra újra kattintva
+   vissza a gráfhoz. A diff-szűrő bekapcsolva a sor változott fájljait mutatja (a mappaláncok összevonva),
    kikapcsolva a commit állapotának minden fájlját (`file_tree`; 20 000 fájl fölött mappánként,
    lustán); a tiszta worktree HEAD-jén (nincs WIP sor, nincs kijelölt commit) letiltva, minden fájllal. A
    kereső név szerint szűr, `?` előtaggal a tartalomban keres (`git grep`). A fa szélessége
@@ -16,7 +18,6 @@ import { OPEN_PANEL, counter, pendingEl, scroller } from './dom.js';
 import { fileIcon, icon } from './icons.js';
 import { commitBySha, focusWt } from './model.js';
 import { revealFile } from './panel.js';
-import { linkify } from './refs.js';
 import { DATA, expanded } from './state.js';
 import { esc, fold } from './util.js';
 
@@ -27,10 +28,15 @@ const GREP_MS = 250;           // a tartalomkeresés ennyi csend után indul
 /** @type {any} */
 let fv = null;
 
-/* A réteg a lábléc fölött ér véget: a magassága CSS-változóban. */
+/* A réteg az eszközsor alatt kezdődik és a lábléc fölött ér véget: a két határ CSS-változóban; a fa
+   szélessége is (a gráf annyival keskenyebb). */
+const root = document.documentElement;
 const foot = /** @type {HTMLElement} */ (document.getElementById('foot'));
+const chrome = /** @type {HTMLElement} */ (document.querySelector('.chrome'));
 const footPath = /** @type {HTMLElement} */ (document.getElementById('footPath'));
-new ResizeObserver(() => document.documentElement.style.setProperty('--foot-h', `${foot.offsetHeight}px`)).observe(foot);
+new ResizeObserver(() => root.style.setProperty('--foot-h', `${foot.offsetHeight}px`)).observe(foot);
+new ResizeObserver(() => root.style.setProperty('--chrome-h', `${chrome.getBoundingClientRect().bottom}px`)).observe(chrome);
+const setTreeWidth = w => root.style.setProperty('--fv-tree-w', `${Math.round(w)}px`);
 
 /* A lábléc közepe: a nézett fájl útja (a worktree gyökeréhez képest), különben a commitszám. */
 function showPath(path) {
@@ -169,6 +175,18 @@ function renderTree() {
   list.scrollTop = top;
 }
 
+/* A kijelölés megszűnik: középen újra a gráf; a függő mentés lefut. */
+function deselect() {
+  const ed = editingDiff();
+  if (ed && fv.el.contains(ed.root)) ed.stopEditing();
+  if (fv.key) forgetFile(fv.key);
+  fv.path = null;
+  fv.key = null;
+  fv.el.querySelector('.fv-center').hidden = true;
+  showPath(null);
+  renderTree();
+}
+
 /* A fájl tartalma középen; `line`: ide görget (alapból az első változáshoz). */
 function selectFile(path, line = null) {
   if (!fv) return;
@@ -180,6 +198,7 @@ function selectFile(path, line = null) {
   renderTree();
   const head = fv.el.querySelector('.fv-path'), box = fv.el.querySelector('.fv-box'), center = fv.el.querySelector('.fv-center');
   const f = changedFiles(fv.sha).get(path) || { path, icon: fv.tree?.files.find(x => x.path === path)?.icon };
+  center.hidden = false;
   head.innerHTML = `${fileIcon(f)}<span class="path">${esc(path)}</span>`;
   showPath(path);
   head.classList.toggle('deleted', f.status === 'D');
@@ -209,9 +228,7 @@ function toWip() {
   fv.tree = null;
   fv.el.querySelector('.fv-diff').disabled = false;
   if (fv.all) loadTree();
-  const c = commitBySha(row);
-  fv.el.querySelector('.fv-subject').textContent = c.subject;
-  fv.el.querySelector('.fv-body')?.remove();
+  fv.bar.querySelector('.fv-subject').textContent = commitBySha(row).subject;
 }
 
 /* Élő frissítés (a WIP sor új adata): a fa és a nyitott fájl újra (a kódnézet helyben frissül). */
@@ -298,42 +315,46 @@ export function openFull(sha, all = false, clean = false) {
   const c = commitBySha(sha);
   if (!c) return;
   const { path, line } = all ? { path: null, line: null } : handoff(sha);
+  const bar = document.createElement('div');
+  bar.className = 'fv-bar';
+  bar.innerHTML = `<h2 class="fv-subject">${esc(c.subject)}</h2>`
+    + `<button type="button" class="mini fv-close" data-fv-close aria-label="Bezárás (Esc)" data-tip="Bezárás (Esc)">${icon('close')}</button>`;
+  chrome.append(bar);
   const el = document.createElement('div');
   el.className = 'fv';
-  el.setAttribute('role', 'dialog');
+  el.setAttribute('role', 'region');
   el.setAttribute('aria-label', 'Teljes nézet');
-  el.innerHTML = `<div class="fv-head"><div class="fv-title"><h2 class="fv-subject">${esc(c.subject)}</h2>`
-    + `${c.body ? `<p class="fv-body">${linkify(c.body)}</p>` : ''}</div>`
-    + `<button type="button" class="mini fv-close" data-fv-close aria-label="Bezárás (Esc)" data-tip="Bezárás (Esc)">${icon('close')}</button></div>`
-    + '<div class="fv-main"><div class="fv-center"><div class="fv-path"></div><div class="diff fv-box"></div></div>'
+  setTreeWidth(savedWidth());
+  el.innerHTML = '<div class="fv-center" hidden><div class="fv-path"></div><div class="diff fv-box"></div></div>'
     + '<div class="fv-resize" role="separator" aria-orientation="vertical" aria-label="A fa szélessége"></div>'
-    + `<div class="fv-tree" style="width:${savedWidth()}px"><div class="fv-tools">`
+    + '<div class="fv-tree"><div class="fv-tools">'
     + `<label class="search fv-search">${icon('search')}<input type="search" placeholder="Szűrés név szerint · ?tartalom"`
     + ' aria-label="Fájlok szűrése" spellcheck="false"></label>'
     + `<button type="button" class="mini fv-diff" aria-pressed="${!all}"${clean ? ' disabled' : ''}`
     + ` aria-label="Csak a változott fájlok" data-tip="Csak a változott fájlok">${icon('changes')}</button>`
-    + '</div><div class="fv-list"></div></div></div>';
+    + '</div><div class="fv-list"></div></div>';
   document.body.append(el);
-  fv = { sha, el, path: null, key: null, all, tree: null, loaded: new Set(), query: '', grep: null,
+  document.body.classList.add('fv-on');
+  fv = { sha, el, bar, path: null, key: null, all, tree: null, loaded: new Set(), query: '', grep: null,
          opened: new Set(), closed: new Set() };
   el.addEventListener('click', onClick);
+  bar.addEventListener('click', onClick);
   el.querySelector('.fv-search input').addEventListener('input', e => onQuery(/** @type {HTMLInputElement} */ (e.target).value));
   el.querySelector('.fv-resize').addEventListener('pointerdown', onResize);
   addEventListener('keydown', onKey, true);
-  if (all) {
-    el.querySelector('.fv-box').innerHTML = '<p class="diff-note">Válassz egy fájlt a fából.</p>';
-    loadTree();
-  }
+  if (all) loadTree();
   if (path) selectFile(path, line); else renderTree();
 }
 
 function closeFull() {
   if (!fv) return;
-  const { sha, path, el } = fv;
+  const { sha, path, el, bar } = fv;
   const ed = editingDiff();
   if (ed && el.contains(ed.root)) ed.stopEditing();
   if (fv.key) forgetFile(fv.key);
   el.remove();
+  bar.remove();
+  document.body.classList.remove('fv-on');
   fv = null;
   showPath(null);
   removeEventListener('keydown', onKey, true);
@@ -367,7 +388,7 @@ function onClick(e) {
     return;
   }
   const file = /** @type {HTMLElement} */ (t.closest('.fv-file'));
-  if (file && file.dataset.path !== fv.path) selectFile(file.dataset.path);
+  if (file) { if (file.dataset.path === fv.path) deselect(); else selectFile(file.dataset.path); }
 }
 
 /* A markdown / SVG nézetváltója a teljes nézet fájlját is újrarajzolja. */
@@ -388,7 +409,8 @@ function onKey(e) {
     } else closeFull();
     return;
   }
-  if (!t.closest?.('.cm-editor, input, textarea')) e.stopImmediatePropagation();   // a lap navigációja áll
+  // a fájl nézete alatt a lap navigációja áll; kijelölt fájl nélkül a gráfé
+  if (fv.path && !t.closest?.('.cm-editor, input, textarea')) e.stopImmediatePropagation();
 }
 
 function onResize(e) {
@@ -399,7 +421,7 @@ function onResize(e) {
   handle.classList.add('on');
   const move = ev => {
     const w = Math.max(WIDTH_MIN, Math.min(innerWidth * 0.7, w0 + x0 - ev.clientX));
-    tree.style.width = `${Math.round(w)}px`;
+    setTreeWidth(w);
   };
   const up = () => {
     handle.removeEventListener('pointermove', move);

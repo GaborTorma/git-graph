@@ -1259,21 +1259,26 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
 }
 
 /* ── Teljes nézet ── az Artifact-keretet kitöltő réteg: fent a commit, középen a diff, jobbra a fa. */
-.fv { position: fixed; inset: 0 0 var(--foot-h, 0); z-index: 50; display: flex; flex-direction: column; background: var(--bg); color: var(--fg-0); }
-.fv-head { flex: none; display: flex; align-items: flex-start; gap: 12px; padding: 12px 12px 10px 16px; border-bottom: 1px solid var(--border); }
-.fv-title { flex: 1; min-width: 0; }
-.fv-subject { margin: 0; font-size: 15px; font-weight: var(--w-header); line-height: 1.4; }
-.fv-body { margin: 4px 0 0; max-height: 7.5em; overflow: auto; font-size: 13px; line-height: 1.5; color: var(--fg-1); white-space: pre-wrap; }
-.fv-main { flex: 1; min-height: 0; display: flex; }
-.fv-center { flex: 1; min-width: 0; overflow: auto; padding: 0 12px 16px; }
+/* Az eszközsor és a lábléc közti réteg: kijelölt fájl nélkül átlátszó, alatta a gráf (a fa szélességével
+   keskenyebb); a szűrők és a kereső helyén az eszközsorban a subject és az X. */
+.fv { position: fixed; top: var(--chrome-h, 0); bottom: var(--foot-h, 0); left: 0; right: 0; z-index: 25; display: flex;
+      pointer-events: none; }
+.fv > * { pointer-events: auto; }
+body.fv-on .pending, body.fv-on .scroll { margin-right: var(--fv-tree-w, 280px); }
+body.fv-on .chrome :is(.filters, .tools) { display: none; }
+.fv-bar { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 12px; }
+.fv-subject { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+              font-size: 15px; font-weight: var(--w-header); color: var(--fg-0); }
+.fv-center { flex: 1; min-width: 0; overflow: auto; padding: 0 12px 16px; background: var(--bg); }
+.fv-center[hidden] { display: none; }
 .fv-path { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 8px; height: 36px; background: var(--bg);
   font-family: var(--font-mono); font-size: 13px; font-weight: var(--w-medium); }
 .fv-path .fic { width: 16px; height: 16px; flex: none; }
 .fv-path.deleted .path { color: var(--del); text-decoration: line-through; }
 .fv-box { margin: 0; }
-.fv-resize { flex: none; width: 5px; margin: 0 -2px; z-index: 4; cursor: col-resize; border-left: 2px solid transparent; }
+.fv-resize { flex: none; width: 5px; margin: 0 -2px 0 auto; z-index: 4; cursor: col-resize; border-left: 2px solid transparent; }
 .fv-resize:hover, .fv-resize.on { border-left-color: var(--accent); }
-.fv-tree { flex: none; min-width: 200px; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg-1); }
+.fv-tree { flex: none; width: var(--fv-tree-w, 280px); min-width: 200px; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg-1); }
 .fv-tools { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px; }
 .fv-search { flex: 1 1 auto; height: 28px; padding: 0 8px; }
 .fv-search .ic { width: 14px; height: 14px; flex: none; }

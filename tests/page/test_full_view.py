@@ -75,8 +75,9 @@ class FullViewTest(PageTestCase):
         return [t.strip() for t in self.page.locator(".fv-list .fv-row .name").all_inner_texts()]
 
     def test_open_from_open_file(self) -> None:
-        """A lenyitott diff.js 120. soránál nyitva a teljes nézet a keretet tölti ki: fent a subject és a
-        body, középen a diff.js a 120. sornál, jobbra a fa, benne a diff.js kijelölve."""
+        """A lenyitott diff.js 120. soránál nyitva: az eszközsorban balra a repó neve és a HEAD-chip marad, az
+        ágválasztó és a többi helyén csak a subject és az X; alatta középen a diff.js a 120. sornál, jobbra a
+        fa, benne a diff.js kijelölve; a lábléc fölött ér véget."""
         self.open_commit()
         self.page.locator('.details .file[data-path="page/js/diff.js"]').click()
         sel = '.details .file[data-path="page/js/diff.js"] + .diff'
@@ -89,9 +90,15 @@ class FullViewTest(PageTestCase):
         self.settle()
         self.open_full()
         box, foot = self.page.locator(".fv").bounding_box(), self.page.locator("#foot").bounding_box()
-        self.assertEqual((box["x"], box["y"], box["width"], box["height"]), (0, 0, self.WIDTH, foot["y"]))
-        self.assertEqual(self.page.locator(".fv-subject").inner_text(), SUBJECT)
-        self.assertIn("Második bekezdés.", self.page.locator(".fv-body").inner_text())
+        chrome = self.page.locator(".chrome").bounding_box()
+        self.assertEqual((box["x"], box["y"], box["width"], box["y"] + box["height"]),
+                         (0, chrome["y"] + chrome["height"], self.WIDTH, foot["y"]))
+        self.assertTrue(self.page.locator("#repoName").is_visible())
+        self.assertFalse(self.page.locator("#branchBtn").is_visible())
+        self.assertFalse(self.page.locator("#search").is_visible())
+        self.assertEqual(self.page.locator(".chrome .fv-subject").inner_text(), SUBJECT)
+        self.assertTrue(self.page.locator(".chrome [data-fv-close]").is_visible())
+        self.assertEqual(self.page.locator(".chrome .fv-bar").inner_text().strip(), SUBJECT)
         self.assertIn("page/js/diff.js", self.page.locator(".fv-path").inner_text())
         self.assertLessEqual(abs(self.fv_top_line() - 120), 1)
         self.assertEqual(self.page.locator(".fv-row.sel .name").inner_text(), "diff.js")
@@ -105,27 +112,46 @@ class FullViewTest(PageTestCase):
         # Ha a Fejlesztő a teljes nézet gombjára kattint
         self.page.locator("#fullBtn").click()
         self.page.wait_for_selector('.fv-row[data-dir="hooks"]')
-        # Akkor a fában minden fájl, a diff-szűrő letiltva (nincs WIP, nincs kijelölt commit), középen a választás kérése
+        # Akkor a fában minden fájl, a diff-szűrő letiltva (nincs WIP, nincs kijelölt commit), középen a gráf
         self.assertTrue(self.page.locator(".fv-diff").is_disabled())
         self.assertEqual(self.page.locator(".fv-diff").get_attribute("aria-pressed"), "false")
         self.assertIn("README.md", self.tree())
         self.assertEqual(self.page.locator(".fv-subject").inner_text(), SUBJECT)
-        self.assertIn("Válassz egy fájlt", self.page.locator(".fv-box").inner_text())
+        self.assertFalse(self.page.locator(".fv-center").is_visible())
+        row = self.page.locator("#rows .row", has_text=SUBJECT)
+        self.assertTrue(row.is_visible())
+        tree = self.page.locator(".fv-tree").bounding_box()
+        self.assertLessEqual(self.page.locator(".scroll").bounding_box()["x"] + self.page.locator(".scroll").bounding_box()["width"],
+                             tree["x"] + 1)
+        # És a gráf sorára kattintva a commit lenyílik (a lap navigációja él)
+        row.click()
+        self.page.wait_for_selector("#rows .details")
+
+    def test_deselect_back_to_graph(self) -> None:
+        """A kijelölt fájlra újra kattintva a kijelölés megszűnik, középen újra a gráf látszik."""
+        self.open_commit()
+        self.open_full()
+        sel = self.page.locator(".fv-file.sel")
+        sel.click()
+        self.settle()
+        self.assertFalse(self.page.locator(".fv-center").is_visible())
+        self.assertEqual(self.page.locator(".fv-file.sel").count(), 0)
+        self.assertTrue(self.page.locator("#counter").is_visible())
 
     def test_footer(self) -> None:
         """A lábléc 28 px magas, a teljes nézetben is látszik, és a commitszám helyén a nézett fájl útja áll."""
         with self.subTest("Adott a lábléc a commitszámmal"):
             self.assertEqual(self.page.locator("#foot").bounding_box()["height"], 28)
             self.assertTrue(self.page.locator("#counter").is_visible())
-        with self.subTest("Ha a teljes nézetben a git_graph/diff.py látszik"):
+        with self.subTest("Ha a teljes nézetben a page/js/diff.js látszik"):
             self.open_commit()
             self.open_full()
-            self.page.locator('.fv-file[data-path="git_graph/diff.py"]').click()
+            self.page.locator('.fv-file[data-path="page/js/diff.js"]').click()
             self.settle()
         with self.subTest("Akkor a lábléc látszik, a commitszám helyén az út"):
             self.assertTrue(self.page.locator("#foot").is_visible())
             self.assertFalse(self.page.locator("#counter").is_visible())
-            self.assertEqual(self.page.locator("#footPath").inner_text(), "git_graph/diff.py")
+            self.assertEqual(self.page.locator("#footPath").inner_text(), "page/js/diff.js")
             foot = self.page.locator("#foot").bounding_box()
             self.assertEqual(foot["y"] + foot["height"], self.HEIGHT)
         with self.subTest("És bezárva újra a commitszám"):
