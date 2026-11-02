@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import base64
+import json
+import time
 import unittest
 from pathlib import Path
 
@@ -371,6 +373,9 @@ class AllFilesTest(PageTestCase):
         self.assertEqual(gone.evaluate("e => getComputedStyle(e).color"), red)
 
 
+LONG = "page/vendor/egy/nagyon/hosszu/mappa/lanc/ami/nem/fer/ki/a/panelben/sehogy/fajl_hosszu_nevvel.py"
+
+
 class FileHeadTest(PageTestCase):
     """A fájlfejléc: a GitHub-ikon a fájlnév után, a teljes képernyőé a jobb szélen; a nézetváltó a diff saját
     felső sávjában. A pusholt állapotot egy kézzel írt `origin/main` adja (hálózat nélkül)."""
@@ -378,9 +383,12 @@ class FileHeadTest(PageTestCase):
 
     @classmethod
     def prepare(cls, repo: Path) -> None:
-        write(repo, {"doc.md": "# Cím\n\nElső.\n", "app.py": "a = 1\n"})
+        write(repo, {"doc.md": "# Cím\n\nElső.\n", "app.py": "a = 1\n", LONG: "x = 1\n"})
         git_in(repo, "add", ".")
         git_in(repo, "commit", "-qm", "fej: alap")
+        # a szerző képe friss „nincs” a gyorstárban: a pusholt commit ne indítson GitHub-hívást
+        (repo.parent / ".git-graph" / "avatars.json").write_text(
+            json.dumps({"teszt@x.hu": {"img": None, "at": time.time()}}), encoding="utf-8")
         git_in(repo, "remote", "add", "origin", "https://github.com/o/r.git")
         git_in(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
         write(repo, {"doc.md": "# Cím\n\nMásodik.\n", "app.py": "a = 2\n"})
@@ -398,6 +406,15 @@ class FileHeadTest(PageTestCase):
         full, box = file.locator("[data-full]").bounding_box(), file.bounding_box()
         self.assertLessEqual(abs(gh["x"] - (name["x"] + name["width"])), 6)
         self.assertLessEqual(box["x"] + box["width"] - (full["x"] + full["width"]), 6)
+
+    def test_long_path_cut(self) -> None:
+        """A hosszú út vágódik, a GitHub-ikon a soron belül, a +N −N előtt marad."""
+        self.resize(700)
+        file = self.row("fej: alap", LONG)
+        path = file.locator(".path")
+        self.assertGreater(path.evaluate("e => e.scrollWidth - e.clientWidth"), 0)
+        gh, churn = file.locator("a[href]").bounding_box(), file.locator(".churn").bounding_box()
+        self.assertLessEqual(gh["x"] + gh["width"], churn["x"] + 1)
 
     def test_unpushed_same_place(self) -> None:
         """Nem pusholt commitnál nincs GitHub-ikon, a teljes képernyőé ugyanúgy a jobb szélen."""

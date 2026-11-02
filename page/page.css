@@ -858,6 +858,7 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .file:hover { background: var(--bg-2); }
 /* a fájlnév és utána, helyet nem foglalva, halványan a GitHub-link (csak pusholt commitnál) */
 .file .name { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.file .name > .path { min-width: 0; }   /* zsugorodhat: a hosszú út vágódik, a link a helyén marad */
 .file .name .mini { width: 20px; height: 20px; color: var(--fg-3); }
 .file .name .mini .ic { width: 14px; height: 14px; }
 .file .name .mini:hover { color: var(--fg-0); }

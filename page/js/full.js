@@ -77,7 +77,7 @@ const treeHtml = (all, clean) => '<div class="fv-tree"><div class="fv-tools">'
   + ` aria-label="Csak a változott fájlok" data-tip="Csak a változott fájlok">${icon('changes')}</button>`
   + '</div><div class="fv-list"></div></div>';
 
-const newTree = (el, sha, all, clean = false) => ({ el, sha, all, clean, path: null, tree: null, loaded: new Set(), query: '', grep: null,
+const newTree = (el, sha, all, clean = false) => ({ el, sha, all, clean, path: null, grepTimer: 0, tree: null, loaded: new Set(), query: '', grep: null,
   opened: new Set(), closed: new Set() });
 
 /* A fa bejegyzései: a változott fájlok, a kapcsolóval a commit minden fájlja (a törölt is, a
@@ -211,13 +211,12 @@ function loadDir(t, dir) {
   });
 }
 
-let grepTimer = 0;
 function onQuery(t, value) {
   t.query = value.trim();
-  clearTimeout(grepTimer);
+  clearTimeout(t.grepTimer);
   if (!t.query.startsWith('?') || t.query.length < 2) { t.grep = null; renderTree(t); return; }
   const sha = t.sha, q = t.query.slice(1);
-  grepTimer = setTimeout(() => source()?.tree(sha, { grep: q }).then(r => {
+  t.grepTimer = setTimeout(() => source()?.tree(sha, { grep: q }).then(r => {
     if (!current(t) || t.sha !== sha || t.query.slice(1) !== q) return;
     if (r.fileIcons) Object.assign(DATA.fileIcons, r.fileIcons);
     t.grep = r.files || [];
@@ -284,9 +283,10 @@ function retarget() {
   if (!side) return;
   const want = sideTarget();
   // a lenyitott HEAD-commit és a tiszta worktree HEAD-je ugyanaz a sha, más tárgy
-  if (!want || (want.sha === side.sha && want.commit === side.commit)) { renderTree(side); return; }
+  if (want && want.sha === side.sha && want.commit === side.commit) { renderTree(side); return; }
   const { el, query } = side;
-  side = { ...newTree(el, want.sha, want.all, want.clean), commit: want.commit };
+  side = want ? { ...newTree(el, want.sha, want.all, want.clean), commit: want.commit } : { ...newTree(el, null, false), commit: false };
+  if (!want) { renderTree(side); return; }   // nincs tárgy (nincs saját worktree): üres fa, nem a régi
   side.query = query;
   const btn = el.querySelector('.fv-diff');
   btn.setAttribute('aria-pressed', String(!want.all));
@@ -321,13 +321,16 @@ function closeSide() {
   try { localStorage.setItem(SIDE_KEY, '0'); } catch { /* privát ablak */ }
 }
 
+/* A lenyitott commit-panel fájlsora az út szerint (az átnevezettnél az új út). */
+const panelFile = path => /** @type {HTMLElement} */ ([...document.querySelectorAll(`${OPEN_PANEL} .file`)]
+  .find(x => newPath(/** @type {HTMLElement} */ (x).dataset.path) === path));
+
 /* A sidebar fájlja: a lenyitott commit változott fájlja a panelben nyílik le (odagörgetve), a többi
    teljes képernyőn. */
 function sideFile(path) {
   side.path = path;
   renderTree(side);
-  const el = side.commit && expanded === side.sha && /** @type {HTMLElement} */ ([...document.querySelectorAll(`${OPEN_PANEL} .file`)]
-    .find(x => newPath(/** @type {HTMLElement} */ (x).dataset.path) === path));
+  const el = side.commit && expanded === side.sha && panelFile(path);
   if (!el) { openFull(side.sha, path, { all: true, clean: side.clean }); return; }
   if (el.getAttribute('aria-expanded') === 'true') revealFile(el);
   else toggleFile(el, expanded, true);
@@ -447,9 +450,8 @@ function closeFull() {
   fv = null;
   showPath(null);
   removeEventListener('keydown', onKey, true);
-  const f = /** @type {HTMLElement} */ ([...document.querySelectorAll(`${OPEN_PANEL} .file`)]
-    .find(x => newPath(/** @type {HTMLElement} */ (x).dataset.path) === path));
-  if (!f || expanded !== sha) return;
+  const f = expanded === sha && panelFile(path);
+  if (!f) return;
   if (f.getAttribute('aria-expanded') === 'true') revealFile(f);
   else toggleFile(f, sha, true);
 }
