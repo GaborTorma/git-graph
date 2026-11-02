@@ -1,17 +1,18 @@
 /* ── Teljes nézet ── a commit (vagy a WIP sor) az Artifact-keretet kitöltő rétegen: fent a subject
    és a body, középen egy fájl diffje (`fileContent`: a CodeMirror, a markdown, a kép), jobbra a
-   fájlfa. A fa alapból a sor változott fájljait mutatja (a mappaláncok összevonva), a kapcsolóval
-   a commit állapotának minden fájlját (`file_tree`; 20 000 fájl fölött mappánként, lustán). A
+   fájlfa. A diff-szűrő bekapcsolva a sor változott fájljait mutatja (a mappaláncok összevonva),
+   kikapcsolva a commit állapotának minden fájlját (`file_tree`; 20 000 fájl fölött mappánként,
+   lustán); a tiszta worktree HEAD-jén (nincs WIP sor, nincs kijelölt commit) letiltva, minden fájllal. A
    kereső név szerint szűr, `?` előtaggal a tartalomban keres (`git grep`). A fa szélessége
    húzható (legalább 200 px), a lap megjegyzi. A nézet a commit gombjával nyílik, ott, ahol a
    Fejlesztő állt (a lenyitott fájl látszó sora) — a gomb ezért az eszközsorban, a görgetőn kívül
    van; nyitott commit nélkül a saját worktree mostani állapota nyílik (a WIP sor, tisztán a HEAD),
-   minden fájllal. A HEAD-commit tiszta fájlja is szerkeszthető: az első mentéstől a fájl a WIP
+   minden fájllal. A lábléc alatta is látszik, a commitszám helyén a nézett fájl útja. A HEAD-commit tiszta fájlja is szerkeszthető: az első mentéstől a fájl a WIP
    soré, a nézet átvált rá; Esc-re bezárul, és a panelben a kijelölt fájl
    lenyitva, odagörgetve marad. A nézet billentyűit a réteg elkapja (a lap navigációja áll). */
 import { editingDiff } from './cm.js';
 import { codeViews, fileContent, forgetFile, onModeChange, mdRaw, setMdRaw, setSvgCode, source, svgCode, toggleFile } from './diff.js';
-import { OPEN_PANEL, pendingEl, scroller } from './dom.js';
+import { OPEN_PANEL, counter, pendingEl, scroller } from './dom.js';
 import { fileIcon, icon } from './icons.js';
 import { commitBySha, focusWt } from './model.js';
 import { revealFile } from './panel.js';
@@ -26,6 +27,18 @@ const GREP_MS = 250;           // a tartalomkeresés ennyi csend után indul
 /** @type {any} */
 let fv = null;
 
+/* A réteg a lábléc fölött ér véget: a magassága CSS-változóban. */
+const foot = /** @type {HTMLElement} */ (document.getElementById('foot'));
+const footPath = /** @type {HTMLElement} */ (document.getElementById('footPath'));
+new ResizeObserver(() => document.documentElement.style.setProperty('--foot-h', `${foot.offsetHeight}px`)).observe(foot);
+
+/* A lábléc közepe: a nézett fájl útja (a worktree gyökeréhez képest), különben a commitszám. */
+function showPath(path) {
+  footPath.innerHTML = path ? `<bdi>${esc(path)}</bdi>` : '';   // az rtl-vágás ne fordítsa meg az utat
+  footPath.hidden = !path;
+  counter.hidden = Boolean(path);
+}
+
 /* Az eszközsor gombja: amíg egy commit (vagy WIP sor) nyitva van. */
 const fullBtn = /** @type {HTMLButtonElement} */ (document.getElementById('fullBtn'));
 fullBtn.innerHTML = icon('expand');
@@ -37,7 +50,7 @@ function openOwn() {
   const wt = focusWt();
   if (!wt) return;
   const wip = DATA.commits.find(c => c.uncommitted && !c.staged && c.worktree === wt.slug);
-  openFull(wip ? wip.sha : wt.head, true);
+  openFull(wip ? wip.sha : wt.head, true, !wip);
 }
 
 /* A `--numstat` átnevezése (`a => b`, `dir/{a => b}/x`): az új út. */
@@ -168,6 +181,7 @@ function selectFile(path, line = null) {
   const head = fv.el.querySelector('.fv-path'), box = fv.el.querySelector('.fv-box'), center = fv.el.querySelector('.fv-center');
   const f = changedFiles(fv.sha).get(path) || { path, icon: fv.tree?.files.find(x => x.path === path)?.icon };
   head.innerHTML = `${fileIcon(f)}<span class="path">${esc(path)}</span>`;
+  showPath(path);
   head.classList.toggle('deleted', f.status === 'D');
   let scrolled = false;
   const key = fv.key;
@@ -193,6 +207,7 @@ function toWip() {
   fv.sha = row;
   fv.key = key;
   fv.tree = null;
+  fv.el.querySelector('.fv-diff').disabled = false;
   if (fv.all) loadTree();
   const c = commitBySha(row);
   fv.el.querySelector('.fv-subject').textContent = c.subject;
@@ -221,7 +236,11 @@ function loadTree() {
     if (t.fileIcons) Object.assign(DATA.fileIcons, t.fileIcons);
     fv.loaded = new Set();
     renderTree();
-  }, () => {});
+  }, e => {
+    if (fv?.sha !== sha) return;
+    fv.el.querySelector('.fv-list').insertAdjacentHTML('afterbegin',
+      `<p class="fv-empty fv-error">A fájllista nem tölthető be: ${esc(e?.message || e?.code || e)}</p>`);
+  });
 }
 
 /* Lusta mappa (20 000 fájl fölött): a tartalma kinyitáskor. */
@@ -272,8 +291,9 @@ function handoff(sha) {
   return { path: first ? newPath(first.path) : null, line: null };
 }
 
-/** @param {string} sha @param {boolean} [all] minden fájllal, kijelölt fájl nélkül */
-export function openFull(sha, all = false) {
+/** @param {string} sha @param {boolean} [all] minden fájllal, kijelölt fájl nélkül
+    @param {boolean} [clean] a tiszta worktree HEAD-je: a diff-szűrő letiltva */
+export function openFull(sha, all = false, clean = false) {
   if (!sha || fv) return;
   const c = commitBySha(sha);
   if (!c) return;
@@ -290,7 +310,8 @@ export function openFull(sha, all = false) {
     + `<div class="fv-tree" style="width:${savedWidth()}px"><div class="fv-tools">`
     + `<label class="search fv-search">${icon('search')}<input type="search" placeholder="Szűrés név szerint · ?tartalom"`
     + ' aria-label="Fájlok szűrése" spellcheck="false"></label>'
-    + `<button type="button" class="mini fv-all" aria-pressed="false" aria-label="Minden fájl" data-tip="Minden fájl">${icon('list')}</button>`
+    + `<button type="button" class="mini fv-diff" aria-pressed="${!all}"${clean ? ' disabled' : ''}`
+    + ` aria-label="Csak a változott fájlok" data-tip="Csak a változott fájlok">${icon('changes')}</button>`
     + '</div><div class="fv-list"></div></div></div>';
   document.body.append(el);
   fv = { sha, el, path: null, key: null, all, tree: null, loaded: new Set(), query: '', grep: null,
@@ -299,7 +320,6 @@ export function openFull(sha, all = false) {
   el.querySelector('.fv-search input').addEventListener('input', e => onQuery(/** @type {HTMLInputElement} */ (e.target).value));
   el.querySelector('.fv-resize').addEventListener('pointerdown', onResize);
   addEventListener('keydown', onKey, true);
-  el.querySelector('.fv-all').setAttribute('aria-pressed', String(all));
   if (all) {
     el.querySelector('.fv-box').innerHTML = '<p class="diff-note">Válassz egy fájlt a fából.</p>';
     loadTree();
@@ -315,6 +335,7 @@ function closeFull() {
   if (fv.key) forgetFile(fv.key);
   el.remove();
   fv = null;
+  showPath(null);
   removeEventListener('keydown', onKey, true);
   const f = /** @type {HTMLElement} */ ([...document.querySelectorAll(`${OPEN_PANEL} .file`)]
     .find(x => newPath(/** @type {HTMLElement} */ (x).dataset.path) === path));
@@ -326,10 +347,10 @@ function closeFull() {
 function onClick(e) {
   const t = /** @type {HTMLElement} */ (e.target);
   if (t.closest('[data-fv-close]')) { closeFull(); return; }
-  const all = t.closest('.fv-all');
-  if (all) {
+  const diff = t.closest('.fv-diff');
+  if (diff) {
     fv.all = !fv.all;
-    all.setAttribute('aria-pressed', String(fv.all));
+    diff.setAttribute('aria-pressed', String(!fv.all));
     if (fv.all && !fv.tree) loadTree(); else renderTree();
     return;
   }

@@ -130,7 +130,7 @@ class EditTest(PageTestCase):
         """A WIP sor összes fájl nézetében a nem módosult bin/git-graph dupla kattintásra szerkeszthető."""
         self.wip()
         self.full_view()
-        self.page.locator(".fv-all").click()
+        self.page.locator(".fv-diff").click()
         self.page.wait_for_selector('.fv-row[data-dir="bin"]')
         self.page.locator('.fv-row[data-dir="bin"]').click()
         self.page.locator('.fv-file[data-path="bin/git-graph"]').click()

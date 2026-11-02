@@ -88,8 +88,8 @@ class FullViewTest(PageTestCase):
           sc.scrollTop += view.documentTop + block.top - sc.getBoundingClientRect().top; }}""")
         self.settle()
         self.open_full()
-        box = self.page.locator(".fv").bounding_box()
-        self.assertEqual((box["x"], box["y"], box["width"], box["height"]), (0, 0, self.WIDTH, self.HEIGHT))
+        box, foot = self.page.locator(".fv").bounding_box(), self.page.locator("#foot").bounding_box()
+        self.assertEqual((box["x"], box["y"], box["width"], box["height"]), (0, 0, self.WIDTH, foot["y"]))
         self.assertEqual(self.page.locator(".fv-subject").inner_text(), SUBJECT)
         self.assertIn("Második bekezdés.", self.page.locator(".fv-body").inner_text())
         self.assertIn("page/js/diff.js", self.page.locator(".fv-path").inner_text())
@@ -105,11 +105,63 @@ class FullViewTest(PageTestCase):
         # Ha a Fejlesztő a teljes nézet gombjára kattint
         self.page.locator("#fullBtn").click()
         self.page.wait_for_selector('.fv-row[data-dir="hooks"]')
-        # Akkor a fában minden fájl, a kapcsoló bekapcsolva, középen a választás kérése
-        self.assertEqual(self.page.locator(".fv-all").get_attribute("aria-pressed"), "true")
+        # Akkor a fában minden fájl, a diff-szűrő letiltva (nincs WIP, nincs kijelölt commit), középen a választás kérése
+        self.assertTrue(self.page.locator(".fv-diff").is_disabled())
+        self.assertEqual(self.page.locator(".fv-diff").get_attribute("aria-pressed"), "false")
         self.assertIn("README.md", self.tree())
         self.assertEqual(self.page.locator(".fv-subject").inner_text(), SUBJECT)
         self.assertIn("Válassz egy fájlt", self.page.locator(".fv-box").inner_text())
+
+    def test_footer(self) -> None:
+        """A lábléc 28 px magas, a teljes nézetben is látszik, és a commitszám helyén a nézett fájl útja áll."""
+        with self.subTest("Adott a lábléc a commitszámmal"):
+            self.assertEqual(self.page.locator("#foot").bounding_box()["height"], 28)
+            self.assertTrue(self.page.locator("#counter").is_visible())
+        with self.subTest("Ha a teljes nézetben a git_graph/diff.py látszik"):
+            self.open_commit()
+            self.open_full()
+            self.page.locator('.fv-file[data-path="git_graph/diff.py"]').click()
+            self.settle()
+        with self.subTest("Akkor a lábléc látszik, a commitszám helyén az út"):
+            self.assertTrue(self.page.locator("#foot").is_visible())
+            self.assertFalse(self.page.locator("#counter").is_visible())
+            self.assertEqual(self.page.locator("#footPath").inner_text(), "git_graph/diff.py")
+            foot = self.page.locator("#foot").bounding_box()
+            self.assertEqual(foot["y"] + foot["height"], self.HEIGHT)
+        with self.subTest("És bezárva újra a commitszám"):
+            self.page.keyboard.press("Escape")
+            self.settle()
+            self.assertTrue(self.page.locator("#counter").is_visible())
+            self.assertFalse(self.page.locator("#footPath").is_visible())
+
+    def test_diff_filter(self) -> None:
+        """A diff-szűrő a commitból nyitva bekapcsolva: csak a változott fájlok; kikapcsolva minden fájl."""
+        self.open_commit()
+        self.open_full()
+        diff = self.page.locator(".fv-diff")
+        self.assertEqual(diff.get_attribute("aria-pressed"), "true")
+        self.assertNotIn("README.md", self.tree())
+        diff.click()
+        self.page.wait_for_selector('.fv-row[data-dir="hooks"]')
+        self.assertEqual(diff.get_attribute("aria-pressed"), "false")
+        self.assertIn("README.md", self.tree())
+
+    def test_tree_error(self) -> None:
+        """Ha a fájllista nem jön (az app nem kínálja a file_tree-t), a hiba pirosan a fában áll."""
+        # Adott: a file_tree hívás elbukik
+        self.page.evaluate("""() => { const mcp = GIT_GRAPH.mcp, call = mcp.callTool.bind(mcp);
+          mcp.callTool = (s, tool, ...rest) => tool === 'file_tree'
+            ? Promise.reject({ code: 'not_in_manifest', message: 'nincs file_tree' }) : call(s, tool, ...rest); }""")
+        # Ha a Fejlesztő minden fájlt kér
+        self.open_commit()
+        self.open_full()
+        self.page.locator(".fv-diff").click()
+        # Akkor a hiba a fában, piros színnel
+        err = self.page.locator(".fv-list .fv-error")
+        self.assertIn("A fájllista nem tölthető be: nincs file_tree", err.inner_text())
+        red = self.page.evaluate("""() => { const p = Object.assign(document.createElement('span'), { style: 'color: var(--critical)' });
+          document.body.append(p); const c = getComputedStyle(p).color; p.remove(); return c; }""")
+        self.assertEqual(err.evaluate("e => getComputedStyle(e).color"), red)
 
     def test_open_without_open_file(self) -> None:
         """Lenyitott fájl nélkül az első módosult fájl (a git_graph/diff.py) diffje, az első változásnál."""
@@ -152,7 +204,7 @@ class FullViewTest(PageTestCase):
         """A kapcsolóval a commit állapotának minden fájlja; a nem módosult fájl tartalma színezve, diffjel nélkül."""
         self.open_commit()
         self.open_full()
-        self.page.locator(".fv-all").click()
+        self.page.locator(".fv-diff").click()
         self.page.wait_for_selector('.fv-row[data-dir="hooks"]')
         self.assertIn("README.md", self.tree())
         self.page.locator('.fv-row[data-dir="tools"]').click()
@@ -171,7 +223,7 @@ class FullViewTest(PageTestCase):
         jelölt, az egér alatti sor a hover-színt kapja."""
         self.open_commit()
         self.open_full()
-        self.page.locator(".fv-all").click()
+        self.page.locator(".fv-diff").click()
         self.page.wait_for_selector('.fv-row[data-dir="docs"]')
         self.page.locator('.fv-row[data-dir="docs"]').click()
         self.page.locator('.fv-row[data-dir="docs/img"]').click()
@@ -219,7 +271,7 @@ class FullViewTest(PageTestCase):
         """A „register” szűrés: csak a hooks/register.ts és a hooks/register.test.ts, a mappájukkal."""
         self.open_commit()
         self.open_full()
-        self.page.locator(".fv-all").click()
+        self.page.locator(".fv-diff").click()
         self.page.wait_for_selector('.fv-row[data-dir="hooks"]')
         self.page.locator(".fv-search input").fill("register")
         self.settle()
@@ -254,7 +306,7 @@ class AllFilesTest(PageTestCase):
         self.settle()
         self.page.locator("#fullBtn").click()
         self.page.wait_for_selector(".fv")
-        self.page.locator(".fv-all").click()
+        self.page.locator(".fv-diff").click()
         self.page.wait_for_selector('.fv-row[data-dir="csend"]')
         cls = lambda d: self.page.locator(f'.fv-row[data-dir="{d}"]').get_attribute("class")  # noqa: E731
         self.assertIn("modified", cls("vegyes"))
@@ -281,6 +333,14 @@ class WipFullViewTest(PageTestCase):
         self.page.wait_for_selector(".fv .fv-box .cm-editor")
         self.assertIn("main-4-5.txt", self.page.locator(".fv-path").inner_text())
         self.assertIn("a munkakönyvtár mostani állapota", self.page.locator(".fv-box .cm-content").inner_text())
+
+    def test_open_own_with_wip(self) -> None:
+        """Nyitott commit nélkül, WIP sorral: minden fájl, a diff-szűrő kikapcsolva, de használható."""
+        self.page.locator("#fullBtn").click()
+        self.page.wait_for_selector(".fv")
+        diff = self.page.locator(".fv-diff")
+        self.assertFalse(diff.is_disabled())
+        self.assertEqual(diff.get_attribute("aria-pressed"), "false")
 
 
 if __name__ == "__main__":
