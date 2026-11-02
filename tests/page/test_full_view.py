@@ -371,6 +371,53 @@ class AllFilesTest(PageTestCase):
         self.assertEqual(gone.evaluate("e => getComputedStyle(e).color"), red)
 
 
+class FileHeadTest(PageTestCase):
+    """A fájlfejléc: a GitHub-ikon a fájlnév után, a teljes képernyőé a jobb szélen; a nézetváltó a diff saját
+    felső sávjában. A pusholt állapotot egy kézzel írt `origin/main` adja (hálózat nélkül)."""
+    WIDTH, HEIGHT = 1100, 760
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        write(repo, {"doc.md": "# Cím\n\nElső.\n", "app.py": "a = 1\n"})
+        git_in(repo, "add", ".")
+        git_in(repo, "commit", "-qm", "fej: alap")
+        git_in(repo, "remote", "add", "origin", "https://github.com/o/r.git")
+        git_in(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+        write(repo, {"doc.md": "# Cím\n\nMásodik.\n", "app.py": "a = 2\n"})
+        git_in(repo, "commit", "-qam", "fej: nem pusholt")
+
+    def row(self, subject: str, name: str):
+        self.page.locator("#rows .row", has_text=subject).click()
+        self.settle()
+        return self.page.locator(f'.details .file[data-path="{name}"]')
+
+    def test_github_after_name(self) -> None:
+        """Pusholt commitnál a GitHub-ikon közvetlenül a fájlnév után, a teljes képernyőé a sor jobb szélén."""
+        file = self.row("fej: alap", "app.py")
+        name, gh = file.locator(".path").bounding_box(), file.locator("a[href]").bounding_box()
+        full, box = file.locator("[data-full]").bounding_box(), file.bounding_box()
+        self.assertLessEqual(abs(gh["x"] - (name["x"] + name["width"])), 6)
+        self.assertLessEqual(box["x"] + box["width"] - (full["x"] + full["width"]), 6)
+
+    def test_unpushed_same_place(self) -> None:
+        """Nem pusholt commitnál nincs GitHub-ikon, a teljes képernyőé ugyanúgy a jobb szélen."""
+        file = self.row("fej: nem pusholt", "app.py")
+        self.assertEqual(file.locator("a[href]").count(), 0)
+        full, box = file.locator("[data-full]").bounding_box(), file.bounding_box()
+        self.assertLessEqual(box["x"] + box["width"] - (full["x"] + full["width"]), 6)
+
+    def test_mode_switch_in_own_bar(self) -> None:
+        """A markdown nézetváltója a diff saját felső sávjában: a tartalom alatta kezdődik, nem lóg rá."""
+        file = self.row("fej: nem pusholt", "doc.md")
+        file.click()
+        self.page.wait_for_selector('.details .file[data-path="doc.md"] + .diff .md-doc:visible')
+        self.settle()
+        seg = self.page.locator('.details .file[data-path="doc.md"] + .diff .md-seg').bounding_box()
+        doc = self.page.locator('.details .file[data-path="doc.md"] + .diff .md-doc:visible').first.bounding_box()
+        self.assertLessEqual(seg["y"] + seg["height"], doc["y"] + 1)
+        self.assertGreaterEqual(seg["y"], file.bounding_box()["y"] + file.bounding_box()["height"] - 1)
+
+
 class WipFullViewTest(PageTestCase):
     """A WIP sor teljes nézete a munkakönyvtár mostani állapotát mutatja."""
 

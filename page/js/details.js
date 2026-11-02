@@ -37,7 +37,7 @@ const pathHtml = (path, from = Infinity) => {
 /* Összevont követetlen mappa (pl. `node_modules/`): egy sor a fájlszámával, diff nélkül. */
 const dirHtml = f => `<div class="file-dir"><span></span>${icon('folder', 'ic fic')}
   <span class="path added">${pathHtml(f.path, f.dirFrom)}</span>
-  <span class="churn">${fmtInt(f.count)} fájl</span><span></span><span></span></div>`;
+  <span class="churn">${fmtInt(f.count)} fájl</span><span></span></div>`;
 
 const miniBtn =(name, label, attrs = '') =>
   `<button class="mini" type="button" aria-label="${esc(label)}" data-tip="${esc(label)}" ${attrs}>${icon(name)}</button>`;
@@ -121,11 +121,11 @@ export function open(sha, animate = false) {
         <span class="d" style="color:var(--del)">−${st.del}</span></div>
       ${st.files.map(f => f.count ? dirHtml(f) : `<div class="file" tabindex="-1" data-path="${esc(f.path)}" aria-expanded="false">
         <span class="chev">${icon('chev')}</span>${fileIcon(f)}
-        <span class="path${{ A: ' added', D: ' deleted' }[f.status] ?? ' modified'}">${pathHtml(f.path, f.dirFrom)}</span>
+        <span class="name"><span class="path${{ A: ' added', D: ' deleted' }[f.status] ?? ' modified'}">${pathHtml(f.path, f.dirFrom)}</span>${
+          c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : ''}</span>
         <span class="churn">${f.bin ? sizeHtml(f.size)
           : `${f.add ? `<span class="a">+${f.add}</span>` : ''}${f.del ? `<span class="d">−${f.del}</span>` : ''}${bars(f)}`}</span>
-        <button type="button" class="mini file-full" data-full aria-label="Teljes képernyő" data-tip="Teljes képernyő">${icon('expand')}</button>
-        ${c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : '<span></span>'}</div>
+        <button type="button" class="mini file-full" data-full aria-label="Teljes képernyő" data-tip="Teljes képernyő">${icon('expand')}</button></div>
         <div class="diff" hidden></div>`).join('')}
       ${st.more ? `<div class="files-note">+${fmtInt(st.more)} további fájl</div>` : ''}
       ${st.ignored ? `<div class="files-note">${fmtInt(st.ignored)} fájl rejtve (.gitignore)</div>` : ''}

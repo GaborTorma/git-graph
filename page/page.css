@@ -842,12 +842,12 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
   background: var(--bg-3); color: var(--fg-1);
 }
 .file {
-  display: grid; grid-template-columns: 16px 16px minmax(0, 1fr) auto 24px 24px; gap: 6px; align-items: center;
+  display: grid; grid-template-columns: 16px 16px minmax(0, 1fr) auto 24px; gap: 6px; align-items: center;
   height: 30px; padding: 0 4px 0 6px; border-radius: 8px;
   font-size: 13px; cursor: pointer;
 }
 .file-dir {   /* összevont követetlen mappa: mint a .file, de nem nyílik */
-  display: grid; grid-template-columns: 16px 16px minmax(0, 1fr) auto 24px 24px; gap: 6px; align-items: center;
+  display: grid; grid-template-columns: 16px 16px minmax(0, 1fr) auto 24px; gap: 6px; align-items: center;
   height: 30px; padding: 0 4px 0 6px; font-size: 13px;
 }
 .file-dir .ic.fic { width: 16px; height: 16px; margin: auto; color: var(--fg-2); }
@@ -856,6 +856,11 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .file-dir .churn, .files-note { font-size: 12px; color: var(--fg-2); }
 .files-note { padding: 2px 6px 0 44px; }
 .file:hover { background: var(--bg-2); }
+/* a fájlnév és utána, helyet nem foglalva, halványan a GitHub-link (csak pusholt commitnál) */
+.file .name { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.file .name .mini { width: 20px; height: 20px; color: var(--fg-3); }
+.file .name .mini .ic { width: 14px; height: 14px; }
+.file .name .mini:hover { color: var(--fg-0); }
 /* A lenyitott fájl és a diffje egy keret, mint a lenyitott commit és a panele. */
 .file[aria-expanded="true"], .file[aria-expanded="true"]:hover {
   background: transparent; border-radius: 12px 12px 0 0;
@@ -1011,11 +1016,10 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 
 /* ── Markdown-diff ── renderelt szöveg; a változott blokk a diff színeivel, a
    bal szélén csíkkal (a háttér magában halvány lehet egy hosszú bekezdésen). */
-/* a nézetváltó kétgombos szegmens (renderelt | forrás) a jobb felső sarokban: a tartalom
-   fölött, helyet nem foglal (egymás alatti és side-by-side nézetben sem tolja, szűkíti a sorokat) */
-.diff:has(> .md-seg) { position: relative; }
+/* a nézetváltó kétgombos szegmens (renderelt | forrás) a diff saját felső sávjában, jobbra: a
+   tartalom alatta kezdődik, a fejlécre és a sorokra nem lóg rá */
 .md-seg {
-  position: absolute; top: 8px; right: 8px; z-index: 2; display: inline-flex; height: 28px; padding: 1px; border-radius: 8px;
+  display: flex; width: fit-content; height: 28px; margin: 0 0 6px auto; padding: 1px; border-radius: 8px;
   background: var(--fill-1);
 }
 /* a választott a sávon belül, 1 px-re: a sarka a sávénál 1-gyel kisebb, az íveik párhuzamosak */

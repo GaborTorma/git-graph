@@ -305,16 +305,15 @@ class MdDiffTest(PageTestCase):
             [[["P", "Kivett bekezdés.", "del"]], [["P", "", "md-none"]]],
         ])
 
-    def test_md_toggle_floats(self) -> None:
-        """A nézetváltó lebegő szegmens: nem foglal helyet, a tartalom a diff tetején kezdődik, mindkét nézetben."""
+    def test_md_toggle_own_bar(self) -> None:
+        """A nézetváltó a diff saját felső sávjában: a tartalom alatta kezdődik, nem lóg rá, mindkét nézetben."""
         self.open_file("kihagy.md")
         for width, view in ((1400, ".diff-split"), (900, ".diff-uni")):
             self.resize(width)
-            box, first = self.page.evaluate(
-                f"[document.querySelector('.diff:has(.md-seg)'), document.querySelector('{view}').firstElementChild]"
-                ".map(e => e.getBoundingClientRect().top)")
-            self.assertLess(first - box, 10, view)        # csak a doboz belső margója, nincs üres sor
-        self.assertEqual(self.page.locator(".md-seg").evaluate("b => getComputedStyle(b).position"), "absolute")
+            seg, first = self.page.evaluate(
+                f"[document.querySelector('.md-seg').getBoundingClientRect().bottom,"
+                f" document.querySelector('{view}').firstElementChild.getBoundingClientRect().top]")
+            self.assertLessEqual(seg, first + 1, view)
 
     def test_md_rewrap_hidden(self) -> None:
         """A markdown-nézetben a csak újratördelt kódblokk nem változás: nem látszik, csak a valódi csere."""
