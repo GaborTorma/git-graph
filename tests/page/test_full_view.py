@@ -89,26 +89,33 @@ class FullViewTest(PageTestCase):
         return [t.strip() for t in self.page.locator(".fv-list .fv-row .name").all_inner_texts()]
 
     def test_open_from_open_file(self) -> None:
-        """A lenyitott diff.js fejlécének ikonjával: a keret a láblécig, fent csak a subject és az X, középen a
-        diff.js az első változásánál (100. sor), jobbra a fa, benne a diff.js kijelölve."""
+        """A diff.js fejlécének ikonjával: az eszközsorban balra a repó neve és a HEAD-chip marad, a szűrők és
+        a kereső helyén a subject és az X; alatta a láblécig középen a diff.js az első változásánál (100. sor),
+        jobbra a fa, benne a diff.js kijelölve."""
         self.open_commit()
         self.open_full("page/js/diff.js")
         box, foot = self.page.locator(".fv").bounding_box(), self.page.locator("#foot").bounding_box()
-        self.assertEqual((box["x"], box["y"], box["width"], box["height"]), (0, 0, self.WIDTH, foot["y"]))
-        self.assertEqual(self.page.locator(".fv-head").inner_text().strip(), SUBJECT)
+        chrome = self.page.locator(".chrome").bounding_box()
+        self.assertEqual((box["x"], box["y"], box["width"], box["y"] + box["height"]),
+                         (0, chrome["y"] + chrome["height"], self.WIDTH, foot["y"]))
+        self.assertTrue(self.page.locator("#repoName").is_visible())
+        self.assertTrue(self.page.locator("#headChip").is_visible())
+        self.assertFalse(self.page.locator("#branchBtn").is_visible())
+        self.assertFalse(self.page.locator("#search").is_visible())
+        self.assertEqual(self.page.locator(".chrome .fv-bar").inner_text().strip(), SUBJECT)
         self.assertIn("page/js/diff.js", self.page.locator(".fv-path").inner_text())
         self.assertLessEqual(abs(self.fv_top_line() - 100), 1)
         self.assertEqual(self.page.locator(".fv-row.sel .name").inner_text(), "diff.js")
         self.assertLess(self.page.locator(".fv-center").bounding_box()["x"], self.page.locator(".fv-tree").bounding_box()["x"])
 
-    def test_full_icon_only_when_open(self) -> None:
-        """A teljes képernyő ikonja csak a lenyitott fájl fejlécén látszik."""
+    def test_full_icon_on_closed_file(self) -> None:
+        """A teljes képernyő ikonja a csukott fájl fejlécén is ott van, és a fájlt teljes képernyőn nyitja."""
         self.open_commit()
-        icon = self.page.locator('.details .file[data-path="git_graph/diff.py"] [data-full]')
-        self.assertFalse(icon.is_visible())
-        self.page.locator('.details .file[data-path="git_graph/diff.py"]').click()
-        self.settle()
-        self.assertTrue(icon.is_visible())
+        file = self.page.locator('.details .file[data-path="git_graph/diff.py"]')
+        self.assertEqual(file.get_attribute("aria-expanded"), "false")
+        file.locator("[data-full]").click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.assertIn("git_graph/diff.py", self.page.locator(".fv-path").inner_text())
 
     def test_sidebar_without_commit(self) -> None:
         """Lenyitott commit nélkül a sidebar a worktree állapotát mutatja (tisztán a HEAD minden fájlját, a
@@ -190,6 +197,9 @@ class FullViewTest(PageTestCase):
         self.open_full()
         diff = self.page.locator(".fv-diff")
         self.assertEqual(diff.get_attribute("aria-pressed"), "true")
+        gray = self.page.evaluate("""() => { const p = Object.assign(document.createElement('span'), { style: 'background: var(--bg-3)' });
+          document.body.append(p); const c = getComputedStyle(p).backgroundColor; p.remove(); return c; }""")
+        self.assertEqual(diff.evaluate("e => getComputedStyle(e).backgroundColor"), gray)   # mint az app: szürke, nem kék
         self.assertNotIn("README.md", self.tree())
         diff.click()
         self.page.wait_for_selector('.fv-row[data-dir="hooks"]')

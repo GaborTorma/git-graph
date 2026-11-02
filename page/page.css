@@ -856,8 +856,6 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .file-dir .churn, .files-note { font-size: 12px; color: var(--fg-2); }
 .files-note { padding: 2px 6px 0 44px; }
 .file:hover { background: var(--bg-2); }
-/* A teljes képernyő ikonja csak a lenyitott fájl fejlécén. */
-.file[aria-expanded="false"] .file-full { visibility: hidden; }
 /* A lenyitott fájl és a diffje egy keret, mint a lenyitott commit és a panele. */
 .file[aria-expanded="true"], .file[aria-expanded="true"]:hover {
   background: transparent; border-radius: 12px 12px 0 0;
@@ -1264,10 +1262,14 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
 /* A sidebar: az eszközsor és a lábléc között, jobbra; a gráf a szélességével keskenyebb. */
 .side { position: fixed; top: var(--chrome-h, 0); bottom: var(--foot-h, 0); right: 0; z-index: 25; display: flex; }
 body.side-on .pending, body.side-on .scroll { margin-right: var(--fv-tree-w, 280px); }
-#sideBtn[aria-pressed="true"] { color: var(--accent); background: var(--accent-bg); }
-/* A teljes képernyő: a keret a láblécig, fent a subject és az X. */
-.fv { position: fixed; inset: 0 0 var(--foot-h, 0); z-index: 50; display: flex; flex-direction: column; background: var(--bg); color: var(--fg-0); }
-.fv-head { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--border); }
+/* lenyomva szürke, mint az app kapcsológombja (a hovernél kicsit sötétebb) */
+#sideBtn[aria-pressed="true"] { color: var(--fg-0); background: var(--bg-3); }
+/* A teljes képernyő: az eszközsor és a lábléc között; az eszközsorban balra a repó neve és a HEAD-chip
+   marad, a szűrők és a kereső helyén a subject és az X. */
+.fv { position: fixed; top: var(--chrome-h, 0); bottom: var(--foot-h, 0); left: 0; right: 0; z-index: 50; display: flex;
+      flex-direction: column; background: var(--bg); color: var(--fg-0); }
+body.fv-on .chrome :is(.filters, .tools) { display: none; }
+.fv-bar { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 12px; }
 .fv-subject { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
               font-size: 15px; font-weight: var(--w-header); color: var(--fg-0); }
 .fv-main { flex: 1; min-height: 0; display: flex; }
@@ -1284,7 +1286,7 @@ body.side-on .pending, body.side-on .scroll { margin-right: var(--fv-tree-w, 280
 .fv-search { flex: 1 1 auto; height: 28px; padding: 0 8px; }
 .fv-search .ic { width: 14px; height: 14px; flex: none; }
 .fv-search input { font-size: 13px; }
-.fv-diff[aria-pressed="true"] { color: var(--accent); background: var(--accent-bg); }
+.fv-diff[aria-pressed="true"] { color: var(--fg-0); background: var(--bg-3); }
 .fv-diff:disabled, .fv-diff:disabled:hover { opacity: .4; cursor: default; background: transparent; color: var(--fg-2); }
 .fv-list { flex: 1; min-height: 0; overflow: auto; padding: 0 4px 8px; }
 .fv-row { display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px 0 calc(4px + var(--depth) * 14px);

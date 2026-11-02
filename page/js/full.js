@@ -5,7 +5,8 @@
    minden fájllal). A fában a lenyitott commit változott fájlja a commit-panelben nyílik le, odagörgetve;
    a többi fájl (változatlan, vagy nincs lenyitott commit) teljes képernyőn.
    A teljes képernyő a panel lenyitott fájljának fejlécéből nyílik (`data-full`), a fájl első
-   változásánál: a keret a láblécig, fent a subject és az X, középen a fájl
+   változásánál: az eszközsor és a lábléc között (az eszközsorban a repó neve és a HEAD-chip marad, a
+   szűrők és a kereső helyén a subject és az X), középen a fájl
    diffje (`fileContent`: a CodeMirror, a markdown, a kép), jobbra a saját fája. A HEAD-commit tiszta
    fájlja is szerkeszthető: az első mentéstől a fájl a WIP soré, a nézet átvált rá; Esc-re bezárul, és
    a panelben a kijelölt fájl lenyitva, odagörgetve marad. A nézet billentyűit a réteg elkapja.
@@ -350,18 +351,23 @@ export function openFull(sha, path, o = {}) {
   const c = commitBySha(sha);
   if (!c) return;
   const all = Boolean(o.all), clean = Boolean(o.clean);
+  const bar = document.createElement('div');
+  bar.className = 'fv-bar';
+  bar.innerHTML = `<h2 class="fv-subject">${esc(c.subject)}</h2>`
+    + `<button type="button" class="mini fv-close" data-fv-close aria-label="Bezárás (Esc)" data-tip="Bezárás (Esc)">${icon('close')}</button>`;
+  chrome.append(bar);
   const el = document.createElement('div');
   el.className = 'fv';
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-label', 'Teljes képernyő');
-  el.innerHTML = `<div class="fv-head"><h2 class="fv-subject">${esc(c.subject)}</h2>`
-    + `<button type="button" class="mini fv-close" data-fv-close aria-label="Bezárás (Esc)" data-tip="Bezárás (Esc)">${icon('close')}</button></div>`
-    + '<div class="fv-main"><div class="fv-center"><div class="fv-path"></div><div class="diff fv-box"></div></div>'
+  el.innerHTML = '<div class="fv-main"><div class="fv-center"><div class="fv-path"></div><div class="diff fv-box"></div></div>'
     + '<div class="fv-resize" role="separator" aria-orientation="vertical" aria-label="A fa szélessége"></div>'
     + `${treeHtml(all, clean)}</div>`;
   document.body.append(el);
-  fv = { ...newTree(el, sha, all, clean), key: null };
+  document.body.classList.add('fv-on');
+  fv = { ...newTree(el, sha, all, clean), bar, key: null };
   el.addEventListener('click', onFullClick);
+  bar.addEventListener('click', onFullClick);
   el.querySelector('.fv-search input').addEventListener('input', e => onQuery(fv, /** @type {HTMLInputElement} */ (e.target).value));
   el.querySelector('.fv-resize').addEventListener('pointerdown', onResize);
   addEventListener('keydown', onKey, true);
@@ -410,7 +416,7 @@ function toWip() {
   fv.clean = false;
   fv.el.querySelector('.fv-diff').disabled = false;
   if (fv.all) loadTree(fv);
-  fv.el.querySelector('.fv-subject').textContent = commitBySha(row).subject;
+  fv.bar.querySelector('.fv-subject').textContent = commitBySha(row).subject;
 }
 
 /* Élő frissítés (a WIP sor új adata): a fák és a nyitott fájl újra (a kódnézet helyben frissül). */
@@ -431,11 +437,13 @@ export function refreshFull() {
 
 function closeFull() {
   if (!fv) return;
-  const { sha, path, el } = fv;
+  const { sha, path, el, bar } = fv;
   const ed = editingDiff();
   if (ed && el.contains(ed.root)) ed.stopEditing();
   if (fv.key) forgetFile(fv.key);
   el.remove();
+  bar.remove();
+  document.body.classList.remove('fv-on');
   fv = null;
   showPath(null);
   removeEventListener('keydown', onKey, true);
