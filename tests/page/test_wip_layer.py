@@ -118,5 +118,26 @@ class WipRejectTest(WipCase):
         self.assertEqual(disk[59], "s60 = 'wip'")
 
 
+
+class WipReopenTest(WipCase):
+    """A lemez változása után visszanyitott HEAD-commit fájl a friss lemezt mutatja (saját repó: ír)."""
+
+    def test_reopen_after_disk_change(self) -> None:
+        """A fájl becsukva, a lemezen új sor; a WIP sor frissülése után újra lenyitva az új sor kék, és látszik."""
+        self.open_app()
+        self.page.locator('.details .file[data-path="app.py"]').click()     # becsukva
+        self.settle()
+        lines = (self.repo / "app.py").read_text(encoding="utf-8").splitlines()
+        lines[19] = "s20 = 'kivul'"
+        (self.repo / "app.py").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        self.poke()
+        self.settle()
+        self.page.locator('.details .file[data-path="app.py"]').click()     # újra lenyitva
+        self.page.wait_for_selector(f"{SEL} .cm-editor")
+        self.settle()
+        line = self.line("s20 = 'kivul'")
+        self.assertTrue(line.is_visible())
+        self.assertIn("cm-wipLine", line.get_attribute("class"))
+
 if __name__ == "__main__":
     unittest.main()
