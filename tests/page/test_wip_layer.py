@@ -251,6 +251,10 @@ class WipToneTest(WipCase):
         self.assertEqual(row.locator(".churn .a").inner_text(), "+2")
         self.assertEqual(row.locator(".churn .wa").inner_text(), "+3")
         self.assertEqual(row.locator(".churn .wd").inner_text(), "−2")
+        # a fejlécben a fájl neve után ugyanezek
+        head = self.page.locator(".fv-head .fv-path .churn")
+        self.assertEqual([head.locator(c).inner_text() for c in (".a", ".d", ".wa", ".wd")], ["+2", "−2", "+3", "−2"])
+        self.assertEqual(self.page.locator(".fv-path .fic").bounding_box()["width"], 20)
 
     def test_commit_list_wip_on_top(self) -> None:
         """A commitlistán a saját worktree WIP sora mindig felül, a rejtett commitok száma alatta."""

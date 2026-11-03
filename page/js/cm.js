@@ -832,6 +832,10 @@ export class CodeDiff {
     this.gapOpen?.(pos);
   }
 
+  /* A nézet saját görgetője (a teljes képernyőn ez görget): egymás mellett a merge doboza, egymás alatt a
+     szerkesztőé. */
+  scrollEl() { return this.mv ? this.mv.dom : this.ed?.scrollDOM; }
+
   /* `offset`: a görgető régió tetején ennyi helyet takar el valami (ragadós fejléc). */
   scrollToLine(n, scroller, offset = 0) {
     if (!this.ed) return;

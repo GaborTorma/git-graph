@@ -537,6 +537,7 @@ button { font: inherit; color: inherit; }
 
 /* Beállítások: a kereső melletti fogaskerék, a menüben kétsoros kapcsolók. */
 .select.gear { width: 32px; padding: 0; justify-content: center; }
+.select.gear .ic { width: 20px; height: 20px; }   /* comfortable `md` */
 .menu-pop.settings { width: 280px; }
 .option.setting { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 6px 12px; gap: 12px; }
 .option.setting .txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -1321,10 +1322,18 @@ body.side-on .pending, body.side-on .scroll { margin-right: var(--fv-tree-w, 280
 .fv-path { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px;
   font-family: var(--font-mono); font-size: 13px; font-weight: var(--w-medium); }
 .fv-path .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fv-path .fic { width: 16px; height: 16px; flex: none; }
+.fv-path .fic { width: 20px; height: 20px; flex: none; }
+.fv-path .churn { flex: none; margin-left: 4px; }
 .fv-path.deleted .path { color: var(--del); text-decoration: line-through; }
 .fv-box { margin: 0; border: 0; border-radius: 0; }
 .fv-box .cm-diff { border-radius: 0; }
+/* a kódnézet kitölti a magasságot, a görgetősávja a szerkesztőben (a kék kereten belül) van, nem a lapon */
+.fv-scroll { display: flex; flex-direction: column; }
+.fv-box { flex: 1 0 auto; }
+.fv-box:has(> .cm-diff) { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; padding: 0; }
+.fv-box > .cm-diff { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.fv-box > .cm-diff > :is(.cm-editor, .cm-mergeView) { flex: 1; min-height: 0; }
+.fv-box > .cm-diff > .cm-mergeView { overflow-y: auto; }
 /* a CodeMirror keresőpanelje helyett a fejléc keresője (`find`) */
 .fv-box .cm-panels-top { display: none; }
 .fv-resize { flex: none; width: 5px; margin: 0 -2px; z-index: 4; cursor: col-resize; border-left: 2px solid transparent; }
@@ -1333,9 +1342,9 @@ body.side-on .pending, body.side-on .scroll { margin-right: var(--fv-tree-w, 280
 .fv-tools { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px; }
 .fv .fv-tools { height: 56px; padding: 0 12px; border-bottom: 1px solid var(--border); }
 .fv-search { flex: 1 1 auto; min-width: 0; }   /* a fejléc keresőjével azonos méret */
-.fv-diff { width: 32px; height: 32px; }
+.fv-diff { flex: none; }
 .fv-diff[aria-pressed="true"] { color: var(--fg-0); background: var(--bg-3); }
-.fv-diff:disabled, .fv-diff:disabled:hover { opacity: .4; cursor: default; background: transparent; color: var(--fg-2); }
+.fv-diff:disabled, .fv-diff:disabled:hover { opacity: .4; cursor: default; box-shadow: inset 0 0 0 1px var(--border); }
 .fv-list { flex: 1; min-height: 0; overflow: auto; padding: 0 4px 8px; }
 .fv-row { display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px 0 calc(4px + var(--depth) * 14px);
   border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap; }

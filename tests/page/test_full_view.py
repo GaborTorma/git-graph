@@ -84,7 +84,7 @@ class FullViewTest(PageTestCase):
         return [t.strip() for t in self.page.locator(".side .fv-list .fv-row .name").all_inner_texts()]
 
     def fv_top_line(self) -> int:
-        top = self.page.evaluate("document.querySelector('.fv-path').getBoundingClientRect().bottom")
+        top = self.page.evaluate("document.querySelector('.fv-scroll').getBoundingClientRect().top")
         return self.page.evaluate(f"({TOP_LINE})", [".fv-box", top + 1])
 
     def tree(self) -> list[str]:
@@ -126,6 +126,12 @@ class FullViewTest(PageTestCase):
         diff = self.page.evaluate("(() => { const s = getComputedStyle(document.querySelector('.fv-box'));"
                                   " return [s.borderTopWidth, s.borderRadius]; })()")
         self.assertEqual(diff, ["0px", "0px"])
+        # a kódnézet kitölti a magasságot, és a saját görgetője görget (a kereten belül), nem a doboz
+        fill = self.page.evaluate("""(() => { const sc = document.querySelector('.fv-scroll'), cm = sc.querySelector('.cm-diff');
+          const ed = cm.querySelector('.cm-scroller'), a = sc.getBoundingClientRect(), b = cm.getBoundingClientRect();
+          return [sc.scrollHeight - sc.clientHeight, Math.round(b.top - a.top), Math.round(a.bottom - b.bottom),
+                  ed.scrollHeight > ed.clientHeight]; })()""")
+        self.assertEqual(fill, [0, 0, 0, True])
         center = self.page.locator(".fv-scroll").bounding_box()
         self.assertEqual(self.page.locator(".fv-box").bounding_box()["width"], center["width"])
 
@@ -202,8 +208,10 @@ class FullViewTest(PageTestCase):
         diff = self.page.locator(".side .fv-diff")
         self.assertTrue(diff.is_disabled())
         self.assertEqual(diff.get_attribute("aria-pressed"), "false")
+        look = "e => { const s = getComputedStyle(e); return [s.backgroundColor, s.boxShadow, s.color]; }"
+        before = diff.evaluate(look)
         diff.hover(force=True)
-        self.assertEqual(diff.evaluate("e => getComputedStyle(e).backgroundColor"), "rgba(0, 0, 0, 0)")
+        self.assertEqual(diff.evaluate(look), before)
         self.assertIn("README.md", self.side_tree())
         # És a gráf a sidebar mellett, az eszközsor a megszokott
         side = self.page.locator(".side").bounding_box()
@@ -235,6 +243,16 @@ class FullViewTest(PageTestCase):
         self.assertEqual(self.page.locator(".fv").count(), 0)
         sc, fb = self.page.locator(".scroll").bounding_box(), file.bounding_box()
         self.assertTrue(sc["y"] <= fb["y"] < sc["y"] + sc["height"], (sc, fb))
+
+    def test_diff_button_like_side_button(self) -> None:
+        """A fa diff-gombja olyan, mint az eszközsor sidebar-gombja: azonos méret, 20 px-es (`md`) ikon."""
+        self.open_side()
+        box = lambda sel: self.page.locator(sel).bounding_box()  # noqa: E731
+        for sel in ("#sideBtn", ".side .fv-diff"):
+            with self.subTest(sel):
+                self.assertEqual((box(sel)["width"], box(sel)["height"]), (32, 32))
+                self.assertEqual(box(f"{sel} svg")["width"], 20)
+        self.assertIn("select", self.page.locator(".side .fv-diff").get_attribute("class"))
 
     def test_settings_in_footer(self) -> None:
         """A beállítások gombja a láblécben, a téma mellett jobbra."""

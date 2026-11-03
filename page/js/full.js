@@ -78,8 +78,8 @@ function changedFiles(sha) {
 const treeHtml = (all, clean, commits = false) => '<div class="fv-tree"><div class="fv-tools">'
   + `<label class="search fv-search">${icon('search')}<input type="search" placeholder="Szűrés név szerint · ?tartalom"`
   + ' aria-label="Fájlok szűrése" spellcheck="false"></label>'
-  + `<button type="button" class="mini fv-diff" aria-pressed="${!all}"${clean ? ' disabled' : ''}`
-  + ` aria-label="Csak a változott fájlok" data-tip="Csak a változott fájlok">${icon('changes')}</button>`
+  + `<button type="button" class="select gear fv-diff" aria-pressed="${!all}"${clean ? ' disabled' : ''}`
+  + ` aria-label="Csak a változott fájlok" data-tip="Csak a változott fájlok">${icon('changes', 'ic', 'md')}</button>`
   + `</div><div class="fv-list"></div>${commits ? '<div class="fv-commits" aria-label="Commitok"></div>' : ''}</div>`;
 
 const newTree = (el, sha, all, clean = false) => ({ el, sha, all, clean, path: null, grepTimer: 0, tree: null, loaded: new Set(), query: '', grep: null,
@@ -276,7 +276,7 @@ function onResize(e) {
 
 /* ── Sidebar ── */
 const sideBtn = /** @type {HTMLButtonElement} */ (document.getElementById('sideBtn'));
-sideBtn.innerHTML = icon('sidebar');
+sideBtn.innerHTML = icon('sidebar', 'ic', 'md');
 sideBtn.addEventListener('click', () => (side ? closeSide() : openSide()));
 
 /* A fa tárgya: a lenyitott commit (a változott fájlai), különben a saját worktree mostani állapota —
@@ -485,10 +485,8 @@ function selectFile(path, line = null) {
   fv.path = path;
   fv.key = `fv\n${fv.sha}\n${path}`;
   renderTree(fv);
-  const head = fv.el.querySelector('.fv-path'), box = fv.el.querySelector('.fv-box'), scroller = fv.el.querySelector('.fv-scroll');
-  const f = changedFiles(fv.sha).get(path) || { path, icon: fv.tree?.files.find(x => x.path === path)?.icon };
-  head.innerHTML = `${fileIcon(f)}<span class="path">${esc(path)}</span>`;
-  head.classList.toggle('deleted', f.status === 'D');
+  const box = fv.el.querySelector('.fv-box'), scroller = fv.el.querySelector('.fv-scroll');
+  const f = pathHead();
   showPath(path);
   let scrolled = false;
   const key = fv.key;
@@ -498,13 +496,23 @@ function selectFile(path, line = null) {
       if (scrolled || fv?.key !== key) return;
       scrolled = true;
       if (fv.find && line == null) view.find?.(fv.find);
-      else view.scrollToLine(line ?? view.firstChange(), scroller);
+      // a kódnézet a saját görgetőjében (a teljes magasságot kitölti), a többi a doboz görgetőjében
+      else view.scrollToLine(line ?? view.firstChange(), view.scrollEl?.() || scroller);
     },
   });
   if (line == null) scroller.scrollTop = 0;
 }
 
 /* Élő frissítés (a WIP sor új adata): a fák és a nyitott fájl újra (a kódnézet helyben frissül). */
+/* A fejlécben a fájl: ikon, út, mellette a commit +/−-a és a WIP kék / narancs számai (a fa sora szerint). */
+function pathHead() {
+  const head = fv.el.querySelector('.fv-path'), path = fv.path;
+  const f = changedFiles(fv.sha).get(path) || { path, icon: fv.tree?.files.find(x => x.path === path)?.icon };
+  head.innerHTML = `${fileIcon(f)}<span class="path">${esc(path)}</span>${churn(f, fv.wip?.get(path))}`;
+  head.classList.toggle('deleted', f.status === 'D');
+  return f;
+}
+
 export function refreshFull() {
   if (side) {
     retarget();
@@ -514,6 +522,7 @@ export function refreshFull() {
   if (fv.all && fv.sha.startsWith('*')) loadTree(fv);
   renderTree(fv);
   renderCommits();
+  pathHead();
   const box = fv.el.querySelector('.fv-box'), key = fv.key;
   const f = changedFiles(fv.sha).get(fv.path);
   fileContent(box, fv.sha, fv.path, key, fill => { if (fv?.key === key) fill(); }, { changed: Boolean(f?.changed) });
