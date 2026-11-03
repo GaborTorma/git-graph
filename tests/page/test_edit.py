@@ -357,10 +357,13 @@ class CleanEditTest(PageTestCase):
         self.page.keyboard.press("ControlOrMeta+s")
         self.page.wait_for_timeout(300)
         self.assertEqual((self.repo / "main-0-0.txt").read_text(encoding="utf-8"), "elso main-0-0\n")
-        # Akkor megjelenik a WIP sor, a nézet átvált rá, a szerkesztés folytatható
+        # Akkor megjelenik a WIP sor (a commitlista tetején), a nézet a commiton marad, a szerkesztés folytatható
+        sel = self.page.locator(".fv-commit.sel .subj").inner_text()
         self.poke()
         self.assertEqual(self.page.locator(".row.uncommitted").count(), 1)
-        self.assertEqual(self.page.locator(".fv-commit.sel .subj").inner_text(), "Nem commitolt változások")
+        self.page.wait_for_selector(".fv-commits .fv-commit:first-child .subj:text('Nem commitolt változások')")
+        self.page.wait_for_timeout(2500)
+        self.assertEqual(self.page.locator(".fv-commit.sel .subj").inner_text(), sel)
         self.assertEqual(self.page.evaluate(f"({CURSOR})('.fv-box')")[2], "true")
         self.page.keyboard.type("masodik ")
         self.page.keyboard.press("ControlOrMeta+s")

@@ -1306,18 +1306,21 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
 body.side-on .pending, body.side-on .scroll { margin-right: var(--fv-tree-w, 280px); }
 /* lenyomva szürke, mint az app kapcsológombja (a hovernél kicsit sötétebb) */
 #sideBtn[aria-pressed="true"] { color: var(--fg-0); background: var(--bg-3); }
-/* A teljes képernyő: a lap tetejétől a láblécig; középen fent (ragadósan) a repó neve, a fájlban kereső és
-   az X, alatta a fájl útja, a diff keret nélkül, teljes szélességben; jobbra a fa teljes magasságban. */
+/* A teljes képernyő: a lap tetejétől a láblécig; középen a fejléc (a repó neve, a HEAD-chip, a fájl útja,
+   jobbra a fájlban kereső és az X), alatta a görgető diff keret nélkül, teljes szélességben; jobbra a fa
+   teljes magasságban. */
 .fv { position: fixed; top: 0; bottom: var(--foot-h, 0); left: 0; right: 0; z-index: 50; display: flex;
       flex-direction: column; background: var(--bg); color: var(--fg-0); }
 .fv-main { flex: 1; min-height: 0; display: flex; }
-.fv-center { flex: 1; min-width: 0; overflow: auto; background: var(--code-bg); }
-.fv-top { position: sticky; top: 0; z-index: 3; background: var(--bg); }
-.fv-head { display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--border); }
-.fv-find { flex: 0 1 320px; }
-.fv-close { margin-left: auto; }
-.fv-path { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; border-bottom: 1px solid var(--border);
+.fv-center { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.fv-head { flex: none; display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--border); background: var(--bg); }
+.fv-head .head-chip { flex: none; cursor: default; }
+.fv-scroll { flex: 1; min-height: 0; overflow: auto; background: var(--code-bg); }
+.fv-find { flex: 0 1 320px; min-width: 160px; margin-left: auto; }
+.fv-path { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px;
   font-family: var(--font-mono); font-size: 13px; font-weight: var(--w-medium); }
+.fv-path .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fv-path .fic { width: 16px; height: 16px; flex: none; }
 .fv-path.deleted .path { color: var(--del); text-decoration: line-through; }
 .fv-box { margin: 0; border: 0; border-radius: 0; }
@@ -1329,9 +1332,8 @@ body.side-on .pending, body.side-on .scroll { margin-right: var(--fv-tree-w, 280
 .fv-tree { flex: none; width: var(--fv-tree-w, 280px); min-width: 200px; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg-1); }
 .fv-tools { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px; }
 .fv .fv-tools { height: 56px; padding: 0 12px; border-bottom: 1px solid var(--border); }
-.fv-search { flex: 1 1 auto; height: 28px; padding: 0 8px; }
-.fv-search .ic { width: 14px; height: 14px; flex: none; }
-.fv-search input { font-size: 13px; }
+.fv-search { flex: 1 1 auto; min-width: 0; }   /* a fejléc keresőjével azonos méret */
+.fv-diff { width: 32px; height: 32px; }
 .fv-diff[aria-pressed="true"] { color: var(--fg-0); background: var(--bg-3); }
 .fv-diff:disabled, .fv-diff:disabled:hover { opacity: .4; cursor: default; background: transparent; color: var(--fg-2); }
 .fv-list { flex: 1; min-height: 0; overflow: auto; padding: 0 4px 8px; }

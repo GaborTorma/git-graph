@@ -91,9 +91,10 @@ class FullViewTest(PageTestCase):
         return [t.strip() for t in self.page.locator(".fv-list .fv-row .name").all_inner_texts()]
 
     def test_open_from_open_file(self) -> None:
-        """A diff.js fejlécének ikonjával: a lap tetejétől a láblécig; középen fent a repó neve, a fájlban kereső és
-        az X (a HEAD-chip és a subject nélkül), alatta a diff.js az első változásánál (100. sor), keret nélkül;
-        jobbra teljes magasságban a fa, benne a diff.js kijelölve."""
+        """A diff.js fejlécének ikonjával: a lap tetejétől a láblécig; középen a fejlécben a repó neve, a HEAD-chip,
+        a fájl útja, jobbra a fájlban kereső és az X (a subject nélkül); alatta, a fejléc alatt görgetve a diff.js
+        az első változásánál (100. sor), keret nélkül; jobbra teljes magasságban a fa, benne a diff.js kijelölve;
+        a fa keresője és gombja a fejléc keresőjének magasságával."""
         self.open_commit()
         self.open_full("page/js/diff.js")
         box, foot = self.page.locator(".fv").bounding_box(), self.page.locator("#foot").bounding_box()
@@ -103,16 +104,29 @@ class FullViewTest(PageTestCase):
         head = self.page.locator(".fv-head")
         self.assertEqual(head.locator(".repo-name").inner_text(), self.page.locator("#repoName").inner_text())
         self.assertTrue(head.locator(".fv-find input").is_visible())
-        self.assertEqual(head.locator(".head-chip").count(), 0)
+        self.assertEqual(head.locator(".head-chip").inner_text().strip(), self.page.locator("#headChip").inner_text().strip())
         self.assertNotIn(SUBJECT, head.inner_text())
-        self.assertIn("page/js/diff.js", self.page.locator(".fv-path").inner_text())
+        self.assertIn("page/js/diff.js", head.locator(".fv-path").inner_text())
+        def x(sel: str) -> float:
+            return self.page.locator(sel).bounding_box()["x"]
+
+        self.assertLess(x(".fv-head .head-chip"), x(".fv-head .fv-path"))
+        self.assertLess(x(".fv-head .fv-path"), x(".fv-head .fv-find"))
+        self.assertLess(x(".fv-head .fv-find"), x(".fv-head .fv-close"))
+        scroll, hbox = self.page.locator(".fv-scroll").bounding_box(), head.bounding_box()
+        self.assertEqual(scroll["y"], hbox["y"] + hbox["height"])
+        def h(sel: str) -> float:
+            return self.page.locator(sel).bounding_box()["height"]
+
+        self.assertEqual(h(".fv .fv-search"), h(".fv-find"))
+        self.assertEqual(h(".fv .fv-diff"), h(".fv-find"))
         self.assertLessEqual(abs(self.fv_top_line() - 100), 1)
         self.assertEqual(self.page.locator(".fv-row.sel .name").inner_text(), "diff.js")
         self.assertLess(self.page.locator(".fv-center").bounding_box()["x"], self.page.locator(".fv-tree").bounding_box()["x"])
         diff = self.page.evaluate("(() => { const s = getComputedStyle(document.querySelector('.fv-box'));"
                                   " return [s.borderTopWidth, s.borderRadius]; })()")
         self.assertEqual(diff, ["0px", "0px"])
-        center = self.page.locator(".fv-center").bounding_box()
+        center = self.page.locator(".fv-scroll").bounding_box()
         self.assertEqual(self.page.locator(".fv-box").bounding_box()["width"], center["width"])
 
     def test_find_in_file(self) -> None:
@@ -138,15 +152,18 @@ class FullViewTest(PageTestCase):
         self.assertTrue(self.page.locator(".fv").is_visible())
 
     def test_commit_list(self) -> None:
-        """A fa alatt a commitlista: a commit kijelölve, mellette a szomszédai (összesen 5), alatta a többi száma;
-        a másik commitra kattintva a nézet arra vált."""
+        """A fa alatt a commitlista: a HEAD ágának commitjai közül a commit kijelölve, mellette a szomszédai
+        (összesen 5), alatta a többi száma, a súgó a teljes commit message; a másik commitra kattintva a nézet
+        arra vált."""
         self.open_commit()
         self.open_full("page/js/diff.js")
         items = self.page.locator(".fv-commits .fv-commit")
         self.assertEqual(items.count(), 5)
         self.assertEqual(self.page.locator(".fv-commit.sel .subj").inner_text(), SUBJECT)
-        total = self.page.locator("#rows .row").count()
-        self.assertEqual(self.page.locator(".fv-commits .fv-more").inner_text(), f"még {total - 5} commit")
+        self.assertRegex(self.page.locator(".fv-commits .fv-more").inner_text(), r"^még \d+ commit$")
+        tip = self.page.locator(".fv-commit.sel").get_attribute("data-tip")
+        self.assertEqual(tip, f"{SUBJECT}\nA teljes nézet fixture-commitja.\nMásodik bekezdés.")
+
         self.page.locator(".fv-commit", has_text="nezet: alap").click()
         self.page.wait_for_selector(".fv .fv-box .cm-editor")
         self.settle()

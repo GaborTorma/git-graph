@@ -238,6 +238,16 @@ class WipToneTest(WipCase):
         self.assertEqual(row.locator(".churn .wa").inner_text(), "+3")
         self.assertEqual(row.locator(".churn .wd").inner_text(), "−2")
 
+    def test_commit_list_wip_on_top(self) -> None:
+        """A commitlistán a saját worktree WIP sora mindig felül, a rejtett commitok száma alatta."""
+        self.page.locator(".row", has_text="wip: alap").first.click()
+        self.settle()
+        self.page.locator('.details .file[data-path="app.py"]').locator("[data-full]").click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        first = self.page.locator(".fv-commits > div").first
+        self.assertEqual(first.locator(".subj").inner_text(), "Nem commitolt változások")
+        self.assertEqual(self.page.locator(".fv-commit.sel .subj").inner_text(), "wip: alap")
+
 
 if __name__ == "__main__":
     unittest.main()

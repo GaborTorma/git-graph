@@ -154,7 +154,7 @@ export function ancestryOf(names) {
    remote ágból elérhető. */
 export const localReach = () => reachable(DATA.commits.filter(c => c.uncommitted
   || c.refs.some(r => r.kind !== 'remote' || remoteShown(r.name))).map(c => c.uncommitted ? c.parents[0] : c.sha));
-function reachable(tips) {
+export function reachable(tips) {
   const keep = new Set(), stack = [...tips];
   const { bySha } = idx();
   while (stack.length) {

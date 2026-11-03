@@ -5,12 +5,13 @@
    minden fájllal). A fában a lenyitott commit változott fájlja a commit-panelben nyílik le, odagörgetve;
    a többi fájl (változatlan, vagy nincs lenyitott commit) teljes képernyőn.
    A teljes képernyő a panel lenyitott fájljának fejlécéből nyílik (`data-full`), a fájl első
-   változásánál: a lap tetejétől a láblécig. Középen fent a repó neve, a fájlban kereső és az X, alatta
-   a fájl diffje (`fileContent`: a CodeMirror, a markdown, a kép), keret nélkül; jobbra, teljes
-   magasságban a saját fája, alatta a commitlista (a commit és két-két szomszédja, rajtuk a commit
-   váltható). A WIP sor kék / narancs (`wip-tone`), a fa a fájlok mellett a WIP számait is mutatja
-   (`wipCounts`). A HEAD-commit tiszta
-   fájlja is szerkeszthető: az első mentéstől a fájl a WIP soré, a nézet átvált rá; Esc-re bezárul, és
+   változásánál: a lap tetejétől a láblécig. Középen a fejlécben a repó neve, a HEAD-chip, a fájl útja,
+   jobbra a fájlban kereső és az X; alatta (a görgetés a fejléc alatt) a fájl diffje (`fileContent`: a
+   CodeMirror, a markdown, a kép), keret nélkül; jobbra, teljes magasságban a saját fája, alatta a
+   commitlista: a saját worktree WIP sora mindig, alatta a commit ágának (a HEAD-é, ha abban van)
+   commitjai közül a commit és két-két szomszédja; rajtuk a commit váltható. A WIP sor kék / narancs
+   (`wip-tone`), a fa a fájlok mellett a WIP számait is mutatja (`wipCounts`). A HEAD-commit tiszta
+   fájlja is szerkeszthető: a mentés a WIP sorba ír, a nézet a commiton marad; Esc-re bezárul, és
    a panelben a kijelölt fájl lenyitva, odagörgetve marad. A nézet billentyűit a réteg elkapja.
    A diff-szűrő bekapcsolva a sor változott fájljait mutatja (a mappaláncok összevonva), kikapcsolva
    a commit állapotának minden fájlját (`file_tree`; 20 000 fájl fölött mappánként, lustán); a tiszta
@@ -21,9 +22,9 @@ import { editingDiff } from './cm.js';
 import { codeViews, fileContent, forgetFile, onModeChange, mdRaw, setMdRaw, setSvgCode, source, svgCode, toggleFile } from './diff.js';
 import { OPEN_PANEL, counter } from './dom.js';
 import { fileIcon, icon } from './icons.js';
-import { commitBySha, focusWt, wipCounts, wipHtml } from './model.js';
+import { commitBySha, focusWt, reachable, wipCounts, wipHtml } from './model.js';
 import { revealFile } from './panel.js';
-import { DATA, expanded, onExpanded, visible } from './state.js';
+import { DATA, expanded, onExpanded } from './state.js';
 import { esc, fmtInt, fold } from './util.js';
 
 const WIDTH_KEY = 'git-graph:treeWidth';
@@ -394,14 +395,23 @@ export function openFull(sha, path, o = {}) {
   el.className = 'fv';
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-label', 'Teljes képernyő');
-  el.innerHTML = '<div class="fv-main"><div class="fv-center"><div class="fv-top"><div class="fv-head">'
+  el.innerHTML = '<div class="fv-main"><div class="fv-center"><div class="fv-head">'
     + `<span class="repo-name">${esc(document.getElementById('repoName')?.textContent || '')}</span>`
+    + '<span class="fv-chip"></span><div class="fv-path"></div>'
     + `<label class="search fv-find">${icon('search')}<input type="search" placeholder="Keresés a fájlban"`
     + ' aria-label="Keresés a fájlban" spellcheck="false"></label>'
     + `<button type="button" class="mini fv-close" data-fv-close aria-label="Bezárás (Esc)" data-tip="Bezárás (Esc)">${icon('close')}</button>`
-    + '</div><div class="fv-path"></div></div><div class="diff fv-box"></div></div>'
+    + '</div><div class="fv-scroll"><div class="diff fv-box"></div></div></div>'
     + '<div class="fv-resize" role="separator" aria-orientation="vertical" aria-label="A fa szélessége"></div>'
     + `${treeHtml(all, clean, true)}</div>`;
+  // a fejléc HEAD-chipje (a worktree / ág), másolatként: itt nem gomb
+  const chip = /** @type {HTMLElement} */ (document.getElementById('headChip')?.cloneNode(true));
+  if (chip) {
+    chip.removeAttribute('id');
+    chip.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+    chip.tabIndex = -1;
+    el.querySelector('.fv-chip').replaceWith(chip);
+  }
   document.body.append(el);
   document.body.classList.add('fv-on');
   fv = { ...newTree(el, sha, all, clean), key: null, find: '', borrowed: o.borrowed ?? null };
@@ -427,17 +437,26 @@ function findInFile(dir) {
   codeViews.get(fv.key)?.find?.(fv.find, dir);
 }
 
-/* A commitlista: a commit és fölötte, alatta `AROUND` szomszéd (a lista szélén a másik oldalról
-   pótolva), fölötte és alatta a többi száma. A lap szűrt listája, ha benne van a commit. */
+/* A commitlista: fent a saját worktree WIP sora (mindig), alatta a commit ágának commitjai — a HEAD
+   őseié, ha a commit köztük van (vagy WIP sor), különben a commit őseié — közül a commit és fölötte, alatta
+   `AROUND` szomszéd (a lista szélén a másik oldalról pótolva), fölöttük és alattuk a többi száma. A súgó
+   a teljes commit message. */
 function renderCommits() {
-  const box = fv.el.querySelector('.fv-commits');
-  const list = visible.some(c => c.sha === fv.sha) ? visible : DATA.commits;
-  const i = list.findIndex(c => c.sha === fv.sha), n = 2 * AROUND + 1;
+  const box = fv.el.querySelector('.fv-commits'), wt = focusWt();
+  const wip = wt ? DATA.commits.filter(c => c.uncommitted && c.worktree === wt.slug) : [];
+  const head = wt ? reachable([wt.head]) : null;
+  const reach = head && (head.has(fv.sha) || wip.some(c => c.sha === fv.sha)) ? head : reachable([fv.sha]);
+  const list = DATA.commits.filter(c => !c.uncommitted && reach.has(c.sha));
+  const i = Math.max(0, list.findIndex(c => c.sha === fv.sha)), n = 2 * AROUND + 1;
   const from = Math.max(0, Math.min(i - AROUND, list.length - n)), to = Math.min(list.length, from + n);
   const more = k => (k ? `<div class="fv-more">még ${fmtInt(k)} commit</div>` : '');
-  box.innerHTML = more(from) + list.slice(from, to).map(c => `<div class="fv-commit${c.sha === fv.sha ? ' sel' : ''}"`
-    + ` data-sha="${esc(c.sha)}" aria-selected="${c.sha === fv.sha}"><span class="subj">${esc(c.subject)}</span>`
-    + `${c.uncommitted ? '' : `<span class="sha">${esc(c.short)}</span>`}</div>`).join('') + more(list.length - to);
+  const item = c => {
+    const tip = [c.subject, ...(c.body || '').split('\n').filter(l => l.trim())].join('\n');
+    return `<div class="fv-commit${c.sha === fv.sha ? ' sel' : ''}" data-sha="${esc(c.sha)}" data-tip="${esc(tip)}"`
+      + ` aria-selected="${c.sha === fv.sha}"><span class="subj">${esc(c.subject)}</span>`
+      + `${c.uncommitted ? '' : `<span class="sha">${esc(c.short)}</span>`}</div>`;
+  };
+  box.innerHTML = wip.map(item).join('') + more(from) + list.slice(from, to).map(item).join('') + more(list.length - to);
 }
 
 /* Commitváltás a listán: a fájl marad, ha a commitban változott (vagy a commitnak nincs változott
@@ -466,8 +485,7 @@ function selectFile(path, line = null) {
   fv.path = path;
   fv.key = `fv\n${fv.sha}\n${path}`;
   renderTree(fv);
-  const head = fv.el.querySelector('.fv-path'), box = fv.el.querySelector('.fv-box'), center = fv.el.querySelector('.fv-center');
-  const top = /** @type {HTMLElement} */ (fv.el.querySelector('.fv-top'));
+  const head = fv.el.querySelector('.fv-path'), box = fv.el.querySelector('.fv-box'), scroller = fv.el.querySelector('.fv-scroll');
   const f = changedFiles(fv.sha).get(path) || { path, icon: fv.tree?.files.find(x => x.path === path)?.icon };
   head.innerHTML = `${fileIcon(f)}<span class="path">${esc(path)}</span>`;
   head.classList.toggle('deleted', f.status === 'D');
@@ -480,28 +498,10 @@ function selectFile(path, line = null) {
       if (scrolled || fv?.key !== key) return;
       scrolled = true;
       if (fv.find && line == null) view.find?.(fv.find);
-      else view.scrollToLine(line ?? view.firstChange(), center, top.offsetHeight);
+      else view.scrollToLine(line ?? view.firstChange(), scroller);
     },
   });
-  if (line == null) center.scrollTop = 0;
-}
-
-/* A HEAD-commit fájljának első mentése után megjelent a worktree nem commitolt sora: a nézet arra vált,
-   a kódnézet (és a szerkesztés) a helyén marad, az új kulcson. */
-function toWip() {
-  if (fv.borrowed) return;              // a panel nézete: a helyén ír a WIP sorba, és oda tér vissza
-  const view = fv.key && codeViews.get(fv.key), row = view?.d.write;
-  if (!row || fv.sha === row || !commitBySha(row)) return;
-  const key = `fv\n${row}\n${fv.path}`;
-  codeViews.delete(fv.key);
-  codeViews.set(key, view);
-  fv.sha = row;
-  fv.key = key;
-  fv.tree = null;
-  fv.clean = false;
-  fv.el.querySelector('.fv-diff').disabled = false;
-  if (fv.all) loadTree(fv);
-  renderCommits();
+  if (line == null) scroller.scrollTop = 0;
 }
 
 /* Élő frissítés (a WIP sor új adata): a fák és a nyitott fájl újra (a kódnézet helyben frissül). */
@@ -510,9 +510,7 @@ export function refreshFull() {
     retarget();
     if (side.all && side.sha?.startsWith('*')) loadTree(side);
   }
-  if (!fv) return;
-  toWip();
-  if (!commitBySha(fv.sha)) return;
+  if (!fv || !commitBySha(fv.sha)) return;
   if (fv.all && fv.sha.startsWith('*')) loadTree(fv);
   renderTree(fv);
   renderCommits();
