@@ -6,6 +6,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
+from unittest import mock
 
 from helpers import HomeTestCase, git_in
 
@@ -202,6 +203,20 @@ class WriteFileTest(FilesCase):
         self.assertEqual(out, {"ok": True, "hash": sha256(b"echo 2\n")})
         self.assertEqual(script.read_bytes(), b"echo 2\n")
         self.assertEqual(script.stat().st_mode & 0o777, 0o755)
+
+    def test_atomic(self) -> None:
+        """Ha az írás közben elbukik (pl. megtelt lemez), a fájl régi tartalma ép marad."""
+        # Adott egy fájl, és az atomi csere elbukik
+        repo, gg, wip = self.repo()
+        before = (repo / "a.txt").read_bytes()
+        base = sha256(before)
+        with mock.patch("os.replace", side_effect=OSError("tele a lemez")):
+            # Ha a lap ment
+            with self.assertRaises(OSError):
+                gg.files.write_file(wip, "a.txt", "új\n", base)
+        # Akkor a fájl a régi, ideiglenes fájl nem marad
+        self.assertEqual((repo / "a.txt").read_bytes(), before)
+        self.assertEqual([p.name for p in repo.iterdir() if p.name.endswith(".tmp")], [])
 
     def test_only_uncommitted(self) -> None:
         """Csak az Uncommitted sor fájlja írható: commit és Stage-elt sor nem."""

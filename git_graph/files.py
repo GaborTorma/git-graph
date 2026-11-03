@@ -1,6 +1,7 @@
 """A teljes nézet fájlfája és a WIP sor szerkesztése: fájllista, tartalomkeresés, írás a lemezre."""
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path, PurePosixPath
 
@@ -146,7 +147,7 @@ def write_file(sha: str, path: str, text: str, base: str) -> dict:
     (`TEXT_MAX`-ig, NUL nélkül), és csak szöveges fájl helyére. Ha a lemezen lévő tartalom
     hashe nem a lap által ismert `base`, nem ír: `{"ok": false, "conflict": true, "hash",
     "text"}` (a lemezen lévő). A lap `\\n`-nel küld: CRLF-es fájlba CRLF-fel írunk; a záró
-    újsor a `text` szerint. Helyben ír, a fájl jogosultsága marad.
+    újsor a `text` szerint. Atomi cserével ír, a fájl jogosultsága marad.
     """
     pending = UNCOMMITTED_RE.match(sha)
     if not pending or pending[1] != "uncommitted":
@@ -166,6 +167,13 @@ def write_file(sha: str, path: str, text: str, base: str) -> dict:
     out = text.encode("utf-8")
     if len(out) > TEXT_MAX:
         raise ValueError(f"túl nagy szöveg: {len(out)} bájt (legfeljebb {TEXT_MAX})")
-    with open(file, "wb") as fh:                   # helyben: az inode és a jogosultság marad
-        fh.write(out)
+    # atomi csere egy melletti ideiglenes fájlból: elbukott írásnál a régi tartalom ép marad; a jogosultság marad
+    tmp = file.with_name(f".{file.name}.{os.getpid()}.git-graph.tmp")
+    try:
+        tmp.write_bytes(out)
+        os.chmod(tmp, file.stat().st_mode & 0o7777)
+        os.replace(tmp, file)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
     return {"ok": True, "hash": digest(out)}
