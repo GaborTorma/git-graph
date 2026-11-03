@@ -195,6 +195,25 @@ class FullViewTest(PageTestCase):
         self.page.locator(".fv .fv-diff").click()
         self.page.wait_for_selector('.fv-list .fv-file[data-path="tools/util.py"]')
 
+    def test_grep_error(self) -> None:
+        """Ha a tartalomkeresés elbukik, a fában a hiba áll, nem az előző keresés találatai."""
+        self.open_commit()
+        self.open_full()
+        self.page.locator(".fv .fv-diff").click()
+        self.page.locator(".fv-search input").fill("?segit")
+        self.page.wait_for_selector('.fv-list .fv-file[data-path="tools/util.py"]')
+        # Adott: a következő file_tree hívás elbukik
+        self.page.evaluate("""() => { const mcp = GIT_GRAPH.mcp, call = mcp.callTool.bind(mcp);
+          mcp.callTool = (s, tool, ...rest) => tool === 'file_tree'
+            ? Promise.reject({ message: 'Host tool rate limit exceeded' }) : call(s, tool, ...rest); }""")
+        # Ha a Fejlesztő más szöveget keres
+        self.page.locator(".fv-search input").fill("?masik")
+        # Akkor a hiba látszik, a régi találat nem
+        err = self.page.locator(".fv-list .fv-error")
+        err.wait_for()
+        self.assertIn("A keresés nem sikerült: Host tool rate limit exceeded", err.inner_text())
+        self.assertEqual(self.page.locator(".fv-list .fv-file").count(), 0)
+
     def test_full_icon_on_closed_file(self) -> None:
         """A teljes képernyő ikonja a csukott fájl fejlécén is ott van, és a fájlt teljes képernyőn nyitja."""
         self.open_commit()

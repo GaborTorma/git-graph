@@ -233,7 +233,12 @@ function onQuery(t, value) {
     if (r.fileIcons) Object.assign(DATA.fileIcons, r.fileIcons);
     t.grep = r.files || [];
     renderTree(t);
-  }, () => {}), GREP_MS);
+  }, e => {                                       // a régi találat nem maradhat az új keresés alatt
+    if (!current(t) || t.sha !== sha || t.query.slice(1) !== q) return;
+    t.grep = [];
+    renderTree(t);
+    t.el.querySelector('.fv-list').innerHTML = `<p class="fv-empty fv-error">A keresés nem sikerült: ${esc(e?.message || e?.code || e)}</p>`;
+  }), GREP_MS);
 }
 
 /* A fa kattintásai: a diff-szűrő, a mappák; a fájlra `onFile(path)`. */
