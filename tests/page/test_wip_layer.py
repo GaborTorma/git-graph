@@ -234,6 +234,12 @@ class WipMarksTest(WipCase):
         self.open_app()
         z = self.page.evaluate(f"getComputedStyle(document.querySelector('{SEL} .cm-selectionLayer')).zIndex")
         self.assertEqual(z, "1")
+        # a kijelölés az app highlight-árnyalata, világos témában 50%-kal
+        self.page.evaluate(f"""sel => {{ const v = {VIEW}; const l = v.state.doc.line(36); v.focus();
+          v.dispatch({{ selection: {{ anchor: l.from, head: l.to }} }}); }}""", SEL)
+        self.page.wait_for_selector(f"{SEL} .cm-selectionBackground", state="attached")
+        bg = self.page.evaluate(f"getComputedStyle(document.querySelector('{SEL} .cm-selectionBackground')).backgroundColor")
+        self.assertEqual(bg, "rgba(250, 178, 25, 0.5)")
 
 
 class WipToneTest(WipCase):

@@ -51,6 +51,7 @@
   --critical-bg: #fad6d6;   /* bg-danger (red-100): halvány piros felület */
   --critical-fg: #8e2626;   /* text-danger (red-600) */
   --highlight:   rgba(250, 178, 25, .33);
+  --selection:   rgba(250, 178, 25, .5);   /* a kódnézet kijelölése: a highlight árnyalata, erősebben (a színes sorok fölött is látszik) */
   /* a kódnézet (diff) kiemelt felülete: kódblokk, táblázatfej, üres oldal, ábrakeret */
   --code-tint:   color-mix(in srgb, var(--fg-0) 4%, var(--code-bg));
   /* tooltip: fekete buborék (sötétben a popover felülete) */
@@ -184,6 +185,7 @@
     --wip-del-fg:  #eea867;
     --wip-add-hl:  #2a5480;
     --wip-del-hl:  #6e4c22;
+    --selection:   rgba(250, 178, 25, .33);
     color-scheme: dark;
   }
 }
@@ -259,6 +261,7 @@
   --wip-del-fg:  #eea867;
   --wip-add-hl:  #2a5480;
   --wip-del-hl:  #6e4c22;
+  --selection:   rgba(250, 178, 25, .33);
   color-scheme: dark;
 }
 
@@ -1036,9 +1039,9 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .cm-diff.readonly .cm-content { cursor: default; }   /* nem szerkeszthető: nyíl, nem I-gerenda */
 .diff .cm-content:focus-visible { box-shadow: none; }
 .diff .cm-cursor { border-left-color: var(--fg-0); }
-/* a kijelölés a színezett sorok fölött, áttetszőn, a keresés sárgájával (a sor háttere alatt nem látszana) */
+/* a kijelölés a színezett sorok fölött, áttetszőn, a keresés sárgájával, erősebben (a sor háttere alatt nem látszana) */
 .diff .cm-selectionLayer { z-index: 1 !important; pointer-events: none; }
-.diff .cm-selectionBackground, .diff .cm-focused .cm-selectionBackground { background: var(--highlight) !important; }
+.diff .cm-selectionBackground, .diff .cm-focused .cm-selectionBackground { background: var(--selection) !important; }
 .diff .cm-flash { animation: cm-flash 1.6s ease-out; }
 @keyframes cm-flash { from { background-color: color-mix(in srgb, var(--accent) 35%, transparent); } to { background-color: transparent; } }
 .diff .cm-panels { background: var(--bg-1); color: var(--fg-0); border-color: var(--border); font-family: var(--font-ui); }
