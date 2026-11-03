@@ -199,7 +199,7 @@ class WipSplitTest(WipCase):
 
 
 class WipMarksTest(WipCase):
-    """Egymás alatt a kék és a narancs sor szókiemelést és sávjelet kap."""
+    """Egymás alatt a kék és a narancs sor szókiemelést és sávjelet kap; a kijelölés a színezett sor fölött látszik."""
 
     def test_marks(self) -> None:
         self.open_app()
@@ -208,6 +208,11 @@ class WipMarksTest(WipCase):
         self.assertIn("35", marks)
         self.assertGreater(self.page.locator(f"{SEL} .cm-changeGutter .cm-wipAddGutter").count(), 0)
         self.assertGreater(self.page.locator(f"{SEL} .cm-changeGutter .cm-wipDelGutter").count(), 0)
+
+    def test_selection_above_lines(self) -> None:
+        self.open_app()
+        z = self.page.evaluate(f"getComputedStyle(document.querySelector('{SEL} .cm-selectionLayer')).zIndex")
+        self.assertEqual(z, "1")
 
 
 if __name__ == "__main__":
