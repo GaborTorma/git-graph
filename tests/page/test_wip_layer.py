@@ -243,6 +243,18 @@ class WipToneTest(WipCase):
         self.assertTrue(colors[0])
         self.assertEqual(colors[1], colors[2])
 
+    def test_wip_row_sum_tone(self) -> None:
+        """A WIP sor végén a +/− szám kék / narancs, a commit során zöld / piros."""
+        colors = self.page.evaluate("""(() => {
+          const probe = v => { const e = Object.assign(document.createElement('span'), { style: `color: var(${v})` });
+            document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; };
+          const col = s => getComputedStyle(document.querySelector(s)).color;
+          return [col('.row.uncommitted .sum .a'), probe('--wip-add-fg'), col('.row.uncommitted .sum .d'), probe('--wip-del-fg'),
+                  col('#rows .row:not(.uncommitted) .sum .a'), probe('--add')]; })()""")
+        self.assertEqual(colors[0], colors[1])
+        self.assertEqual(colors[2], colors[3])
+        self.assertEqual(colors[4], colors[5])
+
     def test_tree_wip_counts(self) -> None:
         self.open_app()
         self.page.locator('.details .file[data-path="app.py"]').locator("[data-full]").click()
