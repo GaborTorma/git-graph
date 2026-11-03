@@ -58,6 +58,7 @@
 - [Publikálás a sessionből](publish-from-session.md) — meglévőre csak `Artifact read` után; a lépésekben `git-graph`, nem abszolút út
 - [Mod korlátai](mod-limits.md) — modból `open`, `read` megy; `publish` csak felhasználói műveletből (command, `$.ui.ask` + `consent`); `classic.*` nem jön; panel nem DOM
 - [Mod és a fájllink](mod-link-press.md) — a válasz fájllinkjének kattintása modból elkapható (`AssistantMessage` + `onLinkPress`); diff-kártyára nem
+- [Beépülés saját panelként](desktop-integration-paths.md) — zárt panelkészlet, távoli UI, zárt asar; a böngészőpanel localhostot scripttel futtat
 - [Artifact megnyitása](artifact-open-paths.md) — nyitott lapra az `open` csak kártya; `show_pane` nyit; külső folyamat nem
 - [Headless publikálás (kivezetve)](headless-publish-retired.md) — `claude -p` buktatói és idői, ha mégis kellene
 - [Fejlesztés forrásból](dev-from-source.md) — `--dev-install`, `CLAUDE_CODE_PLUGIN_DIRS`, kézi próba kamu `HOME`-mal
