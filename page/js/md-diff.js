@@ -88,6 +88,7 @@ function alignRows(L) {
 
 const MD_CONTEXT = 1;          // blokk (a táblázatban sor)
 const MD_CODE_CONTEXT = 3;     // a kódblokkban sor, mint a git diffjében
+const MIN_GAP = 3;             // ennél rövidebb változatlan futam nem csukódik össze
 
 const MD_FENCE = /^\s{0,3}(`{3,}|~{3,})\s*([\w+#.-]*)/;
 const MD_HEAD = /^\s{0,3}(#{1,6})(?:\s+|$)/;
@@ -323,7 +324,14 @@ function runsOf(keep) {
     if (last?.keep === k) last.to = i + 1;
     else runs.push({ from: i, to: i + 1, keep: k });
   });
-  return runs;
+  // a `MIN_GAP`-nél rövidebb kimaradó futam látszik (a rés maga is egy sornyi hely), a szomszédaival egyben
+  const out = [];
+  for (const r of runs) {
+    const k = r.keep || r.to - r.from < MIN_GAP, last = out.at(-1);
+    if (last?.keep === k) last.to = r.to;
+    else out.push({ ...r, keep: k });
+  }
+  return out;
 }
 
 /* Egy blokk egy nézete: kódblokk és táblázat soronként színezve, a többi

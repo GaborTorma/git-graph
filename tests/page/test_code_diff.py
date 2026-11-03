@@ -26,6 +26,8 @@ EDGE_NEW = numbered(45, {30: "valtozott 30"})
 # Markdown: a két változott bekezdés között 8 változatlan — a szomszédaik látszanak, 6 csukva.
 MD_OLD = "".join(f"Bekezdés {i}.\n\n" for i in range(1, 11))
 MD_NEW = MD_OLD.replace("Bekezdés 1.", "Bekezdés egy.").replace("Bekezdés 10.", "Bekezdés tíz.")
+# két változás között 3 változatlan blokk: a környezetük (1-1) után 1 marad, az nem csukódik; a végén 4 igen
+MD_NEAR_NEW = MD_OLD.replace("Bekezdés 1.", "Bekezdés egy.").replace("Bekezdés 5.", "Bekezdés öt.")
 # Sok szétszórt változás (a merge alap `scanLimit`-je fölött): a diff csak a valódi változásokat jelöli.
 SPREAD_OLD = "".join(f"const ertek_{i} = szamol('{'x' * 40}', {i});\n" for i in range(400))
 SPREAD_NEW = "".join((f"const ertek_{i} = szamol('{'y' * 40}', {i}, uj);\n" if i % 20 == 5 else f"const ertek_{i} = szamol('{'x' * 40}', {i});\n")
@@ -56,7 +58,7 @@ class CodeDiffTest(PageTestCase):
     @classmethod
     def prepare(cls, repo: Path) -> None:
         commit_versions(repo, {"kod.py": (OLD_PY, NEW_PY), "res.txt": (GAP_OLD, GAP_NEW), "szel.txt": (EDGE_OLD, EDGE_NEW),
-                               "bekezdes.md": (MD_OLD, MD_NEW), "szort.js": (SPREAD_OLD, SPREAD_NEW), "data.csv": (CSV_OLD, CSV_NEW), **LANGS}, cls.SUBJECT)
+                               "bekezdes.md": (MD_OLD, MD_NEW), "kozel.md": (MD_OLD, MD_NEAR_NEW), "szort.js": (SPREAD_OLD, SPREAD_NEW), "data.csv": (CSV_OLD, CSV_NEW), **LANGS}, cls.SUBJECT)
 
     def opened(self, name: str) -> str:
         """A fájl lenyitva; vissza a diffje szelektora."""
@@ -165,6 +167,13 @@ class CodeDiffTest(PageTestCase):
         self.settle()
         self.assertEqual(self.page.locator(".details .diff .diff-uni .md-blk").count(), before + 6)
         self.assertEqual(self.page.locator(".details .diff [data-gap]").count(), 0)
+
+    def test_markdown_short_gap_open(self) -> None:
+        """A 3-nál rövidebb változatlan futam (itt 1 blokk két változás környezete között) nem csukódik össze."""
+        self.open_file("kozel.md")
+        self.page.wait_for_selector(".details .diff .md-doc")
+        gaps = self.page.locator('.details .file[data-path="kozel.md"] + .diff .diff-uni [data-gap]').all_inner_texts()
+        self.assertEqual([g.strip() for g in gaps], ["4 változatlan blokk"])
 
 
 if __name__ == "__main__":

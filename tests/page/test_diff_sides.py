@@ -213,9 +213,10 @@ class MdDiffTest(PageTestCase):
         self.resize(1100)          # keskenyebben más a tördelés: újra egyforma
         a, b = heights()
         self.assertEqual(a, b)
+        # a 3-nál rövidebb változatlan futam nem csukódik össze: minden sor látszik
         self.assertEqual(sides, [
-            ["Név", "···", "s1", "s2", "s3", "s4", "···", "s7", "", "s8", "···"],
-            ["Név", "···", "s1", "s2", "s3", "s4", "···", "s7", "új", "s8", "···"],
+            ["Név", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "", "s8", "s9"],
+            ["Név", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "új", "s8", "s9"],
         ])
 
     def test_md_table_row_one_sided(self) -> None:
