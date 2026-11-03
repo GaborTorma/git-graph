@@ -1332,7 +1332,8 @@ body.side-on .pending, body.side-on .scroll { margin-right: var(--fv-tree-w, 280
   border-bottom: 1px solid var(--border); background: var(--bg); }
 .fv-head .head-chip { flex: none; cursor: default; }
 .fv-scroll { flex: 1; min-height: 0; overflow: auto; background: var(--code-bg); }
-.fv-find { flex: 0 1 320px; min-width: 160px; margin-left: auto; }
+.fv-find { flex: 0 1000 320px; min-width: 160px; margin-left: auto; }   /* előbb a kereső keskenyedik, aztán az út */
+.fv-head.tight .head-chip { display: none; }   /* a fájl útja nem fér ki: a chip helye az úté (`fitHead`) */
 .fv-path { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px;
   font-family: var(--font-mono); font-size: 13px; font-weight: var(--w-medium); }
 .fv-path .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

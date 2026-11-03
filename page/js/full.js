@@ -197,6 +197,7 @@ function loadTree(t) {
     if (r.fileIcons) Object.assign(DATA.fileIcons, r.fileIcons);
     t.loaded = new Set();
     renderTree(t);
+    if (t === fv && fv.path) pathHead();      // a fejléc ikonja a fa adatából (a fájl a fából jöhetett)
   }, e => {
     if (!current(t) || t.sha !== sha) return;
     t.el.querySelector('.fv-list').insertAdjacentHTML('afterbegin',
@@ -439,6 +440,8 @@ export function openFull(sha, path, o = {}) {
     findInFile(e.shiftKey ? -1 : 1);
   });
   el.querySelector('.fv-resize').addEventListener('pointerdown', onResize);
+  fv.fit = new ResizeObserver(() => fv && fitHead());
+  fv.fit.observe(el.querySelector('.fv-head'));
   addEventListener('keydown', onKey, true);
   if (all) loadTree(fv);
   renderCommits();
@@ -525,10 +528,19 @@ function selectFile(path, line = null) {
 /* A fejlécben a fájl: ikon, út, mellette a commit +/−-a és a WIP kék / narancs számai (a fa sora szerint). */
 function pathHead() {
   const head = fv.el.querySelector('.fv-path'), path = fv.path;
-  const f = (fv.plain ? null : changedFiles(fv.sha).get(path)) || { path, icon: fv.tree?.files.find(x => x.path === path)?.icon };
+  const icon = (fv.tree || side?.tree)?.files.find(x => x.path === path)?.icon;
+  const f = (fv.plain ? null : changedFiles(fv.sha).get(path)) || { path, icon };
   head.innerHTML = `${fileIcon(f)}<span class="path">${esc(path)}</span>${churn(f, fv.wip?.get(path))}`;
   head.classList.toggle('deleted', f.status === 'D');
+  fitHead();
   return f;
+}
+
+/* Ha a fájl útja nem fér ki a fejlécben, a HEAD-chip eltűnik (`tight`): az út fontosabb. */
+function fitHead() {
+  const head = fv.el.querySelector('.fv-head'), path = head.querySelector('.fv-path .path');
+  head.classList.remove('tight');
+  if (path && path.scrollWidth > path.clientWidth) head.classList.add('tight');
 }
 
 export function refreshFull() {
@@ -552,6 +564,7 @@ function closeFull() {
   const ed = editingDiff();
   if (ed && el.contains(ed.root)) ed.stopEditing();
   dropView();
+  fv.fit.disconnect();
   el.remove();
   document.body.classList.remove('fv-on');
   fv = null;

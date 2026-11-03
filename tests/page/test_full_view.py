@@ -248,6 +248,27 @@ class FullViewTest(PageTestCase):
         names = [t.strip() for t in self.page.locator(".fv .fv-list .fv-row .name").all_inner_texts()]
         self.assertEqual(names, ["git_graph", "diff.py", "page/js", "diff.js"])
 
+    def test_plain_full_icon(self) -> None:
+        """A sidebar fájából nyitott fájl fejlécében a fájltípus saját ikonja áll, nem az általános fájlikon."""
+        self.open_side()
+        self.page.locator('.side .fv-file[data-path="README.md"]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.page.wait_for_function("!document.querySelector('.fv-path .fic').classList.contains('ic')")
+
+    def test_head_chip_hides_when_tight(self) -> None:
+        """Ha a fájl útja nem fér ki a fejlécben, a HEAD-chip eltűnik; szélesebben visszajön."""
+        self.open_commit()
+        self.open_full("page/js/diff.js")
+        chip = self.page.locator(".fv-head .head-chip")
+        self.assertTrue(chip.is_visible())
+        self.page.set_viewport_size({"width": 560, "height": self.HEIGHT})
+        self.page.wait_for_function("document.querySelector('.fv-head').classList.contains('tight')")
+        self.assertFalse(chip.is_visible())
+        self.assertEqual(self.page.locator(".fv-path .path").inner_text(), "page/js/diff.js")
+        self.page.set_viewport_size({"width": self.WIDTH, "height": self.HEIGHT})
+        self.page.wait_for_function("!document.querySelector('.fv-head').classList.contains('tight')")
+        self.assertTrue(chip.is_visible())
+
     def test_deselect_commit(self) -> None:
         """WIP sor nélkül a kijelölt commitra kattintva a kijelölés lekerül: a worktree állapota, színezés nélkül."""
         self.open_commit()
