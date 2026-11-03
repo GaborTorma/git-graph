@@ -1032,6 +1032,8 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
    nem lóg rá; a CodeMirror tartalmára a lap fókuszgyűrűje nem kell. */
 .cm-diff { padding: 3px; border-radius: 8px; box-shadow: inset 0 0 0 1.5px transparent; }
 .cm-diff.editing { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.cm-diff .cm-content { cursor: text; }
+.cm-diff.readonly .cm-content { cursor: default; }   /* nem szerkeszthető: nyíl, nem I-gerenda */
 .diff .cm-content:focus-visible { box-shadow: none; }
 .diff .cm-cursor { border-left-color: var(--fg-0); }
 /* a kijelölés a színezett sorok fölött, áttetszőn, a keresés sárgájával (a sor háttere alatt nem látszana) */

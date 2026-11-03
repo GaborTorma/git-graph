@@ -111,7 +111,14 @@ class WipLayerTest(WipCase):
         self.open_app("wip: alap")
         self.assertEqual(self.page.locator(f"{SEL} .cm-wipLine, {SEL} .cm-wipDeleted").count(), 0)
 
-
+    def test_cursor_shows_editable(self) -> None:
+        """A nem szerkeszthető kódnézeten nyíl a kurzor, a szerkeszthetőn I-gerenda."""
+        cursor = f"getComputedStyle(document.querySelector('{SEL} .cm-content')).cursor"
+        self.open_app("wip: alap")
+        self.assertEqual(self.page.evaluate(cursor), "default")
+        self.page.locator('.details .file[data-path="app.py"]').click()       # becsukva
+        self.open_app()
+        self.assertEqual(self.page.evaluate(cursor), "text")
 
     def test_header_counts(self) -> None:
         """A fejlécen a commit +2 −2 mellett a WIP +3 −2, kék és narancs színnel."""

@@ -379,6 +379,7 @@ export class CodeDiff {
     this.seen = new Set(d.hash ? [d.hash] : []);   // a már látott / saját írású lemezállapotok
     this.saved = d.new ?? '';
     this.editable = Boolean(d.editable && !d.big);
+    this.root.classList.toggle('readonly', !this.editable);   // nyíl kurzor: a fájl nem írható
   }
 
   /* A nézet a szélességhez: egyoldalú (új / törölt / változatlan) fájlnál mindig egymás alatt. */
@@ -783,6 +784,7 @@ export class CodeDiff {
     if (headChanged && this.wipField) this.ed.dispatch({ effects: wipKit(this.CM).setHead.of(d.head ?? null) });
     if (this.wipField) { this.paintA(); this.alignWip(); }
     this.editable = Boolean(d.editable && !d.big);
+    this.root.classList.toggle('readonly', !this.editable);   // nyíl kurzor: a fájl nem írható
     if (this.editable) this.external(d.new, d.hash);
     else if ((d.new ?? '') !== this.text()) {
       const ch = this.changes(this.text(), d.new ?? '');
