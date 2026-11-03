@@ -511,8 +511,15 @@ class CardAnimTest(CdsCase):
         file = self.page.locator("#rows .details .file").first
         file.hover()
         self.settle()
+        # a réteg csak az animáció idejére él (200 ms): a betöltő fő szál mellett pollozva elmaradhat,
+        # ezért a megjelenését figyelő rögzíti
+        self.page.evaluate("""() => { window.fillIn = null; new MutationObserver((ms, o) => {
+          for (const m of ms) for (const n of m.addedNodes) if (n.classList?.contains('hover-fill')) {
+            window.fillIn = Boolean(n.closest('#rows .details')); o.disconnect(); } })
+          .observe(document.getElementById('rows'), { childList: true, subtree: true }); }""")
         file.click()
-        self.page.wait_for_selector("#rows .details .hover-fill", state="attached")
+        self.page.wait_for_function("window.fillIn !== null")
+        self.assertTrue(self.page.evaluate("window.fillIn"))
         self.settle()
         self.assertEqual(self.page.locator("#rows .hover-fill").count(), 0)
         self.assertEqual(file.get_attribute("aria-expanded"), "true")
