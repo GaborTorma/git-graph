@@ -237,6 +237,12 @@ function onQuery(t, value) {
 /* A fa kattintásai: a diff-szűrő, a mappák; a fájlra `onFile(path)`. */
 function treeClick(t, target, onFile) {
   const diff = target.closest('.fv-diff');
+  if (diff && t.plain && t === fv) {     // teljes képernyőn commit nélkül: a HEAD-commit lesz a kijelölt
+    t.all = false;
+    diff.setAttribute('aria-pressed', 'true');
+    switchCommit(focusWt()?.head, false);
+    return true;
+  }
   if (diff && t.plain) {                 // commit nélkül: a HEAD-commit lenyílik, a fa azt követi
     const head = focusWt()?.head;
     /** @type {HTMLElement} */ (head && document.querySelector(`.row[data-sha="${CSS.escape(head)}"]`))?.click();
@@ -347,7 +353,7 @@ function sideFile(path) {
   side.path = path;
   renderTree(side);
   const el = side.commit && expanded === side.sha && panelFile(path);
-  if (!el) { openFull(side.sha, path, { all: true, clean: side.clean }); return; }
+  if (!el) { openFull(side.sha, path, { all: true, plain: side.plain }); return; }
   if (el.getAttribute('aria-expanded') === 'true') revealFile(el);
   else toggleFile(el, expanded, true);
 }
@@ -390,8 +396,9 @@ function dropView() {
 }
 
 /** @param {string} sha @param {string} path
-    @param {{ line?: number | null, all?: boolean, clean?: boolean, borrowed?: any }} [o] `all`: minden
-    fájllal; `clean`: a tiszta worktree HEAD-je (a diff-szűrő letiltva); `borrowed`: a panelből átvett nézet
+    @param {{ line?: number | null, all?: boolean, clean?: boolean, plain?: boolean, borrowed?: any }} [o] `all`:
+    minden fájllal; `clean`: a tiszta worktree HEAD-je (a diff-szűrő letiltva); `plain`: commit nélkül (a sidebar
+    színezés nélküli fájából: a worktree állapota, kijelölt commit nélkül); `borrowed`: a panelből átvett nézet
     @returns {boolean} megnyílt-e */
 export function openFull(sha, path, o = {}) {
   if (!sha || fv) return false;
@@ -421,7 +428,7 @@ export function openFull(sha, path, o = {}) {
   }
   document.body.append(el);
   document.body.classList.add('fv-on');
-  fv = { ...newTree(el, sha, all, clean), key: null, find: '', borrowed: o.borrowed ?? null };
+  fv = { ...newTree(el, sha, all, clean), plain: Boolean(o.plain), key: null, find: '', borrowed: o.borrowed ?? null };
   el.addEventListener('click', onFullClick);
   el.querySelector('.fv-search input').addEventListener('input', e => onQuery(fv, /** @type {HTMLInputElement} */ (e.target).value));
   const find = /** @type {HTMLInputElement} */ (el.querySelector('.fv-find input'));
@@ -459,24 +466,28 @@ function renderCommits() {
   const more = k => (k ? `<div class="fv-more">még ${fmtInt(k)} commit</div>` : '');
   const item = c => {
     const tip = [c.subject, ...(c.body || '').split('\n').filter(l => l.trim())].join('\n');
-    return `<div class="fv-commit${c.sha === fv.sha ? ' sel' : ''}" data-sha="${esc(c.sha)}" data-tip="${esc(tip)}"`
-      + ` aria-selected="${c.sha === fv.sha}"><span class="subj">${esc(c.subject)}</span>`
+    const sel = !fv.plain && c.sha === fv.sha;
+    return `<div class="fv-commit${sel ? ' sel' : ''}" data-sha="${esc(c.sha)}" data-tip="${esc(tip)}"`
+      + ` aria-selected="${sel}"><span class="subj">${esc(c.subject)}</span>`
       + `${c.uncommitted ? '' : `<span class="sha">${esc(c.short)}</span>`}</div>`;
   };
   box.innerHTML = wip.map(item).join('') + more(from) + list.slice(from, to).map(item).join('') + more(list.length - to);
 }
 
 /* Commitváltás a listán: a fájl marad, ha a commitban változott (vagy a commitnak nincs változott
-   fájlja); különben a commit első változott fájlja. */
-function switchCommit(sha) {
-  if (sha === fv.sha || !commitBySha(sha)) return;
+   fájlja, vagy `plain`: commit nélkül, a worktree állapota); különben a commit első változott fájlja. */
+function switchCommit(sha, plain = false) {
+  if (!sha || (sha === fv.sha && plain === fv.plain) || !commitBySha(sha)) return;
   const ed = editingDiff();
   if (ed && fv.el.contains(ed.root)) ed.stopEditing();
   dropView();
-  const changed = changedFiles(sha);
+  const changed = plain ? new Map() : changedFiles(sha);
   const path = changed.has(fv.path) || !changed.size ? fv.path : changed.keys().next().value;
-  Object.assign(fv, { sha, key: null, tree: null, loaded: new Set(), grep: null, clean: false, borrowed: null });
-  fv.el.querySelector('.fv-diff').disabled = false;
+  Object.assign(fv, { sha, plain, key: null, tree: null, loaded: new Set(), grep: null, clean: false, borrowed: null });
+  if (plain) fv.all = true;
+  const btn = fv.el.querySelector('.fv-diff');
+  btn.disabled = false;
+  btn.setAttribute('aria-pressed', String(!fv.all));
   if (fv.all) loadTree(fv);
   if (fv.query.startsWith('?')) onQuery(fv, fv.query);
   renderCommits();
@@ -514,7 +525,7 @@ function selectFile(path, line = null) {
 /* A fejlécben a fájl: ikon, út, mellette a commit +/−-a és a WIP kék / narancs számai (a fa sora szerint). */
 function pathHead() {
   const head = fv.el.querySelector('.fv-path'), path = fv.path;
-  const f = changedFiles(fv.sha).get(path) || { path, icon: fv.tree?.files.find(x => x.path === path)?.icon };
+  const f = (fv.plain ? null : changedFiles(fv.sha).get(path)) || { path, icon: fv.tree?.files.find(x => x.path === path)?.icon };
   head.innerHTML = `${fileIcon(f)}<span class="path">${esc(path)}</span>${churn(f, fv.wip?.get(path))}`;
   head.classList.toggle('deleted', f.status === 'D');
   return f;
@@ -531,7 +542,7 @@ export function refreshFull() {
   renderCommits();
   pathHead();
   const box = fv.el.querySelector('.fv-box'), key = fv.key;
-  const f = changedFiles(fv.sha).get(fv.path);
+  const f = fv.plain ? null : changedFiles(fv.sha).get(fv.path);
   fileContent(box, fv.sha, fv.path, key, fill => { if (fv?.key === key) fill(); }, { changed: Boolean(f?.changed) });
 }
 
@@ -556,7 +567,13 @@ function onFullClick(e) {
   const t = /** @type {HTMLElement} */ (e.target);
   if (t.closest('[data-fv-close]')) { closeFull(); return; }
   const commit = /** @type {HTMLElement} */ (t.closest('.fv-commit'));
-  if (commit) { switchCommit(commit.dataset.sha); return; }
+  if (commit) {
+    // a kijelölt commitra kattintva, WIP sor nélkül, a kijelölés lekerül: a worktree állapota (`plain`)
+    const wt = focusWt();
+    if (commit.dataset.sha !== fv.sha || fv.plain) switchCommit(commit.dataset.sha);
+    else if (wt && !DATA.commits.some(c => c.uncommitted && c.worktree === wt.slug)) switchCommit(wt.head, true);
+    return;
+  }
   const md = /** @type {HTMLElement} */ (t.closest('[data-md-mode]')), svg = /** @type {HTMLElement} */ (t.closest('[data-svg-mode]'));
   if (md) { if ((md.dataset.mdMode === 'raw') !== mdRaw) setMdRaw(!mdRaw); return; }
   if (svg) { if ((svg.dataset.svgMode === 'code') !== svgCode) setSvgCode(!svgCode); return; }

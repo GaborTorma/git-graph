@@ -262,6 +262,15 @@ class WipToneTest(WipCase):
         self.assertEqual(colors[2], colors[3])
         self.assertEqual(colors[4], colors[5])
 
+    def test_selected_stays_with_wip(self) -> None:
+        """WIP sorral a kijelölt commitra kattintva a kijelölés marad."""
+        self.open_app()
+        self.page.locator('.details .file[data-path="app.py"]').locator("[data-full]").click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.page.locator(".fv-commit.sel").click()
+        self.page.wait_for_timeout(300)
+        self.assertEqual(self.page.locator(".fv-commit.sel .subj").inner_text(), "wip: a commit")
+
     def test_tree_wip_counts(self) -> None:
         self.open_app()
         self.page.locator('.details .file[data-path="app.py"]').locator("[data-full]").click()

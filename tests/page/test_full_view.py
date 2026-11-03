@@ -230,17 +230,33 @@ class FullViewTest(PageTestCase):
         self.assertEqual(self.side_tree(), ["git_graph", "diff.py", "page/js", "diff.js"])
         self.assertEqual(self.page.locator(".side .fv-diff").get_attribute("aria-pressed"), "true")
 
-    def test_clean_head_full_diff_disabled(self) -> None:
-        """A tiszta HEAD fájlja a sidebarból teljes képernyőn: a diff-szűrő letiltva, hover nélkül."""
+    def test_plain_full_from_side(self) -> None:
+        """Commit nélkül a sidebar fájlja teljes képernyőn: nincs kijelölt commit, a fa színezés nélküli; a
+        diff-szűrő a HEAD-commitot jelöli ki, a fa a változott fájljait mutatja."""
         self.open_side()
         self.page.locator('.side .fv-file[data-path="README.md"]').click()
         self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.assertEqual(self.page.locator(".fv-commit.sel").count(), 0)
+        self.assertEqual(self.page.locator(".fv .fv-row:is(.added, .modified, .deleted)").count(), 0)
         diff = self.page.locator(".fv .fv-diff")
-        self.assertTrue(diff.is_disabled())
-        look = "e => { const s = getComputedStyle(e); return [s.backgroundColor, s.boxShadow, s.color]; }"
-        before = diff.evaluate(look)
-        diff.hover(force=True)
-        self.assertEqual(diff.evaluate(look), before)
+        self.assertFalse(diff.is_disabled())
+        self.assertEqual(diff.get_attribute("aria-pressed"), "false")
+        diff.click()
+        self.page.wait_for_selector(".fv-commit.sel")
+        self.assertEqual(self.page.locator(".fv-commit.sel .subj").inner_text(), SUBJECT)
+        self.assertEqual(diff.get_attribute("aria-pressed"), "true")
+        names = [t.strip() for t in self.page.locator(".fv .fv-list .fv-row .name").all_inner_texts()]
+        self.assertEqual(names, ["git_graph", "diff.py", "page/js", "diff.js"])
+
+    def test_deselect_commit(self) -> None:
+        """WIP sor nélkül a kijelölt commitra kattintva a kijelölés lekerül: a worktree állapota, színezés nélkül."""
+        self.open_commit()
+        self.open_full("page/js/diff.js")
+        self.page.locator(".fv-commit.sel").click()
+        self.page.wait_for_function("!document.querySelector('.fv-commit.sel')")
+        self.page.wait_for_selector('.fv-list .fv-file[data-path="README.md"]')
+        self.assertEqual(self.page.locator(".fv .fv-row:is(.added, .modified, .deleted)").count(), 0)
+        self.assertIn("page/js/diff.js", self.page.locator(".fv-path").inner_text())
 
     def test_sidebar_follows_commit(self) -> None:
         """A sidebar a lenyitott commitot követi: csak a változott fájljai, színezve; becsukva újra a worktree."""
