@@ -465,6 +465,29 @@ class TextSidesTest(TextCase):
         self.assertNotIn("hunks", info)
         self.assertEqual(sides, {"old": {"text": "x = 1\ny = 2\n"}, "new": {"text": "x = 1\ny = 3\n"}})
 
+    def test_sides_in_one_call(self) -> None:
+        """A fejadat az oldalak szövegét is hozza, ha együtt átférnek; a WIP-réteges fájlnál a lemezét is."""
+        # Adott a HEAD-commit "app.py"-ja, a lemezen módosítva
+        repo, gg, _, sha, _ = self.text_repo()
+        (repo / "app.py").write_text("x = 5\n", encoding="utf-8")
+        # Ha a lap a fejadatot kéri
+        info = gg.diff.file_diff(sha, "app.py", text=True)
+        # Akkor mindhárom oldal benne van, ugyanúgy, mint külön kérve
+        self.assertEqual(info["sides"], {s: gg.diff.file_diff(sha, "app.py", side=s, text=True) for s in ("old", "new", "disk")})
+
+    def test_sides_too_big_together(self) -> None:
+        """Ha az oldalak együtt nem férnek át a host-hídon, a fejadat nélkülük jön (a lap oldalanként kéri)."""
+        # Adott egy fájl, amelynek két oldala külön átfér, együtt nem
+        repo, gg, _, _, wip = self.text_repo()
+        (repo / "hu.txt").write_text("ő" * 400_000, encoding="utf-8")
+        git_in(repo, "add", "hu.txt")
+        (repo / "hu.txt").write_text("ő" * 400_001, encoding="utf-8")
+        # Ha a lap a fejadatot kéri
+        info = gg.diff.file_diff(wip, "hu.txt", text=True)
+        # Akkor oldalak nélkül, de oldalanként átférnek
+        self.assertNotIn("sides", info)
+        self.assertIsNotNone(gg.diff.file_diff(wip, "hu.txt", side="new", text=True)["text"])
+
     def test_missing_side(self) -> None:
         """Az új fájlnak nincs régi oldala (`text: None`), a gyökércommitnak sincs."""
         # Adott a gyökércommit és az "app.py"-t létrehozó commit

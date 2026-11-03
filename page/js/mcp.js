@@ -1,10 +1,24 @@
 /* A gépen futó git-graph hívása a Claude app host-hídján át. */
 import { CTX, MCP_SERVER, SLUG } from './state.js';
 
+/* A host sűrű hívásnál visszafog (`rate_limited`, `retryAfterMs`; .claude/memory/host-bridge-long-poll.md):
+   ennyiszer próbáljuk újra, a kért várakozással (alapból `RETRY_MS`, legfeljebb `RETRY_MAX_MS`). */
+const RETRIES = 3, RETRY_MS = 600, RETRY_MAX_MS = 5000;
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 export function mcpSource() {
   const mcp = CTX.mcp;
-  const call = (tool, args, signal) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
-    signal ? { cache: false, signal } : { cache: false }).then(r => r.payload);
+  const call = async (tool, args, signal) => {
+    for (let n = 0; ; n++) {
+      try {
+        const r = await mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args }, signal ? { cache: false, signal } : { cache: false });
+        return r.payload;
+      } catch (e) {
+        if (e?.code !== 'rate_limited' || n >= RETRIES || signal?.aborted) throw e;
+        await pause(Math.min(RETRY_MAX_MS, Number(e.retryAfterMs) || RETRY_MS * (n + 1)));
+      }
+    }
+  };
   return { changes: (since, wait, signal) => /** @type {Promise<Changes>} */ (call('changes', { since, wait }, signal)),
            data: () => /** @type {Promise<GraphData>} */ (call('graph_data')),
            diff: (sha, path, full) => call('file_diff', { sha, path, full }),

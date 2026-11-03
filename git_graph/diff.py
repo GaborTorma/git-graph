@@ -743,8 +743,8 @@ def text_info(sha: str, path: str) -> dict:
     """A szöveges nézet fejadata (`text`): bináris-e, a két oldal mérete, nagy-e (valamelyik
     oldal `TEXT_MAX` fölött) és szerkeszthető-e — a worktree HEAD-commitjának fájljánál a mentés
     sorával (`write`), a lemez hashével (`hash`) és `wip`-pel: a lemez szövege a `disk` oldal
-    (`head_target`). Nagy fájlnál a csonkolt diff is (`hunks`,
-    `truncated`), különben a lap oldalanként kéri a teljes szöveget (`text_side`)."""
+    (`head_target`). Nagy fájlnál a csonkolt diff is (`hunks`, `truncated`), különben az oldalak
+    teljes szövege (`sides`: `text_side` alakban), ha együtt átférnek; ha nem, a lap oldalanként kéri."""
     old, new = numstat_old_path(path), numstat_new_path(path)
     root, src_a, src_b = image_sources(sha)
     blobs = [side_blob(root, src_a, old, TEXT_MAX), side_blob(root, src_b, new, TEXT_MAX)]
@@ -758,6 +758,14 @@ def text_info(sha: str, path: str) -> dict:
     if out["big"]:
         diff = text_diff(sha, path)
         out.update(binary=out["binary"] or diff["binary"], hunks=diff["hunks"], truncated=diff["truncated"])
+    elif not out["binary"]:
+        # az oldalak szövege is, ha együtt átférnek a host-hídon: a lap így egy hívással tölt (a host
+        # sűrű hívásnál visszafog); különben oldalanként kéri (`text_side`)
+        sides = {side: text_side(sha, path, side) for side in SIDES}
+        if target:
+            sides["disk"] = {"text": target[2], "hash": target[1]}
+        if len(json.dumps(sides)) <= TEXT_REPLY_MAX:
+            out["sides"] = sides
     return out
 
 

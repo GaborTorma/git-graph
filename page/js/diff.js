@@ -161,14 +161,16 @@ export function fileContent(box, sha, path, key, paint, o = {}) {
   }, e => { if (!cached && !live) note(`<p class="diff-note">A diff nem tölthető be: ${esc(e?.message || e?.code || e)}</p>`); });
 }
 
-/* A kódnézet adata: a két oldal teljes szövege oldalanként külön hívással (egy válasz így a
-   host-híd határa alatt marad), 2 MB fölött a csonkolt hunkok. */
+/* A kódnézet adata: a két (WIP-réteggel három) oldal teljes szövege, a fejadattal egy hívásban, ha együtt
+   átfér a host-híd határán, különben oldalanként; 2 MB fölött a csonkolt hunkok. */
 async function codeText(sha, path) {
   const meta = await SRC.text(sha, path);
   if (meta.binary) return { binary: true };
   if (meta.big) return fromHunks(meta);
   // a worktree HEAD-commitja (`wip`): a dokumentum a lemez szövege, a HEAD-beli a WIP-rétegnek
-  const [old, now, disk] = await Promise.all(['old', 'new', ...(meta.wip ? ['disk'] : [])].map(s => SRC.textSide(sha, path, s)));
+  // az oldalak a fejadattal jönnek, ha együtt átférnek a host-hídon (egy hívás); különben oldalanként
+  const [old, now, disk] = meta.sides ? [meta.sides.old, meta.sides.new, meta.sides.disk]
+    : await Promise.all(['old', 'new', ...(meta.wip ? ['disk'] : [])].map(s => SRC.textSide(sha, path, s)));
   if (old.binary || now.binary || disk?.binary) return { binary: true };
   if (old.big || now.big || disk?.big) return fromHunks(await SRC.diff(sha, path, false));
   if (disk && disk.text != null) {

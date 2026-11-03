@@ -176,5 +176,41 @@ class CodeDiffTest(PageTestCase):
         self.assertEqual([g.strip() for g in gaps], ["4 változatlan blokk"])
 
 
+class HostCallsTest(PageTestCase):
+    """A host-híd sűrű hívásnál visszafog (#61): a kódnézet egy hívással tölt, és a visszafogást kivárja."""
+    SUBJECT = "hivas"
+    WIDTH = 900
+    # a lap `file_diff` hívásai és az első `n` hívás `rate_limited`
+    SPY = """n => { const mcp = GIT_GRAPH.mcp, call = mcp.callTool.bind(mcp); window.calls = [];
+      mcp.callTool = (s, tool, args, ...rest) => {
+        if (tool !== 'file_diff') return call(s, tool, args, ...rest);
+        window.calls.push(args);
+        return window.calls.length <= n ? Promise.reject({ code: 'rate_limited', retryAfterMs: 50, message: 'Host tool rate limit exceeded' })
+          : call(s, tool, args, ...rest); }; }"""
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        commit_versions(repo, {"egy.py": ("a = 1\n", "a = 2\n")}, cls.SUBJECT)
+
+    def opened(self) -> str:
+        self.open_file("egy.py")
+        sel = '#rows .details .file[data-path="egy.py"] + .diff'
+        self.page.wait_for_selector(f"{sel} .cm-editor")
+        return sel
+
+    def test_one_call(self) -> None:
+        """A kis fájl kódnézete egyetlen file_diff hívással töltődik."""
+        self.page.evaluate(self.SPY, 0)
+        self.opened()
+        self.assertEqual(len(self.page.evaluate("window.calls")), 1)
+
+    def test_rate_limited_retry(self) -> None:
+        """Ha a host visszafog, a lap kis várakozás után újrapróbál, hibaüzenet nélkül."""
+        self.page.evaluate(self.SPY, 2)
+        sel = self.opened()
+        self.assertIn("a = 2", self.page.locator(f"{sel} .cm-content").inner_text())
+        self.assertEqual(self.page.locator(f"{sel} .diff-note").count(), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
