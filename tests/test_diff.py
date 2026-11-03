@@ -578,6 +578,23 @@ class HeadEditTest(TextCase):
         self.assertEqual(info["write"], wip)
         self.assertEqual(gg.diff.file_diff(parent, "ok.txt", side="disk", text=True)["text"], "átírva\n")
 
+    def test_own_worktree(self) -> None:
+        """Ha két worktree HEAD-je ugyanaz a commit, a lemez oldala és a mentés sora az előtérben lévő
+        sessioné (a lap saját worktree-je), nem a fő checkouté."""
+        # Adott egy második worktree a HEAD-en, benne az "ok.txt" átírva, és a fókusz rajta
+        repo, gg, _, sha, _ = self.text_repo()
+        extra = self.home / "extra"
+        git_in(repo, "worktree", "add", "-q", "--detach", str(extra))
+        (extra / "ok.txt").write_text("másik\n", encoding="utf-8")
+        folder = gg.claude_app.APP_SESSIONS / "acc" / "org"
+        folder.mkdir(parents=True)
+        (folder / "local_a.json").write_text(json.dumps({"cwd": str(extra), "lastFocusedAt": 1000}), encoding="utf-8")
+        # Ha a lap a HEAD-commit "ok.txt"-jét kéri
+        info = gg.diff.file_diff(sha, "ok.txt", text=True)
+        # Akkor a második worktree lemeze és WIP sora jön
+        self.assertEqual(info["write"], f"*uncommitted:{gg.registry.slug_for(extra)}")
+        self.assertEqual(gg.diff.file_diff(sha, "ok.txt", side="disk", text=True)["text"], "másik\n")
+
     def test_write_lands_in_wip(self) -> None:
         """A mentés a `write` sorral a munkakönyvtárba ír."""
         # Adott a HEAD-commit "ok.txt"-je szerkeszthetően

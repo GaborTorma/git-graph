@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 from urllib.parse import unquote
 
+from .claude_app import focused_worktree
 from .gitio import git, git_raw, numstat_new_path, numstat_old_path, stash_list, worktree_list
 from .registry import slug_for
 from .worktrees import UNCOMMITTED_RE, head_lines, read_lines, worktree_bytes
@@ -713,25 +714,29 @@ def unchanged_since(sha: str, head: str, path: str) -> bool:
     return a == b
 
 
+def own_worktree() -> dict | None:
+    """A lap saját worktree-je (mint a `focusWt`): az előtérben lévő sessioné, különben a fő checkout."""
+    wts = worktree_list()
+    slug = focused_worktree(wts)["worktree"]
+    return next((wt for wt in wts if slug_for(wt["path"]) == slug), wts[0] if wts else None)
+
+
 def head_target(sha: str, new: str) -> tuple | None:
-    """A worktree fájlja a lemezen, ha a `sha` a worktree HEAD-commitja, vagy egy régebbi commit, amely
-    óta a fájl nem változott: `(a mentés sora — *uncommitted:<slug>, a lemez hashe, a lemez szövege)`.
-    A lap a commit diffjét a lemez szövegével mutatja (a WIP eltérései külön rétegben), és oda ment. Más
-    commitnál, hiányzó, symlink, bináris, `TEXT_MAX` fölötti vagy képfájlnál: `None`."""
+    """A saját worktree (`own_worktree`) fájlja a lemezen, ha a `sha` a HEAD-commitja, vagy egy régebbi
+    commit, amely óta a fájl nem változott: `(a mentés sora — *uncommitted:<slug>, a lemez hashe, a lemez
+    szövege)`. A lap a commit diffjét a lemez szövegével mutatja (a WIP eltérései külön rétegben), és oda
+    ment. Más commitnál, hiányzó, symlink, bináris, `TEXT_MAX` fölötti vagy képfájlnál: `None`."""
     if not SHA_RE.match(sha) or Path(new).suffix.lower() in IMAGE_TYPES:
         return None
-    wts = [wt for wt in worktree_list() if wt["head"]]
-    # a HEAD-commitja előre; a régebbi commit csak akkor, ha a fájl azóta nem változott
-    for wt in sorted(wts, key=lambda w: not w["head"].startswith(sha)):
-        if not wt["head"].startswith(sha) and not unchanged_since(sha, wt["head"], new):
-            continue
-        file = disk_file(wt["path"], new)
-        if not file or (Path(wt["path"]) / new).is_symlink() or file.stat().st_size > TEXT_MAX:
-            return None
-        data = file.read_bytes()
-        text = as_text(data)
-        return None if text is None else (f"*uncommitted:{slug_for(wt['path'])}", digest(data), text)
-    return None
+    wt = own_worktree()
+    if not wt or not wt["head"] or not (wt["head"].startswith(sha) or unchanged_since(sha, wt["head"], new)):
+        return None
+    file = disk_file(wt["path"], new)
+    if not file or (Path(wt["path"]) / new).is_symlink() or file.stat().st_size > TEXT_MAX:
+        return None
+    data = file.read_bytes()
+    text = as_text(data)
+    return None if text is None else (f"*uncommitted:{slug_for(wt['path'])}", digest(data), text)
 
 
 def text_info(sha: str, path: str) -> dict:
