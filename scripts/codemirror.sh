@@ -23,8 +23,9 @@ printf '{"name":"codemirror-build","private":true}' > package.json
 # shellcheck disable=SC2086
 pnpm add --silent --ignore-scripts $PKGS "esbuild@$ESBUILD"
 cat > entry.js <<'EOF'
-import { ChangeSet, Compartment, EditorSelection, EditorState, StateEffect, StateField, Text } from '@codemirror/state';
-import { Decoration, EditorView, ViewPlugin, WidgetType, drawSelection, keymap, lineNumbers } from '@codemirror/view';
+import { ChangeSet, Compartment, EditorSelection, EditorState, RangeSet, StateEffect, StateField, Text } from '@codemirror/state';
+import { Decoration, EditorView, GutterMarker, ViewPlugin, WidgetType, drawSelection, gutterLineClass, gutterWidgetClass, keymap,
+         lineNumbers } from '@codemirror/view';
 import { Chunk, MergeView, diff, getChunks, getOriginalDoc, originalDocChangeEffect, rejectChunk,
          uncollapseUnchanged, unifiedMergeView, updateOriginalDoc } from '@codemirror/merge';
 import { HighlightStyle, LRLanguage, LanguageSupport, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
@@ -52,8 +53,9 @@ const LANGS = {
   swift: () => new LanguageSupport(StreamLanguage.define(swift)),
 };
 globalThis.CM = {
-  ChangeSet, Compartment, EditorSelection, EditorState, StateEffect, StateField, Text,
-  Decoration, EditorView, ViewPlugin, WidgetType, drawSelection, keymap, lineNumbers,
+  ChangeSet, Compartment, EditorSelection, EditorState, RangeSet, StateEffect, StateField, Text,
+  Decoration, EditorView, GutterMarker, ViewPlugin, WidgetType, drawSelection, gutterLineClass, gutterWidgetClass,
+  keymap, lineNumbers,
   Chunk, MergeView, diff, getChunks, getOriginalDoc, originalDocChangeEffect, rejectChunk,
   uncollapseUnchanged, unifiedMergeView, updateOriginalDoc,
   HighlightStyle, syntaxHighlighting, tags,

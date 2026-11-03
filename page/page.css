@@ -97,6 +97,8 @@
   --wip-del:     #fbefe1;
   --wip-add-fg:  #2f6db5;
   --wip-del-fg:  #b4621b;
+  --wip-add-hl:  #c3dbf3;
+  --wip-del-hl:  #f4d3ad;
   /* a betű vastagsága: az app (fizzy-lake típus) tengelyértékei az Anthropic Sans változó fontján —
      a `font-weight` szám a `wght` tengelyt állítja */
   --w-body:      360;
@@ -180,6 +182,8 @@
     --wip-del:     #45321c;
     --wip-add-fg:  #8dbbef;
     --wip-del-fg:  #eea867;
+    --wip-add-hl:  #2a5480;
+    --wip-del-hl:  #6e4c22;
     color-scheme: dark;
   }
 }
@@ -253,6 +257,8 @@
   --wip-del:     #45321c;
   --wip-add-fg:  #8dbbef;
   --wip-del-fg:  #eea867;
+  --wip-add-hl:  #2a5480;
+  --wip-del-hl:  #6e4c22;
   color-scheme: dark;
 }
 
@@ -996,19 +1002,24 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
    Mint az app ghost gombja: háttér csak hoverre (fill-1), lenyomva sötétebb (fill-2). */
 /* WIP-réteg: a merge zöldje / pirosa fölött (átfedésnél a WIP nyer) */
 .diff .cm-line.cm-wipLine, .diff .cm-merge-b .cm-line.cm-wipLine { background: var(--wip-add); }
-.diff .cm-wipLine .cm-changedText { background: none; }
+.diff .cm-line.cm-wipDelLine, .diff .cm-merge-a .cm-line.cm-wipDelLine { position: relative; background: var(--wip-del); }
+.diff :is(.cm-wipLine, .cm-wipDelLine) .cm-changedText { background: none; }
+.diff .cm-wipText { background: var(--wip-add-hl); border-radius: 3px; }
+.diff .cm-wipDelText { background: var(--wip-del-hl); border-radius: 3px; }
+.diff .cm-changeGutter .cm-gutterElement.cm-wipAddGutter { background: var(--wip-add-fg); }
+.diff .cm-changeGutter .cm-gutterElement.cm-wipDelGutter { background: var(--wip-del-fg); }
 .diff .cm-wipDeleted { position: relative; padding: 0 10px 0 6px; background: var(--wip-del); color: var(--fg-1); user-select: none; }
-.diff .cm-wipDeleted .cm-chunkButtons,
+.diff .cm-wipDeleted .cm-chunkButtons, .diff .cm-wipDelLine .cm-chunkButtons,
 .diff .cm-deletedChunk .cm-chunkButtons { position: absolute; top: 0; right: 1px; z-index: 2; height: 19.5px; padding: 0;
   display: flex; align-items: center; }
 .diff .cm-reject,
-.diff :is(.cm-deletedChunk, .cm-wipDeleted) .cm-chunkButtons .cm-reject {
+.diff :is(.cm-deletedChunk, .cm-wipDeleted, .cm-wipDelLine) .cm-chunkButtons .cm-reject {
   width: 18px; height: 18px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
   margin: 0; border: 0; border-radius: 5px; cursor: pointer; background: transparent; color: var(--fg-2); box-shadow: none;
 }
 .diff .cm-reject .ic { width: 12px; height: 12px; }
-.diff .cm-reject:hover, .diff :is(.cm-deletedChunk, .cm-wipDeleted) .cm-chunkButtons .cm-reject:hover { background: var(--fill-1); color: var(--fg-0); }
-.diff .cm-reject:active, .diff :is(.cm-deletedChunk, .cm-wipDeleted) .cm-chunkButtons .cm-reject:active { background: var(--fill-2); }
+.diff .cm-reject:hover, .diff :is(.cm-deletedChunk, .cm-wipDeleted, .cm-wipDelLine) .cm-chunkButtons .cm-reject:hover { background: var(--fill-1); color: var(--fg-0); }
+.diff .cm-reject:active, .diff :is(.cm-deletedChunk, .cm-wipDeleted, .cm-wipDelLine) .cm-chunkButtons .cm-reject:active { background: var(--fill-2); }
 .diff .cm-merge-revert { width: 20px; background: var(--code-tint); }
 .diff .cm-merge-revert .cm-reject { margin: 0 1px; }
 /* A szerkesztés kerete: a hely mindig megvan (a szerkesztés kezdetén semmi nem mozdul), a tartalom

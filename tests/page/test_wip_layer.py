@@ -170,5 +170,45 @@ class WipSplitTest(WipCase):
         right = self.page.locator(f"{SEL} .cm-merge-b .cm-line", has_text="s36 = 36").bounding_box()
         self.assertLessEqual(abs(left["y"] - right["y"]), 2)
 
+    def test_left_is_parent(self) -> None:
+        """A bal oldal a szülő: a WIP sora nincs rajta, a WIP által törölt sora narancs, szókiemeléssel és sávjellel."""
+        self.open_app()
+        left = f"{SEL} .cm-merge-a"
+        self.assertEqual(self.page.locator(f"{left} .cm-line", has_text="s35 = 'wip'").count(), 0)
+        self.assertEqual(self.page.locator(f"{left} .cm-line", has_text="uj = 1").count(), 0)
+        old = self.page.locator(f"{left} .cm-line", has_text="s35 = 35")
+        self.assertIn("cm-wipDelLine", old.get_attribute("class"))
+        self.assertEqual(old.locator(".cm-wipDelText").inner_text(), "35")
+        self.assertGreater(self.page.locator(f"{left} .cm-changeGutter .cm-wipDelGutter").count(), 0)
+        # a jobb oldalon a narancs blokk csak a szülőben nem meglévő (a commit hozta) sor; az üres a tiszta
+        # hozzáadás elvetése
+        blocks = [t.strip() for t in self.page.locator(f"{SEL} .cm-merge-b .cm-wipDeleted").all_inner_texts() if t.strip()]
+        self.assertEqual(blocks, ["s60 = 'commit'"])
+        # a 36. sor a két oldalon egy vonalban
+        a = self.page.locator(f"{left} .cm-line", has_text="s36 = 36").bounding_box()
+        b = self.page.locator(f"{SEL} .cm-merge-b .cm-line", has_text="s36 = 36").bounding_box()
+        self.assertLessEqual(abs(a["y"] - b["y"]), 2)
+
+    def test_reject_from_left(self) -> None:
+        """A bal oldal narancs során az elvetés a HEAD-beli változatra állítja vissza a sort."""
+        self.open_app()
+        self.page.locator(f"{SEL} .cm-merge-a .cm-wipDelLine", has_text="s35 = 35").locator(".cm-reject").click()
+        self.page.wait_for_timeout(300)
+        self.assertEqual(self.page.locator(f"{SEL} .cm-merge-b .cm-line", has_text="s35 = 'wip'").count(), 0)
+        self.assertEqual(self.page.locator(f"{SEL} .cm-merge-a .cm-wipDelLine", has_text="s35 = 35").count(), 0)
+
+
+class WipMarksTest(WipCase):
+    """Egymás alatt a kék és a narancs sor szókiemelést és sávjelet kap."""
+
+    def test_marks(self) -> None:
+        self.open_app()
+        self.assertEqual(self.line("s35 = 'wip'").locator(".cm-wipText").inner_text(), "'wip'")
+        marks = self.page.locator(f"{SEL} .cm-wipDeleted .cm-wipDelText").all_inner_texts()
+        self.assertIn("35", marks)
+        self.assertGreater(self.page.locator(f"{SEL} .cm-changeGutter .cm-wipAddGutter").count(), 0)
+        self.assertGreater(self.page.locator(f"{SEL} .cm-changeGutter .cm-wipDelGutter").count(), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

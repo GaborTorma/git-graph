@@ -94,47 +94,97 @@ function common(CM) {
 
 /* ── WIP-réteg ── a saját worktree HEAD-commitjánál a dokumentum a lemez szövege (`d.head`: a HEAD-beli):
    a HEAD → lemez eltérések a merge zöld / piros jelölése fölött; a hozzáadott sor kék (`cm-wipLine`), a
-   HEAD-beli változata narancs blokk (`cm-wipDeleted`), rajta az elvetés (a HEAD-beli változatra). */
+   HEAD-beli változata narancs (`cm-wipDeleted` blokk; egymás mellett, ha a szülőben is megvan, a bal
+   oldal sora: `cm-wipDelLine`), rajta az elvetés (a HEAD-beli változatra). Szókiemelés és sávjel is. */
 let wipShared = null;
 function wipKit(CM) {
   if (wipShared) return wipShared;
   const setHead = CM.StateEffect.define();
+  const marker = cls => new (class extends CM.GutterMarker { constructor() { super(); this.elementClass = cls; } })();
+  const addGutter = marker('cm-wipAddGutter'), delGutter = marker('cm-wipDelGutter');
+  /* A narancs sor szövege a szókiemelésekkel (`marks`: [from, to] a soron belül). */
+  const lineEl = (text, marks, tag = 'div') => {
+    const el = document.createElement(tag);
+    let at = 0;
+    for (const [f, t] of marks) {
+      el.append(text.slice(at, f), Object.assign(document.createElement('span'), { className: 'cm-wipDelText', textContent: text.slice(f, t) }));
+      at = t;
+    }
+    el.append(text.slice(at) || (at ? '' : '​'));
+    return el;
+  };
+  const rejectBar = (diff, ch, head) => {
+    const bar = Object.assign(document.createElement('span'), { className: 'cm-chunkButtons' }), b = rejectButton();
+    b.addEventListener('mousedown', e => { e.preventDefault(); diff.rejectWip(ch, head); });
+    bar.append(b);
+    return bar;
+  };
   class WipBlock extends CM.WidgetType {
     constructor(diff, ch, old, head) { super(); Object.assign(this, { diff, ch, old, head }); }
-    eq(o) { return o.old === this.old && o.ch.fromB === this.ch.fromB && o.ch.toB === this.ch.toB && o.diff.editable === this.diff.editable; }
+    eq(o) {
+      return JSON.stringify(o.old) === JSON.stringify(this.old) && o.ch.fromB === this.ch.fromB && o.ch.toB === this.ch.toB
+        && o.diff.editable === this.diff.editable;
+    }
     toDOM() {
       const el = document.createElement('div');
       el.className = 'cm-wipDeleted';
-      if (this.old != null) for (const line of this.old.split('\n')) el.append(Object.assign(document.createElement('div'), { textContent: line || '\u200b' }));
-      if (this.diff.editable) {
-        const bar = Object.assign(document.createElement('span'), { className: 'cm-chunkButtons' }), b = rejectButton();
-        b.addEventListener('mousedown', e => { e.preventDefault(); this.diff.rejectWip(this.ch, this.head); });
-        bar.append(b);
-        el.append(bar);
-      }
+      for (const l of this.old) el.append(lineEl(l.text, l.marks));
+      if (this.diff.editable) el.append(rejectBar(this.diff, this.ch, this.head));
       return el;
     }
     ignoreEvent() { return true; }
   }
+  // egymás mellett a bal oldal narancs sorának elvetése (a sor elején, a gomb a jobb szélen)
+  class RejectMark extends CM.WidgetType {
+    constructor(diff, ch, head) { super(); Object.assign(this, { diff, ch, head }); }
+    eq(o) { return o.ch.fromB === this.ch.fromB && o.ch.toB === this.ch.toB; }
+    toDOM() { return rejectBar(this.diff, this.ch, this.head); }
+    ignoreEvent() { return true; }
+  }
+  /* A HEAD sora (`from`: a sor eleje) a szülőben: a pozíciója ott, vagy -1, ha a commit hozta. */
+  const inParent = (commit, from) => {
+    let shift = 0;
+    for (const c of commit) {
+      if (c.fromB <= from && from < c.toB) return -1;
+      if (c.toB <= from) shift += (c.toA - c.fromA) - (c.toB - c.fromB);
+    }
+    return from + shift;
+  };
   const build = (diff, state, head) => {
-    if (head == null) return { head, deco: CM.Decoration.none, chunks: [], blocks: [] };
-    const doc = state.doc, a = CM.Text.of(head.split('\n')), ranges = [], blocks = [];
+    const none = { head, deco: CM.Decoration.none, gutter: CM.RangeSet.empty, chunks: [], blocks: [], aLines: [] };
+    if (head == null) return none;
+    const doc = state.doc, a = CM.Text.of(head.split('\n')), ranges = [], gutter = [], blocks = [], aLines = [];
     const chunks = CM.Chunk.build(a, doc, DIFF_CONFIG);
+    const commit = diff.split ? diff.commitChunks(head) : null;
     for (const ch of chunks) {
-      // a blokk vége a következő sor eleje (a sorvég a blokké): a HEAD-beli sorok sorvég nélkül
-      const old = ch.toA > ch.fromA ? a.sliceString(ch.fromA, ch.toA).replace(/\n$/, '') : null;
-      blocks.push({ pos: Math.min(ch.fromB, doc.length), lines: old == null ? 0 : old.split('\n').length });
-      if (old != null || diff.editable) {
-        ranges.push(CM.Decoration.widget({ widget: new WipBlock(diff, ch, old, a), block: true, side: -1 })
-          .range(doc.lineAt(Math.min(ch.fromB, doc.length)).from));
+      // a HEAD-beli sorok szókiemeléssel; egymás mellett a szülőben is meglévők a bal oldalra kerülnek
+      const old = [];
+      for (let pos = ch.fromA; pos < ch.toA && pos <= a.length;) {
+        const line = a.lineAt(pos);
+        const marks = ch.changes.map(c => [Math.max(ch.fromA + c.fromA, line.from) - line.from, Math.min(ch.fromA + c.toA, line.to) - line.from])
+          .filter(([f, t]) => t > f);
+        const p = commit ? inParent(commit, line.from) : -1;
+        if (p >= 0) aLines.push({ pos: p, marks, reject: aLines.at(-1)?.ch === ch ? null : ch, ch });
+        else old.push({ text: line.text, marks });
+        pos = line.to + 1;
+      }
+      const at = doc.lineAt(Math.min(ch.fromB, doc.length)).from;
+      blocks.push({ pos: Math.min(ch.fromB, doc.length), lines: old.length });
+      if (old.length || (diff.editable && !aLines.some(l => l.ch === ch))) {
+        ranges.push(CM.Decoration.widget({ widget: new WipBlock(diff, ch, old, a), block: true, side: -1 }).range(at));
       }
       if (ch.toB > ch.fromB) {
         for (let n = doc.lineAt(ch.fromB).number, last = doc.lineAt(Math.min(ch.toB - 1, doc.length)).number; n <= last; n++) {
           ranges.push(CM.Decoration.line({ class: 'cm-wipLine' }).range(doc.line(n).from));
+          gutter.push(addGutter.range(doc.line(n).from));
         }
       }
+      for (const c of ch.changes) {
+        const from = Math.min(ch.fromB + c.fromB, doc.length), to = Math.min(ch.fromB + c.toB, doc.length);
+        if (to > from) ranges.push(CM.Decoration.mark({ class: 'cm-wipText' }).range(from, to));
+      }
     }
-    return { head, deco: CM.Decoration.set(ranges, true), chunks, blocks };
+    return { head, deco: CM.Decoration.set(ranges, true), gutter: CM.RangeSet.of(gutter, true), chunks, blocks, aLines };
   };
   const field = diff => CM.StateField.define({
     create: s => build(diff, s, diff.d.head ?? null),
@@ -142,7 +192,31 @@ function wipKit(CM) {
       for (const e of tr.effects) if (e.is(setHead)) return build(diff, tr.state, e.value);
       return tr.docChanged ? build(diff, tr.state, v.head) : v;
     },
-    provide: f => CM.EditorView.decorations.from(f, v => v.deco),
+    provide: f => [CM.EditorView.decorations.from(f, v => v.deco), CM.gutterLineClass.from(f, v => v.gutter)],
+  });
+  // a narancs blokk sávjele a változás-hasábban
+  const widgetGutter = CM.gutterWidgetClass.of((view, widget) => (widget instanceof WipBlock ? delGutter : null));
+  /* Egymás mellett a bal oldal (a szülő) narancs sorai: a WIP törölte őket (`aLines`). */
+  const setALayer = CM.StateEffect.define();
+  const aLayer = CM.StateField.define({
+    create: () => ({ deco: CM.Decoration.none, gutter: CM.RangeSet.empty }),
+    update(v, tr) {
+      for (const e of tr.effects) {
+        if (!e.is(setALayer)) continue;
+        const { diff, lines, head } = e.value, doc = tr.state.doc, ranges = [], gutter = [];
+        for (const l of lines) {
+          if (l.pos > doc.length) continue;
+          const line = doc.lineAt(l.pos);
+          ranges.push(CM.Decoration.line({ class: 'cm-wipDelLine' }).range(line.from));
+          gutter.push(delGutter.range(line.from));
+          if (l.reject && diff.editable) ranges.push(CM.Decoration.widget({ widget: new RejectMark(diff, l.reject, head), side: -1 }).range(line.from));
+          for (const [f, t] of l.marks) if (line.from + t <= line.to) ranges.push(CM.Decoration.mark({ class: 'cm-wipDelText' }).range(line.from + f, line.from + t));
+        }
+        return { deco: CM.Decoration.set(ranges, true), gutter: CM.RangeSet.of(gutter, true) };
+      }
+      return { deco: v.deco.map(tr.changes), gutter: v.gutter.map(tr.changes) };
+    },
+    provide: f => [CM.EditorView.decorations.from(f, v => v.deco), CM.gutterLineClass.from(f, v => v.gutter)],
   });
   // A saját változatlan-rés (egymás alatt, WIP-réteggel): a merge `collapseUnchanged`-je csak a commit
   // változásait látja; ez mindkét diffét. Kattintásra a rés egyben nyílik.
@@ -230,7 +304,7 @@ function wipKit(CM) {
     },
     provide: f => CM.EditorView.decorations.from(f),
   });
-  wipShared = { setHead, field, gaps, setGaps, openGap, gapLines, gapDeco, base, setSpacers, spacers };
+  wipShared = { setHead, field, widgetGutter, setALayer, aLayer, gaps, setGaps, openGap, gapLines, gapDeco, base, setSpacers, spacers };
   return wipShared;
 }
 
@@ -257,7 +331,9 @@ export class CodeDiff {
     this.timer = 0;
     this.saving = null;
     this.rebaseTimer = 0;
-    this.shownOld = null;            // a merge régi oldala (WIP-réteggel nem a szülő: `rebase`)
+    this.shownOld = null;            // a merge régi oldala (WIP-réteggel egymás alatt nem a szülő: `origFor`)
+    this.split = false;
+    this.cc = null;                  // a szülő → HEAD blokkjai (`commitChunks`)
     this.wipField = null;
     this.edit = new CM.Compartment();
     this.set(d);
@@ -321,12 +397,12 @@ export class CodeDiff {
   build(mode) {
     const CM = this.CM, d = this.d;
     const doc = this.ed ? this.ed.state.doc.toString() : (d.new ?? '');
-    // WIP-réteggel a merge alapja a szülő a commitot nem érintő WIP-blokkokkal (`wipKit().base`)
-    const orig = d.head != null && !d.big ? wipKit(CM).base(d.old ?? '', d.head, doc) : (d.old ?? '');
-    this.shownOld = orig;
     const wasEditing = this.editing, head = this.ed?.state.selection.main.head ?? 0;
     this.destroy();
     this.mode = mode;
+    this.split = mode === 'split';
+    const orig = this.origFor(d.head, doc);
+    this.shownOld = orig;
     // a WIP-réteg (HEAD-commit, lemez szöveg): elvetés csak a WIP-blokkon, a rés a saját (`wipKit`)
     const wip = d.head != null && !d.big ? wipKit(CM) : null;
     this.wipField = wip ? wip.field(this) : null;
@@ -343,13 +419,13 @@ export class CodeDiff {
         }));
         return b;
       } } : {};
-      this.mv = new CM.MergeView({ a: { doc: orig, extensions: [...this.extensions('a'), ...(wip ? [wip.spacers, wip.gaps] : [])] },
-                                   b: { doc, extensions: [...this.extensions('b'), ...layer, ...(wip ? [wip.gaps] : [])] },
+      this.mv = new CM.MergeView({ a: { doc: orig, extensions: [...this.extensions('a'), ...(wip ? [wip.spacers, wip.gaps, wip.aLayer] : [])] },
+                                   b: { doc, extensions: [...this.extensions('b'), ...layer, ...(wip ? [wip.gaps, wip.widgetGutter] : [])] },
                                    parent: this.root, gutter: true, highlightChanges: true, diffConfig: DIFF_CONFIG,
                                    ...collapse, ...revert });
       this.ed = this.mv.b;
       this.ea = this.mv.a;
-      if (wip) this.alignWip();
+      if (wip) { this.paintA(); this.alignWip(); }
       if (ownGaps) this.collapseWip();
     } else {
       const controls = this.editable && !wip ? (type, action) => {
@@ -362,7 +438,7 @@ export class CodeDiff {
         ...this.extensions('b'),
         CM.unifiedMergeView({ original: orig, gutter: true, highlightChanges: true, syntaxHighlightDeletions: true,
                               mergeControls: controls, diffConfig: DIFF_CONFIG, ...collapse }),
-        ...layer, ...(ownGaps ? [wip.gaps] : []),
+        ...layer, ...(wip ? [wip.widgetGutter] : []), ...(ownGaps ? [wip.gaps] : []),
       ] }) });
       this.ea = null;
       if (ownGaps) this.collapseWip();
@@ -443,10 +519,35 @@ export class CodeDiff {
     this.shownOld = next;
   }
 
-  /* A WIP-réteg merge-alapja a mostani dokumentumhoz (`wipKit().base`). */
+  /* A merge régi oldala: WIP-réteggel egymás alatt a szülő a commitot nem érintő WIP-blokkokkal
+     (`wipKit().base`), így a merge csak a commit változását jelöli; egymás mellett a szülő maga, a WIP
+     eltérését a két oldal saját rétege színezi át (`paintA`). */
+  origFor(head, doc) {
+    const d = this.d;
+    return head != null && !d.big && !this.split ? wipKit(this.CM).base(d.old ?? '', head, doc) : (d.old ?? '');
+  }
+
+  /* A szülő → HEAD blokkjai (egymás mellett: melyik narancs sor van meg a szülőben), gyorstárazva. */
+  commitChunks(head) {
+    const CM = this.CM, old = this.d.old ?? '';
+    if (this.cc?.old !== old || this.cc.head !== head) {
+      this.cc = { old, head, chunks: CM.Chunk.build(CM.Text.of(old.split('\n')), CM.Text.of(head.split('\n')), DIFF_CONFIG) };
+    }
+    return this.cc.chunks;
+  }
+
+  /* Egymás mellett a bal oldal narancs sorai a WIP-réteg mostani állapotából. */
+  paintA() {
+    if (!this.ea || !this.wipField) return;
+    const v = this.ed.state.field(this.wipField);
+    this.ea.dispatch({ effects: wipKit(this.CM).setALayer.of({ diff: this, lines: v.aLines, head: this.CM.Text.of((v.head ?? '').split('\n')) }) });
+  }
+
+  /* A WIP-réteg a mostani dokumentumhoz: a merge alapja, a bal oldal, az igazítás. */
   rebase() {
     if (!this.ed || !this.wipField || this.d.head == null) return;
-    this.setOriginal(wipKit(this.CM).base(this.d.old ?? '', this.d.head, this.text()));
+    this.setOriginal(this.origFor(this.d.head, this.text()));
+    this.paintA();
     this.alignWip();
   }
 
@@ -642,12 +743,11 @@ export class CodeDiff {
       this.build(this.wantMode());
       return;
     }
-    const CM = this.CM, head = d.head ?? null;
-    this.setOriginal(this.wipField && head != null ? wipKit(CM).base(d.old ?? '', head, this.text()) : (d.old ?? ''));
-    if ((d.head ?? null) !== (this.d.head ?? null) && this.wipField) {
-      this.ed.dispatch({ effects: wipKit(CM).setHead.of(d.head ?? null) });
-    }
+    const headChanged = (d.head ?? null) !== (this.d.head ?? null);
     this.d = { ...this.d, old: d.old, head: d.head, editable: d.editable, write: d.write ?? this.d.write };
+    this.setOriginal(this.origFor(this.wipField ? d.head ?? null : null, this.text()));
+    if (headChanged && this.wipField) this.ed.dispatch({ effects: wipKit(this.CM).setHead.of(d.head ?? null) });
+    if (this.wipField) { this.paintA(); this.alignWip(); }
     this.editable = Boolean(d.editable && !d.big);
     if (this.editable) this.external(d.new, d.hash);
     else if ((d.new ?? '') !== this.text()) {
