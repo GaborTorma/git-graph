@@ -170,6 +170,7 @@ class PageTestCase(unittest.TestCase):
         self.context = self.browser.new_context(viewport={"width": self.WIDTH, "height": self.HEIGHT},
                                                 locale="hu-HU", timezone_id="Europe/Budapest",
                                                 color_scheme=self.COLOR_SCHEME)
+        self.context.set_default_timeout(5000)   # egy elakadt várakozás 5 s után bukik, nem 30 s után
         self.page = self.context.new_page()
         self.errors: list[str] = []
         self.page.on("pageerror", lambda e: self.errors.append(str(e)))
