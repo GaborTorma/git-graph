@@ -1,8 +1,8 @@
 /* ── Fájlfa: sidebar és teljes képernyő ──
    A sidebar az eszközsor gombjával nyílik (a lap megjegyzi): a gráf mellett, jobbra a fájlfa, az
    eszközsor és a lábléc között. A fa a lenyitott commitot követi (a változásai szerint színezve);
-   lenyitott commit nélkül a saját worktree mostani állapotát mutatja (a WIP sor, tisztán a HEAD,
-   minden fájllal). A fában a lenyitott commit változott fájlja a commit-panelben nyílik le, odagörgetve;
+   lenyitott commit nélkül a saját worktree mostani állapotát mutatja minden fájllal, színezés nélkül
+   (`plain`); ilyenkor a diff-szűrő a HEAD-commitot nyitja le, és a fa már azt követi. A fában a lenyitott commit változott fájlja a commit-panelben nyílik le, odagörgetve;
    a többi fájl (változatlan, vagy nincs lenyitott commit) teljes képernyőn.
    A teljes képernyő a panel lenyitott fájljának fejlécéből nyílik (`data-full`), a fájl első
    változásánál: a lap tetejétől a láblécig. Középen a fejlécben a repó neve, a HEAD-chip, a fájl útja,
@@ -88,7 +88,7 @@ const newTree = (el, sha, all, clean = false) => ({ el, sha, all, clean, path: n
 /* A fa bejegyzései: a változott fájlok, a kapcsolóval a commit minden fájlja (a törölt is, a
    helyén), kereséskor a találatok. */
 function entries(t) {
-  const changed = changedFiles(t.sha);
+  const changed = t.plain ? new Map() : changedFiles(t.sha);
   if (t.grep) return (t.all ? t.grep : t.grep.filter(f => changed.has(f.path))).map(f => changed.get(f.path) || { ...f, changed: false });
   let list = [...changed.values()];
   if (t.all && t.tree) {
@@ -181,8 +181,8 @@ function renderTree(t) {
   if (!t) return;
   const list = t.el.querySelector('.fv-list');
   const top = list.scrollTop;
-  t.wip = wipCounts(t.sha);
-  t.el.classList.toggle('wip-tone', Boolean(commitBySha(t.sha)?.uncommitted));
+  t.wip = t.plain ? new Map() : wipCounts(t.sha);
+  t.el.classList.toggle('wip-tone', !t.plain && Boolean(commitBySha(t.sha)?.uncommitted));
   list.innerHTML = rowsHtml(t, buildTree(t, entries(t)), 0) || `<p class="fv-empty">${t.grep ? 'Nincs találat.' : 'Nincs ilyen fájl.'}</p>`;
   list.scrollTop = top;
 }
@@ -237,6 +237,11 @@ function onQuery(t, value) {
 /* A fa kattintásai: a diff-szűrő, a mappák; a fájlra `onFile(path)`. */
 function treeClick(t, target, onFile) {
   const diff = target.closest('.fv-diff');
+  if (diff && t.plain) {                 // commit nélkül: a HEAD-commit lenyílik, a fa azt követi
+    const head = focusWt()?.head;
+    /** @type {HTMLElement} */ (head && document.querySelector(`.row[data-sha="${CSS.escape(head)}"]`))?.click();
+    return true;
+  }
   if (diff) {
     t.all = !t.all;
     diff.setAttribute('aria-pressed', String(!t.all));
@@ -282,11 +287,11 @@ sideBtn.addEventListener('click', () => (side ? closeSide() : openSide()));
 /* A fa tárgya: a lenyitott commit (a változott fájlai), különben a saját worktree mostani állapota —
    a nem commitolt sora, ha van, különben a HEAD-commitja —, minden fájllal. */
 function sideTarget() {
-  if (expanded) return { sha: expanded, all: false, clean: false, commit: true };
+  if (expanded) return { sha: expanded, all: false, clean: false, commit: true, plain: false };
   const wt = focusWt();
   if (!wt) return null;
   const wip = DATA.commits.find(c => c.uncommitted && !c.staged && c.worktree === wt.slug);
-  return wip ? { sha: wip.sha, all: true, clean: false, commit: false } : { sha: wt.head, all: true, clean: true, commit: false };
+  return { sha: wip ? wip.sha : wt.head, all: true, clean: !wip, commit: false, plain: true };
 }
 
 function retarget() {
@@ -295,12 +300,13 @@ function retarget() {
   // a lenyitott HEAD-commit és a tiszta worktree HEAD-je ugyanaz a sha, más tárgy
   if (want && want.sha === side.sha && want.commit === side.commit) { renderTree(side); return; }
   const { el, query } = side;
-  side = want ? { ...newTree(el, want.sha, want.all, want.clean), commit: want.commit } : { ...newTree(el, null, false), commit: false };
+  side = want ? { ...newTree(el, want.sha, want.all, want.clean), commit: want.commit, plain: want.plain }
+    : { ...newTree(el, null, false), commit: false };
   if (!want) { renderTree(side); return; }   // nincs tárgy (nincs saját worktree): üres fa, nem a régi
   side.query = query;
   const btn = el.querySelector('.fv-diff');
   btn.setAttribute('aria-pressed', String(!want.all));
-  btn.disabled = want.clean;
+  btn.disabled = want.clean && !want.plain;
   if (side.all) loadTree(side);
   renderTree(side);
 }

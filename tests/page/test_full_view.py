@@ -198,27 +198,48 @@ class FullViewTest(PageTestCase):
         self.assertIn("git_graph/diff.py", self.page.locator(".fv-path").inner_text())
 
     def test_sidebar_without_commit(self) -> None:
-        """Lenyitott commit nélkül a sidebar a worktree állapotát mutatja (tisztán a HEAD minden fájlját, a
-        diff-szűrő letiltva, hover nélkül); a gráf mellette keskenyebb, az eszközsor a megszokott."""
+        """Lenyitott commit nélkül a sidebar a worktree állapotát mutatja minden fájllal, színezés nélkül, a
+        diff-szűrő aktív, de nincs lenyomva; a gráf mellette keskenyebb, az eszközsor a megszokott."""
         # Adott: egy commit sincs lenyitva
         # Ha a Fejlesztő a sidebar gombjára kattint
         self.page.locator("#sideBtn").click()
         self.page.wait_for_selector('.side .fv-row[data-dir="hooks"]')
-        # Akkor minden fájl, a diff-szűrő letiltva, hover nélkül
+        # Akkor minden fájl, színezés és számok nélkül; a diff-szűrő aktív, nincs lenyomva
         diff = self.page.locator(".side .fv-diff")
-        self.assertTrue(diff.is_disabled())
+        self.assertFalse(diff.is_disabled())
         self.assertEqual(diff.get_attribute("aria-pressed"), "false")
-        look = "e => { const s = getComputedStyle(e); return [s.backgroundColor, s.boxShadow, s.color]; }"
-        before = diff.evaluate(look)
-        diff.hover(force=True)
-        self.assertEqual(diff.evaluate(look), before)
         self.assertIn("README.md", self.side_tree())
+        self.page.locator('.side .fv-row[data-dir="git_graph"]').click()
+        self.assertEqual(self.page.locator(".side .fv-row:is(.added, .modified, .deleted)").count(), 0)
+        self.assertEqual(self.page.locator(".side .fv-row .churn").count(), 0)
         # És a gráf a sidebar mellett, az eszközsor a megszokott
         side = self.page.locator(".side").bounding_box()
         sc = self.page.locator(".scroll").bounding_box()
         self.assertLessEqual(sc["x"] + sc["width"], side["x"] + 1)
         self.assertTrue(self.page.locator("#branchBtn").is_visible())
         self.assertTrue(self.page.locator("#search").is_visible())
+
+    def test_sidebar_diff_selects_head(self) -> None:
+        """Commit nélkül a diff-szűrő a HEAD-commitot nyitja le: a fa a változott fájljait mutatja, színezve."""
+        self.open_side()
+        self.page.locator(".side .fv-diff").click()
+        self.page.wait_for_selector("#rows .row[aria-expanded='true']")
+        self.assertIn(SUBJECT, self.page.locator("#rows .row[aria-expanded='true']").inner_text())
+        self.page.wait_for_function("!document.querySelector('.side .fv-file[data-path=\"README.md\"]')")
+        self.assertEqual(self.side_tree(), ["git_graph", "diff.py", "page/js", "diff.js"])
+        self.assertEqual(self.page.locator(".side .fv-diff").get_attribute("aria-pressed"), "true")
+
+    def test_clean_head_full_diff_disabled(self) -> None:
+        """A tiszta HEAD fájlja a sidebarból teljes képernyőn: a diff-szűrő letiltva, hover nélkül."""
+        self.open_side()
+        self.page.locator('.side .fv-file[data-path="README.md"]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        diff = self.page.locator(".fv .fv-diff")
+        self.assertTrue(diff.is_disabled())
+        look = "e => { const s = getComputedStyle(e); return [s.backgroundColor, s.boxShadow, s.color]; }"
+        before = diff.evaluate(look)
+        diff.hover(force=True)
+        self.assertEqual(diff.evaluate(look), before)
 
     def test_sidebar_follows_commit(self) -> None:
         """A sidebar a lenyitott commitot követi: csak a változott fájljai, színezve; becsukva újra a worktree."""
