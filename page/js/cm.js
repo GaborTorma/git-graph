@@ -34,6 +34,10 @@ export function loadCM(get) {
   return lib;
 }
 
+/* A sorvég `\n`-re: a CodeMirror a `\r\n`-t (és a magában álló `\r`-t) is sorvégnek veszi, a dokumentuma
+   `\n`-es; a lemezről jött szöveg is így hasonlítható. A mentés a fájl CRLF-jét visszaállítja (`write_file`). */
+export const lf = s => (s == null ? s : s.replace(/\r\n?/g, '\n'));
+
 /* A nyelv a kiterjesztésből (a build `lang`-ja szerint); a többi sima szöveg. Minden JSON a
    JSON-elemzővel megy (a kommentes is: a komment hibajelölést kaphat). */
 const LANG = {
@@ -650,7 +654,7 @@ export class CodeDiff {
       try {
         const r = await this.o.write(text, this.base, this.d.write);
         if (r?.ok) { this.base = r.hash; this.seen.add(r.hash); this.saved = text; this.note(''); }
-        else if (r?.conflict) this.external(r.text, r.hash);
+        else if (r?.conflict) this.external(lf(r.text), r.hash);
       } catch (e) {
         this.note(`A mentés nem sikerült: ${e?.message || e?.code || e}`);
       }

@@ -56,6 +56,32 @@ class WipCase(PageTestCase):
 
 
 
+
+class WipCrlfTest(PageTestCase):
+    """CRLF sorvégű fájl a HEAD-commitban: a sorvég nem WIP-eltérés."""
+    WIDTH, HEIGHT = 900, 900
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        crlf = lambda lines: "\r\n".join(lines) + "\r\n"     # noqa: E731
+        (repo / "win.py").write_bytes(crlf(BASE[:30]).encode())
+        git_in(repo, "add", "win.py")
+        git_in(repo, "commit", "-qm", "crlf: alap")
+        (repo / "win.py").write_bytes(crlf(changed(BASE[:30], s5="s5 = 'commit'")).encode())
+        git_in(repo, "commit", "-qam", "crlf: a commit")
+        (repo / "win.py").write_bytes(crlf(changed(BASE[:30], s5="s5 = 'commit'", s20="s20 = 'wip'")).encode())
+
+    def test_crlf_only_changed_line(self) -> None:
+        """Csak a lemezen átírt sor kék, egy narancs blokkal; a többi sor nem WIP-eltérés."""
+        self.page.locator("#rows .row", has_text="crlf: a commit").click()
+        self.settle()
+        self.page.locator('.details .file[data-path="win.py"]').click()
+        sel = '.details .file[data-path="win.py"] + .diff'
+        self.page.wait_for_selector(f"{sel} .cm-editor")
+        self.settle()
+        self.assertEqual(self.page.locator(f"{sel} .cm-wipLine").all_inner_texts(), ["s20 = 'wip'"])
+        self.assertEqual([t.strip() for t in self.page.locator(f"{sel} .cm-wipDeleted").all_inner_texts()], ["s20 = 20"])
+
 class WipLayerTest(WipCase):
     def test_layers(self) -> None:
         """A commit sora zöld, a WIP sorai kékek, a HEAD-beli változatuk narancs blokk; átfedésnél a WIP nyer."""
