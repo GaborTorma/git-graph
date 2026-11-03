@@ -100,6 +100,8 @@
   --wip-del-fg:  #b4621b;
   --wip-add-hl:  #c3dbf3;
   --wip-del-hl:  #f4d3ad;
+  --wip-add-bar: #5b9be0;   /* a sávjel: élénkebb, mint a szám színe (`-fg`), a halvány háttér mellett */
+  --wip-del-bar: #f0a04b;
   /* a betű vastagsága: az app (fizzy-lake típus) tengelyértékei az Anthropic Sans változó fontján —
      a `font-weight` szám a `wght` tengelyt állítja */
   --w-body:      360;
@@ -185,6 +187,8 @@
     --wip-del-fg:  #eea867;
     --wip-add-hl:  #2a5480;
     --wip-del-hl:  #6e4c22;
+    --wip-add-bar: #4a8fd6;
+    --wip-del-bar: #e08a3a;
     --selection:   rgba(250, 178, 25, .33);
     color-scheme: dark;
   }
@@ -261,6 +265,8 @@
   --wip-del-fg:  #eea867;
   --wip-add-hl:  #2a5480;
   --wip-del-hl:  #6e4c22;
+  --wip-add-bar: #4a8fd6;
+  --wip-del-bar: #e08a3a;
   --selection:   rgba(250, 178, 25, .33);
   color-scheme: dark;
 }
@@ -1002,8 +1008,8 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .diff .cm-deletedChunk .cm-deletedText, .diff .cm-merge-a .cm-changedText { background: var(--diff-del-hl); border-radius: 3px; }
 .diff .cm-deletedChunk { position: relative; padding-left: 6px; user-select: none; }
 .diff .cm-deletedChunk del { text-decoration: none; }
-.diff .cm-changedLineGutter, .diff .cm-merge-b .cm-changedLineGutter { background: var(--add); }
-.diff .cm-deletedLineGutter, .diff .cm-merge-a .cm-changedLineGutter { background: var(--del); }
+.diff .cm-changedLineGutter, .diff .cm-merge-b .cm-changedLineGutter { background: var(--add-bar, var(--add)); }
+.diff .cm-deletedLineGutter, .diff .cm-merge-a .cm-changedLineGutter { background: var(--del-bar, var(--del)); }
 .diff .cm-mergeView .cm-merge-a { border-right: 1px solid var(--border-soft); }
 .diff .cm-mergeSpacer, .diff .cm-wipSpacer { background: var(--code-tint); }
 /* Az elvetés: az Anthropicons ArrowCounterClockwise 12 px-es glifája egy sornyi (18 px) gombon, a blokk
@@ -1015,8 +1021,8 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .diff :is(.cm-wipLine, .cm-wipDelLine) .cm-changedText { background: none; }
 .diff .cm-wipText { background: var(--wip-add-hl); border-radius: 3px; }
 .diff .cm-wipDelText { background: var(--wip-del-hl); border-radius: 3px; }
-.diff .cm-changeGutter .cm-gutterElement.cm-wipAddGutter { background: var(--wip-add-fg); }
-.diff .cm-changeGutter .cm-gutterElement.cm-wipDelGutter { background: var(--wip-del-fg); }
+.diff .cm-changeGutter .cm-gutterElement.cm-wipAddGutter { background: var(--wip-add-bar); }
+.diff .cm-changeGutter .cm-gutterElement.cm-wipDelGutter { background: var(--wip-del-bar); }
 .diff .cm-wipDeleted { position: relative; padding: 0 10px 0 6px; background: var(--wip-del); color: var(--fg-1); user-select: none; }
 .diff .cm-wipDeleted .cm-chunkButtons, .diff .cm-wipDelLine .cm-chunkButtons,
 .diff .cm-deletedChunk .cm-chunkButtons { position: absolute; top: 0; right: 1px; z-index: 2; height: 19.5px; padding: 0;
@@ -1381,6 +1387,6 @@ body.side-on .pending, body.side-on .scroll { margin-right: var(--fv-tree-w, 280
 .fv-commit .sha { flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--fg-3); }
 .fv-more { padding: 2px 8px; font-size: 12px; color: var(--fg-3); }
 /* a WIP sor kék / narancs: a commit zöld / piros helyett */
-.wip-tone { --add: var(--wip-add-fg); --del: var(--wip-del-fg); --diff-add: var(--wip-add); --diff-del: var(--wip-del);
+.wip-tone { --add: var(--wip-add-fg); --del: var(--wip-del-fg); --add-bar: var(--wip-add-bar); --del-bar: var(--wip-del-bar); --diff-add: var(--wip-add); --diff-del: var(--wip-del);
             --diff-add-hl: var(--wip-add-hl); --diff-del-hl: var(--wip-del-hl);
             --diff-add-no: var(--wip-add-fg); --diff-del-no: var(--wip-del-fg); }

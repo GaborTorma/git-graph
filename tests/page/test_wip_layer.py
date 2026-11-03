@@ -229,6 +229,13 @@ class WipMarksTest(WipCase):
         self.assertIn("35", marks)
         self.assertGreater(self.page.locator(f"{SEL} .cm-changeGutter .cm-wipAddGutter").count(), 0)
         self.assertGreater(self.page.locator(f"{SEL} .cm-changeGutter .cm-wipDelGutter").count(), 0)
+        # a sávjel a saját, élénkebb árnyalata (nem a szám színe)
+        bars = self.page.evaluate(f"""(() => {{ const c = s => getComputedStyle(document.querySelector('{SEL} ' + s)).backgroundColor;
+          const probe = v => {{ const e = Object.assign(document.createElement('span'), {{ style: 'background: var(' + v + ')' }});
+            document.body.append(e); const r = getComputedStyle(e).backgroundColor; e.remove(); return r; }};
+          return [c('.cm-changeGutter .cm-wipAddGutter'), probe('--wip-add-bar'), c('.cm-changeGutter .cm-wipDelGutter'), probe('--wip-del-bar')]; }})()""")
+        self.assertEqual(bars[0], bars[1])
+        self.assertEqual(bars[2], bars[3])
 
     def test_selection_above_lines(self) -> None:
         self.open_app()
