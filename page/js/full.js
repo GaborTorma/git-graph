@@ -5,9 +5,10 @@
    (`plain`); ilyenkor a diff-szűrő a HEAD-commitot nyitja le, és a fa már azt követi. A fában a lenyitott commit változott fájlja a commit-panelben nyílik le, odagörgetve;
    a többi fájl (változatlan, vagy nincs lenyitott commit) teljes képernyőn.
    A teljes képernyő a panel lenyitott fájljának fejlécéből nyílik (`data-full`), a fájl első
-   változásánál: a lap tetejétől a láblécig. Középen a fejlécben a repó neve, a HEAD-chip, a fájl útja,
-   jobbra a fájlban kereső és az X; alatta (a görgetés a fejléc alatt) a fájl diffje (`fileContent`: a
-   CodeMirror, a markdown, a kép), keret nélkül; jobbra, teljes magasságban a saját fája, alatta a
+   változásánál: a lap tetejétől a láblécig. Fent teljes szélességben a fejléc: a repó neve, a HEAD-chip (ha a
+   fájl útja nem fér ki, eltűnik), a fájl útja, jobbra a fájlban kereső és a kilépés; alatta (a görgetés a
+   fejléc alatt) a fájl diffje (`fileContent`: a CodeMirror, a markdown, a kép), keret nélkül; jobbra a saját
+   fája (fölötte a kereső és a diff-szűrő), alatta a
    commitlista: a saját worktree WIP sora mindig, alatta a commit ágának (a HEAD-é, ha abban van)
    commitjai közül a commit és két-két szomszédja; rajtuk a commit váltható. A WIP sor kék / narancs
    (`wip-tone`), a fa a fájlok mellett a WIP számait is mutatja (`wipCounts`). A HEAD-commit tiszta
@@ -79,7 +80,7 @@ const treeHtml = (all, clean, commits = false) => '<div class="fv-tree"><div cla
   + `<label class="search fv-search">${icon('search')}<input type="search" placeholder="Szűrés név szerint · ?tartalom"`
   + ' aria-label="Fájlok szűrése" spellcheck="false"></label>'
   + `<button type="button" class="select gear fv-diff" aria-pressed="${!all}"${clean ? ' disabled' : ''}`
-  + ` aria-label="Csak a változott fájlok" data-tip="Csak a változott fájlok">${icon('changes', 'ic', 'md')}</button>`
+  + ` aria-label="Csak a változott fájlok" data-tip="Csak a változott fájlok">${icon('changes')}</button>`
   + `</div><div class="fv-list"></div>${commits ? '<div class="fv-commits" aria-label="Commitok"></div>' : ''}</div>`;
 
 const newTree = (el, sha, all, clean = false) => ({ el, sha, all, clean, path: null, grepTimer: 0, tree: null, loaded: new Set(), query: '', grep: null,
@@ -409,14 +410,14 @@ export function openFull(sha, path, o = {}) {
   el.className = 'fv';
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-label', 'Teljes képernyő');
-  el.innerHTML = '<div class="fv-main"><div class="fv-center"><div class="fv-head">'
+  el.innerHTML = '<div class="fv-head">'
     + `<span class="repo-name">${esc(document.getElementById('repoName')?.textContent || '')}</span>`
     + '<span class="fv-chip"></span><div class="fv-path"></div>'
     + `<label class="search fv-find">${icon('search')}<input type="search" placeholder="Keresés a fájlban"`
     + ' aria-label="Keresés a fájlban" spellcheck="false"></label>'
-    + '<button type="button" class="mini fv-close" data-fv-close aria-label="Kilépés a teljes képernyőből (Esc)"'
-    + ` data-tip="Kilépés a teljes képernyőből (Esc)">${icon('collapse')}</button>`
-    + '</div><div class="fv-scroll"><div class="diff fv-box"></div></div></div>'
+    + '<button type="button" class="select gear fv-close" data-fv-close aria-label="Kilépés a teljes képernyőből (Esc)"'
+    + ` data-tip="Kilépés a teljes képernyőből (Esc)">${icon('collapse', 'ic', 'md')}</button>`
+    + '</div><div class="fv-main"><div class="fv-center"><div class="fv-scroll"><div class="diff fv-box"></div></div></div>'
     + '<div class="fv-resize" role="separator" aria-orientation="vertical" aria-label="A fa szélessége"></div>'
     + `${treeHtml(all, clean, true)}</div>`;
   // a fejléc HEAD-chipje (a worktree / ág), másolatként: itt nem gomb

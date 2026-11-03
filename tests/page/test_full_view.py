@@ -91,17 +91,18 @@ class FullViewTest(PageTestCase):
         return [t.strip() for t in self.page.locator(".fv-list .fv-row .name").all_inner_texts()]
 
     def test_open_from_open_file(self) -> None:
-        """A diff.js fejlécének ikonjával: a lap tetejétől a láblécig; középen a fejlécben a repó neve, a HEAD-chip,
-        a fájl útja, jobbra a fájlban kereső és az X (a subject nélkül); alatta, a fejléc alatt görgetve a diff.js
-        az első változásánál (100. sor), keret nélkül; jobbra teljes magasságban a fa, benne a diff.js kijelölve;
-        a fa keresője és gombja a fejléc keresőjének magasságával."""
+        """A diff.js fejlécének ikonjával: a lap tetejétől a láblécig; fent teljes szélességben a fejléc: a repó neve,
+        a HEAD-chip, a fájl útja, jobbra a fájlban kereső és a keretes kilépés-gomb (a subject nélkül); alatta,
+        görgetve a diff.js az első változásánál (100. sor), keret nélkül, jobbra a fa, benne a diff.js kijelölve;
+        a fa keresője kompakt, a diff-szűrő a magasságával."""
         self.open_commit()
         self.open_full("page/js/diff.js")
         box, foot = self.page.locator(".fv").bounding_box(), self.page.locator("#foot").bounding_box()
         self.assertEqual((box["x"], box["y"], box["width"], box["y"] + box["height"]), (0, 0, self.WIDTH, foot["y"]))
-        tree = self.page.locator(".fv-tree").bounding_box()
-        self.assertEqual((tree["y"], tree["y"] + tree["height"]), (0, foot["y"]))
-        head = self.page.locator(".fv-head")
+        tree, head = self.page.locator(".fv-tree").bounding_box(), self.page.locator(".fv-head")
+        hb = head.bounding_box()
+        self.assertEqual((hb["x"], hb["y"], hb["width"]), (0, 0, self.WIDTH))
+        self.assertEqual((tree["y"], tree["y"] + tree["height"]), (hb["y"] + hb["height"], foot["y"]))
         self.assertEqual(head.locator(".repo-name").inner_text(), self.page.locator("#repoName").inner_text())
         self.assertTrue(head.locator(".fv-find input").is_visible())
         self.assertEqual(head.locator(".fv-close").get_attribute("aria-label"), "Kilépés a teljes képernyőből (Esc)")
@@ -119,8 +120,13 @@ class FullViewTest(PageTestCase):
         def h(sel: str) -> float:
             return self.page.locator(sel).bounding_box()["height"]
 
-        self.assertEqual(h(".fv .fv-search"), h(".fv-find"))
-        self.assertEqual(h(".fv .fv-diff"), h(".fv-find"))
+        self.assertEqual(h(".fv .fv-search"), 28)
+        self.assertEqual(h(".fv .fv-diff"), h(".fv .fv-search"))
+        self.assertEqual(h(".fv-close"), h(".fv-find"))
+        self.assertIn("select", head.locator(".fv-close").get_attribute("class"))
+        # a fájl útja és a kereső között marad hely
+        path, find = head.locator(".fv-path").bounding_box(), head.locator(".fv-find").bounding_box()
+        self.assertGreaterEqual(find["x"] - (path["x"] + path["width"]), 12)
         self.assertLessEqual(abs(self.fv_top_line() - 100), 1)
         self.assertEqual(self.page.locator(".fv-row.sel .name").inner_text(), "diff.js")
         self.assertLess(self.page.locator(".fv-center").bounding_box()["x"], self.page.locator(".fv-tree").bounding_box()["x"])
@@ -261,7 +267,7 @@ class FullViewTest(PageTestCase):
         self.open_full("page/js/diff.js")
         chip = self.page.locator(".fv-head .head-chip")
         self.assertTrue(chip.is_visible())
-        self.page.set_viewport_size({"width": 560, "height": self.HEIGHT})
+        self.page.set_viewport_size({"width": 470, "height": self.HEIGHT})
         self.page.wait_for_function("document.querySelector('.fv-head').classList.contains('tight')")
         self.assertFalse(chip.is_visible())
         self.assertEqual(self.page.locator(".fv-path .path").inner_text(), "page/js/diff.js")
@@ -304,13 +310,13 @@ class FullViewTest(PageTestCase):
         self.assertTrue(sc["y"] <= fb["y"] < sc["y"] + sc["height"], (sc, fb))
 
     def test_diff_button_like_side_button(self) -> None:
-        """A fa diff-gombja olyan, mint az eszközsor sidebar-gombja: azonos méret, 20 px-es (`md`) ikon."""
+        """A fa diff-gombja keretes mező-gomb, mint az eszközsor sidebar-gombja, a fa keresőjének magasságával."""
         self.open_side()
         box = lambda sel: self.page.locator(sel).bounding_box()  # noqa: E731
-        for sel in ("#sideBtn", ".side .fv-diff"):
-            with self.subTest(sel):
-                self.assertEqual((box(sel)["width"], box(sel)["height"]), (32, 32))
-                self.assertEqual(box(f"{sel} svg")["width"], 20)
+        self.assertEqual((box("#sideBtn")["width"], box("#sideBtn")["height"]), (32, 32))
+        self.assertEqual(box("#sideBtn svg")["width"], 20)
+        self.assertEqual((box(".side .fv-diff")["width"], box(".side .fv-diff")["height"]), (28, 28))
+        self.assertEqual(box(".side .fv-search")["height"], 28)
         self.assertIn("select", self.page.locator(".side .fv-diff").get_attribute("class"))
 
     def test_settings_in_footer(self) -> None:
