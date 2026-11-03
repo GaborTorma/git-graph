@@ -22,6 +22,7 @@ def changed(lines: list[str], **at: str) -> list[str]:
 HEAD = changed(BASE, s10="s10 = 'commit'", s60="s60 = 'commit'")
 DISK = changed(HEAD, s35="s35 = 'wip'", s60="s60 = 'wip'")
 DISK = DISK[:80] + ["uj = 1"] + DISK[80:]          # egy új sor a 81. helyen
+INDENTED = "class A:\n    def f(self):\n        self.a = 1\n        self.b = 2\n        self.c = 3\n"
 VIEW = "CM.EditorView.findFromDOM(document.querySelector(sel + ' .cm-content').closest('.cm-editor'))"
 SEL = '.details .file[data-path="app.py"] + .diff'
 
@@ -37,6 +38,8 @@ class WipCase(PageTestCase):
         git_in(repo, "add", "app.py", "masik.py")
         git_in(repo, "commit", "-qm", "wip: alap")
         (repo / "app.py").write_text(text(HEAD), encoding="utf-8")
+        (repo / "beh.py").write_text(INDENTED, encoding="utf-8")       # behúzott sorok, a lemezen változatlan
+        git_in(repo, "add", "beh.py")
         git_in(repo, "commit", "-qam", "wip: a commit")
         (repo / "app.py").write_text(text(DISK), encoding="utf-8")
         (repo / "masik.py").write_text(text(changed(BASE[:20], s5="s5 = 'lemez'")), encoding="utf-8")
@@ -80,6 +83,17 @@ class WipLayerTest(WipCase):
         self.page.wait_for_timeout(400)                    # a merge alapja is követi: nincs piros blokk a sorra
         red = [t.strip() for t in self.page.locator(f"{SEL} .cm-deletedChunk").all_inner_texts()]
         self.assertNotIn("s12 = 12", red)
+
+    def test_enter_adds_one_line(self) -> None:
+        """Enter egy behúzott sor végén: csak az új üres sor kék, a következő sor nem lesz narancs és kék is."""
+        self.open_app(name="beh.py")
+        sel = '.details .file[data-path="beh.py"] + .diff'
+        self.page.evaluate(f"""sel => {{ const v = {VIEW}; const l = v.state.doc.line(3);
+          v.dispatch({{ changes: {{ from: l.to, insert: '\\n        ' }} }}); }}""", sel)
+        self.page.wait_for_timeout(300)
+        self.assertEqual(self.page.locator(f"{sel} .cm-wipDeleted").all_inner_texts(), [""])   # csak az elvetés gombja
+        blue = [t for t in self.page.locator(f"{sel} .cm-wipLine").all_inner_texts()]
+        self.assertEqual([t.strip() for t in blue], [""])
 
     def test_older_commit_unchanged_since(self) -> None:
         """Régebbi commitban, ha a fájl azóta nem változott (masik.py), a lemez szövege kék réteggel, és

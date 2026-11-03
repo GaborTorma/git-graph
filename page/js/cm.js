@@ -141,6 +141,28 @@ function wipKit(CM) {
     toDOM() { return rejectBar(this.diff, this.ch, this.head); }
     ignoreEvent() { return true; }
   }
+  /* A WIP blokkjai (HEAD → lemez) soronként: a karakteres diff egy beszúrt sort néha a szomszéd változatlan
+     sorral együtt jelöl (Enter egy sor végén: a következő sor narancs és kék is); a blokk két végéről a
+     mindkét oldalon azonos sorok lekerülnek, a szókiemelés (`changes`) a maradékra újra számolódik. */
+  const lineChunks = (a, b) => CM.Chunk.build(a, b, DIFF_CONFIG).map(ch => {
+    let { fromA, toA, fromB, toB } = ch;
+    const lines = (doc, from, to) => {
+      const out = [];
+      for (let pos = from; pos < to && pos <= doc.length;) { const l = doc.lineAt(pos); out.push(l); pos = l.to + 1; }
+      return out;
+    };
+    const la = lines(a, fromA, toA), lb = lines(b, fromB, toB);
+    let i = 0, j = 0;
+    while (i < la.length && i < lb.length && la[i].text === lb[i].text) i++;
+    while (j < la.length - i && j < lb.length - i && la[la.length - 1 - j].text === lb[lb.length - 1 - j].text) j++;
+    if (!i && !j) return ch;
+    if (i) { fromA = i < la.length ? la[i].from : toA; fromB = i < lb.length ? lb[i].from : toB; }
+    if (j) { toA = la[la.length - j].from; toB = lb[lb.length - j].from; }
+    fromA = Math.min(fromA, toA);
+    fromB = Math.min(fromB, toB);
+    const changes = CM.diff(a.sliceString(fromA, Math.min(toA, a.length)), b.sliceString(fromB, Math.min(toB, b.length)));
+    return { fromA, toA, fromB, toB, changes };
+  }).filter(ch => ch.toA > ch.fromA || ch.toB > ch.fromB);
   /* A HEAD sora (`from`: a sor eleje) a szülőben: a pozíciója ott, vagy -1, ha a commit hozta. */
   const inParent = (commit, from) => {
     let shift = 0;
@@ -154,7 +176,7 @@ function wipKit(CM) {
     const none = { head, deco: CM.Decoration.none, gutter: CM.RangeSet.empty, chunks: [], blocks: [], aLines: [] };
     if (head == null) return none;
     const doc = state.doc, a = CM.Text.of(head.split('\n')), ranges = [], gutter = [], blocks = [], aLines = [];
-    const chunks = CM.Chunk.build(a, doc, DIFF_CONFIG);
+    const chunks = lineChunks(a, doc);
     const commit = diff.split ? diff.commitChunks(head) : null;
     for (const ch of chunks) {
       // a HEAD-beli sorok szókiemeléssel; egymás mellett a szülőben is meglévők a bal oldalra kerülnek
@@ -271,7 +293,7 @@ function wipKit(CM) {
   const base = (parent, head, doc) => {
     const p = CM.Text.of(parent.split('\n')), h = CM.Text.of(head.split('\n')), d = CM.Text.of(doc.split('\n'));
     const commit = CM.Chunk.build(p, h, DIFF_CONFIG), changes = [];
-    for (const w of CM.Chunk.build(h, d, DIFF_CONFIG)) {
+    for (const w of lineChunks(h, d)) {
       // a blokk [from, to): a `to` a következő sor eleje (a sorvég a blokké); érintkezés is átfedés
       if (commit.some(c => c.fromB <= w.toA && w.fromA <= c.toB)) continue;
       // a WIP-blokk előtti commit-blokkok eltolása (a szülő → HEAD hosszváltozás)
