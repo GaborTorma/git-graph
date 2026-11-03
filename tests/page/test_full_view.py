@@ -299,6 +299,14 @@ class FullViewTest(PageTestCase):
         self.assertTrue(foot["y"] <= btn["y"] < foot["y"] + foot["height"])
         self.assertGreater(btn["x"], theme["x"])
 
+    def test_footer_hover(self) -> None:
+        """A lábléc gombjainak hovere jól látszik: az app ghost-kitöltése (`--fill-2`), nem a lábléc szürkéje."""
+        self.page.locator("#settingsBtn").hover()
+        got = self.page.evaluate("""(() => { const p = Object.assign(document.createElement('span'), { style: 'background: var(--fill-2)' });
+          document.body.append(p); const want = getComputedStyle(p).backgroundColor; p.remove();
+          return [getComputedStyle(document.getElementById('settingsBtn')).backgroundColor, want]; })()""")
+        self.assertEqual(got[0], got[1])
+
     def test_footer(self) -> None:
         """A lábléc 28 px magas, a teljes nézetben is látszik, és a commitszám helyén a nézett fájl útja áll."""
         with self.subTest("Adott a lábléc a commitszámmal"):

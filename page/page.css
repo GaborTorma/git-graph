@@ -1295,6 +1295,8 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
   100% { transform: scale(1);    box-shadow: 0 0 0 4px transparent; }
 }
 .foot .links { justify-self: end; display: flex; align-items: center; gap: 4px; }
+/* a lábléc háttere (`--bg-1`) mellett a `--bg-2` hover alig látszik: áttetsző kitöltés, mint az app ghost-gombja */
+.foot .mini:hover, .foot .mini[aria-expanded="true"] { background: var(--fill-2); color: var(--fg-0); }
 .foot .links .gh .ic { width: 16px; height: 16px; }   /* a témamenü ikonja a menüé (20) */
 .foot .links .gh { display: flex; align-items: center; gap: 4px; }
 /* a GitHub-linkek és a téma közt halvány elválasztó */
