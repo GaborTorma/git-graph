@@ -406,7 +406,8 @@ export function openFull(sha, path, o = {}) {
     + '<span class="fv-chip"></span><div class="fv-path"></div>'
     + `<label class="search fv-find">${icon('search')}<input type="search" placeholder="Keresés a fájlban"`
     + ' aria-label="Keresés a fájlban" spellcheck="false"></label>'
-    + `<button type="button" class="mini fv-close" data-fv-close aria-label="Bezárás (Esc)" data-tip="Bezárás (Esc)">${icon('close')}</button>`
+    + '<button type="button" class="mini fv-close" data-fv-close aria-label="Kilépés a teljes képernyőből (Esc)"'
+    + ` data-tip="Kilépés a teljes képernyőből (Esc)">${icon('collapse')}</button>`
     + '</div><div class="fv-scroll"><div class="diff fv-box"></div></div></div>'
     + '<div class="fv-resize" role="separator" aria-orientation="vertical" aria-label="A fa szélessége"></div>'
     + `${treeHtml(all, clean, true)}</div>`;

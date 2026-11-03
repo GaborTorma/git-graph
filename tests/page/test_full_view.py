@@ -104,6 +104,7 @@ class FullViewTest(PageTestCase):
         head = self.page.locator(".fv-head")
         self.assertEqual(head.locator(".repo-name").inner_text(), self.page.locator("#repoName").inner_text())
         self.assertTrue(head.locator(".fv-find input").is_visible())
+        self.assertEqual(head.locator(".fv-close").get_attribute("aria-label"), "Kilépés a teljes képernyőből (Esc)")
         self.assertEqual(head.locator(".head-chip").inner_text().strip(), self.page.locator("#headChip").inner_text().strip())
         self.assertNotIn(SUBJECT, head.inner_text())
         self.assertIn("page/js/diff.js", head.locator(".fv-path").inner_text())
