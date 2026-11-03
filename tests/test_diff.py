@@ -475,6 +475,21 @@ class TextSidesTest(TextCase):
         # Akkor mindhárom oldal benne van, ugyanúgy, mint külön kérve
         self.assertEqual(info["sides"], {s: gg.diff.file_diff(sha, "app.py", side=s, text=True) for s in ("old", "new", "disk")})
 
+    def test_lf_sides(self) -> None:
+        """A CRLF-es (és a magában álló `\\r`-es) fájl oldalai `\\n`-es szöveggel jönnek; a hash a lemez bájtjaié."""
+        # Adott a HEAD-commit CRLF-es "app.py"-ja, a lemezen egy sor átírva
+        repo, gg, _, _, _ = self.text_repo()
+        (repo / "app.py").write_bytes(b"x = 1\r\ny = 2\r\n")
+        git_in(repo, "commit", "-qam", "crlf")
+        sha = git_in(repo, "rev-parse", "HEAD").strip()
+        (repo / "app.py").write_bytes(b"x = 1\r\ny = 9\rz\r\n")
+        # Ha a lap az oldalakat kéri
+        sides = {s: gg.diff.file_diff(sha, "app.py", side=s, text=True) for s in ("new", "disk")}
+        # Akkor a szöveg `\\n`-es, a lemez hashe a valódi bájtoké
+        self.assertEqual(sides["new"]["text"], "x = 1\ny = 2\n")
+        self.assertEqual(sides["disk"]["text"], "x = 1\ny = 9\nz\n")
+        self.assertEqual(sides["disk"]["hash"], hashlib.sha256(b"x = 1\r\ny = 9\rz\r\n").hexdigest())
+
     def test_sides_too_big_together(self) -> None:
         """Ha az oldalak együtt nem férnek át a host-hídon, a fejadat nélkülük jön (a lap oldalanként kéri)."""
         # Adott egy fájl, amelynek két oldala külön átfér, együtt nem

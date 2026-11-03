@@ -677,6 +677,12 @@ def image_side(root: Path | None, src: tuple, path: str | None, uri: bool = True
     return side
 
 
+def lf(text: str) -> str:
+    """A sorvég `\\n`-re (a `\\r\\n` és a magában álló `\\r` is): a lap (CodeMirror) dokumentuma `\\n`-es, így a
+    lemezről és a gitből jött szöveg egyformán hasonlítható; a mentés a fájl CRLF-jét visszaállítja (`write_file`)."""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def as_text(data: bytes) -> str | None:
     """A bájtok szövegként: NUL-t tartalmazó (bináris) vagy nem UTF-8 tartalomnál `None`."""
     if b"\0" in data:
@@ -770,7 +776,7 @@ def text_info(sha: str, path: str) -> dict:
 
 
 def text_side(sha: str, path: str, side: str) -> dict:
-    """Egy oldal teljes szövege: `{"text"}` (`None`, ha a fájl azon az oldalon nincs; bináris /
+    """Egy oldal teljes szövege `\\n`-es sorvégekkel (`lf`): `{"text"}` (`None`, ha a fájl azon az oldalon nincs; bináris /
     nem UTF-8 / `TEXT_MAX` fölött `binary` / `big` mellett). A forrás a képeké
     (`image_sources`); a lemezről olvasott oldalnál a bájtok hashe is (`hash`). Ha a
     JSON-kódolt válasz nem férne át a host-hídon: `big`. A `disk` oldal a worktree HEAD-commitjának
@@ -779,7 +785,7 @@ def text_side(sha: str, path: str, side: str) -> dict:
         target = head_target(sha, numstat_new_path(path))
         if not target:
             return {"text": None}
-        out = {"text": target[2], "hash": target[1]}
+        out = {"text": lf(target[2]), "hash": target[1]}
         return {"text": None, "big": True} if len(json.dumps(out)) > TEXT_REPLY_MAX else out
     root, src_a, src_b = image_sources(sha)
     file, src = (numstat_old_path(path), src_a) if side == "old" else (numstat_new_path(path), src_b)
@@ -791,7 +797,7 @@ def text_side(sha: str, path: str, side: str) -> dict:
     text = as_text(blob[1])
     if text is None:
         return {"text": None, "binary": True}
-    out: dict = {"text": text}
+    out: dict = {"text": lf(text)}
     if src[0] == "disk":
         out["hash"] = digest(blob[1])
     if len(json.dumps(out)) > TEXT_REPLY_MAX:

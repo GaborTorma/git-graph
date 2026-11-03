@@ -5,7 +5,7 @@ import os
 import subprocess
 from pathlib import Path, PurePosixPath
 
-from .diff import SHA_RE, TEXT_MAX, as_text, digest, disk_file, worktree_root
+from .diff import SHA_RE, TEXT_MAX, as_text, digest, disk_file, lf, worktree_root
 from .gitio import git
 from .page import file_icon, file_icons
 from .worktrees import UNCOMMITTED_RE
@@ -146,7 +146,7 @@ def write_file(sha: str, path: str, text: str, base: str) -> dict:
     Csak az Uncommitted sor élő worktree-jébe ír (`write_target`), UTF-8 szöveget
     (`TEXT_MAX`-ig, NUL nélkül), és csak szöveges fájl helyére. Ha a lemezen lévő tartalom
     hashe nem a lap által ismert `base`, nem ír: `{"ok": false, "conflict": true, "hash",
-    "text"}` (a lemezen lévő). A lap `\\n`-nel küld: CRLF-es fájlba CRLF-fel írunk; a záró
+    "text"}` (a lemezen lévő, `\\n`-es). A lap `\\n`-nel küld: CRLF-es fájlba CRLF-fel írunk; a záró
     újsor a `text` szerint. Atomi cserével ír, a fájl jogosultsága marad.
     """
     pending = UNCOMMITTED_RE.match(sha)
@@ -160,8 +160,8 @@ def write_file(sha: str, path: str, text: str, base: str) -> dict:
     if current is None or len(data) > TEXT_MAX:
         raise ValueError(f"nem szöveges (bináris, nem UTF-8 vagy túl nagy) fájl: {path!r}")
     if digest(data) != base:
-        return {"ok": False, "conflict": True, "hash": digest(data), "text": current}
-    text = text.replace("\r\n", "\n")
+        return {"ok": False, "conflict": True, "hash": digest(data), "text": lf(current)}
+    text = lf(text)
     if b"\r\n" in data:
         text = text.replace("\n", "\r\n")
     out = text.encode("utf-8")

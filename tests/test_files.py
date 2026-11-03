@@ -344,6 +344,16 @@ class LineEndingTest(FilesCase):
         self.assertEqual((repo / "win.txt").read_bytes(), b"egy\r\nKETTO\r\nharom")
         self.assertEqual(out["hash"], sha256(b"egy\r\nKETTO\r\nharom"))
 
+    def test_conflict_text_lf(self) -> None:
+        """Ütközésnél a lemezen lévő CRLF-es szöveg `\\n`-nel jön vissza (a lap dokumentuma `\\n`-es)."""
+        # Adott egy CRLF-es "win.txt", amit a lap megnyitása óta más átírt
+        repo, gg, wip = self.repo()
+        (repo / "win.txt").write_bytes(b"egy\r\nketto\r\n")
+        # Ha a lap a régi hash-sel ment
+        out = gg.files.write_file(wip, "win.txt", "egy\n", sha256(b"regi"))
+        # Akkor ütközés, a lemez szövege `\\n`-es
+        self.assertEqual((out["conflict"], out["text"]), (True, "egy\nketto\n"))
+
     def test_lf(self) -> None:
         """Az LF-es fájl LF marad, a záró újsor a szöveg szerint."""
         # Adott egy LF-es fájl

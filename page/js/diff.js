@@ -5,7 +5,7 @@
    új meg nem jön, így a 2 mp-es frissítés nem villog. A kódfájlt a CodeMirror
    rajzolja (`cm.js`), a markdownt renderelve az `md-diff.js`, a képet az `images.js`. */
 import { cardState, closeCard, grow, openCard } from './anim.js';
-import { CodeDiff, cmLang, fromHunks, lf, loadCM } from './cm.js';
+import { CodeDiff, cmLang, fromHunks, loadCM } from './cm.js';
 import { drawGraph } from './graph.js';
 import { icon } from './icons.js';
 import { IMAGE_RE, fitImages, imageDiffHtml, loadImages } from './images.js';
@@ -174,11 +174,11 @@ async function codeText(sha, path) {
   if (old.binary || now.binary || disk?.binary) return { binary: true };
   if (old.big || now.big || disk?.big) return fromHunks(await SRC.diff(sha, path, false));
   if (disk && disk.text != null) {
-    return { old: lf(old.text), new: lf(disk.text), head: lf(now.text ?? ''), hash: disk.hash ?? meta.hash ?? null,
+    return { old: old.text, new: disk.text, head: now.text ?? '', hash: disk.hash ?? meta.hash ?? null,
              editable: Boolean(meta.editable), write: meta.write ?? null };
   }
   // a HEAD-commit tiszta fájlja: a mentés sora (`write`, az Uncommitted sor) és a lemez hashe a fejadatból
-  return { old: lf(old.text), new: lf(now.text), hash: now.hash ?? meta.hash ?? null, editable: Boolean(meta.editable),
+  return { old: old.text, new: now.text, hash: now.hash ?? meta.hash ?? null, editable: Boolean(meta.editable),
            write: meta.write ?? null };
 }
 
