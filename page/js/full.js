@@ -5,29 +5,32 @@
    minden fájllal). A fában a lenyitott commit változott fájlja a commit-panelben nyílik le, odagörgetve;
    a többi fájl (változatlan, vagy nincs lenyitott commit) teljes képernyőn.
    A teljes képernyő a panel lenyitott fájljának fejlécéből nyílik (`data-full`), a fájl első
-   változásánál: az eszközsor és a lábléc között (az eszközsorban a repó neve és a HEAD-chip marad, a
-   szűrők és a kereső helyén a subject és az X), középen a fájl
-   diffje (`fileContent`: a CodeMirror, a markdown, a kép), jobbra a saját fája. A HEAD-commit tiszta
+   változásánál: a lap tetejétől a láblécig. Középen fent a repó neve, a fájlban kereső és az X, alatta
+   a fájl diffje (`fileContent`: a CodeMirror, a markdown, a kép), keret nélkül; jobbra, teljes
+   magasságban a saját fája, alatta a commitlista (a commit és két-két szomszédja, rajtuk a commit
+   váltható). A WIP sor kék / narancs (`wip-tone`), a fa a fájlok mellett a WIP számait is mutatja
+   (`wipCounts`). A HEAD-commit tiszta
    fájlja is szerkeszthető: az első mentéstől a fájl a WIP soré, a nézet átvált rá; Esc-re bezárul, és
    a panelben a kijelölt fájl lenyitva, odagörgetve marad. A nézet billentyűit a réteg elkapja.
    A diff-szűrő bekapcsolva a sor változott fájljait mutatja (a mappaláncok összevonva), kikapcsolva
    a commit állapotának minden fájlját (`file_tree`; 20 000 fájl fölött mappánként, lustán); a tiszta
    worktree HEAD-jén letiltva, minden fájllal. A kereső név szerint szűr, `?` előtaggal a tartalomban
-   keres (`git grep`). A fa szélessége húzható (legalább 200 px), a lap megjegyzi; a lábléc közepén a
+   keres (`git grep`); a diff-szűrő a találatokra is vonatkozik. A fa szélessége húzható (legalább 200 px), a lap megjegyzi; a lábléc közepén a
    nézett fájl útja áll. */
 import { editingDiff } from './cm.js';
 import { codeViews, fileContent, forgetFile, onModeChange, mdRaw, setMdRaw, setSvgCode, source, svgCode, toggleFile } from './diff.js';
 import { OPEN_PANEL, counter } from './dom.js';
 import { fileIcon, icon } from './icons.js';
-import { commitBySha, focusWt } from './model.js';
+import { commitBySha, focusWt, wipCounts, wipHtml } from './model.js';
 import { revealFile } from './panel.js';
-import { DATA, expanded, onExpanded } from './state.js';
-import { esc, fold } from './util.js';
+import { DATA, expanded, onExpanded, visible } from './state.js';
+import { esc, fmtInt, fold } from './util.js';
 
 const WIDTH_KEY = 'git-graph:treeWidth';
 const SIDE_KEY = 'git-graph:sidebar';
 const WIDTH0 = 280, WIDTH_MIN = 200;
 const GREP_MS = 250;           // a tartalomkeresés ennyi csend után indul
+const AROUND = 2;              // a commitlistán a commit fölött és alatt ennyi szomszéd
 
 /** @type {any} */
 let fv = null;                 // a teljes képernyő (a fája is)
@@ -40,7 +43,8 @@ const root = document.documentElement;
 const foot = /** @type {HTMLElement} */ (document.getElementById('foot'));
 const chrome = /** @type {HTMLElement} */ (document.querySelector('.chrome'));
 const footPath = /** @type {HTMLElement} */ (document.getElementById('footPath'));
-new ResizeObserver(() => root.style.setProperty('--foot-h', `${foot.offsetHeight}px`)).observe(foot);
+// a pontos (törtpixeles) magasság: a kerekített `offsetHeight` mellett a lábléc fölött hézag maradhat
+new ResizeObserver(() => root.style.setProperty('--foot-h', `${foot.getBoundingClientRect().height}px`)).observe(foot);
 new ResizeObserver(() => root.style.setProperty('--chrome-h', `${chrome.getBoundingClientRect().bottom}px`)).observe(chrome);
 const setTreeWidth = w => root.style.setProperty('--fv-tree-w', `${Math.round(w)}px`);
 const savedWidth = () => {
@@ -70,12 +74,12 @@ function changedFiles(sha) {
 }
 
 /* ── A fa ── egy példány (`t`): { sha, el, path, all, clean, tree, loaded, query, grep, opened, closed }. */
-const treeHtml = (all, clean) => '<div class="fv-tree"><div class="fv-tools">'
+const treeHtml = (all, clean, commits = false) => '<div class="fv-tree"><div class="fv-tools">'
   + `<label class="search fv-search">${icon('search')}<input type="search" placeholder="Szűrés név szerint · ?tartalom"`
   + ' aria-label="Fájlok szűrése" spellcheck="false"></label>'
   + `<button type="button" class="mini fv-diff" aria-pressed="${!all}"${clean ? ' disabled' : ''}`
   + ` aria-label="Csak a változott fájlok" data-tip="Csak a változott fájlok">${icon('changes')}</button>`
-  + '</div><div class="fv-list"></div></div>';
+  + `</div><div class="fv-list"></div>${commits ? '<div class="fv-commits" aria-label="Commitok"></div>' : ''}</div>`;
 
 const newTree = (el, sha, all, clean = false) => ({ el, sha, all, clean, path: null, grepTimer: 0, tree: null, loaded: new Set(), query: '', grep: null,
   opened: new Set(), closed: new Set() });
@@ -84,7 +88,7 @@ const newTree = (el, sha, all, clean = false) => ({ el, sha, all, clean, path: n
    helyén), kereséskor a találatok. */
 function entries(t) {
   const changed = changedFiles(t.sha);
-  if (t.grep) return t.grep.map(f => changed.get(f.path) || { ...f, changed: false });
+  if (t.grep) return (t.all ? t.grep : t.grep.filter(f => changed.has(f.path))).map(f => changed.get(f.path) || { ...f, changed: false });
   let list = [...changed.values()];
   if (t.all && t.tree) {
     const seen = new Set(list.map(f => f.path));
@@ -145,9 +149,12 @@ const isOpen = (t, d) => (t.query ? true : t.all ? t.opened.has(d.path) || (d.st
 const ST_CLASS = { A: ' added', D: ' deleted', M: ' modified' };
 const stClass = st => (!st.size ? '' : st.size === 1 ? ST_CLASS[[...st][0]] : ' modified');
 
-function churn(f) {
-  if (!f.changed || f.bin || f.count) return '';
-  return `<span class="churn">${f.add ? `<span class="a">+${f.add}</span>` : ''}${f.del ? `<span class="d">−${f.del}</span>` : ''}</span>`;
+/* A fájl számai: a commit +/−-a, mellette a WIP eltérései (`w`, kék / narancs). */
+function churn(f, w) {
+  if (f.bin || f.count) return '';
+  const own = f.changed ? `${f.add ? `<span class="a">+${f.add}</span>` : ''}${f.del ? `<span class="d">−${f.del}</span>` : ''}` : '';
+  const wip = wipHtml(w);
+  return own || wip ? `<span class="churn">${own}${wip}</span>` : '';
 }
 
 function rowsHtml(t, node, depth) {
@@ -164,7 +171,7 @@ function rowsHtml(t, node, depth) {
   for (const f of node.files.map(x => ({ ...x, name: x.path.split('/').pop() })).sort(byName)) {
     const st = f.changed ? ST_CLASS[f.status === 'A' || f.status === 'D' ? f.status : 'M'] : '';
     out += `<div class="fv-row fv-file${st}${f.path === t.path ? ' sel' : ''}" data-path="${esc(f.path)}" style="--depth:${depth}"`
-      + ` aria-selected="${f.path === t.path}"><span class="chev"></span>${fileIcon(f)}<span class="name">${esc(f.name)}</span>${churn(f)}</div>`;
+      + ` aria-selected="${f.path === t.path}"><span class="chev"></span>${fileIcon(f)}<span class="name">${esc(f.name)}</span>${churn(f, t.wip?.get(f.path))}</div>`;
   }
   return out;
 }
@@ -173,6 +180,8 @@ function renderTree(t) {
   if (!t) return;
   const list = t.el.querySelector('.fv-list');
   const top = list.scrollTop;
+  t.wip = wipCounts(t.sha);
+  t.el.classList.toggle('wip-tone', Boolean(commitBySha(t.sha)?.uncommitted));
   list.innerHTML = rowsHtml(t, buildTree(t, entries(t)), 0) || `<p class="fv-empty">${t.grep ? 'Nincs találat.' : 'Nincs ilyen fájl.'}</p>`;
   list.scrollTop = top;
 }
@@ -379,32 +388,73 @@ function dropView() {
     @returns {boolean} megnyílt-e */
 export function openFull(sha, path, o = {}) {
   if (!sha || fv) return false;
-  const c = commitBySha(sha);
-  if (!c) return false;
+  if (!commitBySha(sha)) return false;
   const all = Boolean(o.all), clean = Boolean(o.clean);
-  const bar = document.createElement('div');
-  bar.className = 'fv-bar';
-  bar.innerHTML = `<h2 class="fv-subject">${esc(c.subject)}</h2>`
-    + `<button type="button" class="mini fv-close" data-fv-close aria-label="Bezárás (Esc)" data-tip="Bezárás (Esc)">${icon('close')}</button>`;
-  chrome.append(bar);
   const el = document.createElement('div');
   el.className = 'fv';
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-label', 'Teljes képernyő');
-  el.innerHTML = '<div class="fv-main"><div class="fv-center"><div class="fv-path"></div><div class="diff fv-box"></div></div>'
+  el.innerHTML = '<div class="fv-main"><div class="fv-center"><div class="fv-top"><div class="fv-head">'
+    + `<span class="repo-name">${esc(document.getElementById('repoName')?.textContent || '')}</span>`
+    + `<label class="search fv-find">${icon('search')}<input type="search" placeholder="Keresés a fájlban"`
+    + ' aria-label="Keresés a fájlban" spellcheck="false"></label>'
+    + `<button type="button" class="mini fv-close" data-fv-close aria-label="Bezárás (Esc)" data-tip="Bezárás (Esc)">${icon('close')}</button>`
+    + '</div><div class="fv-path"></div></div><div class="diff fv-box"></div></div>'
     + '<div class="fv-resize" role="separator" aria-orientation="vertical" aria-label="A fa szélessége"></div>'
-    + `${treeHtml(all, clean)}</div>`;
+    + `${treeHtml(all, clean, true)}</div>`;
   document.body.append(el);
   document.body.classList.add('fv-on');
-  fv = { ...newTree(el, sha, all, clean), bar, key: null, borrowed: o.borrowed ?? null };
+  fv = { ...newTree(el, sha, all, clean), key: null, find: '', borrowed: o.borrowed ?? null };
   el.addEventListener('click', onFullClick);
-  bar.addEventListener('click', onFullClick);
   el.querySelector('.fv-search input').addEventListener('input', e => onQuery(fv, /** @type {HTMLInputElement} */ (e.target).value));
+  const find = /** @type {HTMLInputElement} */ (el.querySelector('.fv-find input'));
+  find.addEventListener('input', () => { fv.find = find.value; findInFile(0); });
+  find.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    findInFile(e.shiftKey ? -1 : 1);
+  });
   el.querySelector('.fv-resize').addEventListener('pointerdown', onResize);
   addEventListener('keydown', onKey, true);
   if (all) loadTree(fv);
+  renderCommits();
   selectFile(path, o.line ?? null);
   return true;
+}
+
+/* A fejléc keresője a nyitott fájl kódnézetében (`CodeDiff.find`); `dir`: 0 — a kurzortól, ±1 — lépés. */
+function findInFile(dir) {
+  codeViews.get(fv.key)?.find?.(fv.find, dir);
+}
+
+/* A commitlista: a commit és fölötte, alatta `AROUND` szomszéd (a lista szélén a másik oldalról
+   pótolva), fölötte és alatta a többi száma. A lap szűrt listája, ha benne van a commit. */
+function renderCommits() {
+  const box = fv.el.querySelector('.fv-commits');
+  const list = visible.some(c => c.sha === fv.sha) ? visible : DATA.commits;
+  const i = list.findIndex(c => c.sha === fv.sha), n = 2 * AROUND + 1;
+  const from = Math.max(0, Math.min(i - AROUND, list.length - n)), to = Math.min(list.length, from + n);
+  const more = k => (k ? `<div class="fv-more">még ${fmtInt(k)} commit</div>` : '');
+  box.innerHTML = more(from) + list.slice(from, to).map(c => `<div class="fv-commit${c.sha === fv.sha ? ' sel' : ''}"`
+    + ` data-sha="${esc(c.sha)}" aria-selected="${c.sha === fv.sha}"><span class="subj">${esc(c.subject)}</span>`
+    + `${c.uncommitted ? '' : `<span class="sha">${esc(c.short)}</span>`}</div>`).join('') + more(list.length - to);
+}
+
+/* Commitváltás a listán: a fájl marad, ha a commitban változott (vagy a commitnak nincs változott
+   fájlja); különben a commit első változott fájlja. */
+function switchCommit(sha) {
+  if (sha === fv.sha || !commitBySha(sha)) return;
+  const ed = editingDiff();
+  if (ed && fv.el.contains(ed.root)) ed.stopEditing();
+  dropView();
+  const changed = changedFiles(sha);
+  const path = changed.has(fv.path) || !changed.size ? fv.path : changed.keys().next().value;
+  Object.assign(fv, { sha, key: null, tree: null, loaded: new Set(), grep: null, clean: false, borrowed: null });
+  fv.el.querySelector('.fv-diff').disabled = false;
+  if (fv.all) loadTree(fv);
+  if (fv.query.startsWith('?')) onQuery(fv, fv.query);
+  renderCommits();
+  selectFile(path);
 }
 
 /* A fájl tartalma középen; `line`: ide görget (alapból az első változáshoz). */
@@ -417,6 +467,7 @@ function selectFile(path, line = null) {
   fv.key = `fv\n${fv.sha}\n${path}`;
   renderTree(fv);
   const head = fv.el.querySelector('.fv-path'), box = fv.el.querySelector('.fv-box'), center = fv.el.querySelector('.fv-center');
+  const top = /** @type {HTMLElement} */ (fv.el.querySelector('.fv-top'));
   const f = changedFiles(fv.sha).get(path) || { path, icon: fv.tree?.files.find(x => x.path === path)?.icon };
   head.innerHTML = `${fileIcon(f)}<span class="path">${esc(path)}</span>`;
   head.classList.toggle('deleted', f.status === 'D');
@@ -428,7 +479,8 @@ function selectFile(path, line = null) {
     ready: view => {
       if (scrolled || fv?.key !== key) return;
       scrolled = true;
-      view.scrollToLine(line ?? view.firstChange(), center, head.offsetHeight);
+      if (fv.find && line == null) view.find?.(fv.find);
+      else view.scrollToLine(line ?? view.firstChange(), center, top.offsetHeight);
     },
   });
   if (line == null) center.scrollTop = 0;
@@ -449,7 +501,7 @@ function toWip() {
   fv.clean = false;
   fv.el.querySelector('.fv-diff').disabled = false;
   if (fv.all) loadTree(fv);
-  fv.bar.querySelector('.fv-subject').textContent = commitBySha(row).subject;
+  renderCommits();
 }
 
 /* Élő frissítés (a WIP sor új adata): a fák és a nyitott fájl újra (a kódnézet helyben frissül). */
@@ -463,6 +515,7 @@ export function refreshFull() {
   if (!commitBySha(fv.sha)) return;
   if (fv.all && fv.sha.startsWith('*')) loadTree(fv);
   renderTree(fv);
+  renderCommits();
   const box = fv.el.querySelector('.fv-box'), key = fv.key;
   const f = changedFiles(fv.sha).get(fv.path);
   fileContent(box, fv.sha, fv.path, key, fill => { if (fv?.key === key) fill(); }, { changed: Boolean(f?.changed) });
@@ -470,12 +523,11 @@ export function refreshFull() {
 
 function closeFull() {
   if (!fv) return;
-  const { sha, path, el, bar } = fv;
+  const { sha, path, el } = fv;
   const ed = editingDiff();
   if (ed && el.contains(ed.root)) ed.stopEditing();
   dropView();
   el.remove();
-  bar.remove();
   document.body.classList.remove('fv-on');
   fv = null;
   showPath(null);
@@ -489,6 +541,8 @@ function closeFull() {
 function onFullClick(e) {
   const t = /** @type {HTMLElement} */ (e.target);
   if (t.closest('[data-fv-close]')) { closeFull(); return; }
+  const commit = /** @type {HTMLElement} */ (t.closest('.fv-commit'));
+  if (commit) { switchCommit(commit.dataset.sha); return; }
   const md = /** @type {HTMLElement} */ (t.closest('[data-md-mode]')), svg = /** @type {HTMLElement} */ (t.closest('[data-svg-mode]'));
   if (md) { if ((md.dataset.mdMode === 'raw') !== mdRaw) setMdRaw(!mdRaw); return; }
   if (svg) { if ((svg.dataset.svgMode === 'code') !== svgCode) setSvgCode(!svgCode); return; }
@@ -510,7 +564,19 @@ function onKey(e) {
       const input = /** @type {HTMLInputElement} */ (t);
       input.value = '';
       onQuery(fv, '');
+    } else if (t.closest?.('.fv-find') && fv.find) {
+      /** @type {HTMLInputElement} */ (t).value = '';
+      fv.find = '';
+      findInFile(0);
     } else closeFull();
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f' && !e.shiftKey && !e.altKey) {   // a fejléc keresője
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const input = /** @type {HTMLInputElement} */ (fv.el.querySelector('.fv-find input'));
+    input.focus();
+    input.select();
     return;
   }
   if (!t.closest?.('.cm-editor, input, textarea')) e.stopImmediatePropagation();   // a lap navigációja áll

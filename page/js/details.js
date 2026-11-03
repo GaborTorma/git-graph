@@ -8,7 +8,7 @@ import { openFromPanel } from './full.js';
 import { drawGraph } from './graph.js';
 import { fileIcon, icon } from './icons.js';
 import { fitWho } from './layout.js';
-import { commitBySha, worktrees } from './model.js';
+import { commitBySha, wipCounts, wipHtml } from './model.js';
 import { fitPanel, followPending, revealCommit } from './panel.js';
 import { commitUrl, fileUrl, linkify } from './refs.js';
 import { rowOf, select } from './scroll.js';
@@ -34,20 +34,6 @@ const pathHtml = (path, from = Infinity) => {
     .replaceAll(' =&gt; ', ' <span class="rename-arrow">»</span> ');   // a `--numstat` átnevezés-nyila
 };
 
-/* A worktree HEAD-commitjánál a WIP eltérései (HEAD → lemez) fájlonként: a worktree nem commitolt és
-   stage-elt sorának számai együtt (a kódnézet kék / narancs rétegének számai). Más commitnál üres. */
-function wipCounts(sha) {
-  const out = new Map(), wt = worktrees().find(w => w.head === sha);
-  if (!wt) return out;
-  for (const row of DATA.commits.filter(r => r.uncommitted && r.worktree === wt.slug)) {
-    for (const f of DATA.stats[row.sha]?.files || []) {
-      const was = out.get(f.path) || { add: 0, del: 0 };
-      out.set(f.path, { add: was.add + (f.add || 0), del: was.del + (f.del || 0) });
-    }
-  }
-  return out;
-}
-const wipHtml = w => (!w ? '' : `${w.add ? `<span class="wa">+${w.add}</span>` : ''}${w.del ? `<span class="wd">−${w.del}</span>` : ''}`);
 
 /* Összevont követetlen mappa (pl. `node_modules/`): egy sor a fájlszámával, diff nélkül. */
 const dirHtml = f => `<div class="file-dir"><span></span>${icon('folder', 'ic fic')}
@@ -127,7 +113,7 @@ export function open(sha, animate = false) {
   const wip = wipCounts(sha);
 
   const el = document.createElement('div');
-  el.className = 'details';
+  el.className = c.uncommitted ? 'details wip-tone' : 'details';
   el.innerHTML = `
     ${headHtml(c)}
     ${c.body ? `<p class="body-text">${bodyHtml(c)}</p>` : ''}

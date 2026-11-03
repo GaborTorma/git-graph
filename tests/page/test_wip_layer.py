@@ -184,10 +184,10 @@ class WipSplitTest(WipCase):
         # hozzáadás elvetése
         blocks = [t.strip() for t in self.page.locator(f"{SEL} .cm-merge-b .cm-wipDeleted").all_inner_texts() if t.strip()]
         self.assertEqual(blocks, ["s60 = 'commit'"])
-        # a 36. sor a két oldalon egy vonalban
-        a = self.page.locator(f"{left} .cm-line", has_text="s36 = 36").bounding_box()
-        b = self.page.locator(f"{SEL} .cm-merge-b .cm-line", has_text="s36 = 36").bounding_box()
-        self.assertLessEqual(abs(a["y"] - b["y"]), 2)
+        # a 36. sor a két oldalon egy vonalban (a térközök a betű betöltése után is igazodnak)
+        self.page.wait_for_function("""sel => { const y = side => [...document.querySelectorAll(sel + ' .cm-merge-' + side + ' .cm-line')]
+          .find(l => l.textContent === 's36 = 36').getBoundingClientRect().y;
+          return Math.abs(y('a') - y('b')) <= 2; }""", arg=SEL, timeout=3000)
 
     def test_reject_from_left(self) -> None:
         """A bal oldal narancs során az elvetés a HEAD-beli változatra állítja vissza a sort."""
@@ -213,6 +213,30 @@ class WipMarksTest(WipCase):
         self.open_app()
         z = self.page.evaluate(f"getComputedStyle(document.querySelector('{SEL} .cm-selectionLayer')).zIndex")
         self.assertEqual(z, "1")
+
+
+class WipToneTest(WipCase):
+    """A WIP sor kék / narancs (a commit zöld / piros helyett); a fa a fájlok mellett a WIP számait is mutatja."""
+
+    def test_wip_row_tone(self) -> None:
+        self.page.locator(".row.uncommitted").first.click()
+        self.settle()
+        colors = self.page.evaluate("""(() => { const d = document.querySelector('.details');
+          const c = s => getComputedStyle(d.querySelector(s)).color;
+          const probe = Object.assign(document.createElement('span'), { style: 'color: var(--wip-add-fg)' });
+          d.append(probe); const want = getComputedStyle(probe).color; probe.remove();
+          return [d.classList.contains('wip-tone'), c('.files-head .a'), want]; })()""")
+        self.assertTrue(colors[0])
+        self.assertEqual(colors[1], colors[2])
+
+    def test_tree_wip_counts(self) -> None:
+        self.open_app()
+        self.page.locator('.details .file[data-path="app.py"]').locator("[data-full]").click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        row = self.page.locator('.fv-list .fv-file[data-path="app.py"]')
+        self.assertEqual(row.locator(".churn .a").inner_text(), "+2")
+        self.assertEqual(row.locator(".churn .wa").inner_text(), "+3")
+        self.assertEqual(row.locator(".churn .wd").inner_text(), "−2")
 
 
 if __name__ == "__main__":

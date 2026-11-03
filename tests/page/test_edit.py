@@ -360,7 +360,7 @@ class CleanEditTest(PageTestCase):
         # Akkor megjelenik a WIP sor, a nézet átvált rá, a szerkesztés folytatható
         self.poke()
         self.assertEqual(self.page.locator(".row.uncommitted").count(), 1)
-        self.assertEqual(self.page.locator(".fv-subject").inner_text(), "Nem commitolt változások")
+        self.assertEqual(self.page.locator(".fv-commit.sel .subj").inner_text(), "Nem commitolt változások")
         self.assertEqual(self.page.evaluate(f"({CURSOR})('.fv-box')")[2], "true")
         self.page.keyboard.type("masodik ")
         self.page.keyboard.press("ControlOrMeta+s")

@@ -335,6 +335,8 @@ export class CodeDiff {
     this.split = false;
     this.cc = null;                  // a szülő → HEAD blokkjai (`commitChunks`)
     this.wipField = null;
+    this.gapOpen = null;             // a WIP-réteg résének nyitója a pozícióhoz (`collapseWip`)
+    this.alignFrame = 0;
     this.edit = new CM.Compartment();
     this.set(d);
     this.root.addEventListener('dblclick', e => this.onDblclick(e));
@@ -383,7 +385,8 @@ export class CodeDiff {
     const lines = d.lines;
     return [
       CM.lineNumbers(lines ? { formatNumber: n => String(lines[n - 1] ?? '') } : {}),
-      CM.EditorView.lineWrapping, CM.drawSelection(), c.style, c.phrases, c.flashField, CM.search({ top: true }),
+      CM.EditorView.lineWrapping, CM.drawSelection(), c.style, c.phrases, c.flashField,
+      CM.search({ top: true, scrollToMatch: r => CM.EditorView.scrollIntoView(r, { y: 'center' }) }),
       ...(lang ? [lang] : []),
       ...(side === 'b' ? [CM.history(), CM.keymap.of([
         { key: 'Mod-s', run: () => { this.save(); return true; }, preventDefault: true },
@@ -399,6 +402,7 @@ export class CodeDiff {
     const doc = this.ed ? this.ed.state.doc.toString() : (d.new ?? '');
     const wasEditing = this.editing, head = this.ed?.state.selection.main.head ?? 0;
     this.destroy();
+    this.gapOpen = null;
     this.mode = mode;
     this.split = mode === 'split';
     const orig = this.origFor(d.head, doc);
@@ -500,6 +504,10 @@ export class CodeDiff {
   }
 
   onUpdate(u) {
+    // a sormagasság változott (betöltött betű, szélesség): a bal oldal térközei újra (`alignWip`)
+    if (u.geometryChanged && this.ea && this.wipField && !this.alignFrame) {
+      this.alignFrame = requestAnimationFrame(() => { this.alignFrame = 0; this.alignWip(); });
+    }
     if (u.docChanged && this.wipField) {          // a merge alapja követi a dokumentumot (`rebase`)
       clearTimeout(this.rebaseTimer);
       this.rebaseTimer = setTimeout(() => this.rebase(), REBASE_MS);
@@ -587,6 +595,10 @@ export class CodeDiff {
     const open = i => {
       this.ed.dispatch({ effects: kit.openGap.of(this.ed.state.doc.line(lines[i][0]).from) });
       if (linesA) this.ea.dispatch({ effects: kit.openGap.of(this.ea.state.doc.line(linesA[i][0]).from) });
+    };
+    this.gapOpen = pos => {
+      const n = this.ed.state.doc.lineAt(pos).number, i = lines.findIndex(([f, t]) => f <= n && n <= t);
+      if (i >= 0) open(i);
     };
     this.ed.dispatch({ effects: kit.setGaps.of(kit.gapDeco(b.doc, lines, open)) });
     if (linesA) this.ea.dispatch({ effects: kit.setGaps.of(kit.gapDeco(this.ea.state.doc, linesA, open)) });
@@ -767,12 +779,42 @@ export class CodeDiff {
     return this.ed.state.doc.lineAt(this.ed.lineBlockAtHeight(y).from).number;
   }
 
+  /* A teljes képernyő keresője (`q`): a találatok kiemelve, a CodeMirror keresőpaneljével (a lap elrejti);
+     `dir`: 0 — a kurzortól az első találat, 1 / -1 — a következő / előző. Üresre a kiemelés megszűnik.
+     A fókusz a hívónál marad. */
+  find(q, dir = 0) {
+    const CM = this.CM, ed = this.ed, keep = /** @type {HTMLElement} */ (document.activeElement);
+    if (!ed) return;
+    if (!q) CM.closeSearchPanel(ed);
+    else {
+      CM.openSearchPanel(ed);
+      const effects = CM.setSearchQuery.of(new CM.SearchQuery({ search: q }));
+      ed.dispatch(dir ? { effects } : { effects, selection: { anchor: ed.state.selection.main.from } });
+      (dir < 0 ? CM.findPrevious : CM.findNext)(ed);
+      const r = ed.state.selection.main;
+      this.reveal(r.from);
+      ed.dispatch({ effects: CM.EditorView.scrollIntoView(r, { y: 'center' }) });
+    }
+    keep?.focus();
+  }
+
+  /* A `pos` körüli csukott rés kinyílik: a merge-é (a rés eleje a blokkjáé; egymás mellett a bal oldalon is)
+     és a WIP-rétegé (`gapOpen`). */
+  reveal(pos) {
+    const CM = this.CM, ed = this.ed;
+    ed.dispatch({ effects: CM.uncollapseUnchanged.of(ed.lineBlockAt(pos).from) });
+    if (this.ea) {
+      const a = this.ea.state.doc.line(this.lineToA(pos)).from;
+      this.ea.dispatch({ effects: CM.uncollapseUnchanged.of(this.ea.lineBlockAt(a).from) });
+    }
+    this.gapOpen?.(pos);
+  }
+
   /* `offset`: a görgető régió tetején ennyi helyet takar el valami (ragadós fejléc). */
   scrollToLine(n, scroller, offset = 0) {
     if (!this.ed) return;
     const doc = this.ed.state.doc, line = doc.line(Math.max(1, Math.min(n, doc.lines)));
-    this.CM.uncollapseUnchanged && this.ed.dispatch({ effects: this.CM.uncollapseUnchanged.of(line.from) });
-    if (this.wipField && !this.ea) this.ed.dispatch({ effects: wipKit(this.CM).openGap.of(line.from) });
+    this.reveal(line.from);
     requestAnimationFrame(() => {
       if (!this.ed) return;
       const block = this.ed.lineBlockAt(line.from);

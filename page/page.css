@@ -516,7 +516,11 @@ button { font: inherit; color: inherit; }
 }
 .search input:focus-visible, .menu-search input:focus-visible { box-shadow: none; }
 .search input::placeholder, .menu-search input::placeholder { color: var(--fg-3); }
-.search input::-webkit-search-cancel-button { cursor: pointer; }
+.search input::-webkit-search-cancel-button {   /* vékony X (a natív vastag helyett) */
+  -webkit-appearance: none; width: 12px; height: 12px; cursor: pointer; background: var(--fg-2);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 2.5l7 7M9.5 2.5l-7 7' stroke='black' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.search input::-webkit-search-cancel-button:hover { background: var(--fg-0); }
 /* az app Shortcut-ja: billentyűnként egy sapka, 2 px-es közzel; az egy karakteres négyzet */
 .search .keys { display: inline-flex; gap: 2px; font-size: 12px; color: var(--fg-3); }
 .search kbd {
@@ -1302,25 +1306,29 @@ html.img-drag-grab, html.img-drag-grab * { cursor: grabbing !important; }
 body.side-on .pending, body.side-on .scroll { margin-right: var(--fv-tree-w, 280px); }
 /* lenyomva szürke, mint az app kapcsológombja (a hovernél kicsit sötétebb) */
 #sideBtn[aria-pressed="true"] { color: var(--fg-0); background: var(--bg-3); }
-/* A teljes képernyő: az eszközsor és a lábléc között; az eszközsorban balra a repó neve és a HEAD-chip
-   marad, a szűrők és a kereső helyén a subject és az X. */
-.fv { position: fixed; top: var(--chrome-h, 0); bottom: var(--foot-h, 0); left: 0; right: 0; z-index: 50; display: flex;
+/* A teljes képernyő: a lap tetejétől a láblécig; középen fent (ragadósan) a repó neve, a fájlban kereső és
+   az X, alatta a fájl útja, a diff keret nélkül, teljes szélességben; jobbra a fa teljes magasságban. */
+.fv { position: fixed; top: 0; bottom: var(--foot-h, 0); left: 0; right: 0; z-index: 50; display: flex;
       flex-direction: column; background: var(--bg); color: var(--fg-0); }
-body.fv-on .chrome :is(.filters, .tools) { display: none; }
-.fv-bar { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 12px; }
-.fv-subject { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-              font-size: 15px; font-weight: var(--w-header); color: var(--fg-0); }
 .fv-main { flex: 1; min-height: 0; display: flex; }
-.fv-center { flex: 1; min-width: 0; overflow: auto; padding: 0 12px 16px; background: var(--bg); }
-.fv-path { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 8px; height: 36px; background: var(--bg);
+.fv-center { flex: 1; min-width: 0; overflow: auto; background: var(--code-bg); }
+.fv-top { position: sticky; top: 0; z-index: 3; background: var(--bg); }
+.fv-head { display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--border); }
+.fv-find { flex: 0 1 320px; }
+.fv-close { margin-left: auto; }
+.fv-path { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; border-bottom: 1px solid var(--border);
   font-family: var(--font-mono); font-size: 13px; font-weight: var(--w-medium); }
 .fv-path .fic { width: 16px; height: 16px; flex: none; }
 .fv-path.deleted .path { color: var(--del); text-decoration: line-through; }
-.fv-box { margin: 0; }
+.fv-box { margin: 0; border: 0; border-radius: 0; }
+.fv-box .cm-diff { border-radius: 0; }
+/* a CodeMirror keresőpanelje helyett a fejléc keresője (`find`) */
+.fv-box .cm-panels-top { display: none; }
 .fv-resize { flex: none; width: 5px; margin: 0 -2px; z-index: 4; cursor: col-resize; border-left: 2px solid transparent; }
 .fv-resize:hover, .fv-resize.on { border-left-color: var(--accent); }
 .fv-tree { flex: none; width: var(--fv-tree-w, 280px); min-width: 200px; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg-1); }
 .fv-tools { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px; }
+.fv .fv-tools { height: 56px; padding: 0 12px; border-bottom: 1px solid var(--border); }
 .fv-search { flex: 1 1 auto; height: 28px; padding: 0 8px; }
 .fv-search .ic { width: 14px; height: 14px; flex: none; }
 .fv-search input { font-size: 13px; }
@@ -1345,3 +1353,15 @@ body.fv-on .chrome :is(.filters, .tools) { display: none; }
 .fv-row.modified .name { color: var(--git-modified); }
 .fv-empty { margin: 8px; font-size: 12px; color: var(--fg-2); }
 .fv-error { color: var(--critical); }
+/* a teljes képernyő commitlistája a fa alatt */
+.fv-commits { flex: none; padding: 4px; border-top: 1px solid var(--border); font-size: 13px; }
+.fv-commit { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border-radius: 6px; cursor: pointer; color: var(--fg-1); }
+.fv-commit:hover { background: var(--bg-2); }
+.fv-commit.sel { background: var(--fill-2); color: var(--fg-0); }
+.fv-commit .subj { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fv-commit .sha { flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--fg-3); }
+.fv-more { padding: 2px 8px; font-size: 12px; color: var(--fg-3); }
+/* a WIP sor kék / narancs: a commit zöld / piros helyett */
+.wip-tone { --add: var(--wip-add-fg); --del: var(--wip-del-fg); --diff-add: var(--wip-add); --diff-del: var(--wip-del);
+            --diff-add-hl: var(--wip-add-hl); --diff-del-hl: var(--wip-del-hl);
+            --diff-add-no: var(--wip-add-fg); --diff-del-no: var(--wip-del-fg); }

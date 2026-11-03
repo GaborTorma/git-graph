@@ -91,24 +91,79 @@ class FullViewTest(PageTestCase):
         return [t.strip() for t in self.page.locator(".fv-list .fv-row .name").all_inner_texts()]
 
     def test_open_from_open_file(self) -> None:
-        """A diff.js fejlécének ikonjával: az eszközsorban balra a repó neve és a HEAD-chip marad, a szűrők és
-        a kereső helyén a subject és az X; alatta a láblécig középen a diff.js az első változásánál (100. sor),
-        jobbra a fa, benne a diff.js kijelölve."""
+        """A diff.js fejlécének ikonjával: a lap tetejétől a láblécig; középen fent a repó neve, a fájlban kereső és
+        az X (a HEAD-chip és a subject nélkül), alatta a diff.js az első változásánál (100. sor), keret nélkül;
+        jobbra teljes magasságban a fa, benne a diff.js kijelölve."""
         self.open_commit()
         self.open_full("page/js/diff.js")
         box, foot = self.page.locator(".fv").bounding_box(), self.page.locator("#foot").bounding_box()
-        chrome = self.page.locator(".chrome").bounding_box()
-        self.assertEqual((box["x"], box["y"], box["width"], box["y"] + box["height"]),
-                         (0, chrome["y"] + chrome["height"], self.WIDTH, foot["y"]))
-        self.assertTrue(self.page.locator("#repoName").is_visible())
-        self.assertTrue(self.page.locator("#headChip").is_visible())
-        self.assertFalse(self.page.locator("#branchBtn").is_visible())
-        self.assertFalse(self.page.locator("#search").is_visible())
-        self.assertEqual(self.page.locator(".chrome .fv-bar").inner_text().strip(), SUBJECT)
+        self.assertEqual((box["x"], box["y"], box["width"], box["y"] + box["height"]), (0, 0, self.WIDTH, foot["y"]))
+        tree = self.page.locator(".fv-tree").bounding_box()
+        self.assertEqual((tree["y"], tree["y"] + tree["height"]), (0, foot["y"]))
+        head = self.page.locator(".fv-head")
+        self.assertEqual(head.locator(".repo-name").inner_text(), self.page.locator("#repoName").inner_text())
+        self.assertTrue(head.locator(".fv-find input").is_visible())
+        self.assertEqual(head.locator(".head-chip").count(), 0)
+        self.assertNotIn(SUBJECT, head.inner_text())
         self.assertIn("page/js/diff.js", self.page.locator(".fv-path").inner_text())
         self.assertLessEqual(abs(self.fv_top_line() - 100), 1)
         self.assertEqual(self.page.locator(".fv-row.sel .name").inner_text(), "diff.js")
         self.assertLess(self.page.locator(".fv-center").bounding_box()["x"], self.page.locator(".fv-tree").bounding_box()["x"])
+        diff = self.page.evaluate("(() => { const s = getComputedStyle(document.querySelector('.fv-box'));"
+                                  " return [s.borderTopWidth, s.borderRadius]; })()")
+        self.assertEqual(diff, ["0px", "0px"])
+        center = self.page.locator(".fv-center").bounding_box()
+        self.assertEqual(self.page.locator(".fv-box").bounding_box()["width"], center["width"])
+
+    def test_find_in_file(self) -> None:
+        """A fejléc keresője a nyitott fájlban: a találatok kiemelve, Enter a következőre lép, Esc törli."""
+        self.open_commit()
+        self.open_full("page/js/diff.js")
+        find = self.page.locator(".fv-find input")
+        find.fill("sor150")
+        self.page.wait_for_selector(".fv-box .cm-searchMatch")
+        sel = ("(() => { const v = CM.EditorView.findFromDOM(document.querySelector('.fv-box .cm-editor'));"
+               " const r = v.state.selection.main; return v.state.sliceDoc(r.from, r.to); })()")
+        self.assertEqual(self.page.evaluate(sel), "sor150")
+        self.assertFalse(self.page.locator(".fv-box .cm-panels-top").is_visible())
+        find.fill("const sor1")
+        first = self.page.evaluate("CM.EditorView.findFromDOM(document.querySelector('.fv-box .cm-editor')).state.selection.main.from")
+        find.press("Enter")
+        second = self.page.evaluate("CM.EditorView.findFromDOM(document.querySelector('.fv-box .cm-editor')).state.selection.main.from")
+        self.assertGreater(second, first)
+        self.assertTrue(find.evaluate("e => e === document.activeElement"))
+        find.press("Escape")
+        self.assertEqual(find.input_value(), "")
+        self.assertEqual(self.page.locator(".fv-box .cm-searchMatch").count(), 0)
+        self.assertTrue(self.page.locator(".fv").is_visible())
+
+    def test_commit_list(self) -> None:
+        """A fa alatt a commitlista: a commit kijelölve, mellette a szomszédai (összesen 5), alatta a többi száma;
+        a másik commitra kattintva a nézet arra vált."""
+        self.open_commit()
+        self.open_full("page/js/diff.js")
+        items = self.page.locator(".fv-commits .fv-commit")
+        self.assertEqual(items.count(), 5)
+        self.assertEqual(self.page.locator(".fv-commit.sel .subj").inner_text(), SUBJECT)
+        total = self.page.locator("#rows .row").count()
+        self.assertEqual(self.page.locator(".fv-commits .fv-more").inner_text(), f"még {total - 5} commit")
+        self.page.locator(".fv-commit", has_text="nezet: alap").click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.settle()
+        self.assertEqual(self.page.locator(".fv-commit.sel .subj").inner_text(), "nezet: alap")
+        self.assertEqual(self.page.locator(".fv-commits .fv-commit").first.inner_text().split("\n")[0], SUBJECT)
+        self.assertIn("page/js/diff.js", self.page.locator(".fv-path").inner_text())
+        self.assertIn("diff.js", self.tree())    # az alap commit minden fájlja új: a diff.js is
+
+    def test_grep_follows_diff_filter(self) -> None:
+        """A tartalomkeresés a diff-szűrővel csak a változott fájlok találatait mutatja, kikapcsolva mindet."""
+        self.open_commit()
+        self.open_full()
+        self.page.locator(".fv-search input").fill("?segit")
+        self.page.wait_for_timeout(600)
+        self.assertEqual(self.page.locator(".fv-list .fv-file").count(), 0)
+        self.page.locator(".fv .fv-diff").click()
+        self.page.wait_for_selector('.fv-list .fv-file[data-path="tools/util.py"]')
 
     def test_full_icon_on_closed_file(self) -> None:
         """A teljes képernyő ikonja a csukott fájl fejlécén is ott van, és a fájlt teljes képernyőn nyitja."""

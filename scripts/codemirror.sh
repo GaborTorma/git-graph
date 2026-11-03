@@ -30,7 +30,8 @@ import { Chunk, MergeView, diff, getChunks, getOriginalDoc, originalDocChangeEff
          uncollapseUnchanged, unifiedMergeView, updateOriginalDoc } from '@codemirror/merge';
 import { HighlightStyle, LRLanguage, LanguageSupport, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
 import { defaultKeymap, history, historyKeymap, indentWithTab, redo, undo } from '@codemirror/commands';
-import { openSearchPanel, search, searchKeymap } from '@codemirror/search';
+import { SearchQuery, closeSearchPanel, findNext, findPrevious, openSearchPanel, search, searchKeymap, setSearchQuery }
+  from '@codemirror/search';
 import { tags } from '@lezer/highlight';
 import { python } from '@codemirror/lang-python';
 import { javascript } from '@codemirror/lang-javascript';
@@ -60,7 +61,7 @@ globalThis.CM = {
   uncollapseUnchanged, unifiedMergeView, updateOriginalDoc,
   HighlightStyle, syntaxHighlighting, tags,
   defaultKeymap, history, historyKeymap, indentWithTab, redo, undo,
-  openSearchPanel, search, searchKeymap,
+  SearchQuery, closeSearchPanel, findNext, findPrevious, openSearchPanel, search, searchKeymap, setSearchQuery,
   lang: name => LANGS[name]?.() ?? null,
 };
 EOF

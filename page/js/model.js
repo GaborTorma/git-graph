@@ -167,3 +167,18 @@ function reachable(tips) {
 }
 
 export const headFiltered = () => Boolean(branchKeep && !branchKeep.has(focusWt()?.head));
+
+/* A worktree HEAD-commitjánál a WIP eltérései (HEAD → lemez) fájlonként: a worktree nem commitolt és
+   stage-elt sorának számai együtt (a kódnézet kék / narancs rétegének számai). Más commitnál üres. */
+export function wipCounts(sha) {
+  const out = new Map(), wt = worktrees().find(w => w.head === sha);
+  if (!wt) return out;
+  for (const row of DATA.commits.filter(r => r.uncommitted && r.worktree === wt.slug)) {
+    for (const f of DATA.stats[row.sha]?.files || []) {
+      const was = out.get(f.path) || { add: 0, del: 0 };
+      out.set(f.path, { add: was.add + (f.add || 0), del: was.del + (f.del || 0) });
+    }
+  }
+  return out;
+}
+export const wipHtml = w => (!w ? '' : `${w.add ? `<span class="wa">+${w.add}</span>` : ''}${w.del ? `<span class="wd">−${w.del}</span>` : ''}`);
