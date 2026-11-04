@@ -1,3 +1,122 @@
+## [0.17.0] - 2026-11-04
+
+### 🚀 Features
+
+- *(refs)* Független történet jele a közös ős nélküli ág chipjén
+- *(graph)* A tükör-commitok halványak, és a forrásukhoz kötve látszanak
+- *(filters)* Remote szerinti szűrő a „Remote ágak” kapcsoló mellett
+- *(md-diff)* Ikonos listában az ikon a felsorolásjel
+- *(page)* A lap az app design-systemjével (CDS) — színek, méretek, sávok, chipek, lenyitás
+- *(page)* A markdown- és az SVG-diff nézetváltója kétgombos szegmens
+- *(page)* Kétszintű tooltip, a natív title helyett mindenhol
+- *(page)* Az avatar nélküli szerző monogramja szerzőnként színes
+- *(page)* A keresés találata kiemelve a subjectben
+- *(page)* A lap az app jelenlegi témájával — fizzy-lake színek, Anthropicons-ikonok, app-chip
+- *(page)* Anthropic Sans és Mono a lapon, az app vastagságaival
+- *(page)* A kontrollok az app komponensei szerint — gomb, mező, kapcsoló, menü, link, kbd
+- *(page)* Az ágválasztó a lap magasságának ~80 %-áig nyúlhat le
+- *(page)* Az ikonok a legújabb Anthropicons-fontból — felhős branch ikon, lenyíló nyíl
+- *(page)* A lenyílók és a fogaskerék az app Select-je — mező-gomb, 12 px-es tételek
+- *(page)* A lenyitás a hoverből nyílik — a teljes kártya hover-színű, a közepéről halványul
+- *(page)* A kártya keret, árnyék és tartalom szerint nyílik és csukódik — a fájl is, mint a commit
+- *(server)* A teljes nézet fája, a tartalomkeresés és a WIP sor író toolja
+- *(page)* Commit/WIP teljes nézet fájlfával, CodeMirror-diff és a WIP sor szerkesztése
+- *(page)* Szerkesztés tiszta worktree-ben a HEAD-commitból, a teljes nézet nyitott commit nélkül
+- *(page)* A markdown forrása szerkeszthető a nyers nézetben
+- *(page)* A teljes nézet alatt is látszó, vékonyabb lábléc a fájl útjával, diff-szűrő a „Minden fájl” helyett
+- *(page)* A teljes nézet az eszközsor alatt, kijelölt fájl nélkül a gráffal
+- *(page)* Fájllista sidebarban, teljes képernyő a fájl fejlécéből, beállítások a láblécben
+- *(page)* A HEAD-commit diffje a lemez szövegével, a WIP eltérései kék / narancs rétegben
+- *(page)* WIP-réteg egymás mellett is kettéosztott résekkel, és régebbi commitban is, ha a fájl azóta nem változott
+- *(page)* Teljes képernyő a lap tetejétől, fájlkeresővel és commitlistával; a WIP sor kék / narancs
+- *(page)* Teljes képernyő fejléce a HEAD-chippel és a fájllal, ágszűrt commitlista, mentés után a commiton marad
+- *(page)* Teljes képernyőn a szerkesztő kitölti a magasságot, a fejlécben a fájl számai
+- *(page)* Commit nélkül a sidebar fája színezés nélküli, a diff-szűrője a HEAD-commitot nyitja le
+- *(page)* A WIP sor végén a +/− szám kék / narancs
+- *(page)* A teljes képernyő X-e helyett a kilépés ikonja (Collapse)
+- *(page)* A nem szerkeszthető kódnézeten nyíl a kurzor
+- *(page)* Teljes képernyő commit nélkül a sidebarból; a kijelölt commit WIP nélkül levehető
+- *(page)* Teljes képernyőn a fejléc újra teljes szélességű, a fa keresője kompakt a fa fölött
+
+### 🐛 Bug Fixes
+
+- *(stats)* A nagy fájllista nem feszíti szét a graph_data választ
+- *(diff)* A követetlen symlink diffje a link célja
+- *(graph)* A subtree squash-commitja szaggatott ívvel a split-commithoz
+- *(gitio)* Eltűnt git bináris után újrakeresés
+- *(mermaid)* Az ER-diagram vonala a jelölő után fordul, nem rajta
+- *(page)* A tooltip paddingje az app buborékjáé, nem nagyobb
+- *(graph)* A tükör forrása az alapág commitja, nem egy mellékág cherry-pickje
+- *(page)* A változott Mermaid-elem felirata színes, nem vastagabb
+- *(page)* A kézzel választott sötét téma sávszínei is a fizzy-lake értékei
+- *(page)* A chip távolságában a nyíl és a száma közt 3 px, mint két ikon közt
+- *(page)* Az ikonok az app méretskáláján — a menükben 20 px, a pipa bold, 13–14 px nincs
+- *(page)* Az ágválasztó worktree-fejléce nem halvány — kattintható, csak a remote csoporté az
+- *(page)* A fejléc HEAD-chipje akkora, mint a sor chipje — 20 px, 12 px-es betű
+- *(page)* Az ágválasztó WIP-jele akkora, mint a gráfon (12 px), a pipák oszlopában
+- *(page)* Az ágválasztóban a helyi ág párja csak az azonos nevű upstream
+- Az ágválasztóban a helyi ág párja az azonos nevű remote ág, a `-u` nélküli push után is
+- Csak az azonos nevű upstream számít — más nevűhöz nincs pár és távolság
+- *(page)* A lenyitott commit fejlécének is van árnyéka, fent és oldalt — a panelé folytatódik
+- *(page)* A pusholatlan alapág jelzése — halvány chipen halvány piros szakasz és piros keret, teli chipen teli piros
+- *(page)* A lap újrapróbál, ha a nyitott hívás a gép alvása alatt lejár
+- *(avatars)* Átmeneti letöltési hiba nem törli a meglévő képet
+- *(page)* Az elvetés ikongomb mindkét nézetben, a szerkesztés kerete nem lóg a tartalomra
+- *(page)* Teljes képernyő az eszközsor alatt, ikonja minden fájlon, szürke lenyomott gombok
+- *(page)* A HEAD-commit fájlja a panelben az első mentés után is szerkeszthető
+- *(page)* Fájlfejléc — GitHub-ikon a fájlnév után, teljes képernyő a jobb szélen, nézetváltó a diff sávjában
+- *(page)* A review javításai — hosszú út vágása, üres sidebar tárgy nélkül, fánkénti keresés
+- *(page)* Sok szétszórt változásnál a diff nem egy nagy blokk
+- *(page)* A panelben szerkesztett fájl teljes képernyőn a módosításokkal, szerkeszthetően nyílik
+- *(page)* A visszanyitott HEAD-commit fájl a friss lemezt mutatja
+- *(page)* Egymás mellett a bal oldal a szülő, a WIP narancs sorai rajta; kék és narancs szókiemelés és sávjel
+- *(page)* A kódnézet kijelölése sárgás, a színezett sorok fölött is látszik
+- *(page)* Enter egy sor végén a WIP-rétegben csak az új sort jelöli, a következő sort nem duplázza
+- *(page)* A markdown-diff 3-nál rövidebb változatlan futamot nem csuk össze
+- *(page)* A lábléc gombjainak hovere erősebb (áttetsző kitöltés)
+- *(page)* A kódnézet kijelölése erősebb (világosban 50%), a színes sorok fölött is látszik
+- *(page)* A WIP narancs és kék sávjele világosabb, saját árnyalattal (a szám színe marad)
+- *(page)* A fából nyitott fájl fejlécében is a saját ikon; szűk fejlécben a HEAD-chip eltűnik
+- *(diff)* A HEAD-commit lemez oldala és mentése a saját (előtérben lévő) worktree-é, nem az első egyező
+- *(files)* A write_file atomi cserével ír, elbukott írásnál a fájl ép marad
+- *(page)* CRLF-es fájlnál a sorvég nem WIP-eltérés (a kódnézet szövege \n-es)
+- *(page)* Az elbukott tartalomkeresés hibát mutat a fában, nem a régi találatokat
+- *(page)* A kódnézet egy hívással tölt, a host visszafogását (rate_limited) kivárja
+- *(page)* Commitváltáskor a megnyitott fájl marad, ha a commit nem is változtatta
+- *(page)* Commitváltáskor a nyitott kódnézet helyben frissül, nem töltődik újra
+- *(diff)* A fejadattal jövő lemez oldal is `\n`-es (a sorvég-normalizálás kimaradt róla)
+- *(page)* A narancs WIP-blokkra eső kijelölés nem látszik, a blokk alatti sor a saját magasságában jelölt
+- *(page)* Commit nélkül a commit változása nem színeződik; a szerkesztéskor megjelenő WIP sor kijelölődik
+- *(page)* Gépelés közben sincs piros / zöld a WIP-soron; a WIP sorra váltva a fájl nem csukódik össze
+- *(page)* A teljes képernyő fejlécében a repó neve és a chip a lap fejlécével egy helyen; mindkét fejléc 44 px
+- *(page)* Az üres régi sor nem kerül a narancs WIP-blokkba (mint egymás mellett)
+- *(page)* A WIP soron (merge törölt blokk) is kimarad az üres törölt sor, és a kijelölés nem csúszik rá
+- *(page)* Ha a kijelölt WIP sor eltűnik, a teljes nézet helyben a worktree állapotára vált
+- *(page)* Az üres törölt sor újra látszik; a rá eső kijelölést a blokk takarja
+- *(page)* A lemez saját (azonos) szövege nem ütközés; a helyben váltás megtartja a mentés állapotát
+- *(avatars)* A szerző képe a nagy commitnál is megjön
+- *(page)* A commit bodyja nem törik 72 karakternél, csak a saját sortörésénél
+
+### 🚜 Refactor
+
+- *(diff)* A sorvég-normalizálás a szerveren, a lap `\n`-es szöveget kap
+- *(page)* A kóddiff WIP-rétege külön modulban (wip.js)
+
+### 📚 Documentation
+
+- *(subtree-remote)* Magyar Gherkin-követelmények, képek és a képernyőkép-script
+- *(file-diff)* A lenyitott fájl kártya, mint a commit — README: CDS-megjelenés, azonos nevű upstream, piros jelzés; új képek
+- *(full-view)* A fájlfa és a teljes nézet, a kóddiff és a szerkesztés oldala; a fájl-diff frissítése
+
+### 🧪 Testing
+
+- *(page)* A commit nélküli színezés tesztje az automatikus mentés előtt ellenőriz
+- *(page)* A Playwright alapértelmezett időkorlátja 5 s
+- *(page)* A fájlsor hover-rétegét figyelő rögzíti, nem pollozás
+
+### ◀️ Revert
+
+- Fix: az ágválasztóban a helyi ág párja az azonos nevű remote ág, a `-u` nélküli push után is
 ## [0.16.0] - 2026-10-21
 
 ### 🚀 Features
