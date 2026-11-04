@@ -200,6 +200,69 @@ class WipReopenTest(WipCase):
         self.assertIn("cm-wipLine", line.get_attribute("class"))
 
 
+class WipSwitchTest(WipCase):
+    """Teljes képernyőn a HEAD-commit és a WIP sor közti váltás a nyitott fájlt helyben frissíti (saját repó: ír)."""
+    WIDTH, HEIGHT = 900, 760
+
+    def test_switch_keeps_view(self) -> None:
+        """A nézet nem töltődik újra: a nem mentett szöveg, a szerkesztő mód és a kinyitott rés megmarad."""
+        # Adott a HEAD-commit app.py-ja teljes képernyőn, szerkesztés közben, nem mentett szóval, kinyitott réssel
+        self.open_app()
+        self.page.locator('.details .file[data-path="app.py"] [data-full]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.settle()
+        box = ".fv .fv-box"
+        self.page.locator(f"{box} .cm-collapsedLines").first.click()
+        self.page.locator(f"{box} .cm-line", has_text="s37 = 37").dblclick()
+        self.page.keyboard.press("Home")
+        self.page.keyboard.type("szo ")
+        self.page.evaluate("""() => { window.reloaded = false; document.querySelector('.fv .fv-box .cm-diff').dataset.mark = '1';
+          new MutationObserver(ms => { if (document.querySelector('.fv .fv-box .loading')) window.reloaded = true; })
+            .observe(document.querySelector('.fv .fv-box'), { childList: true, subtree: true }); }""")
+        # Ha a Fejlesztő a WIP sorra vált
+        self.page.locator(".fv-commits .fv-commit").first.click()
+        self.page.wait_for_function("document.querySelector('.fv-commit.sel') === document.querySelector('.fv-commit')")
+        self.settle()
+        # Akkor ugyanaz a nézet él tovább, a szöveg, a szerkesztés és a kinyitott rés marad
+        self.assertFalse(self.page.evaluate("window.reloaded"))
+        self.assertEqual(self.page.locator(f"{box} .cm-diff[data-mark]").count(), 1)
+        self.assertTrue(self.page.locator(f"{box} .cm-line", has_text="szo s37 = 37").is_visible())
+        self.assertTrue(self.page.locator(f"{box} .cm-line", has_text="s3 = 3").is_visible())
+        self.assertEqual(self.page.locator(f"{box} .cm-diff.editing").count(), 1)
+        # és a szerkesztés a WIP sor fájljába ment
+        self.page.keyboard.type("x")
+        self.page.wait_for_timeout(1600)
+        self.assertIn("szo xs37 = 37", (self.repo / "app.py").read_text(encoding="utf-8"))
+
+
+class WipSwitchReadOnlyTest(WipCase):
+    """Teljes képernyőn a szerkesztett HEAD-commitról egy régebbi (nem szerkeszthető) commitra váltva (saját repó: ír)."""
+    WIDTH, HEIGHT = 900, 760
+
+    def test_switch_saves_first(self) -> None:
+        """A nézet helyben frissül; a szerkesztés véget ér, a nem mentett szöveg előbb a lemezre megy."""
+        # Adott a HEAD-commit app.py-ja teljes képernyőn, szerkesztés közben, nem mentett szóval
+        self.open_app()
+        self.page.locator('.details .file[data-path="app.py"] [data-full]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.settle()
+        box = ".fv .fv-box"
+        self.page.locator(f"{box} .cm-line", has_text="s37 = 37").dblclick()
+        self.page.keyboard.press("Home")
+        self.page.keyboard.type("szo ")
+        self.page.evaluate("document.querySelector('.fv .fv-box .cm-diff').dataset.mark = '1'")
+        # Ha a Fejlesztő a régebbi commitra vált
+        self.page.locator(".fv-commit", has_text="wip: alap").click()
+        self.page.wait_for_function("document.querySelector('.fv-commit.sel')?.textContent.includes('wip: alap')")
+        self.settle()
+        # Akkor ugyanaz a nézet a régebbi commit szövegével, szerkesztés nélkül; a szó a lemezen
+        self.assertEqual(self.page.locator(f"{box} .cm-diff[data-mark]").count(), 1)
+        self.assertEqual(self.page.locator(f"{box} .cm-diff.editing").count(), 0)
+        self.assertEqual(self.page.locator(f"{box} .cm-line", has_text="szo s37").count(), 0)
+        self.page.wait_for_timeout(500)
+        self.assertIn("szo s37 = 37", (self.repo / "app.py").read_text(encoding="utf-8"))
+
+
 class WipSplitTest(WipCase):
     """Egymás mellett (széles panel) is csukott a változatlan rész: csak a WIP-eltérést tartalmazó rés nyílik ki,
     a két oldalon együtt."""

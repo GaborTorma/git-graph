@@ -91,7 +91,8 @@ export function toggleFile(fileEl, sha, on, reveal = true) {
    az SVG-é a kapcsolóval a kódja), a többi a CodeMirror-diff. `paint(fill)` rajzol: a `fill`
    cseréli a doboz tartalmát (a hívó animálhat körülötte). `o.changed`: a fájl a sor
    változásai között van-e (a teljes nézet fájájának változatlan fájlja: a tartalma, színezve);
-   `o.ready(view)`: a kódnézet kész (a teljes nézet ide görget). */
+   `o.ready(view)`: a kódnézet kész (a teljes nézet ide görget); `o.retarget`: a `key` élő kódnézete egy másik
+   commité volt (a teljes képernyő commitváltása), az új adattal helyben frissül. */
 export function fileContent(box, sha, path, key, paint, o = {}) {
   const lang = langOf(path), changed = o.changed ?? true;
   const md = lang === 'md' && changed, full = md && !mdRaw, svg = /\.svg$/i.test(path);
@@ -137,12 +138,15 @@ export function fileContent(box, sha, path, key, paint, o = {}) {
   const note = h => html(prefix + h);
   const textKey = key + '\ntext';    // a kép diffje ugyanerre az útra (SVG) külön gyorstárban
   const cached = diffCache.get(textKey), live = codeViews.get(key);
-  if (live) place(live);
+  // a mentés sora ennek a sornak a fájlja (a máshonnan átvett élő nézeté is: `o.retarget`)
+  const write = (text, base, row) => SRC.write(row ?? sha, path, text, base);
+  if (live) { live.o.write = write; place(live); }
   else note('<p class="diff-note loading">Betöltés…</p>');
+  const drop = h => { const v = codeViews.get(key); codeViews.delete(key); v?.dispose(); note(h); };
   const shown = d => {
-    if (d.binary) { codeViews.delete(key); note('<p class="diff-note">Bináris fájl.</p>'); return; }
+    if (d.binary) { drop('<p class="diff-note">Bináris fájl.</p>'); return; }
     // a teljes képernyőn megtartott fájl egy olyan commitban, ahol (még / már) nincs meg
-    if (d.old == null && d.new == null && !d.big) { codeViews.delete(key); note('<p class="diff-note">A fájl ebben a commitban nincs meg.</p>'); return; }
+    if (d.old == null && d.new == null && !d.big) { drop('<p class="diff-note">A fájl ebben a commitban nincs meg.</p>'); return; }
     // a nézet egy korábbi (azóta újrarajzolt) panelhez épülhetett: ide költözik
     const reuse = view => { view.update(d); if (view.root.parentElement !== box) place(view); };
     const view = codeViews.get(key);
@@ -150,16 +154,17 @@ export function fileContent(box, sha, path, key, paint, o = {}) {
     loadCM(() => SRC.codemirror()).then(CM => {
       const known = codeViews.get(key);
       if (known) { reuse(known); return; }
-      const fresh = new CodeDiff(CM, d, { lang: cmLang(path), write: (text, base, row) => SRC.write(row ?? sha, path, text, base) });
+      const fresh = new CodeDiff(CM, d, { lang: cmLang(path), write });
       codeViews.set(key, fresh);
       place(fresh);
     }, e => note(`<p class="diff-note">A kódnézet nem tölthető be: ${esc(e?.message || e?.code || e)}</p>`));
   };
-  if (cached && !cached.stale) { if (!live) shown(cached.data); return; }
+  // `o.retarget`: az élő nézet egy másik commité volt (commitváltás a teljes képernyőn) — helyben frissül
+  if (cached && !cached.stale) { if (!live || o.retarget) shown(cached.data); return; }
   codeText(sha, path).then(d => {
     const same = cached && JSON.stringify(cached.data) === JSON.stringify(d);
     diffCache.set(textKey, { data: d });
-    if (!same || !codeViews.get(key)) shown(d);
+    if (!same || !codeViews.get(key) || o.retarget) shown(d);
   }, e => { if (!cached && !live) note(`<p class="diff-note">A diff nem tölthető be: ${esc(e?.message || e?.code || e)}</p>`); });
 }
 

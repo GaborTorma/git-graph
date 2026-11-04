@@ -89,10 +89,12 @@ function common(CM) {
   return shared;
 }
 
-/* Az éppen szerkesztett diff (egyszerre egy): a máshová kattintás befejezi. */
+/* Az éppen szerkesztett diff (egyszerre egy): a máshová kattintás befejezi — a `data-keep-editing` elem (a
+   teljes képernyő commitlistája: a nézet helyben frissül) kivétel. */
 let editing = null;
 document.addEventListener('pointerdown', e => {
-  if (editing && !editing.root.contains(/** @type {Node} */ (e.target))) editing.stopEditing();
+  const t = /** @type {Element} */ (e.target);
+  if (editing && !editing.root.contains(t) && !t.closest?.('[data-keep-editing]')) editing.stopEditing();
 }, true);
 export const editingDiff = () => editing;
 
@@ -118,6 +120,7 @@ export class CodeDiff {
     this.wipField = null;
     this.gapOpen = null;             // a WIP-réteg résének nyitója a pozícióhoz (`collapseWip`)
     this.alignFrame = 0;
+    this.opened = new Set();         // a kinyitott rések sorai (újraépítéskor újra nyílnak: `openedLines`)
     this.edit = new CM.Compartment();
     this.set(d);
     this.root.addEventListener('dblclick', e => this.onDblclick(e));
@@ -286,6 +289,13 @@ export class CodeDiff {
   }
 
   onUpdate(u) {
+    for (const tr of u.transactions) {
+      for (const e of tr.effects) {
+        if (e.is(this.CM.uncollapseUnchanged) || (this.wipField && e.is(wipKit(this.CM).openGap))) {
+          this.opened.add(tr.startState.doc.lineAt(Math.min(e.value, tr.startState.doc.length)).number);
+        }
+      }
+    }
     // a sormagasság változott (betöltött betű, szélesség): a bal oldal térközei újra (`alignWip`)
     if (u.geometryChanged && this.ea && this.wipField && !this.alignFrame) {
       this.alignFrame = requestAnimationFrame(() => { this.alignFrame = 0; this.alignWip(); });
@@ -298,6 +308,9 @@ export class CodeDiff {
     clearTimeout(this.timer);
     if (!this.conflict) this.timer = setTimeout(() => this.save(), SAVE_MS);
   }
+
+  /* A kinyitott rések sorai (a rés első sora), a mostani dokumentumban. */
+  openedLines() { return [...this.opened]; }
 
   /* A merge régi oldala (`shownOld`) az új alapra: egymás mellett a bal szerkesztő, egymás alatt az
      eredeti dokumentum változik. */
@@ -528,13 +541,20 @@ export class CodeDiff {
   /* Élő frissítés: az új adat (a régi oldal is változhatott — az Uncommitted soron az index). */
   update(d) {
     if (!this.ed) { this.set(d); return; }
+    // a nem szerkeszthető adat (másik commit) előtt a szerkesztés véget ér: a nem mentett szöveg még a lemezre megy
+    if (this.editing && !(d.editable && !d.big)) this.stopEditing();
     // Csak a csonkolt (2 MB fölötti) nézet ki- és bekapcsolása épít újra; a többi változás helyben
     // (a régi oldal is), szerkesztés közben a kurzor és a mentés sora marad.
-    if (Boolean(d.big) !== Boolean(this.d.big)) {
-      const keepText = this.editing ? this.text() : null;
+    // A WIP-réteg megjelenése / eltűnése (commitváltás a HEAD-commit és a WIP sor közt) is újraépít: a nem
+    // mentett szöveg, a szerkesztés és a kinyitott rések maradnak.
+    const wipNow = d.head != null && !d.big;
+    if (Boolean(d.big) !== Boolean(this.d.big) || wipNow !== Boolean(this.wipField)) {
+      const keepText = this.editing ? this.text() : null, opened = this.openedLines();
       this.set(d);
       if (keepText != null) this.d = { ...this.d, new: keepText };
       this.build(this.wantMode());
+      for (const n of opened) if (n <= this.ed.state.doc.lines) this.reveal(this.ed.state.doc.line(n).from);
+      if (keepText != null && keepText !== this.saved) this.timer = setTimeout(() => this.save(), SAVE_MS);
       return;
     }
     const headChanged = (d.head ?? null) !== (this.d.head ?? null);

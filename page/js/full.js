@@ -81,7 +81,7 @@ const treeHtml = (all, clean, commits = false) => '<div class="fv-tree"><div cla
   + ' aria-label="Fájlok szűrése" spellcheck="false"></label>'
   + `<button type="button" class="select gear fv-diff" aria-pressed="${!all}"${clean ? ' disabled' : ''}`
   + ` aria-label="Csak a változott fájlok" data-tip="Csak a változott fájlok">${icon('changes')}</button>`
-  + `</div><div class="fv-list"></div>${commits ? '<div class="fv-commits" aria-label="Commitok"></div>' : ''}</div>`;
+  + `</div><div class="fv-list"></div>${commits ? '<div class="fv-commits" aria-label="Commitok" data-keep-editing></div>' : ''}</div>`;
 
 const newTree = (el, sha, all, clean = false) => ({ el, sha, all, clean, path: null, grepTimer: 0, tree: null, loaded: new Set(), query: '', grep: null,
   opened: new Set(), closed: new Set() });
@@ -392,14 +392,22 @@ export function openFromPanel(fileEl, sha) {
 function dropView() {
   const b = fv.borrowed;
   if (!b || fv.key !== b.fvKey) { if (fv.key) forgetFile(fv.key); return; }
-  fv.borrowed = null;
   const view = codeViews.get(b.fvKey);
   codeViews.delete(b.fvKey);
+  if (!refillPanel(view)) view?.dispose();
+}
+
+/* A kölcsönzött nézet panelbeli fájlja újra kitöltődik: a `view`-val (visszakapja), nélküle újat épít a
+   tartalmából. Hamis, ha a fájl a panelben már nincs lenyitva. */
+function refillPanel(view = null) {
+  const b = fv.borrowed;
+  fv.borrowed = null;
   const sha = b.key.slice(0, b.key.indexOf('\n')), raw = b.key.slice(b.key.indexOf('\n') + 1);
   const f = expanded === sha && panelFile(newPath(raw));
-  if (!view || !f || f.getAttribute('aria-expanded') !== 'true') { view?.dispose(); return; }
-  codeViews.set(b.key, view);
+  if (!f || f.getAttribute('aria-expanded') !== 'true') return false;
+  if (view) codeViews.set(b.key, view);
   fileContent(/** @type {HTMLElement} */ (f.nextElementSibling), sha, raw, b.key, fill => fill());
+  return true;
 }
 
 /** @param {string} sha @param {string} path
@@ -484,14 +492,21 @@ function renderCommits() {
 }
 
 /* Commitváltás a listán: a megnyitott fájl marad (akkor is, ha a commit nem változtatta); ha nincs
-   megnyitott fájl, a commit első változott fájlja. */
+   megnyitott fájl, a commit első változott fájlja. A megnyitott kódnézet nem töltődik újra, helyben frissül:
+   a nem mentett szöveg, a szerkesztő mód és a kinyitott rések maradnak (a panel új nézetet kap). */
 function switchCommit(sha, plain = false) {
   if (!sha || (sha === fv.sha && plain === fv.plain) || !commitBySha(sha)) return;
-  const ed = editingDiff();
-  if (ed && fv.el.contains(ed.root)) ed.stopEditing();
-  dropView();
   const changed = plain ? new Map() : changedFiles(sha);
   const path = fv.path || (changed.size ? changed.keys().next().value : fv.path);
+  const keep = path && path === fv.path ? codeViews.get(fv.key) : null;
+  if (keep) {
+    codeViews.delete(fv.key);
+    if (fv.borrowed) refillPanel();
+  } else {
+    const ed = editingDiff();
+    if (ed && fv.el.contains(ed.root)) ed.stopEditing();
+    dropView();
+  }
   Object.assign(fv, { sha, plain, key: null, tree: null, loaded: new Set(), grep: null, clean: false, borrowed: null });
   if (plain) fv.all = true;
   const btn = fv.el.querySelector('.fv-diff');
@@ -500,17 +515,22 @@ function switchCommit(sha, plain = false) {
   if (fv.all) loadTree(fv);
   if (fv.query.startsWith('?')) onQuery(fv, fv.query);
   renderCommits();
-  selectFile(path);
+  selectFile(path, null, keep);
+  if (keep?.editing) keep.ed?.contentDOM.focus({ preventScroll: true });   // a lista kattintása elvitte
 }
 
-/* A fájl tartalma középen; `line`: ide görget (alapból az első változáshoz). */
-function selectFile(path, line = null) {
+/* A fájl tartalma középen; `line`: ide görget (alapból az első változáshoz). `keep`: a commitváltáson
+   átvitt élő kódnézet — nem épül új, nem görget, helyben frissül. */
+function selectFile(path, line = null, keep = null) {
   if (!fv) return;
-  const ed = editingDiff();
-  if (ed && fv.el.contains(ed.root)) ed.stopEditing();
-  dropView();
+  if (!keep) {
+    const ed = editingDiff();
+    if (ed && fv.el.contains(ed.root)) ed.stopEditing();
+    dropView();
+  }
   fv.path = path;
   fv.key = `fv\n${fv.sha}\n${path}`;
+  if (keep) codeViews.set(fv.key, keep);
   renderTree(fv);
   const box = fv.el.querySelector('.fv-box'), scroller = fv.el.querySelector('.fv-scroll');
   const f = pathHead();
@@ -519,15 +539,16 @@ function selectFile(path, line = null) {
   const key = fv.key;
   fileContent(box, fv.sha, path, key, fill => { if (fv?.key === key) fill(); }, {
     changed: Boolean(f.changed),
+    retarget: Boolean(keep),
     ready: view => {
-      if (scrolled || fv?.key !== key) return;
+      if (keep || scrolled || fv?.key !== key) return;
       scrolled = true;
       if (fv.find && line == null) view.find?.(fv.find);
       // a kódnézet a saját görgetőjében (a teljes magasságot kitölti), a többi a doboz görgetőjében
       else view.scrollToLine(line ?? view.firstChange(), view.scrollEl?.() || scroller);
     },
   });
-  if (line == null) scroller.scrollTop = 0;
+  if (line == null && !keep) scroller.scrollTop = 0;
 }
 
 /* Élő frissítés (a WIP sor új adata): a fák és a nyitott fájl újra (a kódnézet helyben frissül). */
