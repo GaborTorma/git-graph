@@ -102,7 +102,7 @@ export function wipKit(CM) {
           .filter(([f, t]) => t > f);
         const p = commit ? inParent(commit, line.from) : -1;
         if (p >= 0) aLines.push({ pos: p, marks, reject: aLines.at(-1)?.ch === ch ? null : ch, ch });
-        else old.push({ text: line.text, marks });
+        else if (line.text) old.push({ text: line.text, marks });   // az üres régi sor kimarad (mint egymás mellett)
         pos = line.to + 1;
       }
       const at = doc.lineAt(Math.min(ch.fromB, doc.length)).from;

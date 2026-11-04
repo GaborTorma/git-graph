@@ -193,6 +193,30 @@ class WipSelectionTest(WipCase):
         self.assertEqual(top, ["cm-wipDeleted", "cm-selectionBackground"])
 
 
+class WipEmptyLineTest(PageTestCase):
+    """A HEAD-commit üres sorát a lemezen szöveg váltja."""
+    WIDTH, HEIGHT = 900, 600
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        (repo / "e.py").write_text("a = 1\n\nb = 2\n", encoding="utf-8")
+        git_in(repo, "add", "e.py")
+        git_in(repo, "commit", "-qm", "ures: a commit")
+        (repo / "e.py").write_text("a = 1\nTESZT\nb = 2\n", encoding="utf-8")
+
+    def test_empty_old_line_skipped(self) -> None:
+        """Az üres régi sor nem kerül a narancs blokkba (mint egymás mellett): csak az elvetés gombja marad."""
+        self.page.locator("#rows .row", has_text="ures: a commit").click()
+        self.settle()
+        self.page.locator('.details .file[data-path="e.py"]').click()
+        sel = '.details .file[data-path="e.py"] + .diff'
+        self.page.wait_for_selector(f"{sel} .cm-editor")
+        self.settle()
+        self.assertIn("cm-wipLine", self.page.locator(f"{sel} .cm-line", has_text="TESZT").get_attribute("class"))
+        self.assertEqual(self.page.locator(f"{sel} .cm-wipDeleted > div").count(), 0)
+        self.assertEqual(self.page.locator(f"{sel} .cm-wipDeleted .cm-reject").count(), 1)
+
+
 class WipRejectTest(WipCase):
     """Az elvetés a lemezre ír: saját repó, hogy a többi teszt lemezállapota ne változzon."""
 
