@@ -185,6 +185,23 @@ class FullViewTest(PageTestCase):
         self.assertIn("page/js/diff.js", self.page.locator(".fv-path").inner_text())
         self.assertIn("diff.js", self.tree())    # az alap commit minden fájlja új: a diff.js is
 
+    def test_switch_keeps_open_file(self) -> None:
+        """Commitváltáskor a megnyitott fájl marad akkor is, ha a másik commit nem változtatta; ha ott nincs
+        meg, a nézet ezt írja ki."""
+        # Adott a commit "git_graph/diff.py"-ja teljes képernyőn
+        self.open_commit()
+        self.open_full("git_graph/diff.py")
+        # Ha a Fejlesztő egy korábbi, a fájlt nem érintő commitra vált
+        self.page.locator(".fv-commits .fv-commit").nth(2).click()
+        self.page.wait_for_function("document.querySelectorAll('.fv-commit.sel').length === 1"
+                                    " && document.querySelector('.fv-commit.sel') !== document.querySelector('.fv-commit')")
+        self.settle()
+        # Akkor a nézet ugyanazt a fájlt mutatja
+        self.assertIn("git_graph/diff.py", self.page.locator(".fv-path").inner_text())
+        # és mivel ebben a commitban még nincs meg, ezt írja ki
+        self.page.wait_for_selector(".fv-box .diff-note:not(.loading)")
+        self.assertEqual(self.page.locator(".fv-box").inner_text().strip(), "A fájl ebben a commitban nincs meg.")
+
     def test_grep_follows_diff_filter(self) -> None:
         """A tartalomkeresés a diff-szűrővel csak a változott fájlok találatait mutatja, kikapcsolva mindet."""
         self.open_commit()

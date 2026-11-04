@@ -483,15 +483,15 @@ function renderCommits() {
   box.innerHTML = wip.map(item).join('') + more(from) + list.slice(from, to).map(item).join('') + more(list.length - to);
 }
 
-/* Commitváltás a listán: a fájl marad, ha a commitban változott (vagy a commitnak nincs változott
-   fájlja, vagy `plain`: commit nélkül, a worktree állapota); különben a commit első változott fájlja. */
+/* Commitváltás a listán: a megnyitott fájl marad (akkor is, ha a commit nem változtatta); ha nincs
+   megnyitott fájl, a commit első változott fájlja. */
 function switchCommit(sha, plain = false) {
   if (!sha || (sha === fv.sha && plain === fv.plain) || !commitBySha(sha)) return;
   const ed = editingDiff();
   if (ed && fv.el.contains(ed.root)) ed.stopEditing();
   dropView();
   const changed = plain ? new Map() : changedFiles(sha);
-  const path = changed.has(fv.path) || !changed.size ? fv.path : changed.keys().next().value;
+  const path = fv.path || (changed.size ? changed.keys().next().value : fv.path);
   Object.assign(fv, { sha, plain, key: null, tree: null, loaded: new Set(), grep: null, clean: false, borrowed: null });
   if (plain) fv.all = true;
   const btn = fv.el.querySelector('.fv-diff');

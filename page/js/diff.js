@@ -141,6 +141,8 @@ export function fileContent(box, sha, path, key, paint, o = {}) {
   else note('<p class="diff-note loading">Betöltés…</p>');
   const shown = d => {
     if (d.binary) { codeViews.delete(key); note('<p class="diff-note">Bináris fájl.</p>'); return; }
+    // a teljes képernyőn megtartott fájl egy olyan commitban, ahol (még / már) nincs meg
+    if (d.old == null && d.new == null && !d.big) { codeViews.delete(key); note('<p class="diff-note">A fájl ebben a commitban nincs meg.</p>'); return; }
     // a nézet egy korábbi (azóta újrarajzolt) panelhez épülhetett: ide költözik
     const reuse = view => { view.update(d); if (view.root.parentElement !== box) place(view); };
     const view = codeViews.get(key);
