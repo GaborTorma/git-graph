@@ -204,29 +204,40 @@ class WipEmptyLineTest(PageTestCase):
         git_in(repo, "commit", "-qm", "ures: a commit")
         (repo / "e.py").write_text("a = 1\nTESZT\nb = 2\n", encoding="utf-8")
 
-    def test_empty_old_line_skipped(self) -> None:
-        """Az üres régi sor nem kerül a narancs blokkba (mint egymás mellett): csak az elvetés gombja marad."""
-        self.page.locator("#rows .row", has_text="ures: a commit").click()
+    def open_e(self, row: str) -> str:
+        self.page.locator(row).click()
         self.settle()
         self.page.locator('.details .file[data-path="e.py"]').click()
         sel = '.details .file[data-path="e.py"] + .diff'
         self.page.wait_for_selector(f"{sel} .cm-editor")
         self.settle()
+        return sel
+
+    def covered(self, sel: str, block: str) -> list:
+        """Az 1. sor közepétől a 2. sor végéig kijelölve: mi van felül a blokk és a 2. sor közepén."""
+        self.page.evaluate(f"""sel => {{ const v = {VIEW}; v.focus();
+          v.dispatch({{ selection: {{ anchor: v.state.doc.line(1).from + 2, head: v.state.doc.line(2).to }} }}); }}""", sel)
+        self.page.wait_for_timeout(100)
+        b = self.page.locator(f"{sel} {block}").bounding_box()
+        line = self.page.locator(f"{sel} .cm-line", has_text="TESZT").bounding_box()
+        return self.page.evaluate("""([block, x1, y1, x2, y2]) => {
+          document.querySelectorAll('.cm-selectionLayer').forEach(l => { l.style.pointerEvents = 'auto'; });
+          const at = (x, y) => document.elementFromPoint(x, y).closest(block + ', .cm-selectionBackground')?.className;
+          return [at(x1, y1), at(x2, y2)]; }""", [block, b["x"] + 20, b["y"] + b["height"] / 2, line["x"] + 20, line["y"] + line["height"] / 2])
+
+    def test_empty_old_line_shown(self) -> None:
+        """Az üres régi sor a narancs blokkban üres sorként látszik; a rá eső kijelölést a blokk takarja."""
+        sel = self.open_e('#rows .row:has-text("ures: a commit")')
         self.assertIn("cm-wipLine", self.page.locator(f"{sel} .cm-line", has_text="TESZT").get_attribute("class"))
-        self.assertEqual(self.page.locator(f"{sel} .cm-wipDeleted > div").count(), 0)
-        self.assertEqual(self.page.locator(f"{sel} .cm-wipDeleted .cm-reject").count(), 1)
+        self.assertEqual(self.page.locator(f"{sel} .cm-wipDeleted > div").count(), 1)
+        self.assertGreater(self.page.locator(f"{sel} .cm-wipDeleted").bounding_box()["height"], 15)
+        self.assertEqual(self.covered(sel, ".cm-wipDeleted"), ["cm-wipDeleted", "cm-selectionBackground"])
 
     def test_wip_row_empty_line(self) -> None:
-        """A WIP soron a törölt üres sor sem látszik üres sorként, és a törölt blokkra eső kijelölés nem látszik."""
-        self.page.locator(".row.uncommitted").click()
-        self.settle()
-        self.page.locator('.details .file[data-path="e.py"]').click()
-        sel = '.details .file[data-path="e.py"] + .diff'
-        self.page.wait_for_selector(f"{sel} .cm-editor")
-        self.settle()
-        self.assertEqual([e.is_visible() for e in self.page.locator(f"{sel} .cm-deletedChunk .cm-deletedLine").all()], [False])
-        z = self.page.locator(f"{sel} .cm-deletedChunk").evaluate("e => getComputedStyle(e).zIndex")
-        self.assertEqual(z, "2")
+        """A WIP soron a törölt üres sor is látszik; a rá eső kijelölést a törölt blokk takarja."""
+        sel = self.open_e(".row.uncommitted")
+        self.assertEqual([e.is_visible() for e in self.page.locator(f"{sel} .cm-deletedChunk .cm-deletedLine").all()], [True])
+        self.assertEqual(self.covered(sel, ".cm-deletedChunk"), ["cm-deletedChunk", "cm-selectionBackground"])
 
 
 class WipRejectTest(WipCase):
