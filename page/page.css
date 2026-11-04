@@ -1023,7 +1023,9 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .diff .cm-wipDelText { background: var(--wip-del-hl); border-radius: 3px; }
 .diff .cm-changeGutter .cm-gutterElement.cm-wipAddGutter { background: var(--wip-add-bar); }
 .diff .cm-changeGutter .cm-gutterElement.cm-wipDelGutter { background: var(--wip-del-bar); }
-.diff .cm-wipDeleted { position: relative; padding: 0 10px 0 6px; background: var(--wip-del); color: var(--fg-1); user-select: none; }
+/* a kijelölésréteg (z-index 1) fölött, átlátszatlanul: a CodeMirror a blokk alatti sor kijelölését a blokk tetejétől
+   rajzolja, a blokk ezt eltakarja (a sor a saját magasságában jelölt) */
+.diff .cm-wipDeleted { position: relative; z-index: 2; padding: 0 10px 0 6px; background: var(--wip-del); color: var(--fg-1); user-select: none; }
 .diff .cm-wipDeleted .cm-chunkButtons, .diff .cm-wipDelLine .cm-chunkButtons,
 .diff .cm-deletedChunk .cm-chunkButtons { position: absolute; top: 0; right: 1px; z-index: 2; height: 19.5px; padding: 0;
   display: flex; align-items: center; }

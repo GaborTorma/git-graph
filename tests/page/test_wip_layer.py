@@ -163,6 +163,24 @@ class WipLayerTest(WipCase):
         self.assertFalse(self.line("s50 = 50").is_visible())
 
 
+class WipSelectionTest(WipCase):
+    def test_selection_over_block(self) -> None:
+        """A narancs blokkon átnyúló kijelölés a blokk alatti sort a saját magasságában jelöli, nem a blokk tetejétől."""
+        # Adott a 34. sor közepétől a 35. (a narancs blokk alatti, kék) sor végéig tartó kijelölés
+        self.open_app()
+        self.page.evaluate(f"""sel => {{ const v = {VIEW}; v.focus();
+          v.dispatch({{ selection: {{ anchor: v.state.doc.line(34).from + 3, head: v.state.doc.line(35).to }} }}); }}""", SEL)
+        self.page.wait_for_timeout(100)
+        # Akkor a narancs blokkra eső kijelölés nem látszik: a blokk van felül, a 35. sor szövegén a kijelölés
+        block = self.page.locator(f"{SEL} .cm-wipDeleted", has_text="s35 = 35").bounding_box()
+        line = self.line("s35 = 'wip'").bounding_box()
+        top = self.page.evaluate("""([x1, y1, x2, y2]) => {
+          document.querySelectorAll('.cm-selectionLayer').forEach(l => { l.style.pointerEvents = 'auto'; });
+          const at = (x, y) => document.elementFromPoint(x, y).closest('.cm-wipDeleted, .cm-selectionBackground')?.className;
+          return [at(x1, y1), at(x2, y2)]; }""", [block["x"] + 20, block["y"] + block["height"] / 2, line["x"] + 20, line["y"] + line["height"] / 2])
+        self.assertEqual(top, ["cm-wipDeleted", "cm-selectionBackground"])
+
+
 class WipRejectTest(WipCase):
     """Az elvetés a lemezre ír: saját repó, hogy a többi teszt lemezállapota ne változzon."""
 
