@@ -1007,7 +1007,10 @@ a.badge { text-decoration: none; }   /* az issue, a PR és a release chipje GitH
 .diff .cm-changedText, .diff .cm-merge-b .cm-changedText { background: var(--diff-add-hl); border-radius: 3px; }
 .diff .cm-deletedChunk, .diff .cm-merge-a .cm-changedLine { background: var(--diff-del); }
 .diff .cm-deletedChunk .cm-deletedText, .diff .cm-merge-a .cm-changedText { background: var(--diff-del-hl); border-radius: 3px; }
-.diff .cm-deletedChunk { position: relative; padding-left: 6px; user-select: none; }
+/* a kijelölésréteg fölött (mint a narancs WIP-blokk): a blokkra eső kijelölés nem látszik; az üres törölt sor
+   kimarad (mint egymás mellett) */
+.diff .cm-deletedChunk { position: relative; z-index: 2; padding-left: 6px; user-select: none; }
+.diff .cm-deletedChunk .cm-deletedLine:has(> del:only-child > br:only-child) { display: none; }
 .diff .cm-deletedChunk del { text-decoration: none; }
 .diff .cm-changedLineGutter, .diff .cm-merge-b .cm-changedLineGutter { background: var(--add-bar, var(--add)); }
 .diff .cm-deletedLineGutter, .diff .cm-merge-a .cm-changedLineGutter { background: var(--del-bar, var(--del)); }

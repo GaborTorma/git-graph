@@ -216,6 +216,18 @@ class WipEmptyLineTest(PageTestCase):
         self.assertEqual(self.page.locator(f"{sel} .cm-wipDeleted > div").count(), 0)
         self.assertEqual(self.page.locator(f"{sel} .cm-wipDeleted .cm-reject").count(), 1)
 
+    def test_wip_row_empty_line(self) -> None:
+        """A WIP soron a törölt üres sor sem látszik üres sorként, és a törölt blokkra eső kijelölés nem látszik."""
+        self.page.locator(".row.uncommitted").click()
+        self.settle()
+        self.page.locator('.details .file[data-path="e.py"]').click()
+        sel = '.details .file[data-path="e.py"] + .diff'
+        self.page.wait_for_selector(f"{sel} .cm-editor")
+        self.settle()
+        self.assertEqual([e.is_visible() for e in self.page.locator(f"{sel} .cm-deletedChunk .cm-deletedLine").all()], [False])
+        z = self.page.locator(f"{sel} .cm-deletedChunk").evaluate("e => getComputedStyle(e).zIndex")
+        self.assertEqual(z, "2")
+
 
 class WipRejectTest(WipCase):
     """Az elvetés a lemezre ír: saját repó, hogy a többi teszt lemezállapota ne változzon."""
