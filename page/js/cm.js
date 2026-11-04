@@ -121,6 +121,7 @@ export class CodeDiff {
     this.gapOpen = null;             // a WIP-réteg résének nyitója a pozícióhoz (`collapseWip`)
     this.alignFrame = 0;
     this.opened = new Set();         // a kinyitott rések sorai (újraépítéskor újra nyílnak: `openedLines`)
+    this.wrote = false;              // írt már a lemezre (a teljes nézet commit nélkül ekkor a WIP sorra vált)
     this.edit = new CM.Compartment();
     this.set(d);
     this.root.addEventListener('dblclick', e => this.onDblclick(e));
@@ -421,7 +422,7 @@ export class CodeDiff {
     this.saving = (async () => {
       try {
         const r = await this.o.write(text, this.base, this.d.write);
-        if (r?.ok) { this.base = r.hash; this.seen.add(r.hash); this.saved = text; this.note(''); }
+        if (r?.ok) { this.base = r.hash; this.seen.add(r.hash); this.saved = text; this.wrote = true; this.note(''); }
         else if (r?.conflict) this.external(r.text, r.hash);
       } catch (e) {
         this.note(`A mentés nem sikerült: ${e?.message || e?.code || e}`);

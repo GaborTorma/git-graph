@@ -634,6 +634,38 @@ class FileHeadTest(PageTestCase):
         self.assertGreaterEqual(seg["y"], file.bounding_box()["y"] + file.bounding_box()["height"] - 1)
 
 
+class PlainEditTest(PageTestCase):
+    """Kijelölt commit nélkül (a sidebar fájája) teljes képernyőn a HEAD-commit által módosított fájl."""
+    WIDTH, HEIGHT = 1100, 760
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        FullViewTest.prepare(repo)
+
+    def open_plain(self) -> None:
+        self.page.locator("#sideBtn").click()
+        self.page.wait_for_selector(".side .fv-list .fv-row")
+        self.page.locator('.side .fv-row[data-dir="git_graph"]').click()
+        self.page.locator('.side .fv-file[data-path="git_graph/diff.py"]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.settle()
+
+    def test_plain_no_commit_colors(self) -> None:
+        """Commit nélkül a commit változása nem színeződik (sem piros, sem zöld); szerkesztve csak a WIP rétege."""
+        # Adott a HEAD-commit által módosított fájl commit nélkül
+        self.open_plain()
+        box = ".fv .fv-box"
+        self.assertEqual(self.page.locator(f"{box} :is(.cm-changedLine, .cm-deletedChunk)").count(), 0)
+        # Ha a Fejlesztő a commit által módosított sort átírja
+        self.page.locator(f"{box} .cm-line", has_text="x = 2").dblclick()
+        self.page.keyboard.press("End")
+        self.page.keyboard.type("0")
+        # Akkor a sor kék (WIP), piros / zöld nincs (a merge alapja gépelés után kicsivel követi)
+        self.page.wait_for_function(f"""() => [...document.querySelectorAll('{box} .cm-line')]
+          .some(l => l.textContent === 'x = 20' && l.classList.contains('cm-wipLine'))""")
+        self.page.wait_for_function(f"!document.querySelector('{box} :is(.cm-changedLine, .cm-deletedChunk)')")
+
+
 class WipFullViewTest(PageTestCase):
     """A WIP sor teljes nézete a munkakönyvtár mostani állapotát mutatja."""
 

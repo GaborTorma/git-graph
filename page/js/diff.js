@@ -136,7 +136,8 @@ export function fileContent(box, sha, path, key, paint, o = {}) {
     o.ready?.(view);
   });
   const note = h => html(prefix + h);
-  const textKey = key + '\ntext';    // a kép diffje ugyanerre az útra (SVG) külön gyorstárban
+  // a kép diffje ugyanerre az útra (SVG) külön gyorstárban; a változatlanként mutatott fájl (`changed`) is külön
+  const textKey = key + (changed ? '\ntext' : '\ntext-plain');
   const cached = diffCache.get(textKey), live = codeViews.get(key);
   // a mentés sora ennek a sornak a fájlja (a máshonnan átvett élő nézeté is: `o.retarget`)
   const write = (text, base, row) => SRC.write(row ?? sha, path, text, base);
@@ -161,7 +162,7 @@ export function fileContent(box, sha, path, key, paint, o = {}) {
   };
   // `o.retarget`: az élő nézet egy másik commité volt (commitváltás a teljes képernyőn) — helyben frissül
   if (cached && !cached.stale) { if (!live || o.retarget) shown(cached.data); return; }
-  codeText(sha, path).then(d => {
+  codeText(sha, path, changed).then(d => {
     const same = cached && JSON.stringify(cached.data) === JSON.stringify(d);
     diffCache.set(textKey, { data: d });
     if (!same || !codeViews.get(key) || o.retarget) shown(d);
@@ -169,8 +170,9 @@ export function fileContent(box, sha, path, key, paint, o = {}) {
 }
 
 /* A kódnézet adata: a két (WIP-réteggel három) oldal teljes szövege, a fejadattal egy hívásban, ha együtt
-   átfér a host-híd határán, különben oldalanként; 2 MB fölött a csonkolt hunkok. */
-async function codeText(sha, path) {
+   átfér a host-híd határán, különben oldalanként; 2 MB fölött a csonkolt hunkok. `changed` hamis (a teljes
+   nézet commit nélkül): a commit változása nem színeződik, a WIP-réteg régi oldala is a HEAD-beli. */
+async function codeText(sha, path, changed = true) {
   const meta = await SRC.text(sha, path);
   if (meta.binary) return { binary: true };
   if (meta.big) return fromHunks(meta);
@@ -181,7 +183,7 @@ async function codeText(sha, path) {
   if (old.binary || now.binary || disk?.binary) return { binary: true };
   if (old.big || now.big || disk?.big) return fromHunks(await SRC.diff(sha, path, false));
   if (disk && disk.text != null) {
-    return { old: old.text, new: disk.text, head: now.text ?? '', hash: disk.hash ?? meta.hash ?? null,
+    return { old: changed ? old.text : now.text, new: disk.text, head: now.text ?? '', hash: disk.hash ?? meta.hash ?? null,
              editable: Boolean(meta.editable), write: meta.write ?? null };
   }
   // a HEAD-commit tiszta fájlja: a mentés sora (`write`, az Uncommitted sor) és a lemez hashe a fejadatból

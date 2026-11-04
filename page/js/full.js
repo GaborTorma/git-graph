@@ -576,6 +576,11 @@ export function refreshFull() {
     if (side.all && side.sha?.startsWith('*')) loadTree(side);
   }
   if (!fv || !commitBySha(fv.sha)) return;
+  // commit nélkül (tiszta worktree) a nézetben szerkesztett fájl mentése után megjelent WIP sor kijelölődik:
+  // a nézet helyben arra vált (a szerkesztés marad)
+  const wt = focusWt(), wip = fv.plain && !fv.sha.startsWith('*') && codeViews.get(fv.key)?.wrote && wt
+    && DATA.commits.find(c => c.uncommitted && c.worktree === wt.slug && c.sha.startsWith('*uncommitted:'));
+  if (wip) { switchCommit(wip.sha); return; }
   if (fv.all && fv.sha.startsWith('*')) loadTree(fv);
   renderTree(fv);
   renderCommits();

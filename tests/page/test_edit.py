@@ -339,7 +339,7 @@ class EditTest(PageTestCase):
 
 class CleanEditTest(PageTestCase):
     """Tiszta worktree-ben (nincs WIP sor) a HEAD-commit fájlja szerkeszthető; az első mentéstől a
-    fájl a WIP soré, a teljes nézet átvált rá."""
+    fájl a WIP soré, a teljes nézet helyben átvált rá (a WIP sor kijelölődik)."""
 
     def test_edit_from_head(self) -> None:
         # Adott: nincs nem commitolt változás, egy commit sincs lenyitva
@@ -354,16 +354,16 @@ class CleanEditTest(PageTestCase):
         self.page.mouse.dblclick(x, y)
         self.page.wait_for_function(f"({CURSOR})('.fv-box')[2] === 'true'")
         self.page.keyboard.type("elso ")
+        self.page.evaluate("document.querySelector('.fv-box .cm-diff').dataset.mark = '1'")
         self.page.keyboard.press("ControlOrMeta+s")
         self.page.wait_for_timeout(300)
         self.assertEqual((self.repo / "main-0-0.txt").read_text(encoding="utf-8"), "elso main-0-0\n")
-        # Akkor megjelenik a WIP sor (a commitlista tetején), a nézet commit nélkül marad (a sidebarból nyílt),
-        # a szerkesztés folytatható
+        # Akkor megjelenik a WIP sor (a commitlista tetején) és kijelölődik; a nézet ugyanaz (nem töltődött
+        # újra), a szerkesztés folytatható
         self.poke()
         self.assertEqual(self.page.locator(".row.uncommitted").count(), 1)
-        self.page.wait_for_selector(".fv-commits .fv-commit:first-child .subj:text('Nem commitolt változások')")
-        self.page.wait_for_timeout(2500)
-        self.assertEqual(self.page.locator(".fv-commit.sel").count(), 0)
+        self.page.wait_for_selector(".fv-commits .fv-commit:first-child.sel .subj:text('Nem commitolt változások')")
+        self.assertEqual(self.page.locator(".fv-box .cm-diff[data-mark]").count(), 1)
         self.assertEqual(self.page.evaluate(f"({CURSOR})('.fv-box')")[2], "true")
         self.page.keyboard.type("masodik ")
         self.page.keyboard.press("ControlOrMeta+s")
