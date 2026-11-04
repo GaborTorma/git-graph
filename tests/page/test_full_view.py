@@ -707,6 +707,36 @@ class PlainSaveTest(PageTestCase):
         self.assertEqual(self.page.locator(f"{box} .cm-diff.editing").count(), 1)
 
 
+class WipGoneTest(PageTestCase):
+    """A WIP sor teljes nézetében a fájl visszaáll: a WIP sor eltűnik (saját repó: ír)."""
+    WIDTH, HEIGHT = 1100, 760
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        FullViewTest.prepare(repo)
+        (repo / "tools/util.py").write_text("def segit():\n    return 'mas'\n", encoding="utf-8")
+
+    def test_wip_gone_resets_view(self) -> None:
+        """A visszaállított fájl után a fa és a fejléc számai eltűnnek, a WIP sor sincs a listában; a fájl nyitva marad."""
+        # Adott a WIP sor util.py-ja teljes képernyőn
+        self.page.locator(".row.uncommitted").click()
+        self.settle()
+        self.page.locator('.details .file[data-path="tools/util.py"]').click()
+        self.page.wait_for_selector('.details .file[data-path="tools/util.py"] + .diff .cm-editor')
+        self.settle()
+        self.page.locator('.details .file[data-path="tools/util.py"] [data-full]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.settle()
+        # Ha a fájl visszaáll (a WIP sor eltűnik)
+        (self.repo / "tools/util.py").write_text(BASE["tools/util.py"], encoding="utf-8")
+        self.poke()
+        # Akkor a fában és a fejlécben nincs +/−, a listában nincs WIP sor, a fájl nyitva marad
+        self.page.wait_for_function("!document.querySelector('.fv-commits .fv-commit:not(:has(.sha))')")
+        self.assertEqual(self.page.locator(".fv .fv-list .churn").count(), 0)
+        self.assertEqual(self.page.locator(".fv-head .churn").count(), 0)
+        self.assertIn("tools/util.py", self.page.locator(".fv-path").inner_text())
+
+
 class WipFullViewTest(PageTestCase):
     """A WIP sor teljes nézete a munkakönyvtár mostani állapotát mutatja."""
 
