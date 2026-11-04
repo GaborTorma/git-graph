@@ -489,6 +489,8 @@ class TextSidesTest(TextCase):
         self.assertEqual(sides["new"]["text"], "x = 1\ny = 2\n")
         self.assertEqual(sides["disk"]["text"], "x = 1\ny = 9\nz\n")
         self.assertEqual(sides["disk"]["hash"], hashlib.sha256(b"x = 1\r\ny = 9\rz\r\n").hexdigest())
+        # és a fejadattal egy hívásban jövő oldalak is
+        self.assertEqual(gg.diff.file_diff(sha, "app.py", text=True)["sides"]["disk"], sides["disk"])
 
     def test_sides_too_big_together(self) -> None:
         """Ha az oldalak együtt nem férnek át a host-hídon, a fejadat nélkülük jön (a lap oldalanként kéri)."""

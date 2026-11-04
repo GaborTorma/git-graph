@@ -769,7 +769,7 @@ def text_info(sha: str, path: str) -> dict:
         # sűrű hívásnál visszafog); különben oldalanként kéri (`text_side`)
         sides = {side: text_side(sha, path, side) for side in SIDES}
         if target:
-            sides["disk"] = {"text": target[2], "hash": target[1]}
+            sides["disk"] = {"text": lf(target[2]), "hash": target[1]}
         if len(json.dumps(sides)) <= TEXT_REPLY_MAX:
             out["sides"] = sides
     return out
