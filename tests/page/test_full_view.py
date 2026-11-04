@@ -674,12 +674,17 @@ class PlainEditTest(PageTestCase):
         self.assertEqual(self.page.locator(f"{box} :is(.cm-changedLine, .cm-deletedChunk)").count(), 0)
         # Ha a Fejlesztő a commit által módosított sort átírja
         self.page.locator(f"{box} .cm-line", has_text="x = 2").dblclick()
-        self.page.keyboard.press("End")
-        self.page.keyboard.type("0")
-        # Akkor a sor kék (WIP), piros / zöld nincs (a merge alapja gépelés után kicsivel követi)
-        self.page.wait_for_function(f"""() => [...document.querySelectorAll('{box} .cm-line')]
-          .some(l => l.textContent === 'x = 20' && l.classList.contains('cm-wipLine'))""")
-        self.page.wait_for_function(f"!document.querySelector('{box} :is(.cm-changedLine, .cm-deletedChunk)')")
+        # (gépelés és ellenőrzés egy lépésben, az 1 s-os automatikus mentés előtt: utána a nézet a WIP sorra vált)
+        state = self.page.evaluate(f"""async () => {{
+          const v = CM.EditorView.findFromDOM(document.querySelector('{box} .cm-editor'));
+          const l = [...Array(v.state.doc.lines)].map((_, i) => v.state.doc.line(i + 1)).find(x => x.text === 'x = 2');
+          v.dispatch({{ changes: {{ from: l.to, insert: '0' }} }});
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const line = [...document.querySelectorAll('{box} .cm-line')].find(x => x.textContent === 'x = 20');
+          return [line.className, document.querySelectorAll('{box} :is(.cm-changedLine, .cm-deletedChunk)').length]; }}""")
+        # Akkor a sor kék (WIP), piros / zöld nincs
+        self.assertIn("cm-wipLine", state[0])
+        self.assertEqual(state[1], 0)
 
 
 class PlainSaveTest(PageTestCase):
