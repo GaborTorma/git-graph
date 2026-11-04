@@ -14,9 +14,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tests" / "page"))
+from test_full_view import FullViewTest  # noqa: E402
 from test_subtree import SubtreeTest  # noqa: E402
+from test_wip_layer import WipCase  # noqa: E402
 
 IMG = ROOT / "docs" / "img"
+
+
+def folder(name: str) -> Path:
+    out = IMG / name
+    out.mkdir(parents=True, exist_ok=True)
+    return out
 
 
 class SubtreeShots(SubtreeTest):
@@ -25,8 +33,7 @@ class SubtreeShots(SubtreeTest):
     WIDTH, HEIGHT = 900, 420
 
     def test_shots(self) -> None:
-        out = IMG / "subtree-remote"
-        out.mkdir(parents=True, exist_ok=True)
+        out = folder("subtree-remote")
         self.page.screenshot(path=str(out / "graph.png"))
         self.page.locator("#remotesBtn").click()
         self.page.mouse.move(450, 400)   # a gomb buboréka ne takarja a menüt
@@ -34,10 +41,47 @@ class SubtreeShots(SubtreeTest):
         self.page.screenshot(path=str(out / "remote-filter.png"), clip={"x": 0, "y": 0, "width": 900, "height": 180})
 
 
-# Csak a képek készülnek, a SubtreeTest saját tesztjei nem.
-for name in [n for n in dir(SubtreeTest) if n.startswith("test_")]:
-    setattr(SubtreeShots, name, None)
+class FullViewShots(FullViewTest):
+    """Fájlfa és teljes nézet: a sidebar a lenyitott commit mellett, és egy fájl teljes képernyőn."""
+
+    WIDTH, HEIGHT = 1100, 640
+
+    def test_shots(self) -> None:
+        out = folder("full-view")
+        self.open_side()
+        self.open_commit()
+        self.page.mouse.move(5, 5)
+        self.settle()
+        self.page.screenshot(path=str(out / "sidebar.png"))
+        self.open_full("page/js/diff.js")
+        self.page.mouse.move(5, 5)
+        self.settle()
+        self.page.screenshot(path=str(out / "full.png"))
+
+
+class WipShots(WipCase):
+    """Kóddiff: a HEAD-commit fájlja a lemez szövegével, a WIP eltérései kék / narancs rétegben."""
+
+    WIDTH, HEIGHT = 900, 900
+
+    def test_shots(self) -> None:
+        out = folder("code-diff")
+        self.open_app()
+        self.page.mouse.move(5, 5)
+        self.settle()
+        box = self.page.locator('.details .file[data-path="app.py"]').bounding_box()
+        diff = self.page.locator('.details .file[data-path="app.py"] + .diff').bounding_box()
+        top = box["y"] - 4
+        self.page.screenshot(path=str(out / "wip-layer.png"), clip={
+            "x": diff["x"] - 4, "y": top, "width": diff["width"] + 8, "height": min(520, diff["y"] + diff["height"] - top + 4)})
+
+
+SHOTS = [SubtreeShots, FullViewShots, WipShots]
+# Csak a képek készülnek, a fixture-osztályok saját tesztjei nem.
+for shots in SHOTS:
+    for name in [n for n in dir(shots.__mro__[1]) if n.startswith("test_")]:
+        setattr(shots, name, None)
 
 if __name__ == "__main__":
-    suite = unittest.defaultTestLoader.loadTestsFromName("test_shots", SubtreeShots)
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromName("test_shots", s) for s in SHOTS)
     sys.exit(not unittest.TextTestRunner(verbosity=1).run(suite).wasSuccessful())
