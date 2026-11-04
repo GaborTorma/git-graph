@@ -1,5 +1,6 @@
 /* A lista sorai napokra bontva, és a fix sáv WIP-sorai. */
 import { avatarClass } from './avatars.js';
+import { editingDiff } from './cm.js';
 import { dayKey, dayLabel, fmtTime, pinnedTime } from './dates.js';
 import { open } from './details.js';
 import { OPEN_PANEL, counter, headChip, pendingEl, rowsEl } from './dom.js';
@@ -65,8 +66,9 @@ function rowHtml(c) {
 /* Napi csoportok (`.day-group`): a ragadós fejléc csak a saját napja alatt
    marad fent, a következő nap fejléce kitolja — nem csúsznak egymásra. */
 export function render() {
-  // A kijelölés (fókusz) az újrarajzolás után visszaáll: sor vagy fájl.
+  // A kijelölés (fókusz) az újrarajzolás után visszaáll: sor vagy fájl; szerkesztés közben a szerkesztő.
   const focused = /** @type {HTMLElement} */ (document.activeElement);
+  const typing = Boolean(focused?.closest?.('.cm-editor'));
   const keepSha = focused?.closest?.('.row')?.dataset.sha;
   const keepPath = /** @type {HTMLElement} */ (focused?.closest?.('.file') || focused?.closest?.('.diff')?.previousElementSibling)
     ?.dataset.path;               // blokkon állva a fájljára áll vissza
@@ -122,7 +124,8 @@ export function render() {
   const back = keepPath && expanded
     ? [...document.querySelectorAll(`${OPEN_PANEL} .file`)].find(f => f.dataset.path === keepPath)
     : keepSha && document.querySelector(`.row[data-sha="${CSS.escape(keepSha)}"]`);
-  back?.focus({ preventScroll: true });
+  if (typing) editingDiff()?.ed?.focus({ preventScroll: true });
+  else back?.focus({ preventScroll: true });
 }
 
 /* Az Uncommitted ál-sorok (worktree-nként a nem stage-elt, alatta a stage-elt) mindig látszanak: a lista

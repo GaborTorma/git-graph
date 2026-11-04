@@ -224,6 +224,7 @@ Kézi URL-megadás: `git-graph --set-artifact <url>`.
 | `H` | kijelölés a saját worktree HEAD-jén | |
 | `⇧↑` / `⇧↓` | csak görget (három diff-sornyit), a kijelölés marad | ugyanígy — egy hosszú blokk olvasásához |
 | `Esc` | előbb a keresést üríti, aztán a nyitott commitot csukja | ugyanígy |
+| `Esc` (teljes képernyőn) | szerkesztés közben a szerkesztést fejezi be, a kereső mezőben a keresést törli, különben bezárja a teljes képernyőt | |
 | `⌘F` / `Ctrl+F` | kereső | |
 
 Fájlon a `→` kinyitja a diffet, és rögtön az első módosított blokkra lép (egy blokk a
@@ -252,7 +253,21 @@ a worktree-nek a sora látszik, amelyikben a szűrt ág van kivéve. Élő módb
 
 A részletek-panel fájlsorai lenyithatók: alatta a fájl diffje (szöveg, renderelt markdown,
 kép), széles ablakban side-by-side. Részletek és követelmények:
-[docs/file-diff.md](docs/file-diff.md); a funkcióoldalak listája:
+[docs/file-diff.md](docs/file-diff.md).
+
+A kóddiffet a CodeMirror rajzolja; az Uncommitted sor és a saját worktree HEAD-commitjának
+fájljai dupla kattintással szerkeszthetők, a mentés automatikus, a lemez közbeni változása
+befésülődik. A HEAD-commit kóddiffje a lemez szövegét mutatja, a nem commitolt eltérések kék /
+narancs rétegben: [docs/code-diff.md](docs/code-diff.md).
+
+## Fájlfa és teljes nézet
+
+Az eszközsor jobb szélső gombja a gráf mellé nyitja a fájlfát (a lenyitott commit fájljai,
+commit nélkül a worktree állapota); a fájlfejléc ikonja a fájlt teljes képernyőn nyitja: középen a
+diff, jobbra a fa (diff-szűrő, név- és tartalomkereső) és a commitlista, amelyen commit váltható:
+[docs/full-view.md](docs/full-view.md).
+
+A funkcióoldalak listája:
 [docs/README.md](docs/README.md). A funkcióoldalak képei a lap tesztjeinek fixture-repóiból
 készülnek, újragenerálhatóan:
 
@@ -268,7 +283,7 @@ Ha az `origin` GitHub-repó, a lap a GitHubra linkel:
   `owner/repo#12` — a `/issues/12` a PR-ra is átirányít. A `C#1`-szerű szöveg
   és az URL-fragment (`lap.html#3`) nem lesz link.
 - **Commit hash**: a kinyitott commit fejében, mellette megnyitás- és másolás-ikon.
-- **Fájlváltozás**: a fájlsor végén a megnyitás-ikon a fájl diffje a commit-oldalon
+- **Fájlváltozás**: a fájlnév utáni megnyitás-ikon a fájl diffje a commit-oldalon
   (a soron kattintva helyben nyílik a diff).
 - **Szülő**: a szülő-ikon melletti hash és megnyitás-ikon a gráfban a szülőre ugrik.
 

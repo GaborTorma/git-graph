@@ -1,6 +1,7 @@
 """Fájl-diff (`diff`): hunkok, sorpárok, szószintű kiemelés, a lapról jövő bemenet szűrése."""
 from __future__ import annotations
 
+import hashlib
 import json
 
 from helpers import HomeTestCase, git_in
@@ -430,3 +431,268 @@ class DiffTest(HomeTestCase):
                 gg.diff.file_diff(bad_sha, "docs/README.md", image=bad_ref, side="new")
         with self.assertRaises(ValueError):
             gg.diff.file_diff(sha, "docs/img/graph.png", side="mind")
+
+
+class TextCase(HomeTestCase):
+    def text_repo(self):
+        """Repó két committal (`app.py` módosítva, `ok.txt` érintetlen): (repó, gg, szülő, commit, WIP sor)."""
+        repo = self.plain_repo()
+        (repo / "app.py").write_text("x = 1\ny = 2\n", encoding="utf-8")
+        (repo / "ok.txt").write_text("változatlan\n", encoding="utf-8")
+        git_in(repo, "add", ".")
+        git_in(repo, "commit", "-qm", "alap")
+        (repo / "app.py").write_text("x = 1\ny = 3\n", encoding="utf-8")
+        git_in(repo, "commit", "-qam", "mod")
+        gg = self.load()
+        gg.gitio.set_repo(repo)
+        return (repo, gg, *(git_in(repo, "rev-parse", r).strip() for r in ("HEAD~1", "HEAD")),
+                f"*uncommitted:{gg.registry.slug_for(repo)}")
+
+    def sides(self, gg, sha: str, path: str) -> dict:
+        return {s: gg.diff.file_diff(sha, path, side=s, text=True) for s in ("old", "new")}
+
+
+class TextSidesTest(TextCase):
+    def test_full_text(self) -> None:
+        """2 MB alatt oldalanként a teljes szöveg jön, a fejadat hunkok nélkül."""
+        # Adott egy commit, amely módosítja az "app.py"-t
+        _, gg, _, sha, _ = self.text_repo()
+        # Ha a lap a szöveges nézetet kéri
+        info = gg.diff.file_diff(sha, "app.py", text=True)
+        sides = self.sides(gg, sha, "app.py")
+        # Akkor a két oldal teljes szövege jön, a commitnál hash nélkül
+        self.assertEqual({k: info[k] for k in ("binary", "size", "big")}, {"binary": False, "size": [12, 12], "big": False})
+        self.assertNotIn("hunks", info)
+        self.assertEqual(sides, {"old": {"text": "x = 1\ny = 2\n"}, "new": {"text": "x = 1\ny = 3\n"}})
+
+    def test_sides_in_one_call(self) -> None:
+        """A fejadat az oldalak szövegét is hozza, ha együtt átférnek; a WIP-réteges fájlnál a lemezét is."""
+        # Adott a HEAD-commit "app.py"-ja, a lemezen módosítva
+        repo, gg, _, sha, _ = self.text_repo()
+        (repo / "app.py").write_text("x = 5\n", encoding="utf-8")
+        # Ha a lap a fejadatot kéri
+        info = gg.diff.file_diff(sha, "app.py", text=True)
+        # Akkor mindhárom oldal benne van, ugyanúgy, mint külön kérve
+        self.assertEqual(info["sides"], {s: gg.diff.file_diff(sha, "app.py", side=s, text=True) for s in ("old", "new", "disk")})
+
+    def test_lf_sides(self) -> None:
+        """A CRLF-es (és a magában álló `\\r`-es) fájl oldalai `\\n`-es szöveggel jönnek; a hash a lemez bájtjaié."""
+        # Adott a HEAD-commit CRLF-es "app.py"-ja, a lemezen egy sor átírva
+        repo, gg, _, _, _ = self.text_repo()
+        (repo / "app.py").write_bytes(b"x = 1\r\ny = 2\r\n")
+        git_in(repo, "commit", "-qam", "crlf")
+        sha = git_in(repo, "rev-parse", "HEAD").strip()
+        (repo / "app.py").write_bytes(b"x = 1\r\ny = 9\rz\r\n")
+        # Ha a lap az oldalakat kéri
+        sides = {s: gg.diff.file_diff(sha, "app.py", side=s, text=True) for s in ("new", "disk")}
+        # Akkor a szöveg `\\n`-es, a lemez hashe a valódi bájtoké
+        self.assertEqual(sides["new"]["text"], "x = 1\ny = 2\n")
+        self.assertEqual(sides["disk"]["text"], "x = 1\ny = 9\nz\n")
+        self.assertEqual(sides["disk"]["hash"], hashlib.sha256(b"x = 1\r\ny = 9\rz\r\n").hexdigest())
+        # és a fejadattal egy hívásban jövő oldalak is
+        self.assertEqual(gg.diff.file_diff(sha, "app.py", text=True)["sides"]["disk"], sides["disk"])
+
+    def test_sides_too_big_together(self) -> None:
+        """Ha az oldalak együtt nem férnek át a host-hídon, a fejadat nélkülük jön (a lap oldalanként kéri)."""
+        # Adott egy fájl, amelynek két oldala külön átfér, együtt nem
+        repo, gg, _, _, wip = self.text_repo()
+        (repo / "hu.txt").write_text("ő" * 400_000, encoding="utf-8")
+        git_in(repo, "add", "hu.txt")
+        (repo / "hu.txt").write_text("ő" * 400_001, encoding="utf-8")
+        # Ha a lap a fejadatot kéri
+        info = gg.diff.file_diff(wip, "hu.txt", text=True)
+        # Akkor oldalak nélkül, de oldalanként átférnek
+        self.assertNotIn("sides", info)
+        self.assertIsNotNone(gg.diff.file_diff(wip, "hu.txt", side="new", text=True)["text"])
+
+    def test_missing_side(self) -> None:
+        """Az új fájlnak nincs régi oldala (`text: None`), a gyökércommitnak sincs."""
+        # Adott a gyökércommit és az "app.py"-t létrehozó commit
+        repo, gg, parent, _, _ = self.text_repo()
+        root = git_in(repo, "rev-list", "--max-parents=0", "HEAD").strip()
+        # Ha a lap a régi oldalt kéri
+        # Akkor nincs szöveg
+        self.assertEqual(gg.diff.file_diff(parent, "app.py", side="old", text=True), {"text": None})
+        self.assertEqual(gg.diff.file_diff(root, "a.txt", side="old", text=True), {"text": None})
+        self.assertEqual(gg.diff.file_diff(parent, "app.py", text=True)["size"], [None, 12])
+
+    def test_unchanged_file(self) -> None:
+        """A commit által nem érintett fájl két oldala ugyanaz a szöveg."""
+        # Adott egy commit, amely az "ok.txt"-hez nem nyúl
+        _, gg, _, sha, _ = self.text_repo()
+        # Ha a lap a két oldalt kéri
+        sides = self.sides(gg, sha, "ok.txt")
+        # Akkor a két oldal egyezik
+        self.assertEqual(sides["old"], sides["new"])
+        self.assertEqual(sides["new"]["text"], "változatlan\n")
+
+    def test_big(self) -> None:
+        """2 MB fölött (3 MB-os `dump.sql`) `big`, a mostani csonkolt hunkokkal, nem szerkeszthető."""
+        # Adott egy 3 MB-os "dump.sql" módosítása a munkakönyvtárban
+        repo, gg, _, _, wip = self.text_repo()
+        line = "INSERT INTO t VALUES (1, 'abcdefghij');\n"
+        (repo / "dump.sql").write_text(line * (3_000_000 // len(line)), encoding="utf-8")
+        git_in(repo, "add", ".")
+        git_in(repo, "commit", "-qm", "dump")
+        (repo / "dump.sql").write_text(line.replace("1", "2") * (3_000_000 // len(line)), encoding="utf-8")
+        # Ha a lap a szöveges nézetet és egy oldalt kér
+        info = gg.diff.file_diff(wip, "dump.sql", text=True)
+        side = gg.diff.file_diff(wip, "dump.sql", side="new", text=True)
+        # Akkor a diff csonkolt, a fájl nem szerkeszthető, a szöveg nem jön
+        self.assertTrue(info["big"] and info["truncated"])
+        self.assertFalse(info["editable"])
+        self.assertEqual(sum(len(h["lines"]) for h in info["hunks"]), gg.diff.DIFF_MAX_LINES)
+        self.assertEqual(side, {"text": None, "big": True})
+
+    def test_binary(self) -> None:
+        """Bináris oldalnál nincs szöveg; a `text`-tel kért képoldal szöveg, nem data URI."""
+        # Adott egy bináris kép és egy SVG
+        repo, gg, _, _, wip = self.text_repo()
+        (repo / "kep.png").write_bytes(b"\x89PNG\0")
+        (repo / "logo.svg").write_text("<svg/>\n", encoding="utf-8")
+        # Ha a lap szövegként kéri az oldalukat
+        # Akkor a bináris jelzett, az SVG kódja jön; `text` nélkül marad a kép
+        self.assertEqual(gg.diff.file_diff(wip, "kep.png", side="new", text=True), {"text": None, "binary": True})
+        self.assertTrue(gg.diff.file_diff(wip, "kep.png", text=True)["binary"])
+        self.assertEqual(gg.diff.file_diff(wip, "logo.svg", side="new", text=True)["text"], "<svg/>\n")
+        self.assertIn("uri", gg.diff.file_diff(wip, "logo.svg", side="new"))
+
+    def test_reply_size(self) -> None:
+        """A JSON-ban 3 900 000 karakter fölé nőne szöveg (pl. sok ékezet) `big`."""
+        # Adott egy 2 MB alatti, csupa ékezetes fájl (JSON-ban karakterenként `\\uXXXX`)
+        repo, gg, _, _, wip = self.text_repo()
+        (repo / "hu.txt").write_text("ő" * 900_000, encoding="utf-8")
+        # Ha a lap az oldalát kéri
+        side = gg.diff.file_diff(wip, "hu.txt", side="new", text=True)
+        # Akkor nem fér át: `big`
+        self.assertEqual(side, {"text": None, "big": True})
+
+
+class HeadEditTest(TextCase):
+    """A tiszta worktree HEAD-commitjának fájlja szerkeszthető: a mentés az Uncommitted sorba megy."""
+
+    def test_clean_head_file(self) -> None:
+        """A HEAD-commit lemezen változatlan fájlja szerkeszthető, a mentés sora és a lemez hashe jön."""
+        # Adott a tiszta munkakönyvtár, a HEAD-ben az "ok.txt"
+        _, gg, _, sha, wip = self.text_repo()
+        # Ha a lap a HEAD-commit "ok.txt"-jének szöveges nézetét kéri
+        info = gg.diff.file_diff(sha, "ok.txt", text=True)
+        # Akkor szerkeszthető, a mentés a WIP sorba, a hash a lemezé
+        self.assertTrue(info["editable"])
+        self.assertEqual(info["write"], wip)
+        self.assertEqual(info["hash"], hashlib.sha256("változatlan\n".encode()).hexdigest())
+
+    def test_dirty_file(self) -> None:
+        """Ha a lemezen már más áll, mint a HEAD-ben, a HEAD-commitban is szerkeszthető: a lemez oldalával
+        (`wip`), a mentés sorával és a lemez hashével."""
+        # Adott az "app.py" módosítva a lemezen
+        repo, gg, _, sha, wip = self.text_repo()
+        (repo / "app.py").write_text("x = 5\n", encoding="utf-8")
+        # Ha a lap a HEAD-commit "app.py"-jét kéri
+        info = gg.diff.file_diff(sha, "app.py", text=True)
+        # Akkor szerkeszthető, a lemez oldala külön kérhető
+        self.assertTrue(info["editable"])
+        self.assertTrue(info["wip"])
+        self.assertEqual(info["write"], wip)
+        self.assertEqual(info["hash"], hashlib.sha256(b"x = 5\n").hexdigest())
+        self.assertEqual(gg.diff.file_diff(sha, "app.py", side="disk", text=True),
+                         {"text": "x = 5\n", "hash": hashlib.sha256(b"x = 5\n").hexdigest()})
+
+    def test_disk_side_not_after_change(self) -> None:
+        """Régebbi commitnál, ha a fájl azóta változott, nincs lemez oldala, és nem szerkeszthető."""
+        _, gg, parent, _, _ = self.text_repo()
+        self.assertEqual(gg.diff.file_diff(parent, "app.py", side="disk", text=True), {"text": None})
+        self.assertFalse(gg.diff.file_diff(parent, "app.py", text=True)["editable"])
+
+    def test_older_commit_unchanged_since(self) -> None:
+        """Régebbi commitnál, ha a fájl azóta nem változott (a HEAD-beli ugyanaz), a lemez oldalával
+        szerkeszthető, a mentés a worktree WIP sorába."""
+        # Adott az "ok.txt" a szülő commitban, a HEAD nem módosítja, a lemezen átírva
+        repo, gg, parent, _, wip = self.text_repo()
+        (repo / "ok.txt").write_text("átírva\n", encoding="utf-8")
+        # Ha a lap a szülő commit "ok.txt"-jét kéri
+        info = gg.diff.file_diff(parent, "ok.txt", text=True)
+        # Akkor szerkeszthető, a lemez oldala jön
+        self.assertTrue(info["editable"])
+        self.assertTrue(info["wip"])
+        self.assertEqual(info["write"], wip)
+        self.assertEqual(gg.diff.file_diff(parent, "ok.txt", side="disk", text=True)["text"], "átírva\n")
+
+    def test_own_worktree(self) -> None:
+        """Ha két worktree HEAD-je ugyanaz a commit, a lemez oldala és a mentés sora az előtérben lévő
+        sessioné (a lap saját worktree-je), nem a fő checkouté."""
+        # Adott egy második worktree a HEAD-en, benne az "ok.txt" átírva, és a fókusz rajta
+        repo, gg, _, sha, _ = self.text_repo()
+        extra = self.home / "extra"
+        git_in(repo, "worktree", "add", "-q", "--detach", str(extra))
+        (extra / "ok.txt").write_text("másik\n", encoding="utf-8")
+        folder = gg.claude_app.APP_SESSIONS / "acc" / "org"
+        folder.mkdir(parents=True)
+        (folder / "local_a.json").write_text(json.dumps({"cwd": str(extra), "lastFocusedAt": 1000}), encoding="utf-8")
+        # Ha a lap a HEAD-commit "ok.txt"-jét kéri
+        info = gg.diff.file_diff(sha, "ok.txt", text=True)
+        # Akkor a második worktree lemeze és WIP sora jön
+        self.assertEqual(info["write"], f"*uncommitted:{gg.registry.slug_for(extra)}")
+        self.assertEqual(gg.diff.file_diff(sha, "ok.txt", side="disk", text=True)["text"], "másik\n")
+
+    def test_write_lands_in_wip(self) -> None:
+        """A mentés a `write` sorral a munkakönyvtárba ír."""
+        # Adott a HEAD-commit "ok.txt"-je szerkeszthetően
+        repo, gg, _, sha, _ = self.text_repo()
+        info = gg.diff.file_diff(sha, "ok.txt", text=True)
+        # Ha a lap a `write` sorral ment
+        out = gg.files.write_file(info["write"], "ok.txt", "módosítva\n", info["hash"])
+        # Akkor a fájl a lemezen
+        self.assertTrue(out["ok"])
+        self.assertEqual((repo / "ok.txt").read_text(encoding="utf-8"), "módosítva\n")
+
+
+class EditableTest(TextCase):
+    def test_uncommitted(self) -> None:
+        """Az Uncommitted soron a szöveges fájl szerkeszthető, az új oldal a lemez hashével jön."""
+        # Adott az "app.py" módosítva a lemezen
+        repo, gg, _, _, wip = self.text_repo()
+        (repo / "app.py").write_text("x = 9\n", encoding="utf-8")
+        # Ha a lap a szöveges nézetet kéri
+        info = gg.diff.file_diff(wip, "app.py", text=True)
+        sides = self.sides(gg, wip, "app.py")
+        # Akkor szerkeszthető, az új oldalon hash
+        self.assertTrue(info["editable"])
+        self.assertEqual(sides["old"], {"text": "x = 1\ny = 3\n"})          # az index
+        self.assertEqual(sides["new"], {"text": "x = 9\n", "hash": hashlib.sha256(b"x = 9\n").hexdigest()})
+
+    def test_not_editable(self) -> None:
+        """Nem szerkeszthető: a kép, a Stage-elt sor, a nem HEAD commit és a törölt fájl."""
+        # Adott egy SVG a munkakönyvtárban, és egy törölt fájl
+        repo, gg, parent, _, wip = self.text_repo()
+        (repo / "logo.svg").write_text("<svg/>\n", encoding="utf-8")
+        (repo / "ok.txt").unlink()
+        # Ha a lap a szöveges nézetüket kéri
+        # Akkor egyik sem szerkeszthető
+        for row, path in ((wip, "logo.svg"), (wip, "ok.txt"),
+                          (wip.replace("uncommitted", "staged"), "app.py"), (parent, "app.py")):
+            self.assertFalse(gg.diff.file_diff(row, path, text=True)["editable"], f"{row} {path}")
+
+    def test_markdown(self) -> None:
+        """A markdown forrása szerkeszthető: az Uncommitted soron és a tiszta HEAD-commitban is."""
+        # Adott egy commitolt markdown
+        repo, gg, _, _, wip = self.text_repo()
+        (repo / "README.md").write_text("# cím\n", encoding="utf-8")
+        git_in(repo, "add", "README.md")
+        git_in(repo, "commit", "-qm", "readme")
+        head = git_in(repo, "rev-parse", "HEAD").strip()
+        # Ha a lap a szöveges nézetét kéri
+        # Akkor a HEAD-commitban és az Uncommitted soron is szerkeszthető
+        self.assertEqual(gg.diff.file_diff(head, "README.md", text=True)["write"], wip)
+        (repo / "README.md").write_text("# új cím\n", encoding="utf-8")
+        self.assertTrue(gg.diff.file_diff(wip, "README.md", text=True)["editable"])
+
+    def test_unchanged_on_wip(self) -> None:
+        """A WIP soron a nem módosult fájl is szerkeszthető, a két oldala egyezik."""
+        # Adott a nem módosult "ok.txt"
+        _, gg, _, _, wip = self.text_repo()
+        # Ha a lap a szöveges nézetét kéri
+        info, sides = gg.diff.file_diff(wip, "ok.txt", text=True), self.sides(gg, wip, "ok.txt")
+        # Akkor szerkeszthető, a két szöveg ugyanaz
+        self.assertTrue(info["editable"])
+        self.assertEqual(sides["old"]["text"], sides["new"]["text"])

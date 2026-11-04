@@ -1,15 +1,37 @@
 /* A gépen futó git-graph hívása a Claude app host-hídján át. */
 import { CTX, MCP_SERVER, SLUG } from './state.js';
 
+/* A host sűrű hívásnál visszafog (`rate_limited`, `retryAfterMs`; .claude/memory/host-bridge-long-poll.md):
+   ennyiszer próbáljuk újra, a kért várakozással (alapból `RETRY_MS`, legfeljebb `RETRY_MAX_MS`). */
+const RETRIES = 3, RETRY_MS = 600, RETRY_MAX_MS = 5000;
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 export function mcpSource() {
   const mcp = CTX.mcp;
-  const call = (tool, args, signal) => mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args },
-    signal ? { cache: false, signal } : { cache: false }).then(r => r.payload);
+  const call = async (tool, args, signal) => {
+    for (let n = 0; ; n++) {
+      try {
+        const r = await mcp.callTool(MCP_SERVER, tool, { repo: SLUG, ...args }, signal ? { cache: false, signal } : { cache: false });
+        return r.payload;
+      } catch (e) {
+        if (e?.code !== 'rate_limited' || n >= RETRIES || signal?.aborted) throw e;
+        await pause(Math.min(RETRY_MAX_MS, Number(e.retryAfterMs) || RETRY_MS * (n + 1)));
+      }
+    }
+  };
   return { changes: (since, wait, signal) => /** @type {Promise<Changes>} */ (call('changes', { since, wait }, signal)),
            data: () => /** @type {Promise<GraphData>} */ (call('graph_data')),
            diff: (sha, path, full) => call('file_diff', { sha, path, full }),
            // a kép egy oldala (`old` / `new`), külön hívásban; `image`: a markdown-fájl egy képe
            side: (sha, path, side, image) => call('file_diff', { sha, path, side, ...(image == null ? {} : { image }) }),
+           // a kódnézet: a fájl adatai (`text`), oldalanként a teljes szöveg (`textSide`)
+           text: (sha, path) => call('file_diff', { sha, path, text: true }),
+           textSide: (sha, path, side) => call('file_diff', { sha, path, side, text: true }),
+           // a teljes nézet fája: a commit (WIP soron a munkakönyvtár) fájljai; `dir`: egy mappa, `grep`: tartalomkeresés
+           tree: (sha, opts = {}) => call('file_tree', { sha, ...opts }),
+           // az Uncommitted sor fájljának mentése, az ismert lemezállapot (`base`) hashével
+           write: (sha, path, text, base) => call('write_file', { sha, path, text, base }),
+           codemirror: () => /** @type {Promise<{ js: string }>} */ (call('page_code', { api: CTX.api, part: 'codemirror' })),
            mermaid: () => /** @type {Promise<{ js: string }>} */ (call('page_code', { api: CTX.api, part: 'mermaid' })),
            // a lap betűi (Anthropic Sans: `font`, Mono: `font-mono`) base64-ben: a keretben nincsenek meg (`font.js`)
            font: part => /** @type {Promise<{ woff2: string }>} */ (call('page_code', { api: CTX.api, part })) };

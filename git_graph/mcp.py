@@ -12,6 +12,7 @@ from pathlib import Path
 
 from . import MCP_NAME
 from .diff import file_diff
+from .files import file_tree, write_file
 from .gitio import set_repo
 from .graph import collect_payload
 from .install import RUNNING_VERSION, STABLE, SYSTEM_PYTHON, UPDATED, stable_version, watch_plugin
@@ -46,16 +47,41 @@ MCP_TOOLS = [
          "full": {"type": "boolean", "description": "a teljes fájl, a változatlan sorokkal együtt"},
          "image": {"type": "string", "description": "a markdown-fájl egy képének hivatkozása (![alt](…)): "
                                                     "a diff helyett a kép két oldalának mérete"},
-         "side": {"type": "string", "enum": ["old", "new"],
-                  "description": "a kép egy oldala (data URI): képfájlnál vagy az `image` képénél"}}},
+         "text": {"type": "boolean", "description": "a szöveges nézet fejadata (binary, size, big, "
+                                                    "editable; nagy fájlnál a csonkolt hunkok); "
+                                                    "a `side`-dal az oldal szövege képfájlnál is"},
+         "side": {"type": "string", "enum": ["old", "new", "disk"],
+                  "description": "egy oldal: képfájlnál vagy az `image` képénél a kép (data URI), "
+                                 "különben a fájl teljes szövege (text; a lemezről olvasottnál hash); "
+                                 "a `disk` (text-tel) a worktree HEAD-commitjának fájlja a lemezen"}}},
      "description": "Egy fájl diffje egy commitban, hunkokra és sorokra bontva; képfájlnál a "
-                    "két oldal mérete is, a kép oldalanként a `side`-dal (data URI)."},
+                    "két oldal mérete is, a kép oldalanként a `side`-dal (data URI); a `side` "
+                    "szöveges fájlnál az oldal teljes szövege (2 MB-ig)."},
+    {"name": "file_tree", "annotations": {"readOnlyHint": True},
+     "inputSchema": {"type": "object", "required": ["repo", "sha"], "properties": {
+         **_REPO_ARG["properties"],
+         "sha": {"type": "string", "description": "commit sha, vagy *uncommitted:<worktree-slug> / *staged:<worktree-slug>"},
+         "dir": {"type": "string", "description": "egy mappa szintje (lusta fa; \"\" a gyökér)"},
+         "grep": {"type": "string", "description": "tartalomkeresés: a szöveget tartalmazó fájlok"}}},
+     "description": "A commit (WIP soron a munkakönyvtár) fájljai ikonnal; 20 000 fájl fölött "
+                    "vagy `dir`-rel mappánként; `grep`-pel a tartalmukban keres."},
+    # Őszintén író: a WIP sor fájlját a munkakönyvtárba írja (a git állapotához nem nyúl).
+    {"name": "write_file", "annotations": {"readOnlyHint": False, "destructiveHint": False},
+     "inputSchema": {"type": "object", "required": ["repo", "sha", "path", "text", "base"], "properties": {
+         **_REPO_ARG["properties"],
+         "sha": {"type": "string", "description": "*uncommitted:<worktree-slug>"},
+         "path": {"type": "string", "description": "a fájl útja a worktree-ben"},
+         "text": {"type": "string", "description": "az új tartalom (\\n sorvéggel)"},
+         "base": {"type": "string", "description": "a lap által ismert lemezállapot sha256-ja"}}},
+     "description": "A WIP sor egy szöveges fájljának mentése a munkakönyvtárba; ha a lemezen "
+                    "közben változott (más hash), nem ír, és a lemezen lévőt adja (conflict)."},
     {"name": "page_code", "annotations": {"readOnlyHint": True},
      "inputSchema": {"type": "object", "required": ["repo", "api"], "properties": {
          **_REPO_ARG["properties"],
          "api": {"type": "integer", "description": "a lap betöltőjének szerződés-verziója"},
-         "part": {"type": "string", "enum": ["mermaid", "font", "font-mono"],
-                  "description": "egy lustán kért darab: csak annak a JS-e (a Mermaid-diagramokhoz), "
+         "part": {"type": "string", "enum": ["mermaid", "codemirror", "font", "font-mono"],
+                  "description": "egy lustán kért darab: csak annak a JS-e (a Mermaid-diagramokhoz; "
+                                 "a kódszerkesztő (CodeMirror) JS-e a diffekhez), "
                                  "illetve a lap betűje (Anthropic Sans / Mono, base64)"}}},
      "description": "A git-graph lap élő kódja (CSS, HTML, JS) a publikált betöltőnek."},
     # Ír (a repó `git-graph.*` kulcsát és a ~/.git-graph-ot), de csak a git-graph saját
@@ -112,7 +138,18 @@ def mcp_tool(name: str, args: dict, limit: int | None) -> dict:
             image = args.get("image")
             return text(file_diff(str(args.get("sha", "")), str(args.get("path", "")),
                                   bool(args.get("full")), None if image is None else str(image),
-                                  None if args.get("side") is None else str(args["side"])))
+                                  None if args.get("side") is None else str(args["side"]),
+                                  bool(args.get("text"))))
+        if name == "file_tree":
+            folder, needle = args.get("dir"), args.get("grep")
+            return text(file_tree(str(args.get("sha", "")), None if folder is None else str(folder),
+                                  None if needle is None else str(needle)))
+        if name == "write_file":
+            content = args.get("text")
+            if not isinstance(content, str):
+                return text("hiba: a text nem szöveg", True)
+            return text(write_file(str(args.get("sha", "")), str(args.get("path", "")), content,
+                                   str(args.get("base", ""))))
         if name == "page_code":
             mismatch = page_api_mismatch(args.get("api"))
             return text(mismatch, True) if mismatch else text(page_code(args.get("part")))
@@ -141,8 +178,8 @@ def mcp_serve(limit: int | None) -> int:
 
     Az Artifact vékony lapja a Claude app host-hídján át ezt hívja: egy nyitva
     tartott `changes`-t, a `graph_data`-t csak változáskor. Stdlib JSON-RPC
-    2.0, soronként egy üzenet; a stdout-ra csak protokoll mehet. Mindkét tool
-    read-only-nak jelölt: így az app nem kér hívásonként megerősítést. Közben
+    2.0, soronként egy üzenet; a stdout-ra csak protokoll mehet. Az olvasó toolok
+    read-only-nak jelöltek: így az app nem kér hívásonként megerősítést. Közben
     figyeli, eltávolították-e vagy frissítették-e a plugint (`watch_plugin`).
     """
     out = sys.stdout.buffer

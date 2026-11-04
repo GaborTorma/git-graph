@@ -24,15 +24,17 @@ LOADER_API = 1   # a betöltő és a `page_code` szerződése — csak a betölt
 # másolatnál (`install_copy`) is `<gyökér>/page/`.
 PAGE_DIR = ROOT / "page"
 PAGE_FILES = ("loader.html", "head.html", "page.css", "body.html", "file-icons.json",
-              "vendor/mermaid.min.js", "vendor/anthropic-sans.woff2", "vendor/anthropic-mono.woff2")
+              "vendor/mermaid.min.js", "vendor/codemirror.min.js", "vendor/anthropic-sans.woff2", "vendor/anthropic-mono.woff2")
 PAGE_ENTRY = "js/main.js"   # a lap belépő modulja; a többit ez húzza be
 # A Mermaid (12.2.0, MIT, `vendor/mermaid.LICENSE`) karcsú egyfájlos buildje
 # (`scripts/mermaid.sh`, ELK-kal): a lap lustán, csak diagramos markdown-diffnél kéri
 # (`page_code` `part: "mermaid"`), blobból futtatja.
+# A CodeMirror 6 (MIT, `vendor/codemirror.LICENSE`) egyfájlos buildje (`scripts/codemirror.sh`): minden
+# kóddiffet ez rajzol, a lap az első diffnél kéri (`part: "codemirror"`), blobból futtatja.
 # Az Anthropic Sans és Mono (a Claude app betűi, változók, állók): az Artifact keretében nincsenek
 # meg, és külső fontot a CSP nem enged — a lap a bájtjaikat kéri (`part: "font"`, `"font-mono"`,
 # base64), és `FontFace`-ként regisztrálja.
-PAGE_PARTS = {"mermaid": "vendor/mermaid.min.js", "font": "vendor/anthropic-sans.woff2",
+PAGE_PARTS = {"mermaid": "vendor/mermaid.min.js", "codemirror": "vendor/codemirror.min.js", "font": "vendor/anthropic-sans.woff2",
               "font-mono": "vendor/anthropic-mono.woff2"}
 _PAGE: dict[str, str] = {}
 

@@ -21,8 +21,11 @@ class McpServerTest(HomeTestCase):
             self.assertEqual(init["serverInfo"]["name"], "git-graph")
             self.assertTrue(init["capabilities"]["tools"]["listChanged"])   # a restart után jelez
             tools = {t["name"]: t for t in client.request("tools/list")["result"]["tools"]}
-            self.assertEqual(set(tools), {"changes", "graph_data", "file_diff", "page_code", "settings"})
-            self.assertTrue(all(t["annotations"]["readOnlyHint"] for t in tools.values()))
+            self.assertEqual(set(tools), {"changes", "graph_data", "file_diff", "file_tree", "write_file",
+                                          "page_code", "settings"})
+            self.assertTrue(all(t["annotations"]["readOnlyHint"] for n, t in tools.items() if n != "write_file"))
+            self.assertIs(tools["write_file"]["annotations"]["readOnlyHint"], False)   # őszintén író
+            self.assertIn("text", tools["file_diff"]["inputSchema"]["properties"])
             self.assertEqual(client.request("ping")["result"], {})
 
             code = client.call("page_code", repo=SLUG, api=1)
@@ -57,6 +60,14 @@ class McpServerTest(HomeTestCase):
             self.assertIsInstance(client.call("file_diff", repo=SLUG, sha=sha, path=path), dict)
             with self.assertRaises(AssertionError):            # opcióként menne a gitnek
                 client.call("file_diff", repo=SLUG, sha="--output=/tmp/x", path=path)
+            self.assertIn("text", client.call("file_diff", repo=SLUG, sha=sha, path=path, side="new", text=True))
+            tree = client.call("file_tree", repo=SLUG, sha=sha)
+            self.assertIn("bin/git-graph", [f["path"] for f in tree["files"]])
+            found = client.call("file_tree", repo=SLUG, sha=sha, grep="DIFF_MAX_LINES")
+            self.assertIn("git_graph/diff.py", [f["path"] for f in found["files"]])
+            write = client.request("tools/call", {"name": "write_file", "arguments": {
+                "repo": SLUG, "sha": sha, "path": "README.md", "text": "x", "base": ""}})["result"]
+            self.assertTrue(write["isError"])                   # commit sora nem írható
         finally:
             client.close()
 

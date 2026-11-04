@@ -5,14 +5,17 @@ képek képként.
 
 ## Működés
 
-A részletek-panel fájlsorai lenyithatók (a sorra kattintva — a fájlnév maga a
-GitHub-link marad): alatta a fájl diffje, a Claude app diff-nézetének mintájára —
-sorszám, `+`/`−`, a cserélt soroknál a megváltozott szavak erősebb háttérrel, a
-hunkok közt „N változatlan sor”. Az Uncommitted sornál az indexhez, a Stage-elt sornál a HEAD-hez képesti diff,
+A részletek-panel fájlsorai lenyithatók (a sorra kattintva): alatta a fájl diffje. A fájlfejlécben
+a GitHub-ikon közvetlenül a fájlnév után áll (pusholt commitnál), a jobb szélén a teljes képernyő
+ikonja ([Fájlfa és teljes nézet](full-view.md)). A kódfájl diffjét a CodeMirror rajzolja — sorszám,
+`+`/`−`, a cserélt soroknál a megváltozott részek erősebb háttérrel, a változatlan rés „N változatlan
+sor”, egy kattintásra nyílik; részletek, szerkesztés és a WIP-réteg: [Kóddiff és szerkesztés](code-diff.md).
+Az Uncommitted sornál az indexhez, a Stage-elt sornál a HEAD-hez képesti diff,
 követetlen fájlnál a teljes tartalom hozzáadottként. Ha a diff legalább 1000 px
 széles (széles Artifact-ablak), **side-by-side** nézetre vált:
 balra a régi, jobbra az új oldal, a cserélt sorok egymás mellett — átméretezéskor
-magától, újratöltés nélkül.
+magától, újratöltés nélkül. A markdown / SVG nézetváltó a diff saját felső sávjában áll; a renderelt
+markdownban a legalább 3 változatlan blokk csukva („N változatlan blokk”), egy kattintásra nyílik.
 
 A lenyitott fájlsor és a diffje egy kerek kártya, mint a lenyitott commit: a sor
 hover-színéből nyílik (a közepéről halványul, közben megjelenik a kerete és az árnyéka), a
@@ -21,7 +24,8 @@ csukódnak, és újranyitva csukva vannak.
 
 A diff nincs a teljes adatban: a lap lenyitáskor kéri, fájlonként (a
 `file_diff` toollal). A commitok diffje gyorstárazva, az
-Uncommitted soré élőben frissül. Egy fájlból legfeljebb 3000 sor látszik.
+Uncommitted soré élőben frissül. Oldalanként 2 MB-ig a teljes fájl látszik; fölötte a diff
+csonkolva, legfeljebb 3000 sor.
 
 ### Képek
 
@@ -167,8 +171,9 @@ Feature: A fájl-diff: képek és a lenyitott kártya
 
 ## Használat
 
-- A részletek-panelben a fájlsorra kattintva nyílik és csukódik a diff; a fájlnév a
-  GitHub-link.
-- Markdown-fájlnál a jobb felső kétgombos kapcsoló vált a renderelt és a nyers diff között;
-  SVG-nél a kép és a kód között. A lap mindkettőt megjegyzi.
+- A részletek-panelben a fájlsorra kattintva nyílik és csukódik a diff; a fájlnév utáni ikon a
+  fájlt a GitHubon nyitja.
+- Markdown-fájlnál a diff felső sávjának kétgombos kapcsolója vált a renderelt és a nyers diff
+  között; SVG-nél a kép és a kód között. A lap mindkettőt megjegyzi.
+- A fájlfejléc jobb szélső ikonja a fájlt teljes képernyőn nyitja.
 - A side-by-side nézethez szélesítsd az Artifact ablakát (a diff legalább 1000 px).

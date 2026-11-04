@@ -2,12 +2,13 @@
 import { cardState, closeCard, glide, grow, openCard, shrink } from './anim.js';
 import { avatarOf } from './avatars.js';
 import { fmtDate } from './dates.js';
-import { mdRaw, openFiles, setMdRaw, setSvgCode, svgCode, toggleFile } from './diff.js';
+import { forgetFile, mdRaw, openFiles, setMdRaw, setSvgCode, svgCode, toggleFile } from './diff.js';
 import { OPEN_PANEL, pendingEl, rowsEl, scroller } from './dom.js';
+import { openFromPanel } from './full.js';
 import { drawGraph } from './graph.js';
 import { fileIcon, icon } from './icons.js';
 import { fitWho } from './layout.js';
-import { commitBySha } from './model.js';
+import { commitBySha, wipCounts, wipHtml } from './model.js';
 import { fitPanel, followPending, revealCommit } from './panel.js';
 import { commitUrl, fileUrl, linkify } from './refs.js';
 import { rowOf, select } from './scroll.js';
@@ -32,6 +33,7 @@ const pathHtml = (path, from = Infinity) => {
     + (j < i ? `<span class="dir-st">${esc(path.slice(j, i))}</span>` : '') + esc(path.slice(i)))
     .replaceAll(' =&gt; ', ' <span class="rename-arrow">»</span> ');   // a `--numstat` átnevezés-nyila
 };
+
 
 /* Összevont követetlen mappa (pl. `node_modules/`): egy sor a fájlszámával, diff nélkül. */
 const dirHtml = f => `<div class="file-dir"><span></span>${icon('folder', 'ic fic')}
@@ -80,7 +82,7 @@ function bodyHtml(c) {
 /* A felhasználó csukta be a commitot (`panel`): a lenyitott fájljai vele együtt csukódnak, és
    legközelebb csukva nyílnak. */
 function foldFiles(panel, sha) {
-  for (const k of [...openFiles]) if (k.startsWith(sha + '\n')) openFiles.delete(k);
+  for (const k of [...openFiles]) if (k.startsWith(sha + '\n')) forgetFile(k);
   for (const f of panel.querySelectorAll('.file[aria-expanded="true"]')) {
     const box = /** @type {HTMLElement} */ (f.nextElementSibling), before = cardState(f);
     f.setAttribute('aria-expanded', 'false');
@@ -108,9 +110,10 @@ export function open(sha, animate = false) {
 
   const c = commitBySha(sha);
   const st = DATA.stats[sha] || { files: [], add: 0, del: 0 };
+  const wip = wipCounts(sha);
 
   const el = document.createElement('div');
-  el.className = 'details';
+  el.className = c.uncommitted ? 'details wip-tone' : 'details';
   el.innerHTML = `
     ${headHtml(c)}
     ${c.body ? `<p class="body-text">${bodyHtml(c)}</p>` : ''}
@@ -120,10 +123,11 @@ export function open(sha, animate = false) {
         <span class="d" style="color:var(--del)">−${st.del}</span></div>
       ${st.files.map(f => f.count ? dirHtml(f) : `<div class="file" tabindex="-1" data-path="${esc(f.path)}" aria-expanded="false">
         <span class="chev">${icon('chev')}</span>${fileIcon(f)}
-        <span class="path${{ A: ' added', D: ' deleted' }[f.status] ?? ' modified'}">${pathHtml(f.path, f.dirFrom)}</span>
+        <span class="name"><span class="path${{ A: ' added', D: ' deleted' }[f.status] ?? ' modified'}">${pathHtml(f.path, f.dirFrom)}</span>${
+          c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : ''}</span>
         <span class="churn">${f.bin ? sizeHtml(f.size)
-          : `${f.add ? `<span class="a">+${f.add}</span>` : ''}${f.del ? `<span class="d">−${f.del}</span>` : ''}${bars(f)}`}</span>
-        ${c.pushed ? ghLink(fileUrl(c, f), icon('open'), 'mini', 'Fájl megnyitása a GitHubon') : '<span></span>'}</div>
+          : `${f.add ? `<span class="a">+${f.add}</span>` : ''}${f.del ? `<span class="d">−${f.del}</span>` : ''}${wipHtml(wip.get(f.path))}${bars(f)}`}</span>
+        <button type="button" class="mini file-full" data-full aria-label="Teljes képernyő" data-tip="Teljes képernyő">${icon('expand')}</button></div>
         <div class="diff" hidden></div>`).join('')}
       ${st.more ? `<div class="files-note">+${fmtInt(st.more)} további fájl</div>` : ''}
       ${st.ignored ? `<div class="files-note">${fmtInt(st.ignored)} fájl rejtve (.gitignore)</div>` : ''}
@@ -193,6 +197,8 @@ function onListClick(e) {
     grow(body, () => { body.innerHTML = bodyHtml(c); }, () => revealCommit(panel, true));
     return;
   }
+  const full = e.target.closest('[data-full]');
+  if (full) { openFromPanel(full.closest('.file'), expanded); return; }
   const file = e.target.closest('.file');
   if (file) { toggleFile(file, expanded, file.getAttribute('aria-expanded') !== 'true'); return; }
   if (e.target.closest('.details')) return;   // a panelben kattintás ne csukja be
@@ -205,7 +211,8 @@ rowsEl.addEventListener('click', onListClick);
 pendingEl.addEventListener('click', onListClick);
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && expanded && !menuOpen()) closeCommit();
+  // szerkesztés közben az Esc a szerkesztést zárja (a CodeMirror kezeli, `defaultPrevented`)
+  if (e.key === 'Escape' && expanded && !menuOpen() && !e.defaultPrevented) closeCommit();
 });
 
 /* Bezárás felcsukással: a commit azonnal zárt (`expanded`), a panel a

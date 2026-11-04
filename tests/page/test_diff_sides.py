@@ -1,9 +1,8 @@
-"""A diff (a `.md` renderelt és a kódfájl nyers diffje): a csak beszúrt vagy csak törölt szavú
+"""A markdown renderelt diffje: a csak beszúrt vagy csak törölt szavú
 sornál egy változat látszik."""
 from __future__ import annotations
 
 import unittest
-from contextlib import contextmanager
 from pathlib import Path
 
 from harness import PageTestCase, commit_versions
@@ -130,7 +129,6 @@ FILES = {
 # JS-részletek a lap elemeinek kiolvasásához: `e` osztálya a `base` nélkül, a kiemelt szövegei
 CLS = "e.className.replace(/{}/g, '').trim()"
 MARKS = "[...e.querySelectorAll('mark')].map(m => m.textContent)"
-LINE = f"e => [{CLS.format('diff-line|mono')}, e.querySelector('.tx').textContent, {MARKS}]"   # nyers sor
 
 
 class MdDiffTest(PageTestCase):
@@ -139,15 +137,6 @@ class MdDiffTest(PageTestCase):
     @classmethod
     def prepare(cls, repo: Path) -> None:
         commit_versions(repo, FILES, cls.SUBJECT)
-
-    @contextmanager
-    def raw_view(self):
-        """A markdown nyers diffje; a végén vissza (a lap megjegyzi), hiba esetén is."""
-        self.page.locator('[data-md-mode="raw"]').first.click()
-        try:
-            yield
-        finally:
-            self.page.locator('[data-md-mode="rendered"]').first.click()
 
     def test_one_sided_paragraph(self) -> None:
         self.open_file("doksi.md")
@@ -224,9 +213,10 @@ class MdDiffTest(PageTestCase):
         self.resize(1100)          # keskenyebben más a tördelés: újra egyforma
         a, b = heights()
         self.assertEqual(a, b)
+        # a 3-nál rövidebb változatlan futam nem csukódik össze: minden sor látszik
         self.assertEqual(sides, [
-            ["Név", "···", "s1", "s2", "s3", "s4", "···", "s7", "", "s8", "···"],
-            ["Név", "···", "s1", "s2", "s3", "s4", "···", "s7", "új", "s8", "···"],
+            ["Név", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "", "s8", "s9"],
+            ["Név", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "új", "s8", "s9"],
         ])
 
     def test_md_table_row_one_sided(self) -> None:
@@ -301,17 +291,6 @@ class MdDiffTest(PageTestCase):
         to_sub, to_next = tops[1][0] - tops[0][1], tops[2][0] - tops[1][1]
         self.assertLess(to_sub, to_next)
 
-    def test_raw_unpaired_side_by_side(self) -> None:
-        """Nyers side-by-side: a két pár közti pár nélküli törölt és új sor egy sorban."""
-        self.resize(1400)
-        self.open_file("rend.md")
-        with self.raw_view():
-            self.page.wait_for_selector(".diff-split .split-row")
-            rows = self.page.locator(".diff-split .split-row").evaluate_all(
-                "rs => rs.map(r => [...r.querySelectorAll('.half')].map(h => h.querySelector('.tx')?.textContent ?? null))")
-        self.assertIn(["Régi egy szöveg.", "Új első tartalom."], rows)
-        self.assertIn(["Régi kettő szöveg.", "Új második tartalom."], rows)
-
     def test_md_table_last_row(self) -> None:
         """A táblázat utolsó sorának új változata a régi mellé kerül, akkor is, ha utána egy bekezdés kimaradt."""
         self.resize(1400)
@@ -327,75 +306,15 @@ class MdDiffTest(PageTestCase):
             [[["P", "Kivett bekezdés.", "del"]], [["P", "", "md-none"]]],
         ])
 
-    def test_md_toggle_floats(self) -> None:
-        """A nézetváltó lebegő szegmens: nem foglal helyet, a tartalom a diff tetején kezdődik, mindkét nézetben."""
+    def test_md_toggle_own_bar(self) -> None:
+        """A nézetváltó a diff saját felső sávjában: a tartalom alatta kezdődik, nem lóg rá, mindkét nézetben."""
         self.open_file("kihagy.md")
         for width, view in ((1400, ".diff-split"), (900, ".diff-uni")):
             self.resize(width)
-            box, first = self.page.evaluate(
-                f"[document.querySelector('.diff:has(.md-seg)'), document.querySelector('{view}').firstElementChild]"
-                ".map(e => e.getBoundingClientRect().top)")
-            self.assertLess(first - box, 10, view)        # csak a doboz belső margója, nincs üres sor
-        self.assertEqual(self.page.locator(".md-seg").evaluate("b => getComputedStyle(b).position"), "absolute")
-
-    def test_raw_one_sided_run(self) -> None:
-        """Nyers side-by-side, csak beszúrásos futam: a sorok felülről egymás mellett (nincs lyuk), és az
-        egészében új sor teljes zöld (nem semleges)."""
-        self.resize(1400)
-        self.open_file("tordel.md")
-        with self.raw_view():
-            self.page.wait_for_selector(".diff-split .split-row")
-            rows = self.page.locator(".diff-split .split-row").evaluate_all(
-                "rs => rs.map(r => [...r.querySelectorAll('.half')].map(e => e.querySelector('.tx')"
-                f" ? [{CLS.format('half')}, e.querySelector('.tx').textContent, {MARKS}.join('|')] : null))")
-        texts = [[c and c[1] for c in r] for r in rows]
-        at = texts.index(["- **Egy**: első pont.", "- **Egy**: első pont."])
-        self.assertEqual(texts[at + 1][0], "- **Kivétel**: doksi, config, egyeztetés alatt álló finomítás. Ha")
-        self.assertEqual(texts[at + 1][1], "- **Kivétel**: doksi, config, az AI-nak szóló szöveg,")
-        whole = next(r[1] for r in rows if r[1] and r[1][1] == "része lesz, különben nem fut.")
-        self.assertEqual(whole, ["add", "része lesz, különben nem fut.", ""])     # egészében új: teljes zöld
-
-    def test_whole_new_line_stays_green(self) -> None:
-        """Csak beszúrásos futamban az egészében új sor teljes zöld, csak a szavas változás semleges."""
-        self.open_file("jog.json")
-        self.page.wait_for_selector(".diff .diff-line")
-        lines = self.page.locator(".diff .diff-line").evaluate_all(
-            f"ls => ls.filter(e => /add|del/.test(e.className)).map({LINE})")
-        self.assertEqual(lines, [
-            ["add only", '  "Bash(git reset --hard*)",', [","]],
-            ["add", '  "Bash(git mv *)",', []],
-            ["add", '  "Bash(git rm *)"', []],
-        ])
-
-    def test_raw_rewrap_unchanged(self) -> None:
-        """Tiszta újratördelés a nyers diffben: változatlan sorként, jel és szín nélkül, mindkét nézetben."""
-        self.resize(1400)
-        self.open_file("ujratord.md")
-        with self.raw_view():
-            self.page.wait_for_selector(".diff-split .split-row")
-            half = (f"e => e.querySelector('.tx') ? [{CLS.format('half')}, e.querySelector('.sg').textContent,"
-                    " e.querySelector('.tx').textContent] : null")
-            rows = self.page.locator(".diff-split .split-row").evaluate_all(
-                f"rs => rs.map(r => [...r.querySelectorAll('.half')].map({half}))")
-            uni = self.page.locator(".diff-uni .diff-line").evaluate_all(f"ls => ls.map({LINE})")
-        self.assertEqual(rows[:2], [
-            [["", "", "Első bekezdés sora"], ["", "", "Első bekezdés sora folytatás itt."]],
-            [["", "", "folytatás itt."], None],
-        ])
-        self.assertEqual(uni[0], ["", "Első bekezdés sora folytatás itt.", []])
-
-    def test_raw_deletion_rewrapped_line(self) -> None:
-        """Csak törlésnél a régi oldal szó nélkül változott (átkerült) sora változatlanként, jel nélkül."""
-        self.open_file("rovid.md")
-        with self.raw_view():
-            self.page.wait_for_selector(".diff .diff-line")
-            lines = self.page.locator(".diff .diff-line").evaluate_all(
-                f"ls => ls.map(e => [{CLS.format('diff-line|mono')}, e.querySelector('.sg').textContent,"
-                " e.querySelector('.tx').textContent.trim()])")
-        self.assertEqual(lines[1:], [
-            ["del only", "−", "command), és bármi egy plugin repóban."],
-            ["", "", "Ezt a Fejlesztő átolvassa."],
-        ])
+            seg, first = self.page.evaluate(
+                f"[document.querySelector('.md-seg').getBoundingClientRect().bottom,"
+                f" document.querySelector('{view}').firstElementChild.getBoundingClientRect().top]")
+            self.assertLessEqual(seg, first + 1, view)
 
     def test_md_rewrap_hidden(self) -> None:
         """A markdown-nézetben a csak újratördelt kódblokk nem változás: nem látszik, csak a valódi csere."""
@@ -406,34 +325,6 @@ class MdDiffTest(PageTestCase):
             self.assertNotIn("kiléptette", text, view)
             self.assertIn("zárás", text, view)
 
-    def test_one_sided_code_line(self) -> None:
-        self.open_file("kod.py")
-        self.page.wait_for_selector(".diff-uni .diff-line")
-        lines = self.page.locator(".diff-uni .diff-line").evaluate_all(f"ls => ls.map({LINE})")
-        self.assertEqual(lines, [
-            ["add only", "x = hivas(a, b)", [", b"]],
-            ["", "y = 1", []],
-            ["del only", "z = masik(a, b, c)", [", b, c"]],
-            ["", "w = 2", []],
-            ["del", "v = csere(a)", ["csere"]],
-            ["add", "v = mas(a)", ["mas"]],
-        ])
-
-    def test_one_sided_split(self) -> None:
-        """Side-by-side: az érintetlen oldal változatlan sorként, a másik `only`."""
-        self.resize(1400)
-        self.open_file("kod.py")
-        self.page.wait_for_selector(".diff-split .split-row")
-        rows = self.page.locator(".diff-split .split-row").evaluate_all(
-            f"rs => rs.map(r => [...r.querySelectorAll('.half')].map(e => {CLS.format('half')}"
-            " + ':' + e.querySelector('.sg').textContent))")
-        self.assertEqual(rows, [
-            [":", "add only:+"],
-            [":", ":"],
-            ["del only:−", ":"],
-            [":", ":"],
-            ["del:−", "add:+"],
-        ])
 
 
 if __name__ == "__main__":

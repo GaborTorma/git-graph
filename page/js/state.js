@@ -15,7 +15,13 @@ export const setData = (/** @type {GraphData} */ d) => { DATA = d; };
 
 /** @type {string | null} */
 export let expanded = null;      // a kinyitott commit sha-ja
-export const setExpanded = (/** @type {string | null} */ sha) => { expanded = sha; };
+const expandedWatchers = [];       // a kinyitott commit változására (a sidebar fája követi)
+export const onExpanded = (/** @type {() => void} */ fn) => { expandedWatchers.push(fn); };
+export const setExpanded = (/** @type {string | null} */ sha) => {
+  const was = expanded;
+  expanded = sha;
+  if (sha !== was) expandedWatchers.forEach(fn => fn());
+};
 
 export let visible = DATA.commits; // szűrés utáni lista
 export const setVisible = (/** @type {Commit[]} */ list) => { visible = list; };

@@ -118,8 +118,8 @@ class FontWeightTest(CdsCase):
         self.assertEqual(weight("#branchBtn"), "395")
         self.assertEqual(weight(".repo-name"), "480")
         self.open_file("settings.py")
-        self.page.wait_for_selector(".diff .diff-line")
-        self.assertEqual(weight(".diff .diff-line"), "360")
+        self.page.wait_for_selector(".diff .cm-line")
+        self.assertEqual(weight(".diff .cm-line"), "360")
 
 
 class LightTokensTest(CdsCase):
@@ -159,7 +159,7 @@ class SizesTest(CdsCase):
         self.assertEqual(self.style("#rows .badge", "fontSize"), "12px")
         self.assertEqual(self.box("#rows .badge")["height"], 20)
         self.assertEqual(self.box("#rows .row:not(:has(.refs))")["height"], 34)
-        for ctrl in (".search", "#branchBtn", "#settingsBtn"):
+        for ctrl in (".search", "#branchBtn", "#sideBtn"):
             self.assertEqual(self.box(ctrl)["height"], 32, ctrl)
             self.assertEqual(self.style(ctrl, "borderTopLeftRadius"), "8px", ctrl)
         track = self.box(".chrome .switch .track")
@@ -305,7 +305,7 @@ class ExpandTest(CdsCase):
     def test_expanded_file(self) -> None:
         """A lenyitott fájlsor és a diffje egy 12 px-es keret; a diff alja 11 px."""
         self.open_file("settings.py")
-        self.page.wait_for_selector("#rows .details .diff .diff-line")
+        self.page.wait_for_selector("#rows .details .diff .cm-line")
         self.settle()
         file = self.page.locator('#rows .details .file[aria-expanded="true"]')
         diff = self.page.locator("#rows .details .file + .diff:not([hidden])")
@@ -647,7 +647,7 @@ class SegmentTest(CdsCase):
         raw = self.page.locator('.diff .md-seg [data-md-mode="raw"]')
         self.assertEqual(raw.get_attribute("aria-pressed"), "false")
         raw.click()
-        self.page.wait_for_selector(".diff .diff-line")
+        self.page.wait_for_selector(".diff .cm-line")
         self.assertEqual(self.page.locator('.diff .md-seg [data-md-mode="raw"]').get_attribute("aria-pressed"), "true")
         self.assertEqual(self.page.locator('.diff .md-seg [data-md-mode="rendered"]').get_attribute("aria-pressed"), "false")
 
@@ -656,7 +656,7 @@ class SegmentTest(CdsCase):
         self.open_file("logo.svg")
         self.page.wait_for_selector(".diff .img-fig")
         self.page.locator('.diff .md-seg [data-svg-mode="code"]').click()
-        self.page.wait_for_selector(".diff .diff-line")
+        self.page.wait_for_selector(".diff .cm-line")
         self.assertEqual(self.page.locator('.diff .md-seg [data-svg-mode="code"]').get_attribute("aria-pressed"), "true")
         self.assertEqual(self.page.locator('.diff .md-seg [data-svg-mode="image"]').get_attribute("aria-pressed"), "false")
 
@@ -785,8 +785,8 @@ class SearchHighlightTest(CdsCase):
 
 class ControlsTest(CdsCase):
     def test_trigger_button(self) -> None:
-        """A lenyíló gomb és a fogaskerék az app Select-je: halvány mező, 1 px-es keret, hoverre erősebb."""
-        for btn in ("#branchBtn", "#settingsBtn"):
+        """A lenyíló gomb és a sidebar gombja az app Select-je: halvány mező, 1 px-es keret, hoverre erősebb."""
+        for btn in ("#branchBtn", "#sideBtn"):
             self.assertEqual(self.style(btn, "backgroundColor"), "rgba(255, 255, 255, 0.5)", btn)
             self.assertEqual(self.style(btn, "boxShadow"), "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px inset", btn)
             self.page.locator(btn).hover()

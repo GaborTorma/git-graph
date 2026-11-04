@@ -30,6 +30,15 @@ class PublishTest(HomeTestCase):
         self.assertTrue(steps.startswith('1) Artifact, action: "read", url: https://claude.ai/artifact/x'))
         self.assertIn("uj_tool", steps)
 
+    def test_caps_tools(self) -> None:
+        """A lap capability-je a fájlfa és az író tool hívását is engedi."""
+        # Adott a publikálás capability-deklarációja
+        gg = self.load()
+        # Ha a lap toolai közt keresünk
+        tools = gg.publish.PUBLISH_CAPS["mcp"]["servers"][0]["tools"]
+        # Akkor az MCP szerver minden toolja benne van
+        self.assertEqual(set(tools), {t["name"] for t in gg.mcp.MCP_TOOLS})
+
     def test_mark_published_needs_page(self) -> None:
         gg = self.load()
         gg.gitio.set_repo(self.plain_repo())

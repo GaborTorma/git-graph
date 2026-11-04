@@ -10,6 +10,7 @@ import { clock } from './dates.js';
 import { diffCache, setSource } from './diff.js';
 import { rowsEl, scroller } from './dom.js';
 import { applyFilters } from './filters.js';
+import { refreshFull } from './full.js';
 import { hydrate, hydrateFocus } from './hydrate.js';
 import { mcpFatal, mcpProblem } from './mcp.js';
 import { focusWt, setFocusAuto } from './model.js';
@@ -114,12 +115,16 @@ export function startLive(src) {
           const t1 = performance.now();
           setData(await src.data());
           const td = performance.now() - t1;
-          for (const [k, v] of diffCache) if (k.startsWith('*uncommitted') || k.startsWith('*staged')) v.stale = true;
+          // elavul a WIP sorok diffje és a HEAD-commit lemez szövegét mutató kódnézete (`head`: WIP-réteg)
+          for (const [k, v] of diffCache) {
+            if (k.startsWith('*uncommitted') || k.startsWith('*staged') || v.data?.head != null) v.stale = true;
+          }
           const top = scroller.scrollTop;
           hydrate();
           fillBranches();
           applyFilters();
           scroller.scrollTop = top;
+          refreshFull();
           change = `\nutolsó változás ${clock()}: adat ${Math.round(td)} ms,`
             + ` kirajzolva ${Math.round(performance.now() - t1)} ms alatt`;
         }
