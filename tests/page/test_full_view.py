@@ -202,6 +202,20 @@ class FullViewTest(PageTestCase):
         self.page.wait_for_selector(".fv-box .diff-note:not(.loading)")
         self.assertEqual(self.page.locator(".fv-box").inner_text().strip(), "A fájl ebben a commitban nincs meg.")
 
+    def test_head_matches_chrome(self) -> None:
+        """A teljes képernyő fejlécében a repó neve és a HEAD-chip ugyanott áll, mint a lap fejlécében, és a két
+        fejléc egyforma magas: az app fejlécéé (44 px)."""
+        where = """sel => { const b = s => document.querySelector(sel + ' ' + s).getBoundingClientRect();
+          const n = b('.repo-name'), c = b('.head-chip'), h = document.querySelector(sel).getBoundingClientRect();
+          return [n.left, n.top + n.height / 2, c.left, c.top + c.height / 2, h.height]; }"""
+        chrome = self.page.evaluate(where, ".chrome")
+        self.open_commit()
+        self.open_full()
+        head = self.page.evaluate(where, ".fv-head")
+        for a, b in zip(chrome, head):
+            self.assertAlmostEqual(a, b, delta=0.5)
+        self.assertAlmostEqual(chrome[4], 44, delta=0.5)
+
     def test_grep_follows_diff_filter(self) -> None:
         """A tartalomkeresés a diff-szűrővel csak a változott fájlok találatait mutatja, kikapcsolva mindet."""
         self.open_commit()

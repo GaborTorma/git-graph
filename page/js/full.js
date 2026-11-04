@@ -423,9 +423,10 @@ export function openFull(sha, path, o = {}) {
   el.className = 'fv';
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-label', 'Teljes képernyő');
-  el.innerHTML = '<div class="fv-head">'
+  // a repó neve és a chip a lap fejlécének szerkezetében (`.repo`): ugyanott állnak
+  el.innerHTML = '<div class="fv-head"><div class="repo">'
     + `<span class="repo-name">${esc(document.getElementById('repoName')?.textContent || '')}</span>`
-    + '<span class="fv-chip"></span><div class="fv-path"></div>'
+    + '<span class="fv-chip"></span></div><div class="fv-path"></div>'
     + `<label class="search fv-find">${icon('search')}<input type="search" placeholder="Keresés a fájlban"`
     + ' aria-label="Keresés a fájlban" spellcheck="false"></label>'
     + '<button type="button" class="select gear fv-close" data-fv-close aria-label="Kilépés a teljes képernyőből (Esc)"'
