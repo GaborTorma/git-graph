@@ -495,6 +495,13 @@ export class CodeDiff {
     if (!this.ed || text == null || (hash && this.seen.has(hash))) return;
     if (hash) this.seen.add(hash);
     const mine = this.text(), base = this.saved;
+    if (text === mine) {                          // a lemez már a mi szövegünk: nincs mit befésülni, nem ütközés
+      this.base = hash ?? this.base;
+      this.saved = text;
+      this.d = { ...this.d, new: text };
+      clearTimeout(this.timer);
+      return;
+    }
     if (mine === base) {                          // nincs nem mentett változás: a lemezé
       const ch = this.changes(mine, text);
       this.apply({ changes: ch });
@@ -577,7 +584,12 @@ export class CodeDiff {
     const wipNow = d.head != null && !d.big;
     if (Boolean(d.big) !== Boolean(this.d.big) || wipNow !== Boolean(this.wipField)) {
       const keepText = this.editing ? this.text() : null, hidden = this.hiddenLines();
+      const was = { base: this.base, saved: this.saved, seen: this.seen };
       this.set(d);
+      // a mentés állapota megmarad: ha az új adat egy már látott (akár a legutóbbi mentésnél régebbi) lemezállapot,
+      // a legutóbbi ismert a miénk — különben a saját mentésünk később külső változásnak (ütközésnek) látszana
+      this.seen = new Set([...was.seen, ...this.seen]);
+      if (d.hash && was.seen.has(d.hash)) Object.assign(this, { base: was.base, saved: was.saved });
       if (keepText != null) this.d = { ...this.d, new: keepText };
       this.build(this.wantMode());
       this.keepVisible(hidden);

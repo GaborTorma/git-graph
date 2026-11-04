@@ -240,6 +240,24 @@ class WipEmptyLineTest(PageTestCase):
         self.assertEqual(self.covered(sel, ".cm-deletedChunk"), ["cm-deletedChunk", "cm-selectionBackground"])
 
 
+class WipSameTextTest(WipEmptyLineTest):
+    """A lemezre a nézet nem mentett szövegével azonos tartalom kerül (saját repó: ír)."""
+
+    def test_same_text_no_conflict(self) -> None:
+        """Ha a lemez szövege megegyezik a nem mentett szöveggel, az nem ütközés: nincs ütközés-doboz."""
+        sel = self.open_e('#rows .row:has-text("ures: a commit")')
+        self.page.locator(f"{sel} .cm-line", has_text="TESZT").dblclick()
+        self.page.keyboard.press("End")
+        self.page.keyboard.type("x")
+        (self.repo / "e.py").write_text("a = 1\nTESZTx\nb = 2\n", encoding="utf-8")
+        self.poke()
+        self.page.wait_for_timeout(1500)
+        self.assertEqual(self.page.locator(f"{sel} .cm-conflict").count(), 0)
+        self.assertEqual((self.repo / "e.py").read_text(encoding="utf-8"), "a = 1\nTESZTx\nb = 2\n")
+
+    test_empty_old_line_shown = test_wip_row_empty_line = None
+
+
 class WipRejectTest(WipCase):
     """Az elvetés a lemezre ír: saját repó, hogy a többi teszt lemezállapota ne változzon."""
 
