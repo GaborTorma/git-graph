@@ -110,6 +110,18 @@ class WipLayerTest(WipCase):
         red = [t.strip() for t in self.page.locator(f"{SEL} .cm-deletedChunk").all_inner_texts()]
         self.assertNotIn("s12 = 12", red)
 
+    def test_typing_no_commit_colors(self) -> None:
+        """Gépelés közben (a merge alapjának késleltetett frissítése előtt) sincs piros / zöld a gépelt soron."""
+        self.open_app()
+        state = self.page.evaluate(f"""async sel => {{ const v = {VIEW}; const l = v.state.doc.line(12);
+          v.dispatch({{ changes: {{ from: l.from, insert: 'szo ' }} }});
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const line = [...document.querySelectorAll(sel + ' .cm-line')].find(x => x.textContent === 'szo s12 = 12');
+          return [line.className, [...document.querySelectorAll(sel + ' .cm-deletedChunk')].map(x => x.textContent.trim())]; }}""", SEL)
+        self.assertIn("cm-wipLine", state[0])
+        self.assertNotIn("cm-changedLine", state[0])
+        self.assertNotIn("s12 = 12", state[1])
+
     def test_enter_adds_one_line(self) -> None:
         """Enter egy behúzott sor végén: csak az új üres sor kék, a következő sor nem lesz narancs és kék is."""
         self.open_app(name="beh.py")

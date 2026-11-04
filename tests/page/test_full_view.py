@@ -642,11 +642,13 @@ class PlainEditTest(PageTestCase):
     def prepare(cls, repo: Path) -> None:
         FullViewTest.prepare(repo)
 
-    def open_plain(self) -> None:
+    def open_plain(self, name: str = "git_graph/diff.py") -> None:
         self.page.locator("#sideBtn").click()
         self.page.wait_for_selector(".side .fv-list .fv-row")
-        self.page.locator('.side .fv-row[data-dir="git_graph"]').click()
-        self.page.locator('.side .fv-file[data-path="git_graph/diff.py"]').click()
+        parts = name.split("/")[:-1]
+        for i in range(len(parts)):
+            self.page.locator(f'.side .fv-row[data-dir="{"/".join(parts[:i + 1])}"]').click()
+        self.page.locator(f'.side .fv-file[data-path="{name}"]').click()
         self.page.wait_for_selector(".fv .fv-box .cm-editor")
         self.settle()
 
@@ -664,6 +666,31 @@ class PlainEditTest(PageTestCase):
         self.page.wait_for_function(f"""() => [...document.querySelectorAll('{box} .cm-line')]
           .some(l => l.textContent === 'x = 20' && l.classList.contains('cm-wipLine'))""")
         self.page.wait_for_function(f"!document.querySelector('{box} :is(.cm-changedLine, .cm-deletedChunk)')")
+
+
+class PlainSaveTest(PageTestCase):
+    """Commit nélkül szerkesztve a WIP sorra váltó nézet nem csukja össze a fájlt (saját repó: ír)."""
+    WIDTH, HEIGHT = 1100, 760
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        FullViewTest.prepare(repo)
+
+    def test_switch_keeps_file_open(self) -> None:
+        # Adott a HEAD-commit által módosított diff.js commit nélkül (az egész fájl látszik), szerkesztés közben
+        PlainEditTest.open_plain(self, "page/js/diff.js")
+        box = ".fv .fv-box"
+        self.page.locator(f"{box} .cm-line", has_text="const sor5 = 5;").dblclick()
+        self.page.keyboard.press("End")
+        self.page.keyboard.type(" // x")
+        # Ha a mentés után a WIP sor megjelenik és kijelölődik
+        self.page.wait_for_timeout(1500)
+        self.poke()
+        self.page.wait_for_selector(".fv-commits .fv-commit:first-child.sel")
+        self.settle()
+        # Akkor a fájl többi része is látszik (nincs összecsukva)
+        self.assertEqual(self.page.locator(f"{box} .cm-collapsedLines").count(), 0)
+        self.assertEqual(self.page.locator(f"{box} .cm-diff.editing").count(), 1)
 
 
 class WipFullViewTest(PageTestCase):

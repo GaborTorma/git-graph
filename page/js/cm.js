@@ -114,13 +114,11 @@ export class CodeDiff {
     this.timer = 0;
     this.saving = null;
     this.rebaseTimer = 0;
-    this.shownOld = null;            // a merge régi oldala (WIP-réteggel egymás alatt nem a szülő: `origFor`)
     this.split = false;
     this.cc = null;                  // a szülő → HEAD blokkjai (`commitChunks`)
     this.wipField = null;
     this.gapOpen = null;             // a WIP-réteg résének nyitója a pozícióhoz (`collapseWip`)
     this.alignFrame = 0;
-    this.opened = new Set();         // a kinyitott rések sorai (újraépítéskor újra nyílnak: `openedLines`)
     this.wrote = false;              // írt már a lemezre (a teljes nézet commit nélkül ekkor a WIP sorra vált)
     this.edit = new CM.Compartment();
     this.set(d);
@@ -192,7 +190,6 @@ export class CodeDiff {
     this.mode = mode;
     this.split = mode === 'split';
     const orig = this.origFor(d.head, doc);
-    this.shownOld = orig;
     // a WIP-réteg (HEAD-commit, lemez szöveg): elvetés csak a WIP-blokkon, a rés a saját (`wipKit`)
     const wip = d.head != null && !d.big ? wipKit(CM) : null;
     this.wipField = wip ? wip.field(this) : null;
@@ -228,7 +225,8 @@ export class CodeDiff {
         ...this.extensions('b'),
         CM.unifiedMergeView({ original: orig, gutter: true, highlightChanges: true, syntaxHighlightDeletions: true,
                               mergeControls: controls, diffConfig: DIFF_CONFIG, ...collapse }),
-        ...layer, ...(wip ? [wip.widgetGutter] : []), ...(ownGaps ? [wip.gaps] : []),
+        ...layer, ...(wip ? [wip.widgetGutter, CM.EditorState.transactionExtender.of(tr => this.followOriginal(tr))] : []),
+        ...(ownGaps ? [wip.gaps] : []),
       ] }) });
       this.ea = null;
       if (ownGaps) this.collapseWip();
@@ -290,13 +288,6 @@ export class CodeDiff {
   }
 
   onUpdate(u) {
-    for (const tr of u.transactions) {
-      for (const e of tr.effects) {
-        if (e.is(this.CM.uncollapseUnchanged) || (this.wipField && e.is(wipKit(this.CM).openGap))) {
-          this.opened.add(tr.startState.doc.lineAt(Math.min(e.value, tr.startState.doc.length)).number);
-        }
-      }
-    }
     // a sormagasság változott (betöltött betű, szélesség): a bal oldal térközei újra (`alignWip`)
     if (u.geometryChanged && this.ea && this.wipField && !this.alignFrame) {
       this.alignFrame = requestAnimationFrame(() => { this.alignFrame = 0; this.alignWip(); });
@@ -310,17 +301,52 @@ export class CodeDiff {
     if (!this.conflict) this.timer = setTimeout(() => this.save(), SAVE_MS);
   }
 
-  /* A kinyitott rések sorai (a rés első sora), a mostani dokumentumban. */
-  openedLines() { return [...this.opened]; }
+  /* A csukott rések sorai ([első, utolsó]): a több sort átfogó (helyettesített) blokkok. */
+  hiddenLines() {
+    const ed = this.ed, out = [];
+    if (!ed) return out;
+    const doc = ed.state.doc;
+    for (let pos = 0; pos <= doc.length;) {
+      const b = ed.lineBlockAt(pos), first = doc.lineAt(b.from).number, last = doc.lineAt(b.to).number;
+      if (last > first) out.push([first, last]);
+      pos = b.to + 1;
+    }
+    return out;
+  }
 
-  /* A merge régi oldala (`shownOld`) az új alapra: egymás mellett a bal szerkesztő, egymás alatt az
+  /* Frissítés után ami addig látszott, látszik: az új csukott rés kinyílik, ha nem volt végig csukva (`before`). */
+  keepVisible(before) {
+    for (const [first, last] of this.hiddenLines()) {
+      if (!before.some(([a, b]) => a <= first && last <= b)) this.reveal(this.ed.state.doc.line(first).from);
+    }
+  }
+
+  /* Egymás alatt, WIP-réteggel a merge régi oldala ugyanabban a tranzakcióban követi a commit blokkjait nem
+     érintő gépelést (a `rebase` csak késleltetve): gépelés közben sincs piros / zöld a WIP-soron. */
+  followOriginal(tr) {
+    if (!tr.docChanged || !this.wipField || this.split) return null;
+    const CM = this.CM, chunks = CM.getChunks(tr.startState)?.chunks || [], specs = [];
+    tr.changes.iterChanges((fromB, toB, _fromNew, _toNew, insert) => {
+      let shift = 0;
+      for (const c of chunks) {
+        if (c.fromB <= toB && fromB <= c.toB) return;          // a merge (commit) blokkját érinti: a `rebase`-é
+        if (c.toB <= fromB) shift += (c.toA - c.fromA) - (c.toB - c.fromB);
+      }
+      specs.push({ from: fromB + shift, to: toB + shift, insert });
+    });
+    if (!specs.length) return null;
+    const len = CM.getOriginalDoc(tr.startState).length;
+    return { effects: CM.originalDocChangeEffect(tr.startState, CM.ChangeSet.of(specs, len)) };
+  }
+
+  /* A merge régi oldala az új alapra: egymás mellett a bal szerkesztő, egymás alatt az
      eredeti dokumentum változik. */
   setOriginal(next) {
-    const orig = this.shownOld ?? '';
+    // a mostani régi oldal (gépeléskor a `followOriginal` is írja)
+    const orig = this.ea ? this.ea.state.doc.toString() : this.ed ? this.CM.getOriginalDoc(this.ed.state).toString() : '';
     if (!this.ed || orig === next) return;
     if (this.ea) this.ea.dispatch({ changes: this.changes(orig, next) });
     else this.ed.dispatch({ effects: this.CM.originalDocChangeEffect(this.ed.state, this.changes(orig, next)) });
-    this.shownOld = next;
   }
 
   /* A merge régi oldala: WIP-réteggel egymás alatt a szülő a commitot nem érintő WIP-blokkokkal
@@ -550,15 +576,15 @@ export class CodeDiff {
     // mentett szöveg, a szerkesztés és a kinyitott rések maradnak.
     const wipNow = d.head != null && !d.big;
     if (Boolean(d.big) !== Boolean(this.d.big) || wipNow !== Boolean(this.wipField)) {
-      const keepText = this.editing ? this.text() : null, opened = this.openedLines();
+      const keepText = this.editing ? this.text() : null, hidden = this.hiddenLines();
       this.set(d);
       if (keepText != null) this.d = { ...this.d, new: keepText };
       this.build(this.wantMode());
-      for (const n of opened) if (n <= this.ed.state.doc.lines) this.reveal(this.ed.state.doc.line(n).from);
+      this.keepVisible(hidden);
       if (keepText != null && keepText !== this.saved) this.timer = setTimeout(() => this.save(), SAVE_MS);
       return;
     }
-    const headChanged = (d.head ?? null) !== (this.d.head ?? null);
+    const headChanged = (d.head ?? null) !== (this.d.head ?? null), hidden = this.hiddenLines();
     this.d = { ...this.d, old: d.old, head: d.head, editable: d.editable, write: d.write ?? this.d.write };
     this.setOriginal(this.origFor(this.wipField ? d.head ?? null : null, this.text()));
     if (headChanged && this.wipField) this.ed.dispatch({ effects: wipKit(this.CM).setHead.of(d.head ?? null) });
@@ -573,6 +599,7 @@ export class CodeDiff {
       this.flash(ch);
     }
     this.layout();                      // egyoldalúból kétoldalú lett: szélesen egymás mellett
+    if (this.ed) this.keepVisible(hidden);
   }
 
   /* ── Görgetés ── a nézet egy sora (az új oldalé) a görgető régió tetején. */
