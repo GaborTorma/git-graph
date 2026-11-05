@@ -119,6 +119,40 @@ class InstallTest(HomeTestCase):
         self.assertFalse(gg.install.install_app_mcp())
         self.assertEqual(config.read_text(encoding="utf-8"), "{")
 
+    def test_read_dir(self) -> None:
+        """A `~/.git-graph` a sessionök olvasható mappái közt: felvétel egyszer, a többi beállítás
+        marad; leszereléskor ki. Hibás beállításhoz nem nyúl."""
+        # Adott egy beállításfájl más mappával és más kulccsal
+        gg = self.load()
+        settings = gg.install.CLAUDE_SETTINGS
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        before = {"permissions": {"additionalDirectories": ["/mas"], "allow": ["x"]}, "egyeb": 1}
+        settings.write_text(json.dumps(before), encoding="utf-8")
+        # Ha kétszer telepít
+        self.assertTrue(gg.install.install_read_dir())
+        self.assertFalse(gg.install.install_read_dir())
+        # Akkor a mappa egyszer kerül be, a többi marad
+        data = json.loads(settings.read_text(encoding="utf-8"))
+        self.assertEqual(data["permissions"]["additionalDirectories"], ["/mas", str(gg.install.STATE_DIR)])
+        self.assertEqual(data["permissions"]["allow"], ["x"])
+        # Ha leszerel, az eredeti áll vissza
+        gg.install.uninstall()
+        self.assertEqual(json.loads(settings.read_text(encoding="utf-8")), before)
+        # Hibás fájlhoz nem nyúl
+        settings.write_text('{"permissions": []}', encoding="utf-8")
+        self.assertFalse(gg.install.install_read_dir())
+        self.assertEqual(settings.read_text(encoding="utf-8"), '{"permissions": []}')
+
+    def test_read_dir_new(self) -> None:
+        """Beállításfájl nélkül létrehozza; leszereléskor nem marad üres kulcs."""
+        gg = self.load()
+        settings = gg.install.CLAUDE_SETTINGS
+        self.assertTrue(gg.install.install_read_dir())
+        self.assertEqual(json.loads(settings.read_text(encoding="utf-8")),
+                         {"permissions": {"additionalDirectories": [str(gg.install.STATE_DIR)]}})
+        gg.install.uninstall()
+        self.assertEqual(json.loads(settings.read_text(encoding="utf-8")), {})
+
     def test_ensure_installed(self) -> None:
         """Csak a plugin hookjából (CLAUDE_PLUGIN_ROOT = a kód gyökere) telepít."""
         gg = self.load()

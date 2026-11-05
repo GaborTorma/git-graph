@@ -83,7 +83,7 @@ class HookTest(HomeTestCase):
         git_in(repo, "config", "git-graph.autoOpen", "false")
         self.assertEqual(self.open_url(repo, None), "https://claude.ai/artifact/x")
         git_in(repo, "config", "git-graph.artifactHash", "elavult")
-        self.assertTrue(self.open_url(repo, None).startswith('PUBLIKÁLD: 1) Artifact, action: "read"'))
+        self.assertTrue(self.open_url(repo, None).startswith("PUBLIKÁLD: 1) mcp__claude-artifacts__get_artifact"))
 
     def test_installs_from_plugin(self) -> None:
         """A plugin hookja (CLAUDE_PLUGIN_ROOT = a kód gyökere) a stabil másolatot is kiteszi."""

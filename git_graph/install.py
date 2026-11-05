@@ -38,6 +38,11 @@ MANIFEST = Path(".claude-plugin") / "plugin.json"
 # (a `claude mcp add`-os nem számít — mérve).
 APP_CONFIG = (Path.home() / "Library" / "Application Support" / "Claude"
               / "claude_desktop_config.json")
+# A Claude Code beállításai: a sessionök innen olvasható mappái
+# (`permissions.additionalDirectories`). Az Artifact `publish_files` csak olyan
+# fájlt csatol, amit a session olvashat (mérve, 2026-11-04 óta) — a lap
+# a `~/.git-graph`-ban van, a projektmappába nem írunk.
+CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
 # A rendszer Pythonja: az app minimális környezetében is megvan, és nem tűnik
 # el egy homebrew-frissítéssel.
 SYSTEM_PYTHON = "/usr/bin/python3"
@@ -232,6 +237,28 @@ def install_app_mcp() -> bool:
     return True
 
 
+def read_dirs(data: dict) -> list | None:
+    """A beállítások `additionalDirectories` listája (létrehozva); None, ha nem lista."""
+    perms = data.setdefault("permissions", {})
+    dirs = perms.setdefault("additionalDirectories", []) if isinstance(perms, dict) else None
+    return dirs if isinstance(dirs, list) else None
+
+
+def install_read_dir() -> bool:
+    """A `~/.git-graph` a Claude Code sessionök olvasható mappái közt; True, ha most került be."""
+    data = read_json(CLAUDE_SETTINGS)
+    dirs = None if data is None else read_dirs(data)
+    if dirs is None:
+        log(f"git-graph: {CLAUDE_SETTINGS} nem érvényes — a publikáláshoz kézzel kell "
+            f"felvenni: permissions.additionalDirectories += {STATE_DIR}")
+        return False
+    if str(STATE_DIR) in dirs:
+        return False
+    dirs.append(str(STATE_DIR))
+    write_json(CLAUDE_SETTINGS, data)
+    return True
+
+
 def ensure_installed() -> str | None:
     """Pluginból futva a gépi rész beállítása; a modellnek szóló üzenet, ha van.
 
@@ -249,6 +276,7 @@ def ensure_installed() -> str | None:
             # példány, a tartalom hashével — a szerver csak kódváltozásra indul
             # újra, és a `pull_update` nem másolja vissza a telepített verziót.
             dev_copy(ROOT, f"src.{source_digest(ROOT)}")
+    install_read_dir()
     if sys.platform != "darwin":
         return None
     if not install_app_mcp():
@@ -275,6 +303,16 @@ def uninstall() -> None:
         if not servers:
             data.pop("mcpServers")
         write_json(APP_CONFIG, data)
+    settings = read_json(CLAUDE_SETTINGS) if CLAUDE_SETTINGS.exists() else None
+    perms = (settings or {}).get("permissions")
+    dirs = perms.get("additionalDirectories") if isinstance(perms, dict) else None
+    if isinstance(dirs, list) and str(STATE_DIR) in dirs:
+        dirs.remove(str(STATE_DIR))
+        if not dirs:
+            perms.pop("additionalDirectories")
+            if not perms:
+                settings.pop("permissions")
+        write_json(CLAUDE_SETTINGS, settings)
     shutil.rmtree(STATE_DIR, ignore_errors=True)
 
 

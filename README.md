@@ -67,6 +67,9 @@ változáskor ír):
 - `~/Library/Application Support/Claude/claude_desktop_config.json` → `git-graph`
   MCP szerver (előtte mentés). Az app csak induláskor olvassa: ilyenkor a
   session szól, hogy **egyszer újra kell indítani**.
+- `~/.claude/settings.json` → `permissions.additionalDirectories` += `~/.git-graph`
+  (előtte mentés). A session innen publikálja az Artifact lapját, és csak olyan fájlt
+  csatolhat, amelyet olvashat.
 
 **Eltávolítás:** két lépés.
 

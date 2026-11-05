@@ -58,32 +58,38 @@ def prepare_publish() -> dict | None:
     page = artifact_path(gitio.REPO)
     page.parent.mkdir(parents=True, exist_ok=True)
     page.write_text(html_page, encoding="utf-8")
-    return {"page": page, "url": url}
+    return {"page": page, "url": url, "title": page_title(repo_name())}
 
 
 def publish_steps(job: dict) -> str:
     """A session teendője a lap publikálásához — a hook és a `git-graph --publish` adja a modellnek.
 
     Az Artifact API-t csak a modell éri el, ezért a publikálást a session
-    végzi (mérve, .claude/memory/publish-from-session.md): a `host:git-graph` akkor is
-    deklarálható, ha a session nem látja a szervert; egy meglévő Artifactra
-    viszont csak az élő verzió olvasása után publikálhat. Az URL-t és a hasht
-    a `--published` írja vissza — a hook a publikálás eredményét nem látja.
-    A `git-graph` a plugin `bin/`-jéből a Bash eszköz PATH-ján van (egy
-    `Bash(git-graph:*)` engedéllyel nem kérdez).
+    végzi (mérve, .claude/memory/publish-from-session.md), a `claude-artifacts`
+    eszközeivel. A lapot a `publish_files` a `~/.git-graph`-ból csatolja (a
+    telepítés olvashatóvá teszi: `install_read_dir`); a capability-t nem a
+    publikálás, hanem a `declare_capabilities` állítja — a republish a régit
+    viszi tovább. Az URL-t és a hasht a `--published` írja vissza — a hook a
+    publikálás eredményét nem látja. A `git-graph` a plugin `bin/`-jéből a Bash
+    eszköz PATH-ján van (egy `Bash(git-graph:*)` engedéllyel nem kérdez).
     """
     caps = json.dumps(PUBLISH_CAPS)
+    files = json.dumps([{"as": "index.html", "path": str(job["page"])}])
+    declare = ("mcp__claude-artifacts__read_declaration (slug); ha a capabilities eltér ettől: "
+               f"mcp__claude-artifacts__declare_capabilities — slug, base_version: a "
+               f"read_declaration verziója, capabilities: {caps}")
     record = (f"Bash: git-graph {shlex.quote(str(gitio.REPO))} --published <URL> "
               "(az URL a publish eredményéből)")
     # A publikálás magától nem nyitja meg a lapot (mérve: csak a kártya jelent
     # meg) — a hook pedig ebben a sessionben már nem kéri (`shown_in_session`).
-    show = "Artifact, action: \"open\", url: <URL>"
+    show = 'mcp__ccd_view__show_pane, pane: "artifact"'
     if job["url"]:
-        return (f"1) Artifact, action: \"read\", url: {job['url']}; 2) Artifact publish — url: "
-                f"{job['url']}, file_path: {job['page']}, capabilities: {caps}; 3) {record}; "
-                f"4) {show}.")
-    return (f"1) Artifact publish — file_path: {job['page']}, icon: \"branch\", "
-            f"capabilities: {caps}; 2) {record}; 3) {show}.")
+        return (f"1) mcp__claude-artifacts__get_artifact, slug: {job['url']}; "
+                "2) mcp__claude-artifacts__publish_files — slug, base_version: a get_artifact "
+                f"verziója (és shared_live: a read értéke, ha nem owner), files: {files}; "
+                f"3) {declare}; 4) {record}; 5) {show}.")
+    return (f"1) mcp__claude-artifacts__publish_files — title: {json.dumps(job['title'])}, "
+            f'icon: "branch", files: {files}; 2) {declare}; 3) {record}; 4) {show}.')
 
 
 def auto_open() -> bool:

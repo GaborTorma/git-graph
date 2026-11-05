@@ -6,7 +6,8 @@ from helpers import HomeTestCase
 
 class PublishTest(HomeTestCase):
     def test_flow(self) -> None:
-        """Nincs Artifact → lépések ikonnal; publikálva → naprakész; capability-változás → frissítés."""
+        """Nincs Artifact → lépések címmel, ikonnal, a lap fájljával; publikálva → naprakész;
+        capability-változás → frissítés az élő verzió olvasásával és a capability deklarálásával."""
         gg = self.load()
         repo = self.plain_repo()
         gg.gitio.set_repo(repo)
@@ -15,9 +16,11 @@ class PublishTest(HomeTestCase):
         self.assertEqual(job["page"], gg.publish.artifact_path(repo))
         self.assertIn("<title>Git Graph (plain)</title>", job["page"].read_text(encoding="utf-8"))
         steps = gg.publish.publish_steps(job)
-        self.assertIn('icon: "branch"', steps)
+        self.assertIn('title: "Git Graph (plain)", icon: "branch"', steps)
+        self.assertIn(f'"path": "{job["page"]}"', steps)
+        self.assertIn("declare_capabilities", steps)
         self.assertIn("--published <URL>", steps)
-        self.assertNotIn('action: "read"', steps)
+        self.assertNotIn("get_artifact", steps)
 
         gg.publish.mark_published("https://claude.ai/artifact/x")
         self.assertEqual(gg.gitio.config_get("artifact"), "https://claude.ai/artifact/x")
@@ -27,8 +30,9 @@ class PublishTest(HomeTestCase):
         job = gg.publish.prepare_publish()
         self.assertEqual(job["url"], "https://claude.ai/artifact/x")
         steps = gg.publish.publish_steps(job)
-        self.assertTrue(steps.startswith('1) Artifact, action: "read", url: https://claude.ai/artifact/x'))
-        self.assertIn("uj_tool", steps)
+        self.assertTrue(steps.startswith("1) mcp__claude-artifacts__get_artifact, slug: "
+                                         "https://claude.ai/artifact/x"))
+        self.assertIn("uj_tool", steps.split("declare_capabilities")[1])
 
     def test_caps_tools(self) -> None:
         """A lap capability-je a fájlfa és az író tool hívását is engedi."""
