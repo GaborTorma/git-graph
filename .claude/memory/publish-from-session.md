@@ -23,9 +23,23 @@ Mérve 2026-10-01-én (Claude Code 2.1.285, contract 0.2.66):
   `Bash(git-graph:*)` engedély lefedi.
 - Headless (`-p`, SDK; `CLAUDE_CODE_ENTRYPOINT=sdk-*`) sessionben a hook nem kér publikálást.
 
+Mérve 2026-11-04 óta (a `claude-artifacts` MCP eszközei váltották az `Artifact` toolt):
+
+- A `publish_files` csak olyan fájlt csatol, amelyet a session olvashat; a `~/.git-graph` lapja
+  így elbukik: *„only files this session is allowed to read can be attached … add its folder
+  with /add-dir. publish_files was not called.”* Megoldás: a telepítés a `~/.git-graph`-ot a
+  `~/.claude/settings.json` `permissions.additionalDirectories`-ába veszi (`install_read_dir`); a
+  lap tartalomként küldése (`publish_version`) elvetve, a Fejlesztő döntése.
+- A publikálásnak nincs `capabilities` paramétere: a `declare_capabilities` (előtte
+  `read_declaration`) állítja, a republish a régit viszi. Emiatt két lapon (Lesown, hlinkify)
+  hiányzott a `file_tree` és a `write_file`.
+- `open` művelet nincs; a `show_pane` (`pane: "artifact"`) a sessionben publikáltat hozza elő.
+- Az auto mód a próbapublikálást (szándékosan rossz `base_version`-nel) kérés nélkül
+  megtagadta: „Unrequested Commit in a Connected App”.
+
 **Why:** a headless `claude -p` + launchd út ([[headless-publish-retired]]) helyett ez lett a
 publikálás; a mod nem publikálhat ([[mod-limits]]).
 
-**How to apply:** `publish_steps` / `git-graph --publish`: `read` → `publish` a `PUBLISH_CAPS`-szal →
-`git-graph --published <URL>`. A lapba ne kerüljön nagy, egysoros tartalom
+**How to apply:** `publish_steps` / `git-graph --publish`: `get_artifact` → `publish_files` →
+`read_declaration` + `declare_capabilities` a `PUBLISH_CAPS`-szal → `git-graph --published <URL>` → `show_pane`. A lapba ne kerüljön nagy, egysoros tartalom
 ([[artifact-holds-no-data]]).
