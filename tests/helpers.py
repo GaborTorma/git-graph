@@ -1,6 +1,8 @@
 """A tesztek közös eszközei: kamu HOME, a csomag friss betöltése, eldobható repók, MCP-kliens.
 
-Futtatás: `/usr/bin/python3 -m unittest discover -s tests` (csak stdlib).
+Futtatás: `/usr/bin/python3 -m unittest discover -s tests` (csak stdlib), vagy párhuzamosan, ahogy a
+Check futtatja (a pytest 9 a 3.9-et már nem támogatja, ezért 8.4):
+  uv run --no-project --python /usr/bin/python3 --with pytest==8.4.2 --with pytest-xdist==3.8.0 python -m pytest tests --ignore=tests/page -n auto -q -p no:cacheprovider
 A valódi `~/.git-graph`-hoz és az app configjához nem nyúlnak.
 """
 from __future__ import annotations

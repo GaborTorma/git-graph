@@ -7,16 +7,21 @@ eldobható repóval, kamu HOME-mal) — a `page_code`, a `graph_data` és a `fil
 a valódi kimenet. A nyitva tartott `changes` hívás (`wait > 0`) a lapon függ, amíg
 a lap meg nem szakítja: a teszt alatt a repó nem változik.
 
-Futtatás (a Playwright és a pytest fejlesztői eszköz, a repóba nem kerül függőség). Az
-osztályok párhuzamosan futnak, osztályonként egy workerben (`loadscope`: a `setUpClass`
-egyszer fut); egymástól függetlenek: saját kamu HOME, fixture-repó, MCP-szerver, böngésző.
+Futtatás (a Playwright és a pytest fejlesztői eszköz, a repóba nem kerül függőség). A
+tesztek párhuzamosan futnak (`worksteal`): egy osztály tesztjei egy blokkban indulnak, és a
+szabad worker átvesz a lemaradótól, így egy nagy osztály sem lesz kritikus út. Egy osztály így
+több workeren is elindulhat, ezért a `setUpClass` olcsó: a fixture-történet workerenként egyszer
+épül fel (osztályonként másolat), a Chromium workerenként egyszer indul (`browser()`). Az
+osztályok függetlenek: saját kamu HOME, fixture-repó, MCP-szerver, tesztenként saját context.
   uvx --from playwright==1.63.0 playwright install chromium-headless-shell
-  uv run --no-project --with playwright==1.63.0 --with pytest==9.0.3 --with pytest-xdist==3.8.0 python -m pytest tests/page -n auto --dist loadscope -q -p no:cacheprovider
+  uv run --no-project --with playwright==1.63.0 --with pytest==9.0.3 --with pytest-xdist==3.8.0 python -m pytest tests/page -n auto --dist worksteal -q -p no:cacheprovider
 """
 from __future__ import annotations
 
+import atexit
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -113,9 +118,33 @@ def make_history(repo: Path) -> None:
 # (modulok, Mermaid), inline `<style>`-t ír; a CDN-lista itt nem kell.
 CSP = "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'"
 
+_shared: dict = {}
+
+
+def history_copy(repo: Path) -> None:
+    """A fixture-történet másolata a `repo` helyére: a `make_history` workerenként egyszer fut
+    (~1,3 s), a másolás ~40 ms."""
+    if "history" not in _shared:
+        tmp = tempfile.TemporaryDirectory()
+        atexit.register(tmp.cleanup)
+        _shared["history"] = Path(tmp.name).resolve() / "repo"
+        make_history(_shared["history"])
+    shutil.copytree(_shared["history"], repo, symlinks=True)
+
+
+def browser():
+    """A worker közös Chromiuma: első kéréskor indul, a folyamat végén áll le. A tesztek
+    saját contextet nyitnak, így egymástól függetlenek maradnak."""
+    if "browser" not in _shared:
+        pw = sync_playwright().start()
+        _shared["browser"] = pw.chromium.launch()
+        atexit.register(pw.stop)
+        atexit.register(_shared["browser"].close)
+    return _shared["browser"]
+
 
 class PageTestCase(unittest.TestCase):
-    """Osztályonként egy fixture-repó, MCP-szerver és böngésző; tesztenként új lap."""
+    """Osztályonként egy fixture-repó és MCP-szerver; tesztenként új context és lap (a worker közös Chromiumában)."""
 
     page: Page
     WIDTH, HEIGHT = 900, 700
@@ -128,7 +157,7 @@ class PageTestCase(unittest.TestCase):
         home = Path(cls.tmp.name).resolve()
         (home / ".git-graph").mkdir()
         repo = home / "repo"
-        make_history(repo)
+        history_copy(repo)
         cls.repo = repo
         cls.prepare(repo)
         (home / ".git-graph" / "repos.json").write_text(json.dumps({SLUG: str(repo)}), encoding="utf-8")
@@ -136,8 +165,7 @@ class PageTestCase(unittest.TestCase):
         ctx = {"slug": SLUG, "repo": "fixture", "server": "host:git-graph", "api": 1}
         cls.html = ((ROOT / "page" / "loader.html").read_text(encoding="utf-8")
                     .replace("__CTX__", json.dumps(ctx)).replace("__TITLE__", "fixture"))
-        cls.pw = sync_playwright().start()
-        cls.browser = cls.pw.chromium.launch()
+        cls.browser = browser()
 
     SUBJECT = ""               # a `commit_versions` témája: az `open_file` ennek a változatát nyitja
 
@@ -155,8 +183,6 @@ class PageTestCase(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls) -> None:
-        cls.browser.close()
-        cls.pw.stop()
         cls.client.close()
         cls.tmp.cleanup()
 
