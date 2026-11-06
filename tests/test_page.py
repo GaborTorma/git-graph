@@ -38,6 +38,17 @@ class PageTest(HomeTestCase):
         self.assertEqual(page.count("</script>"), 1)
         self.assertIn('"server": "host:git-graph"', page)
 
+    def test_build_is_html(self) -> None:
+        """A betöltő HTML-ként ismerhető fel: `<!DOCTYPE html>`-lel kezdődik (a publish_files
+        különben `text/plain`-nek veszi, és elutasítja), a charset az első 1024 bájtban."""
+        # Adott a repó betöltője
+        gg = self.load()
+        gg.gitio.set_repo(ROOT)
+        # Ha felépül
+        page = gg.page.build("Git Graph (x)", "x")
+        # Akkor a doctype az első sor, utána a charset
+        self.assertTrue(page.startswith('<!DOCTYPE html>\n<meta charset="utf-8">'))
+
     def test_embed(self) -> None:
         gg = self.load()
         raw = gg.page.embed({"s": "</script>  é"})
