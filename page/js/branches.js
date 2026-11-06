@@ -61,13 +61,25 @@ function selItems() {
   return items.sort((x, y) => x.at - y.at);
 }
 /* A gomb: kijelölés nélkül „Minden ág”; különben legfeljebb 6 elem, az első legfeljebb 3
-   ikonnal és névvel — amennyinek a neve `NAMED_MAX`-ba fér (több elemnél a név legfeljebb 80 px,
-   a gomb így hosszú nevekkel is ~300 px marad) —, a
-   többi csak színes ikonnal (a neve a súgóban), utána `+N` (a kimaradtak neve soronként a
-   súgóban). Ha egy remote rejtve van, a végén halvány áthúzott felhő. */
-const MAX_ITEMS = 6, MAX_NAMED = 3, NAMED_MAX = 220;
-/* A legutóbbi elemek kulcsa és a nevükkel álló elemek száma: változatlan kijelölésnél nincs újramérés
-   (a gomb DOM-ja sem cserélődik); a betű betöltése után újra mér. */
+   ikonnal és névvel — amennyi elfér: a gomb legfeljebb `BTN_MAX` széles, és a fejléc sorában a
+   repó és az eszközök mellett marad (több elemnél egy név legfeljebb 160 px) —, a többi csak
+   színes ikonnal (a neve a súgóban), utána `+N` (a kimaradtak neve soronként a súgóban). Ha egy
+   remote rejtve van, a végén halvány áthúzott felhő. */
+const MAX_ITEMS = 6, MAX_NAMED = 3, BTN_MAX = 500;
+const chromeEl = /** @type {HTMLElement} */ (document.querySelector('.chrome'));
+/* A gomb elemeinek helye: `BTN_MAX`-ig, amennyi a repó és az eszközök mellett szabad; ha ott
+   alig van hely (a fejléc úgyis több sorba tör), a fejléc teljes szélessége. */
+function selRoom() {
+  const cs = getComputedStyle(chromeEl), gap = parseFloat(cs.columnGap) || 0;
+  const inner = chromeEl.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const extra = branchBtn.offsetWidth - branchView.offsetWidth;   // padding, nyíl
+  const repo = /** @type {HTMLElement} */ (chromeEl.querySelector('.repo')).offsetWidth;
+  const tools = /** @type {HTMLElement} */ (chromeEl.querySelector('.tools')).offsetWidth;
+  const free = inner - repo - tools - 2 * gap;
+  return Math.min(BTN_MAX, free >= 200 ? free : inner) - extra;
+}
+/* A legutóbbi elemek kulcsa (a hellyel) és a nevükkel álló elemek száma: változatlan kijelölésnél
+   és szélességnél nincs újramérés (a gomb DOM-ja sem cserélődik); a betű betöltése után újra mér. */
 let selKey = '', selNamed = 0;
 function renderSel() {
   const before = branchView.innerHTML, items = selItems();
@@ -83,21 +95,23 @@ function renderSel() {
     + off;
   const set = h => { if (branchView.innerHTML !== h) branchView.innerHTML = h; };
   branchView.classList.toggle('many', items.length > 1);
-  const key = html(MAX_NAMED);
+  const room = selRoom();
+  const key = `${Math.round(room)}|${html(MAX_NAMED)}`;
   if (key === selKey) {
     set(html(selNamed));
     return branchView.innerHTML !== before;
   }
   let named = Math.min(MAX_NAMED, shown.length);
   set(html(named));
-  const namedWidth = () => [...branchView.querySelectorAll('.sel-item:not(.ic-only)')]
-    .reduce((w, e) => w + /** @type {HTMLElement} */ (e).offsetWidth, 0);
-  while (named > 1 && namedWidth() > NAMED_MAX) set(html(--named));
+  while (named > 1 && branchView.offsetWidth > room) set(html(--named));
   // Rejtett keretben (nulla szélesség) nem mért: legközelebb újra.
   [selKey, selNamed] = branchView.offsetWidth ? [key, named] : ['', 0];
   return branchView.innerHTML !== before;
 }
-document.fonts?.addEventListener('loadingdone', () => { selKey = ''; if (renderSel()) fitChrome(); });
+const refit = () => { if (renderSel()) fitChrome(); };
+document.fonts?.addEventListener('loadingdone', () => { selKey = ''; refit(); });
+let chromeW = 0;
+new ResizeObserver(() => { if (chromeEl.clientWidth !== chromeW) { chromeW = chromeEl.clientWidth; refit(); } }).observe(chromeEl);
 
 /* Worktree-k esetén worktree-nként egy fejléc (a saját a fejléc chipjének
    színével), alatta az ágai: amelyikben utoljára ki volt véve (`owner`, a

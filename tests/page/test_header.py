@@ -150,22 +150,27 @@ class GhostDarkTest(HeaderCase):
 
 class SearchPopupTest(HeaderCase):
     def test_icon_only(self) -> None:
-        """Szűrő nélkül a keresés-gomb egy 32 px-es ikongomb, „Keresés ⌘F” súgóval."""
+        """Szűrő nélkül a keresés-gomb egy 32 px-es ikongomb 20 px-es ikonnal (az app ghost gombjáé),
+        „Keresés ⌘F” súgóval."""
         box = self.box("#searchBtn")
         self.assertEqual((box["width"], box["height"]), (32, 32))
+        ic = self.box("#searchBtn svg.ic")
+        self.assertEqual((ic["width"], ic["height"]), (20, 20))
         self.assertEqual(self.tip("#searchBtn"), "Keresés⌘F")
         self.assertEqual(self.page.locator("#tip .kbd").inner_text(), "⌘F")
 
     def test_click_opens(self) -> None:
-        """Kattintásra a popupban a keresőmező kapja a fókuszt, alatta elválasztó után a
-        „Csak ref-es commitok” kapcsoló-sor áll."""
+        """Kattintásra a popupban a keresőmező (ikon nélkül, mint az app beágyazott keresője) kapja a
+        fókuszt, alatta teljes szélességű vonal után a „Csak ref-es commitok” kapcsoló-sor áll."""
         self.page.locator("#searchBtn").click()
         self.settle()
         self.assertTrue(self.page.locator("#searchPop").is_visible())
         self.assertTrue(self.page.locator("#search").evaluate("e => e === document.activeElement"))
-        sep, row, field = self.box("#searchPop .menu-sep"), self.box("#onlyRefs"), self.box("#search")
-        self.assertGreater(sep["y"], field["y"])
-        self.assertGreater(row["y"], sep["y"])
+        head, row, pop = self.box("#searchPop .menu-search"), self.box("#onlyRefs"), self.box("#searchPop")
+        self.assertEqual(self.page.locator("#searchPop .menu-search svg").count(), 0)
+        self.assertEqual(self.style("#searchPop .menu-search", "borderBottomWidth"), "1px")
+        self.assertEqual((head["x"], head["width"]), (pop["x"], pop["width"]))
+        self.assertGreaterEqual(row["y"], head["y"] + head["height"])
         self.assertIn("Csak ref-es commitok", self.page.locator("#onlyRefs").inner_text())
         self.assertEqual(self.page.locator('#onlyRefs').get_attribute("aria-checked"), "false")
 
@@ -327,12 +332,24 @@ class BranchButtonTest(HeaderCase):
         self.assertEqual(self.items(), [["dev", True], ["main", True], ["feat/menu", True],
                                         ["wt-test", False], ["fix/scroll", False]])
 
+    LONG = ("long/feature-branch-name", "another/long-branch", "dev", "main origin/main")
+
     def test_long_names(self) -> None:
-        """Hosszú neveknél csak 2 név fér ki, a többi ikon; a gomb nem szélesebb kb. 300 px-nél."""
-        self.select("long/feature-branch-name", "another/long-branch", "dev", "main origin/main")
+        """Hosszabb nevekkel is 3 név áll, ha elfér; a gomb legfeljebb 500 px."""
+        self.select(*self.LONG)
         self.assertEqual(self.items(), [["long/feature-branch-name", True], ["another/long-branch", True],
-                                        ["dev", False], ["main", False]])
-        self.assertLessEqual(self.box("#branchBtn")["width"], 320)
+                                        ["dev", True], ["main", False]])
+        self.assertLessEqual(self.box("#branchBtn")["width"], 500)
+
+    def test_narrow(self) -> None:
+        """Keskeny fejlécben csak annyi név áll, amennyi a repó és az eszközök mellett elfér: a
+        fejléc egy sorban marad."""
+        self.select(*self.LONG)
+        self.resize(640)
+        named = [n for _, n in self.items()]
+        self.assertLess(sum(named), 3)
+        self.assertTrue(named[0])
+        self.assertFalse(self.page.locator(".chrome").evaluate("c => c.classList.contains('multi')"))
 
     def test_nine(self) -> None:
         """Kilenc ágnál 6 elem látszik (3 névvel, 3 csak ikonnal), utána „+3”."""
@@ -407,12 +424,14 @@ class RemoteHeadersTest(HeaderCase):
         self.assertTrue(self.remote("upstream").is_visible())
         self.assertFalse(self.page.locator("#branchList").evaluate("l => l.classList.contains('empty')"))
 
-    def test_not_indented(self) -> None:
-        """A csak remote ág ikonja egy vonalban a helyi ágakéval."""
+    def test_indented(self) -> None:
+        """A csak remote ág a remote fejléce alatt beljebb kezdődik: az ikonja a remote nevével egy vonalban."""
         self.open_branches()
-        remote = self.box('#branchPop .option.blk[data-refs="origin/test-branch-origin"] .col')
+        col = self.box('#branchPop .option.blk[data-refs="origin/test-branch-origin"] .col')
+        name = self.remote("origin").locator(".name").bounding_box()
         local = self.box('#branchPop .option.blk[data-refs^="dev"] .col')
-        self.assertAlmostEqual(remote["x"], local["x"], delta=0.5)
+        self.assertAlmostEqual(col["x"], name["x"], delta=0.5)
+        self.assertGreater(col["x"], local["x"] + 16)
 
     def test_toggle_one(self) -> None:
         """Az `upstream` kikapcsolva halvány fejléc, az ágai és a felhői eltűnnek a menüből és a

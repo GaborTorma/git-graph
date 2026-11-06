@@ -109,9 +109,9 @@ function remotesChanged() {
 function searchView() {
   const q = searchEl.value.trim(), refs = refsOnly(), on = Boolean(q || refs);
   const part = (name, html, cls = '') => `<span class="sb-part${cls}" data-part="${name}">${html}</span>`;
-  const html = part('search', icon('search'))
+  const html = part('search', icon('search', 'ic', 'md'))   // a ghost gomb ikonja 20 px (`md`)
     + (q ? part('query', esc(q), ' search-q') : '')
-    + (refs ? part('tag', icon('tag')) : '')
+    + (refs ? part('tag', icon('tag', 'ic', 'md')) : '')
     + (on ? `<span class="sb-part clear-x" id="searchX" data-part="clear" role="button" aria-label="Szűrés törlése"`
       + ` data-tip="Szűrés törlése">${icon('close')}</span>` : '');
   searchBtn.classList.toggle('filtered', on);

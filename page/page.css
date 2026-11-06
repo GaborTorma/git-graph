@@ -360,8 +360,8 @@ button { font: inherit; color: inherit; }
 .sel-view { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .sel-view > .ic { color: var(--fg-2); }
 .sel-item { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
-.sel-name { color: var(--fg-0); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sel-view.many .sel-name { max-width: 80px; }
+.sel-name { color: var(--fg-0); max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-view.many .sel-name { max-width: 160px; }
 .sel-more { font-size: 13px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
 .cloud-off { display: inline-flex; color: var(--fg-3); }
 .menu-pop {
@@ -406,7 +406,7 @@ button { font: inherit; color: inherit; }
 .menu-all { flex: none; padding: 4px 4px 3px; border-bottom: 1px solid var(--border); }
 .menu-all .option { width: 100%; }
 .menu-grp { display: flex; flex-direction: column; }
-.menu-grp:not(.remote):has(> .menu-wt) > .option.blk > .ln { padding-left: 40px; }   /* a worktree-fejléc alá tartozó ágak beljebb */
+.menu-grp:has(> .menu-wt) > .option.blk > .ln { padding-left: 40px; }   /* a fejléc (worktree, remote) alá tartozó ágak beljebb */
 /* Elválasztó a `sep` csoport fölött, ha előtte látszik egy csoport. */
 .menu-grp:not([hidden]) ~ .menu-grp.sep::before {
   content: ""; height: 1px; margin: 4px 12px; background: var(--border);   /* Select.Separator: mx-pad-md */
@@ -503,9 +503,13 @@ button { font: inherit; color: inherit; }
 .clear-x { justify-content: center; width: 24px; height: 24px; border-radius: 6px; }
 .clear-x:hover { background: var(--ghost-hover); }
 /* A popup: fent a keresőmező, elválasztó, alatta a „Csak ref-es commitok” kapcsoló-sor. */
-.menu-pop.search-pop { width: 300px; }
-.search-pop .menu-search { padding: 0 12px; border-bottom: 0; }
-.menu-sep { flex: none; height: 1px; margin: 4px 10px; border: 0; background: var(--border); }   /* Menu.Separator: h-px, 10 px / 4 px */
+.sb-part > .ic { width: 20px; height: 20px; }   /* az app ghost gombjának ikonja (comfortable `md`) */
+.clear-x > .ic { width: 16px; height: 16px; }   /* az xs ikongombé */
+/* A popup teteje az app beágyazott keresője: ikon nélküli mező, alatta teljes szélességű vonal;
+   alatta a kapcsoló-sor a menü gutterjével. */
+.menu-pop.search-pop { width: 320px; padding: 0; }
+.search-pop .menu-search { height: 44px; padding: 0 16px; }
+.search-pop .option { margin: 4px; }
 /* A beviteli mező (az app TextInput-ja): a teljes nézet szűrője és keresője. */
 .search {
   display: flex; align-items: center; gap: 6px;
