@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -41,7 +42,33 @@ T0 = 1_780_000_000          # 2026 májusa; a commitok napjai innen előre
 # A kamu Claude app: `window.claude.use('mcp')` → a host-híd. A hívás a Python
 # oldalra megy (`__mcp`); a nyitva tartott `changes` megszakításig függ, vagy amíg a teszt
 # `__poke()`-kal meg nem válaszoltatja (a repó külső változása: `PageTestCase.poke`).
+#
+# A `settle` nyugalmi feltétele (`window.__quiet`): nincs futó véges animáció, folyamatban lévő
+# MCP-hívás, legfeljebb `SHORT_TIMER` ms-os függő időzítő (a lap rövid késleltetései: a WIP-réteg
+# újraalapozása, a „másolva” jel), és `ms` óta nem változott a DOM, nem görgetett semmi (a `glide`
+# rAF-fel görget, a méretfigyelők a képkockában írnak). A hosszabb időzítőt (súgó, mentés) a
+# teszt maga várja ki.
+SHORT_TIMER = 250
 FAKE_CLAUDE = r"""
+let inflight = 0, changed = performance.now();
+const bump = () => { changed = performance.now(); };
+const timers = new Set(), setT = window.setTimeout, clearT = window.clearTimeout;
+window.setTimeout = (fn, ms = 0, ...rest) => {
+  if (ms > __SHORT__ || typeof fn !== 'function') return setT(fn, ms, ...rest);
+  const id = setT((...a) => { timers.delete(id); bump(); fn(...a); }, ms, ...rest);
+  timers.add(id);
+  return id;
+};
+window.clearTimeout = id => { timers.delete(id); clearT(id); };
+new MutationObserver(bump).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+addEventListener('scroll', bump, true);
+window.__quiet = ms => !inflight && !timers.size && performance.now() - changed >= ms
+  && !document.getAnimations().some(a => a.playState !== 'finished' && a.effect?.getComputedTiming().endTime !== Infinity);
+const mcp = (tool, args) => {
+  inflight++;
+  bump();
+  return window.__mcp(tool, args).finally(() => { inflight--; bump(); });
+};
 const waiting = [];
 window.__poke = () => waiting.splice(0).forEach(go => go());
 window.claude = { use: async name => name !== 'mcp' ? null : {
@@ -50,17 +77,17 @@ window.claude = { use: async name => name !== 'mcp' ? null : {
       return new Promise((resolve, reject) => {
         opts.signal?.addEventListener('abort',
           () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
-        waiting.push(() => window.__mcp(tool, { ...args, wait: 0 }).then(r => resolve({ payload: JSON.parse(r).value })));
+        waiting.push(() => mcp(tool, { ...args, wait: 0 }).then(r => resolve({ payload: JSON.parse(r).value })));
       });
     }
-    return window.__mcp(tool, args).then(r => {
+    return mcp(tool, args).then(r => {
       const { ok, value } = JSON.parse(r);
       if (!ok) throw Object.assign(new Error(value), { code: 'tool_error' });
       return { payload: value };
     });
   },
 } };
-"""
+""".replace("__SHORT__", str(SHORT_TIMER))
 
 
 def git_in(repo: Path, *args: str, env: dict | None = None) -> None:
@@ -150,6 +177,7 @@ class PageTestCase(unittest.TestCase):
     WIDTH, HEIGHT = 900, 700
     COLOR_SCHEME = "light"     # a rendszer témája (`prefers-color-scheme`)
     INIT = ""                  # a kamu Claude app után futó saját init-szkript (pl. a host-híd hibái)
+    QUIET = True               # a `settle` a nyugalomra vár; False: a lap sosem nyugszik meg, fix 250 ms
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -213,19 +241,29 @@ class PageTestCase(unittest.TestCase):
         self.assertEqual(self.errors, [], "JS-hiba a lapon")
 
     def settle(self) -> None:
-        """Kivárja az animációkat (a `glide` görgetése rAF-fel fut: annak az ideje is) és a
-        méretfigyelők körét (két képkocka). A végtelen animáció (az élő-jel pulzálása) és a
-        befejezett (a csukott diff `fill`-es animációja) nem számít."""
-        self.page.wait_for_function(
-            "!document.getAnimations().some(a => a.playState !== 'finished'"
-            " && a.effect?.getComputedTiming().endTime !== Infinity)")
-        self.page.wait_for_timeout(250)
+        """Kivárja, amíg a lap megnyugszik (`window.__quiet`, a `FAKE_CLAUDE` fölött): animációk,
+        MCP-hívások, rövid időzítők, és 50 ms (3 képkocka) DOM- és görgetésváltozás nélkül. A
+        végtelen animáció (az élő-jel pulzálása) és a befejezett (a csukott diff `fill`-es
+        animációja) nem számít. Utána még két képkocka: a méretfigyelők köre."""
+        if self.QUIET:
+            self.page.wait_for_function("window.__quiet(50)")
+        else:
+            self.page.wait_for_function("window.__quiet(0)")    # csak az animációk, hívások, időzítők
+            self.page.wait_for_timeout(250)
         self.page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
+
+    def until(self, check, what: str = "a feltétel", timeout: float = 5.0) -> None:
+        """Python-oldali feltételre vár (pl. a lemez tartalma), 50 ms-onként, legfeljebb `timeout`
+        s-ig. A várakozás a lapon fut (`wait_for_timeout`): közben a lap MCP-hívásai is válaszolnak."""
+        end = time.monotonic() + timeout
+        while not check():
+            if time.monotonic() > end:
+                self.fail(f"{timeout} s alatt sem teljesült: {what}")
+            self.page.wait_for_timeout(50)
 
     def poke(self) -> None:
         """A nyitva tartott `changes` hívás most válaszol: a lap az élő frissítést futtatja."""
         self.page.evaluate("window.__poke()")
-        self.page.wait_for_timeout(400)
         self.settle()
 
     def resize(self, width: int) -> None:

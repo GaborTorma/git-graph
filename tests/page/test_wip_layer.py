@@ -267,7 +267,7 @@ class WipRejectTest(WipCase):
         self.assertEqual(self.page.locator(f"{SEL} .cm-deletedChunk .cm-reject").count(), 0)
         block = self.page.locator(f"{SEL} .cm-wipDeleted", has_text="s35 = 35")
         block.locator(".cm-reject").click()
-        self.page.wait_for_timeout(1500)
+        self.until(lambda: (self.repo / "app.py").read_text(encoding="utf-8").splitlines()[34:36] == ["s35 = 35", "s36 = 36"], "az elvetés a lemezen")
         disk = (self.repo / "app.py").read_text(encoding="utf-8").splitlines()
         self.assertEqual(disk[34:36], ["s35 = 35", "s36 = 36"])      # a következő sor ép marad
         self.assertEqual(disk[59], "s60 = 'wip'")
@@ -326,7 +326,7 @@ class WipSwitchTest(WipCase):
         self.assertEqual(self.page.locator(f"{box} .cm-diff.editing").count(), 1)
         # és a szerkesztés a WIP sor fájljába ment
         self.page.keyboard.type("x")
-        self.page.wait_for_timeout(1600)
+        self.until(lambda: 'szo xs37 = 37' in (self.repo / "app.py").read_text(encoding="utf-8"), "szo xs37 = 37 a lemezen")
         self.assertIn("szo xs37 = 37", (self.repo / "app.py").read_text(encoding="utf-8"))
 
 
@@ -354,7 +354,7 @@ class WipSwitchReadOnlyTest(WipCase):
         self.assertEqual(self.page.locator(f"{box} .cm-diff[data-mark]").count(), 1)
         self.assertEqual(self.page.locator(f"{box} .cm-diff.editing").count(), 0)
         self.assertEqual(self.page.locator(f"{box} .cm-line", has_text="szo s37").count(), 0)
-        self.page.wait_for_timeout(500)
+        self.until(lambda: 'szo s37 = 37' in (self.repo / "app.py").read_text(encoding="utf-8"), "szo s37 = 37 a lemezen")
         self.assertIn("szo s37 = 37", (self.repo / "app.py").read_text(encoding="utf-8"))
 
 
@@ -362,6 +362,9 @@ class WipSplitTest(WipCase):
     """Egymás mellett (széles panel) is csukott a változatlan rész: csak a WIP-eltérést tartalmazó rés nyílik ki,
     a két oldalon együtt."""
     WIDTH = 1400
+    # Egymás mellett a WIP-térközzel a CodeMirror minden képkockában újramér (a MergeView igazítása
+    # pattog, #63): a lap sosem nyugszik meg. Amíg ez él, fix várakozás (`PageTestCase.QUIET`).
+    QUIET = False
 
     def test_split_gaps(self) -> None:
         self.open_app()
