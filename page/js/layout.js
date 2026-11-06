@@ -63,14 +63,9 @@ export function fitRows() {
   for (const r of tight.filter(crowded)) r.classList.replace('tight', 'three');
 }
 
-/* Fejléc: három csoport (repó, szűrők, eszközök), szélesség szerint 1–3
-   sorban. A kapcsolók felirata helyett ikon (`compact`, a felirat tooltipben
-   marad), ha a felirat miatt több sorba törne, vagy a szűrők sorából kilógna.
-   Több sorban az ágválasztó tölti ki a szűrők sorát (a kapcsolók így jobbra
-   kerülnek), három sorban a HEAD-chip is jobbra zár. A kereső mindig kitölti
-   a saját sorát. */
+/* Fejléc: három csoport (repó, ágválasztó, eszközök: keresés és fájlok), szélesség szerint
+   1–3 sorban (`multi`, `rows-3`); három sorban a HEAD-chip jobbra zár. */
 const chromeEl = document.querySelector('.chrome');
-const filtersEl = chromeEl.querySelector('.filters');
 function chromeRows() {
   let rows = 0, bottom = -Infinity;
   for (const g of chromeEl.children) {
@@ -80,17 +75,8 @@ function chromeRows() {
   return rows;
 }
 export function fitChrome() {
-  chromeEl.classList.remove('compact', 'multi', 'rows-3');
-  const labeled = chromeRows();
-  let rows = labeled;
-  if (labeled > 1) {
-    chromeEl.classList.add('compact');
-    rows = chromeRows();
-    if (rows > 1 && rows === labeled) {           // így is törne: a felirat maradhat, ha kifér
-      chromeEl.classList.remove('compact');
-      if (filtersEl.scrollWidth > filtersEl.clientWidth) chromeEl.classList.add('compact');
-    }
-  }
+  chromeEl.classList.remove('multi', 'rows-3');
+  const rows = chromeRows();
   chromeEl.classList.toggle('multi', rows > 1);
   chromeEl.classList.toggle('rows-3', rows > 2);
 }

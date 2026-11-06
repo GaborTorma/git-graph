@@ -1,7 +1,7 @@
 /* Ágválasztó: a menü tartalma és szűrője. */
 import { icon, tinted } from './icons.js';
 import { fitChrome } from './layout.js';
-import { branchColor, focusWt, hiddenRemotes, lcStyle, linkedWts, refColor, remoteRefs, remoteShown, remotesOn, worktrees, wtColor } from './model.js';
+import { anyRemoteHidden, branchColor, focusWt, lcStyle, linkedWts, refColor, remoteOf, remoteOff, remoteRefs, remoteShown, remotesOn, worktrees, wtColor } from './model.js';
 import { distText } from './refs.js';
 import { DATA } from './state.js';
 import { esc, fold, queryWords } from './util.js';
@@ -13,8 +13,7 @@ export const branchPop = document.getElementById('branchPop');
 const branchAll = document.getElementById('branchAll');
 const branchList = document.getElementById('branchList');
 export const branchQuery = /** @type {HTMLInputElement} */ (document.getElementById('branchQuery'));
-const branchLabel = document.getElementById('branchLabel');
-const branchIc = document.getElementById('branchIc');
+const branchView = document.getElementById('branchView');
 export let branchSel = new Set();
 export const setBranchSel = refs => { branchSel = new Set(refs); };
 
@@ -32,31 +31,73 @@ const blockRefs = (b, remote) => (remote && b.upstream && b.track !== 'gone' && 
   ? [b.name, b.upstream] : [b.name]);
 /* Egy worktree-hez tartozó ágak (`owner`). */
 const ownedBy = w => DATA.branches.filter(b => !b.remote && b.owner === w.slug);
-/* A gomb ikonja és felirata a kijelölés szerint: minden ág; egy worktree összes ága
-   (ha több van) a worktree-vel; egy blokk (ág és/vagy upstream) a kijelölt sorai
-   ikonjával és az ág nevével; több ref: az első + a többi száma. */
-function selView() {
-  if (!branchSel.size) return [icon('allBranches'), 'Minden ág'];
+/* A gomb elemei a kijelölés sorrendjében: egy worktree összes ága (ha több van) egy elem a
+   worktree-vel; egy blokk (ág és/vagy upstream) a kijelölt sorai ikonjával és az ág nevével;
+   a csak remote ág a felhőjével. `at`: az elem első refjének helye a kijelölésben. */
+function selItems() {
   const remote = remotesOn();
-  const names = [...branchSel];
-  const same = refs => refs.length === names.length && refs.every(r => branchSel.has(r));
-  for (const w of worktrees()) {
-    const own = ownedBy(w);
-    if (linkedWts().length && own.length > 1 && same(own.flatMap(b => blockRefs(b, remote)))) {
-      return [tinted(w.main ? 'mainWorktree' : 'worktree', wtColor(w) || 'var(--fg-2)'), w.main ? 'main' : w.name];
+  const order = [...branchSel], left = new Set(branchSel), items = [];
+  const at = refs => Math.min(...refs.map(r => order.indexOf(r)));
+  if (linkedWts().length) {
+    for (const w of worktrees()) {
+      const own = ownedBy(w), refs = own.flatMap(b => blockRefs(b, remote));
+      if (own.length < 2 || !refs.every(r => left.has(r))) continue;
+      for (const r of refs) left.delete(r);
+      items.push({ at: at(refs), kind: 'worktree', name: w.main ? 'main' : w.name,
+        ic: tinted(w.main ? 'mainWorktree' : 'worktree', wtColor(w) || 'var(--fg-2)') });
     }
   }
-  const b = DATA.branches.find(x => !x.remote && (x.name === names[0] || x.upstream === names[0]));
-  if (b && names.every(n => n === b.name || n === b.upstream)) {
+  for (const b of DATA.branches.filter(x => !x.remote)) {
+    const own = left.has(b.name), up = b.upstream && left.has(b.upstream) ? b.upstream : '';
+    if (!own && !up) continue;
+    const refs = own ? (up ? [b.name, up] : [b.name]) : [up];
+    for (const r of refs) left.delete(r);
     const c = branchColor(b);
-    const both = branchSel.has(b.name) && branchSel.has(b.upstream);
-    return [both ? branchCloudIc(b.upstream, c) : branchSel.has(b.name) ? tinted('branch', c) : cloudIc(b.upstream, c),
-      branchSel.has(b.name) ? b.name : b.upstream];
+    items.push(own && up ? { at: at(refs), kind: 'branchCloud', name: b.name, ic: branchCloudIc(up, c) }
+      : own ? { at: at(refs), kind: 'branch', name: b.name, ic: tinted('branch', c) }
+      : { at: at(refs), kind: 'cloud', name: up, ic: cloudIc(up, c) });
   }
-  const lb = DATA.branches.find(x => !x.remote && x.name === names[0]);
-  const first = lb ? tinted('branch', branchColor(lb)) : cloudIc(names[0], refColor(names[0]));
-  return [first, names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`];
+  for (const r of left) items.push({ at: order.indexOf(r), kind: 'cloud', name: r, ic: cloudIc(r, refColor(r)) });
+  return items.sort((x, y) => x.at - y.at);
 }
+/* A gomb: kijelölés nélkül „Minden ág”; különben legfeljebb 6 elem, az első legfeljebb 3
+   ikonnal és névvel — amennyinek a neve `NAMED_MAX`-ba fér (több elemnél a név legfeljebb 80 px,
+   a gomb így hosszú nevekkel is ~300 px marad) —, a
+   többi csak színes ikonnal (a neve a súgóban), utána `+N` (a kimaradtak neve soronként a
+   súgóban). Ha egy remote rejtve van, a végén halvány áthúzott felhő. */
+const MAX_ITEMS = 6, MAX_NAMED = 3, NAMED_MAX = 220;
+/* A legutóbbi elemek kulcsa és a nevükkel álló elemek száma: változatlan kijelölésnél nincs újramérés
+   (a gomb DOM-ja sem cserélődik); a betű betöltése után újra mér. */
+let selKey = '', selNamed = 0;
+function renderSel() {
+  const before = branchView.innerHTML, items = selItems();
+  const hidden = (DATA.meta.remotes || []).filter(remoteOff);
+  const off = anyRemoteHidden()
+    ? `<span class="cloud-off" data-tip="${esc(`Rejtett remote: ${hidden.join(', ')}`)}">${icon('cloudSlash')}</span>` : '';
+  const shown = items.slice(0, MAX_ITEMS), rest = items.slice(MAX_ITEMS);
+  const html = named => (!items.length ? `${icon('allBranches')}<span class="select-label">Minden ág</span>`
+    : shown.map((it, i) => (i < named
+      ? `<span class="sel-item" data-kind="${it.kind}">${it.ic}<span class="sel-name">${esc(it.name)}</span></span>`
+      : `<span class="sel-item ic-only" data-kind="${it.kind}" data-tip="${esc(it.name)}">${it.ic}</span>`)).join('')
+      + (rest.length ? `<span class="sel-more" data-tip="${esc(rest.map(it => it.name).join('\n'))}">+${rest.length}</span>` : ''))
+    + off;
+  const set = h => { if (branchView.innerHTML !== h) branchView.innerHTML = h; };
+  branchView.classList.toggle('many', items.length > 1);
+  const key = html(MAX_NAMED);
+  if (key === selKey) {
+    set(html(selNamed));
+    return branchView.innerHTML !== before;
+  }
+  let named = Math.min(MAX_NAMED, shown.length);
+  set(html(named));
+  const namedWidth = () => [...branchView.querySelectorAll('.sel-item:not(.ic-only)')]
+    .reduce((w, e) => w + /** @type {HTMLElement} */ (e).offsetWidth, 0);
+  while (named > 1 && namedWidth() > NAMED_MAX) set(html(--named));
+  // Rejtett keretben (nulla szélesség) nem mért: legközelebb újra.
+  [selKey, selNamed] = branchView.offsetWidth ? [key, named] : ['', 0];
+  return branchView.innerHTML !== before;
+}
+document.fonts?.addEventListener('loadingdone', () => { selKey = ''; if (renderSel()) fitChrome(); });
 
 /* Worktree-k esetén worktree-nként egy fejléc (a saját a fejléc chipjének
    színével), alatta az ágai: amelyikben utoljára ki volt véve (`owner`, a
@@ -146,7 +187,7 @@ export function fillBranches() {
   };
   /* Egy csoport: fejléc (worktree, remote; a szűrő a nevét is nézi) és az ágai. A `sep`
      csoport fölött vonal, ha előtte látszik egy csoport (CSS). */
-  const group = (name, inner, sep) => `<div class="menu-grp${sep ? ' sep' : ''}" data-name="${esc(name)}">${inner}</div>`;
+  const group = (name, inner, sep, cls = '') => `<div class="menu-grp${sep ? ' sep' : ''}${cls ? ` ${cls}` : ''}" data-name="${esc(name)}">${inner}</div>`;
   branchAll.innerHTML = `<button type="button" class="option blk" role="option" data-refs="" data-key="" aria-selected="${!branchSel.size}">`
     + `<span class="ln${branchSel.size ? '' : ' on'}"><span class="ckc">${icon('check', 'ic ck', 'md')}</span>`
     + `<span class="col">${icon('allBranches', 'ic', 'md')}</span><span class="name">Minden ág</span></span></button>`;
@@ -160,65 +201,35 @@ export function fillBranches() {
   } else if (local.length) {
     html += group('', sorted(local).map(block).join(''));
   }
-  // Csak remote ágak, remote-onként egy fejléc.
-  const byRemote = new Map();
-  for (const b of DATA.branches.filter(x => x.remote && remoteShown(x.name))) {
-    const r = b.name.slice(0, b.name.indexOf('/'));
-    byRemote.set(r, [...(byRemote.get(r) || []), b]);
-  }
-  for (const [r, list] of byRemote) {
-    html += group(r, `<div class="menu-wt">${icon('cloud', 'ic', 'md')}<span>${esc(r)}</span><span class="note">· csak remote</span></div>`
+  // Remote-onként egy fejléc (glóbusz, név, kapcsoló) — akkor is, ha nincs csak remote ága —,
+  // alatta a csak remote ágai; kikapcsolva halvány, ágak nélkül. Csak a kapcsoló kattintható.
+  for (const r of DATA.meta.remotes || []) {
+    const on = !remoteOff(r);
+    const list = on ? DATA.branches.filter(b => b.remote && remoteOf(b.name) === r) : [];
+    html += group(r, `<div class="menu-wt menu-remote${on ? '' : ' off'}" data-remote="${esc(r)}">${icon('globe', 'ic', 'md')}`
+      + `<span class="name">${esc(r)}</span><button type="button" class="option rsw" role="switch" data-keep`
+      + ` data-remote="${esc(r)}" aria-checked="${on}" aria-label="${esc(r)} ágai"><span class="track"></span></button></div>`
       + list.map(b => {
         const [ca, cd] = cell(b.name);
         return blockBtn([b.name], line([b.name], cloudIc(b.name, refColor(b.name), 'md'), esc(b.name.slice(r.length + 1)), ca, '', cd));
-      }).join(''), true);
+      }).join(''), true, 'remote');
   }
   branchList.innerHTML = html;
   filterBranches();
-  fillRemotes();
   // A három távolság-oszlop szélessége külön-külön a saját leghosszabb számához igazodik
   // (1–4 jegy, üres oszlopnál 0); a ↕ jel a szélső oszlophoz tartozik.
   const longest = sel => Math.max(0, ...[...branchPop.querySelectorAll(sel)].map(e => e.textContent.length));
   branchPop.style.setProperty('--c1-digits', String(longest('.c1 .dc > :last-child, .gap > :last-child')));
   branchPop.style.setProperty('--c2-digits', String(longest('.c2 .dc > :last-child')));
   branchPop.style.setProperty('--c3-digits', String(longest('.c3 .dc > :last-child')));
-  const [ics, label] = selView();
-  if (branchIc.innerHTML !== ics) branchIc.innerHTML = ics;
-  if (branchLabel.textContent !== label) {
-    branchLabel.textContent = label;
-    fitChrome();                // a hosszabb ágnév más sorbontást hozhat
-  }
-}
-
-/* Remote-szűrő (a „Remote ágak” kapcsoló mellett, csak több remote-nál): remote-onként
-   egy opció, pipával; a kapcsoló kikapcsolva a gomb is tiltott. A gomb felirata a
-   látható remote-ok neve, vagy „Minden remote”. */
-export const remotesBtn = /** @type {HTMLButtonElement} */ (document.getElementById('remotesBtn'));
-export const remotesPop = document.getElementById('remotesPop');
-const remotesLabel = document.getElementById('remotesLabel');
-function fillRemotes() {
-  const names = DATA.meta.remotes || [];
-  const focused = remotesPop.contains(document.activeElement) && /** @type {HTMLElement} */ (document.activeElement).dataset.key;
-  remotesPop.innerHTML = names.map(n => `<button type="button" class="option with-icon" role="option" data-keep`
-    + ` data-key="${esc(n)}" aria-selected="${!hiddenRemotes.has(n)}">${icon('cloud', 'ic', 'md')}`
-    + `<span class="name">${esc(n)}</span>${icon('check', 'ic ck', 'md')}</button>`).join('');
-  if (focused) remotesPop.querySelector(`.option[data-key="${CSS.escape(focused)}"]`)?.focus();
-  remotesBtn.disabled = !remotesOn();
-  const shown = names.filter(n => !hiddenRemotes.has(n));
-  const label = shown.length === names.length ? 'Minden remote' : shown.join(', ') || 'Nincs remote';
-  const wrap = remotesBtn.parentElement, hide = names.length < 2;
-  if (wrap.hidden !== hide || remotesLabel.textContent !== label) {
-    wrap.hidden = hide;
-    remotesLabel.textContent = label;
-    remotesBtn.dataset.tip = `Látható remote-ok: ${label.toLowerCase() === 'minden remote' ? 'mind' : label}`;
-    fitChrome();
-  }
+  if (renderSel()) fitChrome();   // a hosszabb ágnév más sorbontást hozhat
 }
 
 /* Az ágválasztó szűrője: minden szó (kis-nagybetű és ékezet nélkül) szerepeljen a
    blokk refjeiben vagy a csoportja nevében (worktree, remote) — a worktree nevére
    szűrve az összes ága látszik. A csoport (a fejlécével) csak akkor marad, ha legalább
-   egy ága látszik; a „Minden ág” szűrés közben rejtve. */
+   egy ága látszik; a remote fejléce akkor is, ha a neve illik (üres szűrővel mindig: a
+   kapcsolója ágak nélkül is kell). A „Minden ág” szűrés közben rejtve. */
 export function filterBranches() {
   const words = queryWords(branchQuery.value);
   branchAll.hidden = words.length > 0;
@@ -230,8 +241,8 @@ export function filterBranches() {
       el.hidden = !words.every(w => text.includes(w));
       shown ||= !el.hidden;
     }
-    grp.hidden = !shown;
-    any ||= shown;
+    grp.hidden = !shown && !(grp.classList.contains('remote') && words.every(w => fold(grp.dataset.name).includes(w)));
+    any ||= !grp.hidden;
   }
   branchList.classList.toggle('empty', !any && words.length > 0);
 }

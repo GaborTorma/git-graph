@@ -69,36 +69,23 @@ class SubtreeTest(PageTestCase):
         self.assertEqual(hollow.get_attribute("fill"), "var(--bg)")
 
     def toggle_remote(self, name: str) -> None:
-        self.page.locator("#remotesBtn").click()
-        self.page.locator(f'#remotesPop .option[data-key="{name}"]').click()
+        """Az ágválasztóban a remote fejlécének kapcsolója, utána a menü zárva."""
+        self.page.locator("#branchBtn").click()
+        self.page.locator(f'#branchPop .menu-remote[data-remote="{name}"] [role="switch"]').click()
         self.page.keyboard.press("Escape")
         self.settle()
 
     def test_remote_filter(self) -> None:
-        """A remote-szűrő elrejti a remote ágait és a csak onnan elérhető commitokat; a választás újratöltve is megmarad."""
-        self.assertTrue(self.page.locator("#remotesBtn").is_visible())
-        self.assertEqual(self.page.locator("#remotesLabel").inner_text(), "Minden remote")
+        """A remote kapcsolója elrejti a remote ágait és a csak onnan elérhető commitokat."""
         self.toggle_remote("widgets")
-        self.assertEqual(self.page.locator("#remotesLabel").inner_text(), "origin")
         self.assertEqual(self.chip("widgets/main").count(), 0)
         self.assertEqual(self.page.locator("#rows .row.mirror").count(), 0)         # csak a widgetsből érhető el
         self.assertGreater(self.page.locator("#rows .badge", has_text="origin").count(), 0)
         self.page.locator("#branchBtn").click()
-        self.assertEqual(self.page.locator('#branchPop .menu-grp[data-name="widgets"]').count(), 0)
+        self.assertEqual(self.page.locator('#branchPop .menu-grp[data-name="widgets"] .option.blk').count(), 0)
         self.page.keyboard.press("Escape")
-        self.page.reload()
-        self.page.wait_for_selector("#rows .row")
-        self.settle()
-        self.assertEqual(self.page.locator("#remotesLabel").inner_text(), "origin")
-        self.assertEqual(self.chip("widgets/main").count(), 0)
         self.toggle_remote("widgets")
         self.assertEqual(self.chip("widgets/main").count(), 1)
-
-    def test_remote_filter_follows_switch(self) -> None:
-        """A „Remote ágak” kikapcsolva a remote-szűrő gombja tiltott."""
-        self.page.locator("label.switch:has(#showRemotes)").click()
-        self.settle()
-        self.assertTrue(self.page.locator("#remotesBtn").is_disabled())
 
 
 class SquashTest(PageTestCase):
@@ -131,16 +118,6 @@ class SquashTest(PageTestCase):
         d = arcs.first.get_attribute("d")
         self.assertTrue(d.startswith("M ") and d.split()[2] == str(y(self.squash)), d)
         self.assertTrue(d.endswith(f" {y(self.split)}"), d)
-
-
-class SingleRemoteTest(PageTestCase):
-    @classmethod
-    def prepare(cls, repo: Path) -> None:
-        add_origin(repo)
-
-    def test_no_remote_filter(self) -> None:
-        """Egyetlen remote-nál a remote-szűrő nem jelenik meg."""
-        self.assertFalse(self.page.locator("#remotesBtn").is_visible())
 
 
 if __name__ == "__main__":

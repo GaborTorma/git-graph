@@ -23,10 +23,8 @@ export let focusAuto = null;        // { worktree, known } — a szervertől
 export const setFocusAuto = focus => { focusAuto = focus; };
 export const worktrees = () => DATA.meta.worktrees || [];
 export const linkedWts = () => worktrees().filter(w => !w.main);
-/* A remote ágak kapcsolója (alapból be): a távolságok, a badge-ek, az ágválasztó és a szűrés is ezt nézi. */
-export const remotesOn = () => /** @type {HTMLInputElement} */ (document.getElementById('showRemotes'))?.checked ?? true;
-/* Remote-onkénti szűrő (több remote-nál): a rejtett remote-ok nevei. Repónként megmarad
-   (a lap tárolja, mint a témát; a kulcsban a repó slugja). */
+/* Remote-onkénti kapcsoló (az ágválasztó remote-fejlécén): a rejtett remote-ok nevei. Repónként
+   megmarad (a lap tárolja, mint a témát; a kulcsban a repó slugja). */
 const HIDDEN_KEY = `git-graph:hidden-remotes:${SLUG}`;
 export let hiddenRemotes = (() => {
   try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); } catch { return new Set(); }
@@ -36,13 +34,18 @@ export function toggleRemote(name) {
   if (!hiddenRemotes.delete(name)) hiddenRemotes.add(name);
   try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hiddenRemotes])); } catch { /* privát ablak: nem baj */ }
 }
+/* Rejtett-e a repó egy (létező) remote-ja; látszik-e legalább egy (remote nélkül: igen). A
+   távolságok, a badge-ek, az ágválasztó és a szűrés is ezt nézi. */
+export const remoteOff = name => hiddenRemotes.has(name);
+export const anyRemoteHidden = () => (DATA.meta.remotes || []).some(remoteOff);
+export const remotesOn = () => { const r = DATA.meta.remotes || []; return !r.length || !r.every(remoteOff); };
 /* A remote ref remote-ja: a leghosszabb illeszkedő remote-név (a név maga is tartalmazhat `/`-t). */
-const remoteOf = ref => (DATA.meta.remotes || []).filter(r => ref.startsWith(`${r}/`))
+export const remoteOf = ref => (DATA.meta.remotes || []).filter(r => ref.startsWith(`${r}/`))
   .reduce((a, r) => (r.length > a.length ? r : a), '');
-/* Rejtett-e a remote ref a remote-szűrő szerint (egy remote-nál nincs szűrő). */
-export const remoteHidden = ref => (DATA.meta.remotes || []).length > 1 && hiddenRemotes.has(remoteOf(ref));
-/* Látszik-e a remote ref: a kapcsoló be, és a remote-ja nincs elrejtve. */
-export const remoteShown = ref => remotesOn() && !remoteHidden(ref);
+/* Rejtett-e a remote ref: a remote-ja ki van kapcsolva. */
+export const remoteHidden = ref => remoteOff(remoteOf(ref));
+/* Látszik-e a remote ref. */
+export const remoteShown = ref => !remoteHidden(ref);
 /* A commit refjei a rejtett remote-ok refjei nélkül. */
 export const shownRefs = refs => refs.filter(r => r.kind !== 'remote' || !remoteHidden(r.name));
 /* A saját worktree; a fő checkout, ha a session nem egy worktree-ben dolgozik. */

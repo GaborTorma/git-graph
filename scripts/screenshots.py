@@ -28,17 +28,17 @@ def folder(name: str) -> Path:
 
 
 class SubtreeShots(SubtreeTest):
-    """Subtree-remote: a chip, a tükör-commitok és a remote-szűrő."""
+    """Subtree-remote: a chip, a tükör-commitok és a remote-ok kapcsolói az ágválasztóban."""
 
     WIDTH, HEIGHT = 900, 420
 
     def test_shots(self) -> None:
         out = folder("subtree-remote")
         self.page.screenshot(path=str(out / "graph.png"))
-        self.page.locator("#remotesBtn").click()
+        self.page.locator("#branchBtn").click()
         self.page.mouse.move(450, 400)   # a gomb buboréka ne takarja a menüt
         self.settle()
-        self.page.screenshot(path=str(out / "remote-filter.png"), clip={"x": 0, "y": 0, "width": 900, "height": 180})
+        self.page.screenshot(path=str(out / "remote-filter.png"), clip={"x": 0, "y": 0, "width": 900, "height": 420})
 
 
 class FullViewShots(FullViewTest):

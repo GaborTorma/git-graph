@@ -274,7 +274,7 @@ class FullViewTest(PageTestCase):
         sc = self.page.locator(".scroll").bounding_box()
         self.assertLessEqual(sc["x"] + sc["width"], side["x"] + 1)
         self.assertTrue(self.page.locator("#branchBtn").is_visible())
-        self.assertTrue(self.page.locator("#search").is_visible())
+        self.assertTrue(self.page.locator("#searchBtn").is_visible())
 
     def test_sidebar_diff_selects_head(self) -> None:
         """Commit nélkül a diff-szűrő a HEAD-commitot nyitja le: a fa a változott fájljait mutatja, színezve."""
