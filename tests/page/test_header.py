@@ -406,6 +406,7 @@ class BranchButtonTest(HeaderCase):
         total = self.page.locator("#rows .row").count()
         self.select("dev")
         self.assertFalse(self.page.locator("#branchBtn .chev").is_visible())
+        self.assert_x_centered("#branchBtn", "#branchX")
         self.page.locator("#branchBtn .sel-name").click()
         self.settle()
         self.assertTrue(self.page.locator("#branchPop").is_visible())
@@ -416,6 +417,13 @@ class BranchButtonTest(HeaderCase):
         self.assertEqual(self.page.locator("#branchBtn .select-label").inner_text(), "Minden ág")
         self.assertEqual(self.page.locator("#rows .row").count(), total)
         self.assertTrue(self.page.locator("#branchBtn .chev").is_visible())
+        self.search("menü")
+        self.assert_x_centered("#searchBtn", "#searchX")
+
+    def assert_x_centered(self, btn: str, x: str) -> None:
+        """Az x ikonja függőlegesen a gomb közepén."""
+        b, i = self.box(btn), self.box(f"{x} svg")
+        self.assertAlmostEqual(i["y"] + i["height"] / 2, b["y"] + b["height"] / 2, delta=0.5, msg=btn)
 
 
 class WorktreeButtonTest(HeaderCase):

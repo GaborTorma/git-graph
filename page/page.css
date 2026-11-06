@@ -511,7 +511,7 @@ button { font: inherit; color: inherit; }
 .sb-part { display: inline-flex; align-items: center; }
 .search-q { display: block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Az x saját hover-célpont: 24 px, 6 px-es sarok. */
-.clear-x { justify-content: center; width: 24px; height: 24px; border-radius: 6px; }
+.clear-x { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; }
 .clear-x:hover { background: var(--ghost-hover); }
 /* A popup: fent a keresőmező, elválasztó, alatta a „Csak ref-es commitok” kapcsoló-sor. */
 .sb-part > .ic { width: 20px; height: 20px; }   /* az app ghost gombjának ikonja (comfortable `md`) */
