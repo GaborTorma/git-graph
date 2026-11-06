@@ -61,7 +61,8 @@ pedig újratölt.
 A `git-graph` a Claude Bash eszközének parancsa (a plugin `bin/`-je), terminálos
 link és pillanatkép nincs; parancs nélkül a súgót írja ki.
 
-A Checken túl kézzel: a lap az appban, `python3 bin/git-graph --dev-install` után. A
+A Checken túl kézzel: a lap az appban, `python3 bin/git-graph --dev-install` után. Kész
+lapváltozás (commit) után a `--dev-install`-t te futtatod; se ez, se a lap megnézése nem Teendő. A
 válaszban írd ki a verziót (`<verzió>+dev.<időbélyeg>`) — a lap láblécén ebből
 látszik, hogy már az új állapot fut. Forrásból futó plugin, a hook és a
 telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
