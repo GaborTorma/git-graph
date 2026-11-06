@@ -5,6 +5,7 @@
 - [Commit-ikon tilos](no-commit-icon.md) — a h-alakú VS Code Git Graph-os commit ikont sehol ne használd
 - [Ne ismételj ikont](no-redundant-icons.md) — chipen csak olyan ikon, ami nem derül ki a chipből (branch-chip távolsága ikon nélkül)
 - [A verziót a release emeli](version-bump-in-release.md) — plugin.json bump csak a /workflow:release-ben
+- [Dev-install az AI dolga](dev-install-after-change.md) — kész lapváltozás után a `--dev-install`-t futtasd, ne Teendő
 
 ## Lap
 
