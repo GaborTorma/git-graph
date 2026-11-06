@@ -362,9 +362,26 @@ class WipSplitTest(WipCase):
     """Egymás mellett (széles panel) is csukott a változatlan rész: csak a WIP-eltérést tartalmazó rés nyílik ki,
     a két oldalon együtt."""
     WIDTH = 1400
-    # Egymás mellett a WIP-térközzel a CodeMirror minden képkockában újramér (a MergeView igazítása
-    # pattog, #63): a lap sosem nyugszik meg. Amíg ez él, fix várakozás (`PageTestCase.QUIET`).
-    QUIET = False
+
+    def test_rests(self) -> None:
+        """A nyitott nézet nyugalomban nem mér újra: a saját rés magassága egyezik a CodeMirror
+        becslésével, különben a MergeView igazítása minden képkockában újrarajzolna (#63). A hurok
+        nem minden betöltéskor alakult ki: három friss betöltés."""
+        for _ in range(3):
+            # Adott a WIP-réteges diff egymás mellett, a saját réseivel
+            self.page.reload()
+            self.page.wait_for_selector("#rows .row")
+            self.open_app()
+            self.assertGreater(self.page.locator(f"{SEL} .cm-merge-a .cm-collapsedLines").count(), 0)
+            # Ha a lap megnyugodott, és fél másodpercig figyeljük
+            changes = self.page.evaluate("""() => new Promise(done => {
+              let n = 0;
+              const obs = new MutationObserver(ms => { n += ms.length; });
+              obs.observe(document.querySelector('.cm-mergeView'), { subtree: true, childList: true, attributes: true });
+              setTimeout(() => { obs.disconnect(); done(n); }, 500);
+            })""")
+            # Akkor a nézetben semmi sem változik
+            self.assertEqual(changes, 0)
 
     def test_split_gaps(self) -> None:
         self.open_app()

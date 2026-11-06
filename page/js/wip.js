@@ -158,16 +158,21 @@ export function wipKit(CM) {
   // A saját változatlan-rés (egymás alatt, WIP-réteggel): a merge `collapseUnchanged`-je csak a commit
   // változásait látja; ez mindkét diffét. Kattintásra a rés egyben nyílik.
   const setGaps = CM.StateEffect.define(), openGap = CM.StateEffect.define();
+  /* A rés magassága: a DOM-ja ezt kapja, és a CodeMirror becslése is ez. Ha a kettő eltér (a merge
+     27-es becslése mellett a CSS-ből 26 px lett), egymás mellett a MergeView igazítása minden
+     képkockában újramér (#63). */
+  const GAP_H = 26;
   class Gap extends CM.WidgetType {
     constructor(n, i, onOpen) { super(); Object.assign(this, { n, i, onOpen }); }
     eq(o) { return o.n === this.n && o.i === this.i; }
     toDOM() {
       const el = Object.assign(document.createElement('div'), { className: 'cm-collapsedLines', textContent: `${this.n} változatlan sor` });
+      el.style.height = `${GAP_H}px`;
       el.addEventListener('click', () => this.onOpen(this.i));
       return el;
     }
     ignoreEvent(e) { return e instanceof MouseEvent; }
-    get estimatedHeight() { return 27; }
+    get estimatedHeight() { return GAP_H; }
   }
   const gaps = CM.StateField.define({
     create: () => CM.Decoration.none,
