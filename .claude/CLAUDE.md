@@ -86,8 +86,8 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
   külső fontot a CSP nem enged): a vendorolt woff2-ket a `page_code` adja base64-ben (`part:
   "font"`, `"font-mono"`), a lap `FontFace`-ként regisztrálja (`font.js`); addig és hiba esetén a
   rendszerfont. A vastagság az app tengelyértékei (`--w-*`: törzs 360 … bold 560). A
-  kontrollok az app komponenseinek méreteit és tokenjeit követik (Select: a lenyíló és a fogaskerék mező-gombja, TextInput,
-  Switch, Menu, SegmentedControl, TextLink, Shortcut, Spinner): kapcsoló (szűkös helyen ikonnal),
+  kontrollok az app komponenseinek méreteit és tokenjeit követik (a fejléc gombjai az app ghost gombja: ágválasztó, keresés, fájlok; TextInput,
+  Switch, Menu, SegmentedControl, TextLink, Shortcut, Spinner): kapcsoló (a menük soraiban: remote-ok, ref-szűrő, beállítások),
   lenyíló menü (`makeMenu`: ágválasztó és téma, natív `<select>` nincs),
   ikonok inline stroke-SVG-ként (`ICONS`). A fájltípus-ikonok a Catppuccin
   készletéből jönnek, a lap `--ic-*` színeire kötve: a szerver rendeli a

@@ -1,6 +1,9 @@
 /* Közös legördülő menü (ágválasztó, téma, beállítások): nyíl-, Home/End-, Escape- és
    Tab-billentyű, kattintás kívülre csuk. `onPick` a választott opciót kapja. */
 
+/* A nyitott menük csukói: egyszerre egy menü van nyitva (a billentyűvel nyitott is csukja a többit). */
+const closers = new Set();
+
 export function makeMenu(btn, pop, onPick, onOpen) {
   // A menü a látható részen belül marad (`--room`, a CSS max-height-jában): ami nem fér
   // ki, az görgethető. A lap nem görgethető, a kilógó rész különben elveszne.
@@ -16,12 +19,15 @@ export function makeMenu(btn, pop, onPick, onOpen) {
   };
   addEventListener('resize', fit);
   const toggle = open => {
+    if (open) for (const close of closers) if (close !== closeThis) close();
     pop.hidden = !open;
     btn.setAttribute('aria-expanded', String(open));
     fit();
     if (open && onOpen) onOpen();     // a fókuszt is ő teszi a helyére
     else if (open) (pop.querySelector('[aria-selected="true"]') || pop.querySelector('.option'))?.focus();
   };
+  const closeThis = () => { if (!pop.hidden) toggle(false); };
+  closers.add(closeThis);
   btn.addEventListener('click', () => toggle(pop.hidden));
   btn.addEventListener('keydown', e => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); toggle(true); }

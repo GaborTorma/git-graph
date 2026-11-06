@@ -274,7 +274,7 @@ class FullViewTest(PageTestCase):
         sc = self.page.locator(".scroll").bounding_box()
         self.assertLessEqual(sc["x"] + sc["width"], side["x"] + 1)
         self.assertTrue(self.page.locator("#branchBtn").is_visible())
-        self.assertTrue(self.page.locator("#search").is_visible())
+        self.assertTrue(self.page.locator("#searchBtn").is_visible())
 
     def test_sidebar_diff_selects_head(self) -> None:
         """Commit nélkül a diff-szűrő a HEAD-commitot nyitja le: a fa a változott fájljait mutatja, színezve."""
@@ -360,10 +360,10 @@ class FullViewTest(PageTestCase):
         self.assertTrue(sc["y"] <= fb["y"] < sc["y"] + sc["height"], (sc, fb))
 
     def test_diff_button_like_side_button(self) -> None:
-        """A fa diff-gombja keretes mező-gomb, mint az eszközsor sidebar-gombja, a fa keresőjének magasságával."""
+        """A fa diff-gombja keretes mező-gomb, akkora, mint az eszközsor (ghost) sidebar-gombja és a fa keresője."""
         self.open_side()
         box = lambda sel: self.page.locator(sel).bounding_box()  # noqa: E731
-        self.assertEqual((box("#sideBtn")["width"], box("#sideBtn")["height"]), (32, 32))
+        self.assertEqual((box("#sideBtn")["width"], box("#sideBtn")["height"]), (28, 28))
         self.assertEqual(box("#sideBtn svg")["width"], 20)
         self.assertEqual((box(".side .fv-diff")["width"], box(".side .fv-diff")["height"]), (28, 28))
         self.assertEqual(box(".side .fv-search")["height"], 28)

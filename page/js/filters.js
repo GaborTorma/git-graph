@@ -1,13 +1,15 @@
-/* Szűrők: ágválasztás, keresés, csak ref-es commitok, remote ágak. */
-import { branchBtn, branchPop, branchQuery, branchSel, fillBranches, filterBranches, remotesBtn, remotesPop, setBranchSel } from './branches.js';
+/* Szűrők: ágválasztás, remote-ok (az ágválasztó fejlécein), keresés és csak ref-es commitok (a
+   keresés lenyílójában). */
+import { branchBtn, branchPop, branchQuery, branchSel, fillBranches, filterBranches, setBranchSel } from './branches.js';
 import { headChip, rowsEl } from './dom.js';
 import { hydrateFocus } from './hydrate.js';
 import { makeMenu } from './menu.js';
-import { ancestryOf, focusWt, headFiltered, hiddenRemotes, localReach, remoteRefs, remoteShown, remotesOn, toggleRemote, worktrees } from './model.js';
+import { icon } from './icons.js';
+import { ancestryOf, anyRemoteHidden, focusWt, headFiltered, localReach, remoteRefs, remoteShown, toggleRemote, worktrees } from './model.js';
 import { render } from './rows.js';
 import { revealSha, scrollToSha } from './scroll.js';
 import { DATA, expanded, setBranchKeep, setQuery, setVisible, visible } from './state.js';
-import { fold, menuOpen, queryWords } from './util.js';
+import { esc, fold, menuOpen, queryWords } from './util.js';
 
 makeMenu(branchBtn, branchPop, o => {
   setBranchSel(o.dataset.refs.split(' ').filter(Boolean));
@@ -26,9 +28,28 @@ makeMenu(branchBtn, branchPop, o => {
   branchPop.style.minWidth = `${branchPop.offsetWidth}px`;
   branchQuery.focus();
 });
-/* A pipára kattintás csak azt a sort veszi ki vagy teszi be, a menü nyitva marad
-   (a makeMenu kattintás-kezelője elé, rögzítő fázisban). */
+/* Az ágválasztó x-e (kijelölésnél a nyíl helyén) „Minden ág”-ra áll vissza, a menüt nem nyitja (a
+   makeMenu nyitása előtt, rögzítő fázisban). */
+branchBtn.addEventListener('click', e => {
+  if (!(/** @type {HTMLElement} */ (e.target).closest('#branchX'))) return;
+  e.stopPropagation();
+  setBranchSel([]);
+  fillBranches();
+  applyFilters();
+  revealHead();
+}, true);
+/* A pipára kattintás csak azt a sort veszi ki vagy teszi be; a remote fejlécének kapcsolója a
+   remote-ot rejti vagy mutatja. A menü mindkettőnél nyitva marad (a makeMenu kattintás-kezelője
+   elé, rögzítő fázisban). */
 branchPop.addEventListener('click', e => {
+  const sw = /** @type {HTMLElement} */ (e.target).closest('.rsw[data-remote]');
+  if (sw) {
+    e.stopPropagation();
+    toggleRemote(sw.dataset.remote);
+    remotesChanged();
+    branchPop.querySelector(`.rsw[data-remote="${CSS.escape(sw.dataset.remote)}"]`)?.focus();
+    return;
+  }
   const c = /** @type {HTMLElement} */ (e.target).closest('.ckc[data-refs]');
   if (!c) return;
   e.stopPropagation();
@@ -45,6 +66,10 @@ branchPop.addEventListener('click', e => {
    üzenetében, törzsében, szerzőjében, e-mail-címében, ref-neveiben — vagy a
    hash eleje legyen. Kis- és nagybetű, ékezet nem számít. */
 const searchEl = /** @type {HTMLInputElement} */ (document.getElementById('search'));
+const searchBtn = document.getElementById('searchBtn');
+const searchPop = document.getElementById('searchPop');
+const onlyRefs = document.getElementById('onlyRefs');
+const refsOnly = () => onlyRefs.getAttribute('aria-checked') === 'true';
 
 function matches(c, words) {
   if (!words.length) return true;
@@ -54,13 +79,12 @@ function matches(c, words) {
 
 export function applyFilters() {
   const branch = branchSel.size ? branchSel : null;
-  const remotes = remotesOn();
-  const refsOnly = /** @type {HTMLInputElement} */ (document.getElementById('onlyRefs')).checked;
   const words = queryWords(searchEl.value);
   setQuery(words);
   const keep = branch ? ancestryOf(branch) : null;
   setBranchKeep(keep);
-  const local = remotes && !hiddenRemotes.size ? null : localReach();
+  const local = anyRemoteHidden() ? localReach() : null;
+  const refs = refsOnly();
 
   setVisible(DATA.commits.filter(c => {
     // Állapot, nem commit: keresésnél nem kell; ágszűrésnél csak annak a worktree-nek
@@ -74,27 +98,69 @@ export function applyFilters() {
     if (c.stash && keep) {
       if (!branch.has(c.branch) || !keep.has(c.parents[0])) return false;
     } else if (keep && !keep.has(c.sha)) return false;
-    // Remote ágak nélkül a helyi történet minden commitja marad (csak a remote-badge
-    // tűnik el); ami csak remote ágból érhető el, az kimarad.
+    // A rejtett remote-ok nélkül a helyi történet minden commitja marad (csak a remote-badge
+    // tűnik el); ami csak rejtett remote ágból érhető el, az kimarad.
     if (local && !local.has(c.sha)) return false;
-    if (refsOnly && !c.refs.some(r => r.kind !== 'remote' || remoteShown(r.name))) return false;
+    if (refs && !c.refs.some(r => r.kind !== 'remote' || remoteShown(r.name))) return false;
     return matches(c, words);
   }));
   render();
 }
-document.getElementById('onlyRefs').addEventListener('change', applyFilters);
-// A remote-kapcsoló és a remote-szűrő a fejléc chipjét is érinti (a ☁ szakasz).
-const remotesChanged = () => {
-  // A nem látható remote refek a kijelölésből is kiesnek (üresen: minden ág).
+/* A remote kapcsolója a fejléc chipjét is érinti (a ☁ szakasz). A nem látható remote refek a
+   kijelölésből is kiesnek (üresen: minden ág). */
+function remotesChanged() {
   for (const r of remoteRefs()) if (!remoteShown(r)) branchSel.delete(r);
   hydrateFocus(); fillBranches(); applyFilters();
-};
-document.getElementById('showRemotes').addEventListener('change', remotesChanged);
-/* A remote-szűrő: a menü opciója ki-be kapcsol egy remote-ot, a menü nyitva marad. */
-makeMenu(remotesBtn, remotesPop, o => {
-  toggleRemote(o.dataset.key);
-  remotesChanged();
-  remotesPop.querySelector(`.option[data-key="${CSS.escape(o.dataset.key)}"]`)?.focus();
+}
+
+/* A keresés gombja: szűrő nélkül egy ikon; szűrve akcentus színű, és kiírja a szűrést (a keresett
+   szöveg, ~160 px-nél „…”, a ref-szűrő címke-ikonja), a végén x — az mindkét szűrőt törli, a
+   popupot nem nyitja. Kattintásra (⌘F) lenyílik: fent a keresőmező, alatta a ref-kapcsoló. */
+function searchView() {
+  const q = searchEl.value.trim(), refs = refsOnly(), on = Boolean(q || refs);
+  const part = (name, html, cls = '') => `<span class="sb-part${cls}" data-part="${name}">${html}</span>`;
+  const html = part('search', icon('search', 'ic', 'md'))   // a ghost gomb ikonja 20 px (`md`)
+    + (q ? part('query', esc(q), ' search-q') : '')
+    + (refs ? part('tag', icon('tag', 'ic', 'md')) : '')
+    + (on ? `<span class="sb-part clear-x" id="searchX" data-part="clear" role="button" aria-label="Szűrés törlése"`
+      + ` data-tip="Szűrés törlése">${icon('close')}</span>` : '');
+  searchBtn.classList.toggle('filtered', on);
+  searchBtn.setAttribute('aria-label', `Commitok keresése${q ? `: ${q}` : ''}${refs ? ' · csak ref-es commitok' : ''}`);
+  if (searchBtn.innerHTML !== html) searchBtn.innerHTML = html;
+}
+/* A keresés törlése (az Esc); `refs`: a ref-szűrő is (az x). A kinyitott commit a lista tetejére. */
+function clearSearch(refs = false) {
+  searchEl.value = '';
+  lastQuery = '';
+  if (refs) onlyRefs.setAttribute('aria-checked', 'false');
+  applyFilters();
+  searchView();
+  revealExpanded();
+}
+searchView();
+makeMenu(searchBtn, searchPop, o => {
+  o.setAttribute('aria-checked', String(!refsOnly()));
+  applyFilters();
+  searchView();
+}, () => { searchEl.focus(); searchEl.select(); });
+/* Az x (a gombon belül, a makeMenu nyitása előtt, rögzítő fázisban). */
+searchBtn.addEventListener('click', e => {
+  if (!(/** @type {HTMLElement} */ (e.target).closest('#searchX'))) return;
+  e.stopPropagation();
+  clearSearch(true);
+}, true);
+/* A mező billentyűi (a makeMenu kezelője előtt): az Esc előbb a keresett szöveget törli (a
+   ref-szűrő marad, a popup nyitva), üres mezőben a popupot zárja; Enter bezárja a popupot (a
+   szűrés marad); Home/End a kurzort mozgatja. */
+searchEl.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    e.preventDefault();                 // a keresőmező natív Esc-törlése helyett
+    if (searchEl.value) { e.stopPropagation(); clearSearch(); }
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    searchBtn.click();
+    searchBtn.focus();
+  } else if (e.key === 'Home' || e.key === 'End') e.stopPropagation();
 });
 
 /* A fejléc chipjére kattintva a saját HEAD commitjához; ha az ágválasztó elrejti, előbb
@@ -117,25 +183,24 @@ searchEl.addEventListener('input', () => {
   const cleared = lastQuery && !searchEl.value;
   lastQuery = searchEl.value;
   applyFilters();
+  searchView();
   if (cleared) revealExpanded();
 });
 
-/* ⌘F / Ctrl+F a keresőbe (a lap saját keresője helyett); Escape előbb a
-   keresést üríti, aztán a kinyitott commitot csukja be. A kódnézetben (CodeMirror) a
+/* ⌘F / Ctrl+F a keresés popupját nyitja, a keresőbe (a lap saját keresője helyett); zárt
+   popupnál az Escape előbb a keresett szöveget üríti (a ref-szűrő marad), aztán a kinyitott
+   commitot csukja be. A kódnézetben (CodeMirror) a
    billentyűk az övéi: a ⌘F a fájlban keres, az Esc a szerkesztést zárja. */
 document.addEventListener('keydown', e => {
   if (/** @type {HTMLElement} */ (e.target).closest?.('.cm-editor')) return;
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
     e.preventDefault();
-    searchEl.focus();
-    searchEl.select();
+    if (searchPop.hidden) searchBtn.click();      // a nyitás a mezőbe teszi a fókuszt
+    else { searchEl.focus(); searchEl.select(); }
   } else if (e.key === 'Escape' && searchEl.value
              && !menuOpen()) {   // nyitott menüt a menü csuk
     e.stopImmediatePropagation();
     e.preventDefault();
-    searchEl.value = '';
-    lastQuery = '';
-    applyFilters();
-    revealExpanded();
+    clearSearch();
   }
 }, true);

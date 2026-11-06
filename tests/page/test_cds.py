@@ -153,19 +153,17 @@ class DarkTokensTest(CdsCase):
 class SizesTest(CdsCase):
     def test_sizes(self) -> None:
         """A subject 14, az idő 13, a badge 12 px és 20 magas; a sor 34, a kontroll 32 / 8 px-es
-        sarok; a fejléc kapcsolója 36 × 20, a beállítások menüjéé 28 × 16."""
+        sarok (a fejléc ghost gombjai 28-asok); a menük kapcsolója 28 × 16."""
         self.assertEqual(self.style("#rows .subject", "fontSize"), "14px")
         self.assertEqual(self.style("#rows .meta .time", "fontSize"), "13px")
         self.assertEqual(self.style("#rows .badge", "fontSize"), "12px")
         self.assertEqual(self.box("#rows .badge")["height"], 20)
         self.assertEqual(self.box("#rows .row:not(:has(.refs))")["height"], 34)
-        for ctrl in (".search", "#branchBtn", "#sideBtn"):
-            self.assertEqual(self.box(ctrl)["height"], 32, ctrl)
+        for ctrl in ("#searchBtn", "#branchBtn", "#sideBtn"):
+            self.assertEqual(self.box(ctrl)["height"], 28, ctrl)
             self.assertEqual(self.style(ctrl, "borderTopLeftRadius"), "8px", ctrl)
-        track = self.box(".chrome .switch .track")
-        self.assertEqual((track["width"], track["height"]), (36, 20))
         self.page.locator("#settingsBtn").click()
-        track = self.box(".option.setting .track")
+        track = self.box("#settingsPop .option.setting .track")
         self.assertEqual((track["width"], track["height"]), (28, 16))
 
 
@@ -529,13 +527,15 @@ class CardAnimTest(CdsCase):
 
 class ChevronTest(CdsCase):
     def test_chevrons(self) -> None:
-        """A fájlsor nyila 12 × 12 (`xs`); az ágválasztóé az app Select-jéé: 16 × 16 (`sm`), halvány."""
+        """A fájlsor nyila 12 × 12 (`xs`); az ágválasztóé az app lenyílójáé (CaretDown): 16 × 16 (`sm`),
+        a szöveg színe 60 %-on."""
         self.open_commit(FILES_SUBJECT)
         b = self.box("#rows .details .file .chev .ic")
         self.assertEqual((b["width"], b["height"]), (12, 12))
         b = self.box("#branchBtn .chev")
         self.assertEqual((b["width"], b["height"]), (16, 16))
-        self.assertEqual(self.style("#branchBtn .chev", "color"), rgb("#888888"))
+        self.assertEqual(self.style("#branchBtn .chev", "color"), self.style("#branchBtn", "color"))
+        self.assertEqual(self.style("#branchBtn .chev", "opacity"), "0.6")
 
     def test_file_icons(self) -> None:
         """A fájlikon 16 px, mint az app fájllistájában (a Catppuccin-ikon és az általános is)."""
@@ -550,8 +550,8 @@ class ChevronTest(CdsCase):
 
 class MenuCheckTest(CdsCase):
     def test_branch_checks(self) -> None:
-        """A „Minden ág” és a `dev` pipája egy x-en, a távolságoktól jobbra; a szűrő nagyítója és
-        az ágak ikonja egy oszlopban."""
+        """A „Minden ág” és a `dev` pipája egy x-en, a távolságoktól jobbra; a szűrő (ikon nélküli) mezője
+        az ágak ikonjával egy oszlopban kezdődik."""
         self.page.locator("#branchBtn").click()
         self.settle()
         dev = self.page.locator("#branchPop .option.blk", has=self.page.locator(".name", has_text="dev")).first
@@ -561,9 +561,10 @@ class MenuCheckTest(CdsCase):
         dists = dev.locator(".dc").evaluate_all("ds => ds.map(d => d.getBoundingClientRect().right)")
         self.assertTrue(dists)
         self.assertGreater(dev_ck["x"], max(dists))
-        lens = self.box("#branchPop .menu-search .ic")
+        self.assertEqual(self.page.locator("#branchPop .menu-search svg").count(), 0)
+        field = self.box("#branchQuery")
         col = dev.locator(".col").first.bounding_box()
-        self.assertAlmostEqual(lens["x"] + lens["width"] / 2, col["x"] + col["width"] / 2, delta=0.5)
+        self.assertAlmostEqual(field["x"], col["x"], delta=0.5)
 
 
 class MenuIndentTest(CdsCase):
@@ -781,6 +782,7 @@ class MonogramTest(CdsCase):
 class SearchHighlightTest(CdsCase):
     def test_highlight(self) -> None:
         """A „login” szóra keresve a subjectben a szó bg-highlight hátteret kap."""
+        self.page.locator("#searchBtn").click()
         self.page.locator("#search").fill("login")
         self.settle()
         mark = self.row("login oldal").locator(".subject mark")
@@ -792,41 +794,31 @@ class SearchHighlightTest(CdsCase):
 
 class ControlsTest(CdsCase):
     def test_trigger_button(self) -> None:
-        """A lenyíló gomb és a sidebar gombja az app Select-je: halvány mező, 1 px-es keret, hoverre erősebb."""
+        """A lenyíló gomb és a sidebar gombja az app ghost gombja: áttetsző, keret nélkül, hoverre fill-ghost-hover."""
         for btn in ("#branchBtn", "#sideBtn"):
-            self.assertEqual(self.style(btn, "backgroundColor"), "rgba(255, 255, 255, 0.5)", btn)
-            self.assertEqual(self.style(btn, "boxShadow"), "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px inset", btn)
+            self.assertEqual(self.style(btn, "backgroundColor"), TRANSPARENT, btn)
+            self.assertEqual(self.style(btn, "boxShadow"), "none", btn)
             self.page.locator(btn).hover()
-            self.assertEqual(self.style(btn, "boxShadow"), "rgba(11, 11, 11, 0.2) 0px 0px 0px 1px inset", btn)
-
-    def test_search_field(self) -> None:
-        """A keresőmező az app TextInput-ja: halvány mező, 1 px-es keret, 12 px a bal szélén;
-        a gyorsbillentyű billentyűnként egy négyzetes sapka, 2 px-es közzel."""
-        self.assertEqual(self.style(".search", "backgroundColor"), "rgba(255, 255, 255, 0.5)")
-        self.assertEqual(self.style(".search", "paddingLeft"), "12px")
-        caps = self.page.locator(".search kbd").evaluate_all(
-            "ks => ks.map(k => { const r = k.getBoundingClientRect(); return [k.textContent, r.width, r.height, r.left]; })")
-        self.assertEqual([c[0] for c in caps], ["⌘", "F"])
-        self.assertTrue(all(c[1] == c[2] == 18 for c in caps), caps)
-        self.assertEqual(caps[1][3] - caps[0][3], 20)
+            self.assertEqual(self.style(btn, "backgroundColor"), "rgba(0, 0, 0, 0.05)", btn)
 
     def test_focus_ring(self) -> None:
-        """A fókuszgyűrű az app focus-shadow-ja: elöl a háttér színű belső vonal."""
-        self.page.locator("#search").focus()
-        self.assertTrue(self.style(".search", "boxShadow").startswith("rgb(255, 255, 255) 0px 0px 0px 1px inset"))
+        """A fókuszgyűrű az app focus-shadow-ja: elöl a háttér színű belső vonal (a fa keresőmezőjén)."""
+        self.page.locator("#sideBtn").click()
+        self.page.locator(".fv-search input").focus()
+        self.assertTrue(self.style(".fv-search", "boxShadow").startswith("rgb(255, 255, 255) 0px 0px 0px 1px inset"))
 
     def test_switch(self) -> None:
-        """A kapcsoló gombja bekapcsolva 16 px-szel csúszik; hoverre a kikapcsolt sáv erősebb."""
-        track = ".chrome .switch:not(:has(input:checked)) .track"
+        """A menü kapcsolójának gombja bekapcsolva 12 px-szel csúszik; hoverre a kikapcsolt sáv erősebb."""
+        self.page.locator("#searchBtn").click()
+        track = "#onlyRefs .track"
         off = self.style(track, "backgroundColor")
-        self.page.locator(".chrome .switch:not(:has(input:checked))").first.hover()
+        self.page.locator("#onlyRefs").hover()
         self.page.wait_for_timeout(250)   # a sáv színe .15 s alatt vált
         self.assertNotEqual(self.style(track, "backgroundColor"), off)
-        self.page.locator(".chrome .switch:not(:has(input:checked))").first.click()
+        self.page.locator("#onlyRefs").click()
         self.page.wait_for_timeout(250)
-        moved = self.page.locator(".chrome .switch:has(input:checked) .track").first.evaluate(
-            "t => new DOMMatrix(getComputedStyle(t, '::after').transform).m41")
-        self.assertEqual(moved, 16)
+        moved = self.page.locator(track).evaluate("t => new DOMMatrix(getComputedStyle(t, '::after').transform).m41")
+        self.assertEqual(moved, 12)
 
     def test_menu(self) -> None:
         """A menü az app Menu-je: 4 px-es gutter, a keret a border token, a tétel 12 px-es (Select Item)
@@ -880,7 +872,7 @@ class IconSizesTest(CdsCase):
         is, akcentus színnel; a gombok és a chipek ikonja 16 marad."""
         self.page.locator("#branchBtn").click()
         self.settle()
-        self.assertEqual(self.sizes("#branchPop .col svg.ic, #branchPop .menu-search .ic, #branchPop .ic.ck:visible"), {(20, 20)})
+        self.assertEqual(self.sizes("#branchPop .col svg.ic, #branchPop .ic.ck:visible"), {(20, 20)})
         self.assertEqual(self.style("#branchPop .ic.ck", "color"), rgb("#257de0"))
         self.assertEqual(self.sizes("#branchBtn .select-ic svg.ic, #rows .badge svg.ic"), {(16, 16)})
         self.page.keyboard.press("Escape")

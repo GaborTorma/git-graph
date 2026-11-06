@@ -25,7 +25,7 @@ export function hydrate() {
     ? ghLink(`${base}/issues`, icon('issue'), 'mini', 'Issue-k a GitHubon')
       + ghLink(`${base}/pulls`, icon('pr'), 'mini', 'Pull requestek a GitHubon')
       + ghLink(base, icon('github'), 'mini', 'A repó a GitHubon') : '';
-  fitChrome();                // a repó- és ágnév hossza dönt a kompakt fejlécről
+  fitChrome();                // a repó- és ágnév hossza dönt a fejléc sorairól
   hydrateAvatars();
 }
 
