@@ -101,7 +101,8 @@ class HeaderCase(PageTestCase):
         if refs:
             self.page.locator("#onlyRefs").click()
         self.settle()
-        self.close_menu()
+        self.page.locator("#repoName").click()          # kívülre kattintva zár (az Esc a szöveget törölné)
+        self.settle()
 
     def subjects(self) -> list:
         return self.page.locator("#rows .row .subject").all_inner_texts()
@@ -175,6 +176,9 @@ class SearchPopupTest(HeaderCase):
         self.assertEqual(self.style("#searchPop .menu-search", "borderBottomWidth"), "1px")
         self.assertEqual((head["x"], head["width"]), (pop["x"], pop["width"]))
         self.assertGreaterEqual(row["y"], head["y"] + head["height"])
+        self.assertEqual(head["height"], 36)                      # az app beágyazott keresője
+        self.assertTrue(self.page.evaluate("""() => [...document.styleSheets].flatMap(s => [...s.cssRules])
+          .some(r => r.selectorText?.includes('.search-pop input::-webkit-search-cancel-button') && r.style.display === 'none')"""))   # nincs x a mezőben
         self.assertIn("Csak ref-es commitok", self.page.locator("#onlyRefs").inner_text())
         self.assertEqual(self.page.locator('#onlyRefs').get_attribute("aria-checked"), "false")
 
@@ -194,14 +198,14 @@ class SearchPopupTest(HeaderCase):
         self.assertTrue(self.page.locator("#branchPop").is_hidden())
         self.assertTrue(self.page.locator("#searchPop").is_visible())
 
-    def test_escape_closed_clears_both(self) -> None:
-        """Zárt popupnál az Esc, mint az x, a keresést és a ref-szűrőt is törli."""
+    def test_escape_closed_clears_text(self) -> None:
+        """Zárt popupnál az Esc a keresett szöveget törli, a ref-szűrő marad."""
         self.search("menü", refs=True)
         self.page.keyboard.press("Escape")
         self.settle()
         self.assertEqual(self.page.locator("#search").input_value(), "")
-        self.assertEqual(self.page.locator("#onlyRefs").get_attribute("aria-checked"), "false")
-        self.assertFalse(self.page.locator("#searchBtn").evaluate("b => b.classList.contains('filtered')"))
+        self.assertEqual(self.page.locator("#onlyRefs").get_attribute("aria-checked"), "true")
+        self.assertTrue(self.page.locator("#searchBtn").evaluate("b => b.classList.contains('filtered')"))
 
     def test_typing_filters(self) -> None:
         """Gépelés közben a lista a „menü” szóra szűr, a popup nyitva marad."""
@@ -225,16 +229,22 @@ class SearchPopupTest(HeaderCase):
         self.assertEqual(self.page.locator("#rows .row:not(:has(.refs))").count(), 0)
         self.assertTrue(self.page.locator("#searchPop").is_visible())
 
-    def test_escape_keeps_filter(self) -> None:
-        """Esc bezárja a popupot, a lista a „menü” szerint szűrt marad."""
+    def test_escape_clears_text(self) -> None:
+        """A mezőben az Esc előbb a keresett szöveget törli (a ref-szűrő és a popup marad), üres
+        mezőben a popupot zárja."""
         self.open_search()
+        self.page.locator("#onlyRefs").click()
         self.page.locator("#search").fill("menü")
         self.settle()
         self.page.keyboard.press("Escape")
         self.settle()
+        self.assertEqual(self.page.locator("#search").input_value(), "")
+        self.assertEqual(self.page.locator("#onlyRefs").get_attribute("aria-checked"), "true")
+        self.assertTrue(self.page.locator("#searchPop").is_visible())
+        self.page.keyboard.press("Escape")
+        self.settle()
         self.assertTrue(self.page.locator("#searchPop").is_hidden())
-        self.assertEqual(self.page.locator("#search").input_value(), "menü")
-        self.assertNotIn("main-0-0: egy commit a fixture-ből", self.subjects())
+        self.assertEqual(self.page.locator("#onlyRefs").get_attribute("aria-checked"), "true")
 
     def test_click_outside_keeps_filter(self) -> None:
         """A commitlistára kattintás bezárja a popupot, a szűrés megmarad."""
@@ -377,6 +387,16 @@ class BranchButtonTest(HeaderCase):
         self.select(*NINE)
         self.assertEqual(self.tip("#branchBtn .sel-more").split("\n"),
                          ["extra-2", "hotfix/meg-egy-hosszu-ag-nev", "release/2026-oszi-kiadas-hosszu-nevvel"])
+
+    def test_selected_background(self) -> None:
+        """Kijelölt ágnál a gomb háttere a lenyomott (fill-ghost-selected); csak rejtett remote miatt nincs háttér."""
+        self.toggle_remote("upstream")
+        self.close_menu()
+        self.page.mouse.move(600, 600)
+        self.assertEqual(self.style("#branchBtn", "backgroundColor"), TRANSPARENT)
+        self.select("dev")
+        self.page.mouse.move(600, 600)
+        self.assertEqual(self.style("#branchBtn", "backgroundColor"), "rgba(0, 0, 0, 0.1)")
 
     def test_no_clear(self) -> None:
         """Az ágválasztó gombján nincs törlő x."""

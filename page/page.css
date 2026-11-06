@@ -358,6 +358,8 @@ button { font: inherit; color: inherit; }
 /* A fejlécben az app egérrel használt kontroll-magassága (fizzy `panels`, `pointer: fine`): 28 px,
    az ikongomb 28 × 28; a szöveges gomb paddingje 9 px, a CaretDown 16 px, halványan, a szélhez húzva. */
 .chrome .select.ghost { height: 28px; padding: 0 9px; }
+/* Szűrő él (ág kijelölve; keresés vagy ref-szűrő): lenyomott háttér, mint a fájlok gombja. */
+.select.ghost.filtered { background: var(--ghost-selected); color: var(--fg-0); }
 .chrome .select.ghost.gear, .chrome #searchBtn:not(.filtered) { width: 28px; padding: 0; }
 .chrome .select.ghost .chev { margin: 0 -3px 0 0; color: inherit; opacity: .6; }
 /* Az ágválasztó gombja a kijelölést mutatja (`renderSel`): elemenként ikon (+ név), `+N`, és ha
@@ -502,7 +504,7 @@ button { font: inherit; color: inherit; }
    a szűrést jelző szöveg és címke akcentus színű. */
 #searchBtn { gap: 4px; }
 #searchBtn:not(.filtered) { justify-content: center; }
-#searchBtn.filtered { color: var(--fg-0); background: var(--ghost-selected); padding-right: 2px; }
+#searchBtn.filtered { padding-right: 2px; }
 #searchBtn.filtered :is(.search-q, [data-part="tag"]) { color: var(--accent); }
 .sb-part { display: inline-flex; align-items: center; }
 .search-q { display: block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -515,7 +517,8 @@ button { font: inherit; color: inherit; }
 /* A popup teteje az app beágyazott keresője: ikon nélküli mező, alatta teljes szélességű vonal;
    alatta a kapcsoló-sor a menü gutterjével. */
 .menu-pop.search-pop { width: 320px; padding: 0; }
-.search-pop .menu-search { height: 44px; padding: 0 16px; }
+.search-pop .menu-search { height: 36px; padding: 0 16px; }   /* az app beágyazott keresője: py-2 + 20 px-es sor */
+.search-pop input::-webkit-search-cancel-button { display: none; }   /* a mezőben nincs x: az Esc törli */
 .search-pop .option { margin: 4px; }
 /* A beviteli mező (az app TextInput-ja): a teljes nézet szűrője és keresője. */
 .search {
@@ -535,11 +538,11 @@ button { font: inherit; color: inherit; }
 }
 .search input:focus-visible, .menu-search input:focus-visible { box-shadow: none; }
 .search input::placeholder, .menu-search input::placeholder { color: var(--fg-3); }
-:is(.search, .search-pop) input::-webkit-search-cancel-button {   /* vékony X (a natív vastag helyett) */
+.search input::-webkit-search-cancel-button {   /* vékony X (a natív vastag helyett) */
   -webkit-appearance: none; width: 12px; height: 12px; cursor: pointer; background: var(--fg-2);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 2.5l7 7M9.5 2.5l-7 7' stroke='black' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
 }
-:is(.search, .search-pop) input::-webkit-search-cancel-button:hover { background: var(--fg-0); }
+.search input::-webkit-search-cancel-button:hover { background: var(--fg-0); }
 
 /* Témaválasztó (a láblécben): a menü jobbra zárva, felfelé nyílik. */
 .menu-pop.end { left: auto; right: 0; min-width: 170px; }

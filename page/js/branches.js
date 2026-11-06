@@ -95,6 +95,7 @@ function renderSel() {
     + off;
   const set = h => { if (branchView.innerHTML !== h) branchView.innerHTML = h; };
   branchView.classList.toggle('many', items.length > 1);
+  branchBtn.classList.toggle('filtered', items.length > 0);   // kijelölt ág: lenyomott háttér (a rejtett remote nem)
   const room = selRoom();
   const key = `${Math.round(room)}|${html(MAX_NAMED)}`;
   if (key === selKey) {

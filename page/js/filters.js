@@ -118,11 +118,11 @@ function searchView() {
   searchBtn.setAttribute('aria-label', `Commitok keresése${q ? `: ${q}` : ''}${refs ? ' · csak ref-es commitok' : ''}`);
   if (searchBtn.innerHTML !== html) searchBtn.innerHTML = html;
 }
-/* Mindkét szűrő törlése (az x, és zárt popupnál az Esc); a kinyitott commit a lista tetejére. */
-function clearSearch() {
+/* A keresés törlése (az Esc); `refs`: a ref-szűrő is (az x). A kinyitott commit a lista tetejére. */
+function clearSearch(refs = false) {
   searchEl.value = '';
   lastQuery = '';
-  onlyRefs.setAttribute('aria-checked', 'false');
+  if (refs) onlyRefs.setAttribute('aria-checked', 'false');
   applyFilters();
   searchView();
   revealExpanded();
@@ -137,13 +137,16 @@ makeMenu(searchBtn, searchPop, o => {
 searchBtn.addEventListener('click', e => {
   if (!(/** @type {HTMLElement} */ (e.target).closest('#searchX'))) return;
   e.stopPropagation();
-  clearSearch();
+  clearSearch(true);
 }, true);
-/* A mező billentyűi (a makeMenu kezelője előtt): Enter és Esc bezárja a popupot (a szűrés marad:
-   a keresőmező natív Esc-törlése elmarad); Home/End a kurzort mozgatja. */
+/* A mező billentyűi (a makeMenu kezelője előtt): az Esc előbb a keresett szöveget törli (a
+   ref-szűrő marad, a popup nyitva), üres mezőben a popupot zárja; Enter bezárja a popupot (a
+   szűrés marad); Home/End a kurzort mozgatja. */
 searchEl.addEventListener('keydown', e => {
-  if (e.key === 'Escape') e.preventDefault();
-  else if (e.key === 'Enter') {
+  if (e.key === 'Escape') {
+    e.preventDefault();                 // a keresőmező natív Esc-törlése helyett
+    if (searchEl.value) { e.stopPropagation(); clearSearch(); }
+  } else if (e.key === 'Enter') {
     e.preventDefault();
     searchBtn.click();
     searchBtn.focus();
@@ -175,7 +178,8 @@ searchEl.addEventListener('input', () => {
 });
 
 /* ⌘F / Ctrl+F a keresés popupját nyitja, a keresőbe (a lap saját keresője helyett); zárt
-   popupnál az Escape előbb a keresést (és a ref-szűrőt) üríti, aztán a kinyitott commitot csukja be. A kódnézetben (CodeMirror) a
+   popupnál az Escape előbb a keresett szöveget üríti (a ref-szűrő marad), aztán a kinyitott
+   commitot csukja be. A kódnézetben (CodeMirror) a
    billentyűk az övéi: a ⌘F a fájlban keres, az Esc a szerkesztést zárja. */
 document.addEventListener('keydown', e => {
   if (/** @type {HTMLElement} */ (e.target).closest?.('.cm-editor')) return;
@@ -183,7 +187,7 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     if (searchPop.hidden) searchBtn.click();      // a nyitás a mezőbe teszi a fókuszt
     else { searchEl.focus(); searchEl.select(); }
-  } else if (e.key === 'Escape' && (searchEl.value || refsOnly())
+  } else if (e.key === 'Escape' && searchEl.value
              && !menuOpen()) {   // nyitott menüt a menü csuk
     e.stopImmediatePropagation();
     e.preventDefault();
