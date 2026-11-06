@@ -16,7 +16,7 @@
 - [Sticky és overflow](sticky-header-overflow.md) — köztes `overflow` elrontja a ragadós fejlécet; egy görgető régió
 - [Görgetés commitonként](scroll-step-rows.md) — scroll-snap és animáció elvetve; a `coasting` a lendületre
 - [A lap nyelve](page-language-os-locale.md) — `navigator.language` = OS; az app nyelve a `config.json`-ból, a szerveren
-- [CodeMirror buktatói](codemirror-gotchas.md) — margós widget elcsúsztat; a lap ⌘F/Esc-je a `.cm-editor`-t kihagyja; a nézet költözik, nem épül újra
+- [CodeMirror buktatói](codemirror-gotchas.md) — margós widget elcsúsztat; `estimatedHeight` ≠ DOM-magasság → végtelen újramérés; a lap ⌘F/Esc-je a `.cm-editor`-t kihagyja; a nézet költözik, nem épül újra
 - [Mermaid-build](mermaid-build.md) — blobból fut a CSP alatt; karcsú build csonkokkal, ELK-kal, a hídhatár alatt
 
 ## Git és Python

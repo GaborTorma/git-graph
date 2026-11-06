@@ -177,7 +177,6 @@ class PageTestCase(unittest.TestCase):
     WIDTH, HEIGHT = 900, 700
     COLOR_SCHEME = "light"     # a rendszer témája (`prefers-color-scheme`)
     INIT = ""                  # a kamu Claude app után futó saját init-szkript (pl. a host-híd hibái)
-    QUIET = True               # a `settle` a nyugalomra vár; False: a lap sosem nyugszik meg, fix 250 ms
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -245,11 +244,7 @@ class PageTestCase(unittest.TestCase):
         MCP-hívások, rövid időzítők, és 50 ms (3 képkocka) DOM- és görgetésváltozás nélkül. A
         végtelen animáció (az élő-jel pulzálása) és a befejezett (a csukott diff `fill`-es
         animációja) nem számít. Utána még két képkocka: a méretfigyelők köre."""
-        if self.QUIET:
-            self.page.wait_for_function("window.__quiet(50)")
-        else:
-            self.page.wait_for_function("window.__quiet(0)")    # csak az animációk, hívások, időzítők
-            self.page.wait_for_timeout(250)
+        self.page.wait_for_function("window.__quiet(50)")
         self.page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
 
     def until(self, check, what: str = "a feltétel", timeout: float = 5.0) -> None:
