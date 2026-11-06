@@ -550,8 +550,8 @@ class ChevronTest(CdsCase):
 
 class MenuCheckTest(CdsCase):
     def test_branch_checks(self) -> None:
-        """A „Minden ág” és a `dev` pipája egy x-en, a távolságoktól jobbra; a szűrő nagyítója és
-        az ágak ikonja egy oszlopban."""
+        """A „Minden ág” és a `dev` pipája egy x-en, a távolságoktól jobbra; a szűrő (ikon nélküli) mezője
+        az ágak ikonjával egy oszlopban kezdődik."""
         self.page.locator("#branchBtn").click()
         self.settle()
         dev = self.page.locator("#branchPop .option.blk", has=self.page.locator(".name", has_text="dev")).first
@@ -561,9 +561,10 @@ class MenuCheckTest(CdsCase):
         dists = dev.locator(".dc").evaluate_all("ds => ds.map(d => d.getBoundingClientRect().right)")
         self.assertTrue(dists)
         self.assertGreater(dev_ck["x"], max(dists))
-        lens = self.box("#branchPop .menu-search .ic")
+        self.assertEqual(self.page.locator("#branchPop .menu-search svg").count(), 0)
+        field = self.box("#branchQuery")
         col = dev.locator(".col").first.bounding_box()
-        self.assertAlmostEqual(lens["x"] + lens["width"] / 2, col["x"] + col["width"] / 2, delta=0.5)
+        self.assertAlmostEqual(field["x"], col["x"], delta=0.5)
 
 
 class MenuIndentTest(CdsCase):
@@ -871,7 +872,7 @@ class IconSizesTest(CdsCase):
         is, akcentus színnel; a gombok és a chipek ikonja 16 marad."""
         self.page.locator("#branchBtn").click()
         self.settle()
-        self.assertEqual(self.sizes("#branchPop .col svg.ic, #branchPop .menu-search .ic, #branchPop .ic.ck:visible"), {(20, 20)})
+        self.assertEqual(self.sizes("#branchPop .col svg.ic, #branchPop .ic.ck:visible"), {(20, 20)})
         self.assertEqual(self.style("#branchPop .ic.ck", "color"), rgb("#257de0"))
         self.assertEqual(self.sizes("#branchBtn .select-ic svg.ic, #rows .badge svg.ic"), {(16, 16)})
         self.page.keyboard.press("Escape")

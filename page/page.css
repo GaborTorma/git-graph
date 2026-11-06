@@ -422,14 +422,14 @@ button { font: inherit; color: inherit; }
 }
 .menu-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px; display: flex; flex-direction: column; }
 .menu-list.empty::after { content: "Nincs ilyen ág"; padding: 6px 12px; font-size: 12.5px; color: var(--fg-3); }
-/* A szűrőmező a menü tetején. */
+/* A szűrőmező a menü tetején: az app beágyazott keresője — ikon nélküli mező (py-2 + 20 px-es
+   sor), alatta teljes szélességű vonal; a szöveg az ágak ikonjával egy oszlopban kezdődik. */
 .menu-search {
-  display: flex; flex: none; align-items: center; gap: 8px;
-  height: 38px; padding: 0 16px;   /* PopupSearch: pad-md + a gutter, az ágak ikonjával egy oszlopban */
+  display: flex; flex: none; align-items: center;
+  height: 36px; padding: 0 16px;
   border-bottom: 1px solid var(--border);
   color: var(--fg-3);
 }
-.menu-search .ic { width: 20px; height: 20px; flex: none; }   /* az ágak ikonjával egy oszlopban */
 .menu-wt {
   display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 6px 12px 0;
   font-size: 13px; font-weight: var(--w-medium); color: var(--fg-3);   /* Menu.GroupLabel: text-muted (a remote csoporté) */
@@ -519,7 +519,6 @@ button { font: inherit; color: inherit; }
 /* A popup teteje az app beágyazott keresője: ikon nélküli mező, alatta teljes szélességű vonal;
    alatta a kapcsoló-sor a menü gutterjével. */
 .menu-pop.search-pop { width: 320px; padding: 0; }
-.search-pop .menu-search { height: 36px; padding: 0 16px; }   /* az app beágyazott keresője: py-2 + 20 px-es sor */
 .search-pop input::-webkit-search-cancel-button { display: none; }   /* a mezőben nincs x: az Esc törli */
 .search-pop .option { margin: 4px; }
 /* A beviteli mező (az app TextInput-ja): a teljes nézet szűrője és keresője. */
