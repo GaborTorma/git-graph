@@ -193,7 +193,7 @@ class EditTest(PageTestCase):
             self.page.keyboard.press("Escape")
         with self.subTest("Akkor a szöveg a lemezen"):
             self.page.wait_for_function(f"({CURSOR})({sel!r})[2] !== 'true'")
-            self.page.wait_for_timeout(300)
+            self.until(lambda: 'Szerkesztve. Második bekezdés.' in self.disk('leiras.md'), "Szerkesztve. Második bekezdés. a lemezen")
             self.assertIn("Szerkesztve. Második bekezdés.", self.disk("leiras.md"))
 
     def test_live_marking(self) -> None:
@@ -215,7 +215,7 @@ class EditTest(PageTestCase):
         self.page.keyboard.press("Escape")
         self.page.wait_for_function(f"({CURSOR})('.fv-box')[2] !== 'true'")
         self.assertEqual(self.page.locator(".fv").count(), 1)
-        self.page.wait_for_timeout(300)
+        self.until(lambda: 'esc sor_20' in self.disk('kilep.py'), "esc sor_20 a lemezen")
         self.assertIn("esc sor_20", self.disk("kilep.py"))
 
     def test_leave_by_click(self) -> None:
@@ -228,7 +228,7 @@ class EditTest(PageTestCase):
         self.page.wait_for_function(f"({CURSOR})('.fv-box')[2] === 'true'")
         self.page.keyboard.type("katt ")
         self.page.locator('.fv-file[data-path="elvet.py"]').click()
-        self.page.wait_for_timeout(400)
+        self.until(lambda: 'katt sor_20' in self.disk('katt.py'), "katt sor_20 a lemezen")
         self.assertIn("katt sor_20", self.disk("katt.py"))
 
     def test_find(self) -> None:
@@ -244,7 +244,7 @@ class EditTest(PageTestCase):
         self.page.keyboard.type("auto ")
         self.page.wait_for_timeout(300)
         self.assertNotIn("auto sor_20", self.disk("auto.py"))
-        self.page.wait_for_timeout(1300)
+        self.until(lambda: 'auto sor_20' in self.disk('auto.py'), "auto sor_20 a lemezen")
         self.assertIn("auto sor_20", self.disk("auto.py"))
 
     def test_save_now(self) -> None:
@@ -252,7 +252,7 @@ class EditTest(PageTestCase):
         self.start("azonnal.py")
         self.page.keyboard.type("most ")
         self.page.keyboard.press("ControlOrMeta+s")
-        self.page.wait_for_timeout(300)
+        self.until(lambda: 'most sor_20' in self.disk('azonnal.py'), "most sor_20 a lemezen")
         self.assertIn("most sor_20", self.disk("azonnal.py"))
 
     def test_external_change(self) -> None:
@@ -267,7 +267,7 @@ class EditTest(PageTestCase):
         line.wait_for()
         self.assertIn("cm-flash", line.get_attribute("class"))
         self.assertEqual(self.page.locator(f"{sel} .cm-line", has_text="enyem sor_40").count(), 1)
-        self.page.wait_for_timeout(1500)
+        self.until(lambda: "enyem sor_40" in self.disk("kulso.py"), "a mentés")
         on_disk = self.disk("kulso.py")
         self.assertIn("enyem sor_40", on_disk)
         self.assertIn("kivulrol", on_disk)
@@ -289,7 +289,7 @@ class EditTest(PageTestCase):
         self.page.wait_for_timeout(1500)
         self.assertEqual(self.disk("utkozes.py"), disk)
         box.locator("button", has_text="Az enyém marad").click()
-        self.page.wait_for_timeout(400)
+        self.until(lambda: 'enyem meg sor_40' in self.disk('utkozes.py'), "enyem meg sor_40 a lemezen")
         self.assertIn("enyem meg sor_40", self.disk("utkozes.py"))
 
     # ── Elvetés ──
@@ -309,10 +309,10 @@ class EditTest(PageTestCase):
         right = self.page.locator(f"{sel} .cm-content").bounding_box()
         self.assertLessEqual(right["x"] + right["width"] - (box["x"] + box["width"]), 2)
         btn.click()
-        self.page.wait_for_timeout(1500)
+        self.until(lambda: 'uj valtozat' not in self.disk('elvet.py'), "uj valtozat nincs a lemezen")
         self.assertNotIn("uj valtozat", self.disk("elvet.py"))
         self.page.keyboard.press("ControlOrMeta+z")
-        self.page.wait_for_timeout(1500)
+        self.until(lambda: 'uj valtozat' in self.disk('elvet.py'), "uj valtozat a lemezen")
         self.assertIn("uj valtozat", self.disk("elvet.py"))
 
     def test_reject_side_by_side(self) -> None:
@@ -322,7 +322,7 @@ class EditTest(PageTestCase):
         btn = self.page.locator(f"{sel} .cm-merge-revert .cm-reject").first
         self.assertTrue(btn.is_visible())
         btn.click()
-        self.page.wait_for_timeout(1500)
+        self.until(lambda: 'uj valtozat' not in self.disk('elvet2.py'), "uj valtozat nincs a lemezen")
         self.assertNotIn("uj valtozat", self.disk("elvet2.py"))
 
     def test_edit_frame(self) -> None:
@@ -356,7 +356,7 @@ class CleanEditTest(PageTestCase):
         self.page.keyboard.type("elso ")
         self.page.evaluate("document.querySelector('.fv-box .cm-diff').dataset.mark = '1'")
         self.page.keyboard.press("ControlOrMeta+s")
-        self.page.wait_for_timeout(300)
+        self.until(lambda: (self.repo / 'main-0-0.txt').read_text(encoding="utf-8") == 'elso main-0-0\n', "main-0-0.txt mentve")
         self.assertEqual((self.repo / "main-0-0.txt").read_text(encoding="utf-8"), "elso main-0-0\n")
         # Akkor megjelenik a WIP sor (a commitlista tetején) és kijelölődik; a nézet ugyanaz (nem töltődött
         # újra), a szerkesztés folytatható
@@ -367,7 +367,7 @@ class CleanEditTest(PageTestCase):
         self.assertEqual(self.page.evaluate(f"({CURSOR})('.fv-box')")[2], "true")
         self.page.keyboard.type("masodik ")
         self.page.keyboard.press("ControlOrMeta+s")
-        self.page.wait_for_timeout(300)
+        self.until(lambda: (self.repo / 'main-0-0.txt').read_text(encoding="utf-8") == 'elso masodik main-0-0\n', "main-0-0.txt mentve")
         self.assertEqual((self.repo / "main-0-0.txt").read_text(encoding="utf-8"), "elso masodik main-0-0\n")
 
 class PanelHeadEditTest(PageTestCase):
@@ -389,7 +389,7 @@ class PanelHeadEditTest(PageTestCase):
         self.page.wait_for_function(f"({CURSOR})({sel!r})[2] === 'true'")
         self.page.keyboard.type("elso ")
         self.page.keyboard.press("ControlOrMeta+s")
-        self.page.wait_for_timeout(300)
+        self.until(lambda: (self.repo / 'main-4-5.txt').read_text(encoding="utf-8") == 'elso main-4-5\n', "main-4-5.txt mentve")
         self.assertEqual((self.repo / "main-4-5.txt").read_text(encoding="utf-8"), "elso main-4-5\n")
         # Akkor megjelenik a WIP sor, és a szerkesztés a helyén folytatható
         self.poke()
@@ -398,7 +398,7 @@ class PanelHeadEditTest(PageTestCase):
         self.assertEqual(self.page.evaluate(f"({CURSOR})({sel!r})")[2], "true")
         self.page.keyboard.type("masodik ")
         self.page.keyboard.press("ControlOrMeta+s")
-        self.page.wait_for_timeout(300)
+        self.until(lambda: (self.repo / 'main-4-5.txt').read_text(encoding="utf-8") == 'elso masodik main-4-5\n', "main-4-5.txt mentve")
         self.assertEqual((self.repo / "main-4-5.txt").read_text(encoding="utf-8"), "elso masodik main-4-5\n")
 
 
@@ -420,7 +420,7 @@ class PanelFullEditTest(PageTestCase):
         self.page.wait_for_function(f"({CURSOR})({sel!r})[2] === 'true'")
         self.page.keyboard.type("elso ")
         self.page.keyboard.press("ControlOrMeta+s")
-        self.page.wait_for_timeout(300)
+        self.until(lambda: "elso main-4-5" in (self.repo / "main-4-5.txt").read_text(encoding="utf-8"), "a mentés")
         self.poke()
         self.page.wait_for_selector(".row.uncommitted")
         self.settle()
@@ -435,7 +435,7 @@ class PanelFullEditTest(PageTestCase):
         self.page.wait_for_function(f"({CURSOR})('.fv-box')[2] === 'true'")
         self.page.keyboard.type("masodik ")
         self.page.keyboard.press("ControlOrMeta+s")
-        self.page.wait_for_timeout(300)
+        self.until(lambda: (self.repo / 'main-4-5.txt').read_text(encoding="utf-8") == 'masodik elso main-4-5\n', "main-4-5.txt mentve")
         self.assertEqual((self.repo / "main-4-5.txt").read_text(encoding="utf-8"), "masodik elso main-4-5\n")
         # És bezárva a panelben is a módosított szöveg áll
         self.page.keyboard.press("Escape")

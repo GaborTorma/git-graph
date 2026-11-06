@@ -703,7 +703,7 @@ class PlainSaveTest(PageTestCase):
         self.page.keyboard.press("End")
         self.page.keyboard.type(" // x")
         # Ha a mentés után a WIP sor megjelenik és kijelölődik
-        self.page.wait_for_timeout(1500)
+        self.until(lambda: "const sor5 = 5; // x" in (self.repo / "page/js/diff.js").read_text(encoding="utf-8"), "a mentés")
         self.poke()
         self.page.wait_for_selector(".fv-commits .fv-commit:first-child.sel")
         self.settle()

@@ -4,11 +4,16 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
-import time
 from pathlib import Path
 from unittest import mock
 
 from helpers import HomeTestCase, git_in
+
+
+def cpu_time() -> float:
+    """A folyamat és a befejezett gyerekfolyamatai (a git) CPU-ideje, s."""
+    t = os.times()
+    return t.user + t.system + t.children_user + t.children_system
 
 
 def sha256(data: bytes) -> str:
@@ -83,11 +88,18 @@ class FileTreeTest(FilesCase):
 
 
 class BigRepoTest(FilesCase):
+    def small_max(self, gg) -> None:
+        """A lusta határ 200 fájl: a viselkedés ugyanaz, mint 20 000 fölött, de századannyi fájllal."""
+        patcher = mock.patch.object(gg.files, "TREE_MAX", 200)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_lazy_levels(self) -> None:
-        """Egy 25 000 fájlos commitnál a szerver a gyökér szintjét adja, a mappák tartalmát mappánként."""
-        # Adott egy commit 25 000 fájllal
+        """A határ fölötti commitnál a szerver a gyökér szintjét adja, a mappák tartalmát mappánként."""
+        # Adott egy commit a határnál több fájllal
         repo, gg, _ = self.repo()
-        sha = bulk_commit(repo, 25000)
+        self.small_max(gg)
+        sha = bulk_commit(repo, 250, per_dir=10)
         # Ha a lap az összes fájl listáját kéri
         root = gg.files.file_tree(sha)
         # Akkor a gyökér szintjét kapja
@@ -98,15 +110,16 @@ class BigRepoTest(FilesCase):
         # Ha egy mappát kinyit
         sub = gg.files.file_tree(sha, "d007")
         # Akkor annak a tartalmát, a fájlok teljes útjával
-        self.assertEqual((sub["dir"], sub["dirs"], len(sub["files"])), ("d007", [], 1000))
+        self.assertEqual((sub["dir"], sub["dirs"], len(sub["files"])), ("d007", [], 10))
         self.assertEqual(sub["files"][0]["path"], "d007/f0000.py")
         self.assertEqual(set(sub["fileIcons"]), {sub["files"][0]["icon"]})
 
     def test_worktree_lazy(self) -> None:
         """A WIP soron is mappánként jön a nagy fa (a munkakönyvtár listájából)."""
-        # Adott egy 25 000 fájlos worktree
+        # Adott egy worktree a határnál több fájllal
         repo, gg, wip = self.repo()
-        bulk_commit(repo, 25000)
+        self.small_max(gg)
+        bulk_commit(repo, 250, per_dir=10)
         git_in(repo, "checkout", "-q", "--", ".")
         (repo / "d003" / "uj.txt").write_text("új\n", encoding="utf-8")
         # Ha a lap a fát, majd egy mappát kér
@@ -114,20 +127,21 @@ class BigRepoTest(FilesCase):
         # Akkor a gyökér szintje lusta, a mappában a követetlen fájl is ott van
         self.assertTrue(root["lazy"])
         self.assertEqual(len(root["dirs"]), 25)
-        self.assertEqual(len(sub["files"]), 1001)
+        self.assertEqual(len(sub["files"]), 11)
         self.assertIn("d003/uj.txt", [f["path"] for f in sub["files"]])
 
     def test_speed(self) -> None:
-        """20 000 fájl egy válaszban, 300 ms alatt."""
+        """20 000 fájl egy válaszban, 300 ms CPU-idő alatt (a saját és a git-hívásoké: a falióra a
+        Check párhuzamos lépései mellett ingadozik)."""
         # Adott egy commit 20 000 fájllal
         repo, gg, _ = self.repo()
         git_in(repo, "rm", "-q", "a.txt")
         sha = bulk_commit(repo, 20000)
         gg.files.file_tree(sha)                         # az ikonkészlet betöltése
         # Ha a lap a teljes listát kéri
-        start = time.perf_counter()
+        start = cpu_time()
         tree = gg.files.file_tree(sha)
-        took = time.perf_counter() - start
+        took = cpu_time() - start
         # Akkor egy válaszban jön, 300 ms alatt
         self.assertNotIn("lazy", tree)
         self.assertEqual(len(tree["files"]), 20000)
