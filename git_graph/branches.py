@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 
 from .gitio import FS, admin_dir, ahead_behind, git
 from .worktrees import app_branch
@@ -26,8 +27,13 @@ def collect_branches(worktrees: list[dict]) -> list[dict]:
             "%(committerdate:short)",
         ]
     )
-    out = git("for-each-ref", f"--format={fmt}", "refs/heads")
-    head = git("rev-parse", "--abbrev-ref", "HEAD").strip()
+    remote_fmt = "--format=%(refname:short)" + FS + "%(objectname:short)" + FS + "%(committerdate:short)"
+    with ThreadPoolExecutor(max_workers=3) as pool:       # a három hívás független: egymás mellett
+        jobs = [pool.submit(git, "for-each-ref", f"--format={fmt}", "refs/heads"),
+                pool.submit(git, "rev-parse", "--abbrev-ref", "HEAD"),
+                pool.submit(git, "for-each-ref", remote_fmt, "refs/remotes")]
+        out, head, remote_refs = (job.result() for job in jobs)
+    head = head.strip()
     checked_out = {wt["branch"]: wt["slug"] for wt in worktrees if wt["branch"]}
     owners = branch_owners(worktrees)
     branches = []
@@ -51,8 +57,7 @@ def collect_branches(worktrees: list[dict]) -> list[dict]:
         )
     # A csak remote-on élő ágak (aminek nincs helyi párja) is választhatók.
     paired = {b["upstream"] for b in branches if b["upstream"]}
-    for line in git("for-each-ref", "--format=%(refname:short)" + FS + "%(objectname:short)"
-                    + FS + "%(committerdate:short)", "refs/remotes").splitlines():
+    for line in remote_refs.splitlines():
         name, sha, date = (line.split(FS) + [""] * 3)[:3]
         if name and not name.endswith("/HEAD") and "/" in name and name not in paired:
             branches.append({"name": name, "sha": sha, "date": date, "remote": True})

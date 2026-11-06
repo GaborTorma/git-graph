@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from .avatars import avatars_for
@@ -121,20 +122,40 @@ def parse_refs(decoration: str) -> list[dict]:
     return refs
 
 
-def collect_meta(commits: list[dict], worktrees: list[dict]) -> dict:
-    base = default_base()
+def repo_meta() -> dict:
+    """A `meta` git-hívásai, amelyekhez nem kell a commitlista és a worktree-k — párhuzamosan
+    (egyenként ~10 ms; sorban ~70 ms volt)."""
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        base = pool.submit(default_base)
+        jobs = {
+            "repo": pool.submit(repo_name),
+            "repoUrl": pool.submit(repo_url),
+            "head": pool.submit(git, "rev-parse", "--abbrev-ref", "HEAD"),
+            "total": pool.submit(git, "rev-list", *ALL_BUT_STASH, "--count"),
+            "generated": pool.submit(git, "log", "-1", "--pretty=format:%aI"),
+            "remotes": pool.submit(remotes),
+        }
+        tracks = pool.submit(branch_tracks, base.result())
+        known = {key: job.result() for key, job in jobs.items()}
+        known.update(base=base.result(), tracks=tracks.result())
+    return known
+
+
+def collect_meta(commits: list[dict], worktrees: list[dict], known: dict | None = None) -> dict:
+    """A lap `meta`-ja; a `known` a `repo_meta` (ha már megvan, nem kéri újra)."""
+    known = known or repo_meta()
+    base = known["base"]
     return {
-        "repo": repo_name(),
-        "repoUrl": repo_url(),
-        "head": git("rev-parse", "--abbrev-ref", "HEAD").strip(),
-        "totalCommits": int(git("rev-list", *ALL_BUT_STASH, "--count").strip())
-        + sum(1 for c in commits if c.get("stash")),
+        "repo": known["repo"],
+        "repoUrl": known["repoUrl"],
+        "head": known["head"].strip(),
+        "totalCommits": int(known["total"].strip()) + sum(1 for c in commits if c.get("stash")),
         "shown": len(commits),
         "dirty": len(worktrees[0]["status"]) if worktrees else 0,
-        "generated": git("log", "-1", "--pretty=format:%aI").strip(),
+        "generated": known["generated"].strip(),
         "worktrees": [worktree_meta(wt, base) for wt in worktrees],
-        "remotes": sorted(remotes()),     # több remote-nál a badge a nevüket is mutatja
-        "tracks": branch_tracks(base),
+        "remotes": sorted(known["remotes"]),     # több remote-nál a badge a nevüket is mutatja
+        "tracks": known["tracks"],
         "base": base,                     # az alapág (origin/HEAD célja) — a helyi párján nem dolgozunk
     }
 
@@ -277,14 +298,26 @@ def mark_subtree_splits(commits: list[dict]) -> None:
 
 
 def collect_payload(limit: int | None) -> dict:
-    """A lap teljes adatcsomagja — a `git-graph --mcp` graph_data toolja adja."""
-    commits = collect_commits(limit)
-    if not commits:
-        return {}
-    stats = collect_stats(limit)
+    """A lap teljes adatcsomagja — a `git-graph --mcp` graph_data toolja adja.
+
+    A git-hívások két lépcsőben, párhuzamosan futnak: előbb ami független (commitok,
+    statisztika, worktree-k, a `meta` git-része), aztán ami a worktree-ket igényli (a WIP-sorok,
+    az ágak). Egy kis repón ~220 ms helyett ~80 ms (mérve)."""
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        commits_job = pool.submit(collect_commits, limit)
+        stats_job = pool.submit(collect_stats, limit)
+        worktrees_job = pool.submit(collect_worktrees)
+        known_job = pool.submit(repo_meta)
+        commits = commits_job.result()
+        if not commits:
+            return {}                     # commit nélküli repó: a többi hívás hibáját nem kérjük el
+        stats, worktrees, known = stats_job.result(), worktrees_job.result(), known_job.result()
     drop_ignored(list(stats.values()))
-    worktrees = collect_worktrees()
-    meta = collect_meta(commits, worktrees)   # még a valódi commitokból: `shown`
+    with ThreadPoolExecutor(max_workers=max(2, min(8, len(worktrees) + 1))) as pool:
+        branches_job = pool.submit(collect_branches, worktrees)
+        pendings = list(pool.map(collect_uncommitted, worktrees))
+        meta = collect_meta(commits, worktrees, known)   # még a valódi commitokból: `shown`
+        branches = branches_job.result()
     if meta["repoUrl"]:
         mark_pushed(commits, stats)
     mark_worktree_heads(commits, worktrees)
@@ -296,8 +329,7 @@ def collect_payload(limit: int | None) -> dict:
     # Worktree-nként legfeljebb két ál-sor (nem stage-elt, stage-elt), a gráf tetejére,
     # a HEAD-jük fölé — a lane-kiosztás előtt, mert az élek sorindexeket használnak.
     trunk = None
-    for wt in reversed(worktrees):
-        pending = collect_uncommitted(wt)
+    for wt, pending in reversed(list(zip(worktrees, pendings))):
         drop_ignored([churn for _, churn in pending], wt["path"])   # a worktree saját `.gitignore`-ja
         for commit, churn in reversed(pending):
             commits.insert(0, commit)
@@ -314,7 +346,7 @@ def collect_payload(limit: int | None) -> dict:
         "commits": commits,
         "edges": edges,
         "stats": stats,
-        "branches": collect_branches(worktrees),
+        "branches": branches,
         "meta": meta,
         "avatars": avatars_for(commits, meta["repoUrl"]),
         "fileIcons": attach_icons(stats),
