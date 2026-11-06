@@ -4,6 +4,7 @@ A git-graph funkciói, funkciónként egy oldal: mit tud most, és hogyan műkö
 
 | Oldal | Mire való |
 | --- | --- |
+| [Fejléc](header.md) | az ágválasztó (a kijelölés a gombon, remote-onkénti kapcsolók), a lenyíló keresés a ref-szűrővel, ghost gombok |
 | [Fájl-diff](file-diff.md) | a commit fájljainak diffje: szöveg, renderelt markdown, képek |
 | [Kóddiff és szerkesztés](code-diff.md) | a CodeMirror-kóddiff, a szerkesztés és mentés, a HEAD-commit WIP-rétege |
 | [Fájlfa és teljes nézet](full-view.md) | a fájlfa sidebarban és teljes képernyőn, diff-szűrő, kereső, commitlista |

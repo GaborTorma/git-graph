@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tests" / "page"))
 from test_full_view import FullViewTest  # noqa: E402
+from test_header import HeaderCase  # noqa: E402
 from test_subtree import SubtreeTest  # noqa: E402
 from test_wip_layer import WipCase  # noqa: E402
 
@@ -39,6 +40,35 @@ class SubtreeShots(SubtreeTest):
         self.page.mouse.move(450, 400)   # a gomb buboréka ne takarja a menüt
         self.settle()
         self.page.screenshot(path=str(out / "remote-filter.png"), clip={"x": 0, "y": 0, "width": 900, "height": 420})
+
+
+class HeaderShots(HeaderCase):
+    """Fejléc: a szűrt gombok, az ágválasztó a remote-kapcsolókkal, a keresés popupja."""
+
+    WIDTH, HEIGHT = 900, 820
+
+    def test_shots(self) -> None:
+        out = folder("header")
+        self.toggle_remote("upstream")
+        self.close_menu()
+        self.select("dev", "main origin/main", "feat/menu")
+        self.search("menü", refs=True)
+        self.page.mouse.move(450, 800)
+        self.settle()
+        self.page.screenshot(path=str(out / "header.png"), clip={"x": 0, "y": 0, "width": 900, "height": 44})
+        self.open_branches()
+        self.page.mouse.move(890, 800)
+        self.settle()
+        pop = self.page.locator("#branchPop").bounding_box()
+        self.page.screenshot(path=str(out / "branches.png"),
+                             clip={"x": 0, "y": 0, "width": 900, "height": pop["y"] + pop["height"] + 8})
+        self.close_menu()
+        self.open_search()
+        self.page.mouse.move(450, 800)
+        self.settle()
+        pop = self.page.locator("#searchPop").bounding_box()
+        self.page.screenshot(path=str(out / "search.png"),
+                             clip={"x": 0, "y": 0, "width": 900, "height": pop["y"] + pop["height"] + 8})
 
 
 class FullViewShots(FullViewTest):
@@ -76,7 +106,7 @@ class WipShots(WipCase):
             "x": diff["x"] - 4, "y": top, "width": diff["width"] + 8, "height": min(520, diff["y"] + diff["height"] - top + 4)})
 
 
-SHOTS = [SubtreeShots, FullViewShots, WipShots]
+SHOTS = [SubtreeShots, HeaderShots, FullViewShots, WipShots]
 # Csak a képek készülnek, a fixture-osztályok saját tesztjei nem.
 for shots in SHOTS:
     for name in [n for n in dir(shots.__mro__[1]) if n.startswith("test_")]:

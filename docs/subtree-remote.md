@@ -51,19 +51,14 @@ subtree merge-nél a split-commit valódi szülő: ott a megszokott él látszik
 A szerver (`mark_subtree_splits`) a `graph_data`-ban a squash-commit `splitOf` mezőjébe
 írja a split-commit sha-ját, ha az látszik, és nem a szülője.
 
-### Remote szerinti szűrő
+### A subtree-remote elrejtése
 
-![A remote-szűrő nyitva: origin és widgets, mindkettő bekapcsolva](img/subtree-remote/remote-filter.png)
+![Az ágválasztó nyitva: a végén az origin és a widgets remote fejléce kapcsolóval, a widgets alatt a main](img/subtree-remote/remote-filter.png)
 
-Több remote-nál a „Remote ágak” kapcsoló mellett egy lenyíló menü remote-onként ki-be
-kapcsolja, mely remote-ok ágai látszanak (pl. `widgets` ki, `origin` be). A rejtett
-remote ágainak chipje, ágválasztó-sora és a hozzá mért távolság (`☁ ↑↓`) eltűnik, és a
-csak onnan elérhető commitok (pl. a tükör-commitok) is kimaradnak. A gomb felirata a
-látható remote-ok neve, vagy „Minden remote”. Ha a kapcsoló ki van kapcsolva, a gomb
-tiltott; egyetlen remote-nál nem jelenik meg.
-
-A választás repónként megmarad: a lap a böngészőjében tárolja (`localStorage`, a kulcsban
-a repó slugja), mint a témát és a diff-nézeteket.
+Az ágválasztó végén remote-onként egy fejléc áll kapcsolóval ([Fejléc](header.md), R-5). A
+`widgets` kikapcsolva az ágainak chipje, ágválasztó-sora és a hozzá mért távolság (`☁ ↑↓`)
+eltűnik, és a csak onnan elérhető commitok (a tükör-commitok) is kimaradnak. A választás
+repónként megmarad.
 
 ## Követelmények
 
@@ -97,24 +92,13 @@ Jellemző: Subtree-remote a gráfban
       Ha a Fejlesztő megnyitja a lapot
       Akkor a cherry-pick sora nem halvány, és nem kap ívet
 
-  Szabály: R-3 — A remote-ok ágai remote-onként elrejthetők
-    Forgatókönyv: Egy remote elrejtése
+  Szabály: R-3 — A subtree-remote az ágválasztó remote-kapcsolójával elrejthető
+    Forgatókönyv: A "widgets" elrejtése
       Adott a repó két remote-ja: "origin" és "widgets"
-      Ha a Fejlesztő a remote-szűrőben kikapcsolja a "widgets"-et
+      Ha a Fejlesztő az ágválasztóban kikapcsolja a "widgets" fejlécének kapcsolóját
       Akkor a "widgets/main" chipje és ágválasztó-sora eltűnik
-        És a csak a "widgets"-ből elérhető commitok kimaradnak
+        És a csak a "widgets"-ből elérhető commitok (a tükör-commitok) kimaradnak
         És az "origin" ágai látszanak
-        És a gomb felirata "origin"
-
-    Forgatókönyv: A választás megmarad
-      Adott a rejtett "widgets" remote
-      Ha a lap újratölt
-      Akkor a "widgets" továbbra is rejtett
-
-    Forgatókönyv: Egyetlen remote
-      Adott a repó egyetlen remote-ja: "origin"
-      Ha a Fejlesztő megnyitja a lapot
-      Akkor a remote-szűrő nem jelenik meg
 
   Szabály: R-4 — A subtree squash-commitja szaggatott ívvel kötődik a split-commithoz
     Forgatókönyv: Gyökér squash-commit
@@ -133,5 +117,5 @@ Jellemző: Subtree-remote a gráfban
 ## Használat
 
 - A chip tooltipje (hover) mondja ki, hogy az ág külön történet.
-- A subtree-remote zavar? A „Remote ágak” melletti menüben kapcsold ki: az ágai és a
-  tükör-commitjai eltűnnek.
+- A subtree-remote zavar? Az ágválasztó végén a fejlécének kapcsolójával kapcsold ki: az ágai
+  és a tükör-commitjai eltűnnek.

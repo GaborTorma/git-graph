@@ -19,12 +19,15 @@ helyi párjához. Ha az alapág helyi párja (`main`) előrébb jár a remote-j�
 `☁ ↑` szakasz piros (a `main`-en nem dolgozunk, ez anomália): a halvány chipen halvány
 piros, piros kerettel, a teli chipen teli piros. Közös ős nélküli ágon (pl. egy `git subtree push` remote-ja) a távolság helyén
 áthúzott lánc áll, a commitjai (a fő történet tükrei) halványak, és szaggatott ív köti
-őket a forrásukhoz; több remote-nál a „Remote ágak” melletti menü remote-onként rejt el
-([Subtree-remote](docs/subtree-remote.md)). Ha a badge nem fér ki, csak a név
-rövidül. A kereső (⌘F) az üzenetben, a
-szerzőben, a ref-nevekben és a hash elején keres, ékezettől függetlenül;
-minden szónak egyeznie kell. Escape vagy a mező × gombja törli; ha közben nyitva
-volt egy commit, a teljes listában az kerül legfelülre.
+őket a forrásukhoz ([Subtree-remote](docs/subtree-remote.md)). Ha a badge nem fér ki, csak a név
+rövidül.
+
+**Fejléc** ([Fejléc](docs/header.md)): a repó neve és a HEAD-chip mellett az ágválasztó, a keresés
+és a fájlok gombja, az app ghost gombjai. Az ágválasztó gombja a kijelölést mutatja (legfeljebb 3
+név, utána ikonok, `+N`), kijelölésnél x-szel; a menü végén remote-onként egy kapcsoló rejti el a
+remote ágait. A keresés (⌘F) lenyílik a mezővel és a „Csak ref-es commitok” kapcsolóval; az
+üzenetben, a szerzőben, a ref-nevekben és a hash elején keres, ékezettől függetlenül. Szűrve a
+gomb kiírja a szűrést, az x mindkét szűrőt törli.
 
 A részletek-panel fájlsorain a fájl előtt a típusa ikonja áll, utána a `+`/`−` számok; a
 sor lenyitva a diffet mutatja ([Fájl-diff](docs/file-diff.md)). Az ikonok a
@@ -124,12 +127,12 @@ az alapágtól, mint az ágaké; a saját commit és WIP nélküli worktree-k cs
 commitjukról, több csonk legyezőszerűen. Ami nem a sajáté, halványabb (a sehol ki nem
 vett ágak a fő checkouté). Az ágválasztó worktree-nként csoportosít: fejléc (a
 sajáté a fejléc chipjének színével), alatta az ágai — amelyikben utoljára ki volt
-véve, a worktree HEAD-reflogja szerint —, a gazdátlanok utánuk, a csak remote ágak a
+véve, a worktree HEAD-reflogja szerint —, a gazdátlanok utánuk, a remote-ok (fejléc kapcsolóval, alatta a csak remote ágak) a
 végén. A menü a lap magasságának ~80 %-áig nyúlhat le. A helyi ág és az azonos nevű upstreamje egy opció (ha egy helyen állnak, egy sor a közös
 felhő-és-ág ikonnal, különben egymás alatt az ág és a felhő): a sorra kattintva mindkettő kijelölődik, egy kipipált sor pipájára
 kattintva csak az kerül ki; ha semmi sem marad, újra minden ág látszik. A worktree
-fejlécére kattintva az összes ága kijelölődik; a gomb ikonja és felirata a
-kijelölést követi. HEAD worktree-nként; worktree nélkül csak az ágak. A menü
+fejlécére kattintva az összes ága kijelölődik; a gomb a kijelölést mutatja
+([Fejléc](docs/header.md)). HEAD worktree-nként; worktree nélkül csak az ágak. A menü
 tetején szűrő: ág- vagy worktree-név szerint szűkít (a worktree nevére az összes
 ága), a worktree-fejléc csak akkor marad, ha alatta
 legalább egy ág látszik; az Enter az első találatot választja.
@@ -236,9 +239,9 @@ Kézi URL-megadás: `git-graph --set-artifact <url>`.
 | `⇧⌘` / `⇧Ctrl` + `↓` / `↑` | merge-nél a beolvasztott ág (második szülő), visszafelé a merge | |
 | `H` | kijelölés a saját worktree HEAD-jén | |
 | `⇧↑` / `⇧↓` | csak görget (három diff-sornyit), a kijelölés marad | ugyanígy — egy hosszú blokk olvasásához |
-| `Esc` | előbb a keresést üríti, aztán a nyitott commitot csukja | ugyanígy |
+| `Esc` | előbb a keresett szöveget üríti (a ref-szűrő marad), aztán a nyitott commitot csukja | ugyanígy |
 | `Esc` (teljes képernyőn) | szerkesztés közben a szerkesztést fejezi be, a kereső mezőben a keresést törli, különben bezárja a teljes képernyőt | |
-| `⌘F` / `Ctrl+F` | kereső | |
+| `⌘F` / `Ctrl+F` | a keresés popupja, a fókusz a mezőben | |
 
 Fájlon a `→` kinyitja a diffet, és rögtön az első módosított blokkra lép (egy blokk a
 `···` elválasztóig tart); `↓` vagy `→` a következő blokkra, az utolsó után a következő fájlra, `↑`-ra visszafelé,
