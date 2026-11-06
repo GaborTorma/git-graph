@@ -355,6 +355,11 @@ button { font: inherit; color: inherit; }
 .select.ghost:hover { background: var(--ghost-hover); box-shadow: none; color: var(--fg-0); }
 .select.ghost[aria-expanded="true"] { background: var(--ghost-selected); box-shadow: none; color: var(--fg-0); }
 .select.ghost:focus-visible { box-shadow: var(--focus-ring); }
+/* A fejlécben az app egérrel használt kontroll-magassága (fizzy `panels`, `pointer: fine`): 28 px,
+   az ikongomb 28 × 28; a szöveges gomb paddingje 9 px, a CaretDown 16 px, halványan, a szélhez húzva. */
+.chrome .select.ghost { height: 28px; padding: 0 9px; }
+.chrome .select.ghost.gear, .chrome #searchBtn:not(.filtered) { width: 28px; padding: 0; }
+.chrome .select.ghost .chev { margin: 0 -3px 0 0; color: inherit; opacity: .6; }
 /* Az ágválasztó gombja a kijelölést mutatja (`renderSel`): elemenként ikon (+ név), `+N`, és ha
    egy remote rejtve van, a végén halvány áthúzott felhő. Több elemnél a név rövidebb. */
 .sel-view { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
@@ -429,7 +434,7 @@ button { font: inherit; color: inherit; }
 .menu-wt .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A remote fejléce: glóbusz, név, jobbra (a pipák oszlopában) a kapcsoló; csak az kattintható.
    Kikapcsolva a fejléc halvány. */
-.menu-remote { padding-bottom: 2px; }
+.menu-remote { padding-bottom: 2px; color: var(--fg-0); }
 .menu-remote.off > :not(.rsw) { opacity: var(--disabled); }
 .option.rsw {
   display: inline-flex; width: auto; height: auto; margin: 0 0 0 auto; padding: 2px; border-radius: 10px;
@@ -492,11 +497,13 @@ button { font: inherit; color: inherit; }
 /* Keresés + fájlok: jobbra zárva, keskeny ablakban együtt törnek új sorba. */
 .tools { margin-left: auto; flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 
-/* A keresés gombja (`searchView`): szűrő nélkül 32 px-es ikongomb; szűrve akcentus színű, tint
-   háttér nélkül: keresés-ikon, a szöveg (~160 px-nél „…”), a ref-szűrő címkéje, x. */
+/* A keresés gombja (`searchView`): szűrő nélkül ikongomb; szűrve lenyomott háttérrel, mint a fájlok
+   gombja (fill-ghost-selected): keresés-ikon, a szöveg (~160 px-nél „…”), a ref-szűrő címkéje, x —
+   a szűrést jelző szöveg és címke akcentus színű. */
 #searchBtn { gap: 4px; }
-#searchBtn:not(.filtered) { width: 32px; padding: 0; justify-content: center; }
-#searchBtn.filtered, #searchBtn.filtered:hover, #searchBtn.filtered[aria-expanded="true"] { color: var(--accent); padding-right: 4px; }
+#searchBtn:not(.filtered) { justify-content: center; }
+#searchBtn.filtered { color: var(--fg-0); background: var(--ghost-selected); padding-right: 2px; }
+#searchBtn.filtered :is(.search-q, [data-part="tag"]) { color: var(--accent); }
 .sb-part { display: inline-flex; align-items: center; }
 .search-q { display: block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Az x saját hover-célpont: 24 px, 6 px-es sarok. */

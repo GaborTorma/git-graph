@@ -153,14 +153,14 @@ class DarkTokensTest(CdsCase):
 class SizesTest(CdsCase):
     def test_sizes(self) -> None:
         """A subject 14, az idő 13, a badge 12 px és 20 magas; a sor 34, a kontroll 32 / 8 px-es
-        sarok; a menük kapcsolója 28 × 16."""
+        sarok (a fejléc ghost gombjai 28-asok); a menük kapcsolója 28 × 16."""
         self.assertEqual(self.style("#rows .subject", "fontSize"), "14px")
         self.assertEqual(self.style("#rows .meta .time", "fontSize"), "13px")
         self.assertEqual(self.style("#rows .badge", "fontSize"), "12px")
         self.assertEqual(self.box("#rows .badge")["height"], 20)
         self.assertEqual(self.box("#rows .row:not(:has(.refs))")["height"], 34)
         for ctrl in ("#searchBtn", "#branchBtn", "#sideBtn"):
-            self.assertEqual(self.box(ctrl)["height"], 32, ctrl)
+            self.assertEqual(self.box(ctrl)["height"], 28, ctrl)
             self.assertEqual(self.style(ctrl, "borderTopLeftRadius"), "8px", ctrl)
         self.page.locator("#settingsBtn").click()
         track = self.box("#settingsPop .option.setting .track")
@@ -527,13 +527,15 @@ class CardAnimTest(CdsCase):
 
 class ChevronTest(CdsCase):
     def test_chevrons(self) -> None:
-        """A fájlsor nyila 12 × 12 (`xs`); az ágválasztóé az app Select-jéé: 16 × 16 (`sm`), halvány."""
+        """A fájlsor nyila 12 × 12 (`xs`); az ágválasztóé az app lenyílójáé (CaretDown): 16 × 16 (`sm`),
+        a szöveg színe 60 %-on."""
         self.open_commit(FILES_SUBJECT)
         b = self.box("#rows .details .file .chev .ic")
         self.assertEqual((b["width"], b["height"]), (12, 12))
         b = self.box("#branchBtn .chev")
         self.assertEqual((b["width"], b["height"]), (16, 16))
-        self.assertEqual(self.style("#branchBtn .chev", "color"), rgb("#888888"))
+        self.assertEqual(self.style("#branchBtn .chev", "color"), self.style("#branchBtn", "color"))
+        self.assertEqual(self.style("#branchBtn .chev", "opacity"), "0.6")
 
     def test_file_icons(self) -> None:
         """A fájlikon 16 px, mint az app fájllistájában (a Catppuccin-ikon és az általános is)."""

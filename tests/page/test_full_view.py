@@ -360,10 +360,10 @@ class FullViewTest(PageTestCase):
         self.assertTrue(sc["y"] <= fb["y"] < sc["y"] + sc["height"], (sc, fb))
 
     def test_diff_button_like_side_button(self) -> None:
-        """A fa diff-gombja keretes mező-gomb, mint az eszközsor sidebar-gombja, a fa keresőjének magasságával."""
+        """A fa diff-gombja keretes mező-gomb, akkora, mint az eszközsor (ghost) sidebar-gombja és a fa keresője."""
         self.open_side()
         box = lambda sel: self.page.locator(sel).bounding_box()  # noqa: E731
-        self.assertEqual((box("#sideBtn")["width"], box("#sideBtn")["height"]), (32, 32))
+        self.assertEqual((box("#sideBtn")["width"], box("#sideBtn")["height"]), (28, 28))
         self.assertEqual(box("#sideBtn svg")["width"], 20)
         self.assertEqual((box(".side .fv-diff")["width"], box(".side .fv-diff")["height"]), (28, 28))
         self.assertEqual(box(".side .fv-search")["height"], 28)

@@ -10,7 +10,8 @@ from test_cds import TRANSPARENT, rgb
 from test_subtree import add_origin
 
 ACCENT = rgb("#257de0")
-GLOBE = json.loads((Path(__file__).resolve().parents[2] / "design/icons/anthropicons.json").read_text(encoding="utf-8"))["icons"]["Globe"]
+ICONS = json.loads((Path(__file__).resolve().parents[2] / "design/icons/anthropicons.json").read_text(encoding="utf-8"))
+MD = ICONS["icons_md"]
 LONG_QUERY = "nagyon-hosszu-keresett-kifejezes-a-commitokban"
 NINE = ("dev", "main origin/main", "feat/menu", "wt-test", "fix/scroll upstream/fix/scroll",
         "extra-1", "extra-2", "hotfix/meg-egy-hosszu-ag-nev", "release/2026-oszi-kiadas-hosszu-nevvel")
@@ -112,13 +113,14 @@ class GhostButtonsTest(HeaderCase):
     BUTTONS = ("#branchBtn", "#searchBtn", "#sideBtn")
 
     def test_rest(self) -> None:
-        """Nyugalomban a három gomb háttere áttetsző, kerete nincs, 32 px magas, 8 px-es sarokkal; a
+        """Nyugalomban a három gomb háttere áttetsző, kerete nincs, 28 px magas (az app egérrel
+        használt kontrollja), 8 px-es sarokkal; a
         régi kapcsolók és a remote-szűrő eltűnt a fejlécből."""
         for btn in self.BUTTONS:
             self.assertEqual(self.style(btn, "backgroundColor"), TRANSPARENT, btn)
             self.assertEqual(self.style(btn, "boxShadow"), "none", btn)
             self.assertEqual(self.style(btn, "borderTopWidth"), "0px", btn)
-            self.assertEqual(self.box(btn)["height"], 32, btn)
+            self.assertEqual(self.box(btn)["height"], 28, btn)
             self.assertEqual(self.style(btn, "borderTopLeftRadius"), "8px", btn)
         for gone in ("#showRemotes", "#remotesBtn", ".chrome .switch"):
             self.assertEqual(self.page.locator(gone).count(), 0, gone)
@@ -150,10 +152,12 @@ class GhostDarkTest(HeaderCase):
 
 class SearchPopupTest(HeaderCase):
     def test_icon_only(self) -> None:
-        """Szűrő nélkül a keresés-gomb egy 32 px-es ikongomb 20 px-es ikonnal (az app ghost gombjáé),
-        „Keresés ⌘F” súgóval."""
+        """Szűrő nélkül a keresés-gomb egy 28 px-es ikongomb az app 20 px-es (`md`) Search glifájával,
+        akkora, mint a fájlok gombja; „Keresés ⌘F” súgóval."""
         box = self.box("#searchBtn")
-        self.assertEqual((box["width"], box["height"]), (32, 32))
+        self.assertEqual((box["width"], box["height"]), (28, 28))
+        self.assertEqual(box["width"], self.box("#sideBtn")["width"])
+        self.assertEqual(self.page.locator("#searchBtn svg path").get_attribute("d"), MD["Search"])
         ic = self.box("#searchBtn svg.ic")
         self.assertEqual((ic["width"], ic["height"]), (20, 20))
         self.assertEqual(self.tip("#searchBtn"), "Keresés⌘F")
@@ -251,12 +255,16 @@ class SearchButtonTest(HeaderCase):
           .filter(e => e.getClientRects().length).map(e => e.dataset.part)""")
 
     def test_text_and_refs(self) -> None:
-        """Szöveg és ref-szűrő: a gomb akcentus színű, háttér nélkül, sorban: keresés-ikon, a szöveg,
-        címke-ikon, x."""
+        """Szöveg és ref-szűrő: sorban keresés-ikon, a szöveg, címke-ikon, x; a gomb háttere a lenyomott
+        fájlok gombjáé, a szöveg és a címke akcentus színű, az ikon és az x text-primary."""
         self.search("menü", refs=True)
         self.page.mouse.move(600, 600)
-        self.assertEqual(self.style("#searchBtn", "color"), ACCENT)
-        self.assertEqual(self.style("#searchBtn", "backgroundColor"), TRANSPARENT)
+        self.assertEqual(self.style("#searchBtn", "backgroundColor"), "rgba(0, 0, 0, 0.1)")
+        self.page.locator("#sideBtn").click()
+        self.page.mouse.move(600, 600)
+        self.assertEqual(self.style("#sideBtn", "backgroundColor"), self.style("#searchBtn", "backgroundColor"))
+        for part, color in (("search", rgb("#1a1a1a")), ("query", ACCENT), ("tag", ACCENT), ("clear", rgb("#1a1a1a"))):
+            self.assertEqual(self.style(f'#searchBtn [data-part="{part}"]', "color"), color, part)
         self.assertEqual(self.visible_parts(), ["search", "query", "tag", "clear"])
         self.assertEqual(self.page.locator("#searchBtn .search-q").inner_text(), "menü")
 
@@ -285,7 +293,7 @@ class SearchButtonTest(HeaderCase):
         self.assertEqual(self.page.locator("#rows .row").count(), total)
         self.assertTrue(self.page.locator("#searchPop").is_hidden())
         box = self.box("#searchBtn")
-        self.assertEqual((box["width"], box["height"]), (32, 32))
+        self.assertEqual((box["width"], box["height"]), (28, 28))
 
     def test_clear_hover(self) -> None:
         """Az x saját hover-célpont: 24 px-es, 6 px-es sarkú fill-ghost-hover háttérrel."""
@@ -404,7 +412,8 @@ class RemoteHeadersTest(HeaderCase):
         for name in ("origin", "upstream"):
             head = self.remote(name)
             self.assertEqual(head.count(), 1, name)
-            self.assertEqual(head.locator("svg.ic path").first.get_attribute("d"), GLOBE)
+            self.assertEqual(head.locator("svg.ic path").first.get_attribute("d"), MD["Globe"])
+            self.assertEqual(head.locator(".name").evaluate("e => getComputedStyle(e).color"), rgb("#1a1a1a"))
             self.assertEqual(head.locator(".name").inner_text(), name)
             self.assertEqual(head.locator('[role="switch"]').get_attribute("aria-checked"), "true")
         self.assertEqual(self.page.locator("#branchPop .menu-wt .note").count(), 0)
