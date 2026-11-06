@@ -185,11 +185,12 @@ def remember_artifact(url: str, digest: str | None = None) -> None:
     git("config", "--local", f"{section}.artifact", url)
     if digest:
         git("config", "--local", f"{section}.artifactHash", digest)
-    if not digest:                        # kézi --set-artifact: a hash már nem érvényes
-        try:
-            git("config", "--local", "--unset", f"{section}.artifactHash")
-        except subprocess.CalledProcessError:
-            pass
+    if not digest:                        # kézi --set-artifact: a hash és a capability már nem érvényes
+        for key in ("artifactHash", "artifactCaps"):
+            try:
+                git("config", "--local", "--unset", f"{section}.{key}")
+            except subprocess.CalledProcessError:
+                pass
 
 
 def worktree_paths() -> list[Path]:

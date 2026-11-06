@@ -56,7 +56,7 @@
 - [Önfrissítő szerver](server-self-update.md) — a futó szerver frissít és szerel le (`watch_plugin`); puffereletlen stdin
 - [A hook publikáltat, a mod nyit](hook-publishes-mod-opens.md) — `publish_steps` a hookból, `--open-url` a modból; modból `publish` nem megy
 - [Publikálás a sessionből](publish-from-session.md) — meglévőre csak `Artifact read` után; a lépésekben `git-graph`, nem abszolút út
-- [Mod korlátai](mod-limits.md) — modból `open`, `read` megy; `publish` csak felhasználói műveletből (command, `$.ui.ask` + `consent`); `classic.*` nem jön; panel nem DOM
+- [Mod korlátai](mod-limits.md) — `Artifact` tool nincs; `publish_files` csak `allow`-szabállyal; `declare_capabilities` modból sehogy; `classic.*` nem jön; panel nem DOM
 - [Mod és a fájllink](mod-link-press.md) — a válasz fájllinkjének kattintása modból elkapható (`AssistantMessage` + `onLinkPress`); diff-kártyára nem
 - [Beépülés saját panelként](desktop-integration-paths.md) — zárt panelkészlet, távoli UI, zárt asar; a böngészőpanel localhostot scripttel futtat
 - [Artifact megnyitása](artifact-open-paths.md) — nyitott lapra az `open` csak kártya; `show_pane` nyit; külső folyamat nem

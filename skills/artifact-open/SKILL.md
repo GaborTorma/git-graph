@@ -1,7 +1,7 @@
 ---
 name: artifact-open
 description: Az aktuális repó élő, Git Graph stílusú Artifact oldalát megnyitja, és ha elavult, előbb frissíti — újat nem hoz létre. Használd, ha a Fejlesztő a repó commit-gráfját, ágait, history-ját akarja látni, vagy /git-graph:artifact-open-t ír.
-allowed-tools: Bash(git-graph:*), Artifact, mcp__ccd_view__show_pane
+allowed-tools: Bash(git-graph:*), mcp__claude-artifacts__get_artifact, mcp__claude-artifacts__publish_files, mcp__claude-artifacts__read_declaration, mcp__claude-artifacts__declare_capabilities, mcp__ccd_view__show_pane
 ---
 
 ## Feladat
@@ -25,18 +25,17 @@ Futtasd: `git-graph --open-url`. Ha `HIBA:`-val tér vissza, idézd szó szerint
 ### 2. Frissítés
 
 Hajtsd végre a `PUBLIKÁLD:` sor lépéseit sorban, pontosan a megadott
-paraméterekkel (a `capabilities` értékét változatlanul add át). Ha a publish-t
+paraméterekkel (a `files` és a `capabilities` értékét változatlanul add át). Ha a publish-t
 a platform elutasítja, kövesd az elutasítás utasítását. A
 `git-graph … --published <URL>` hívással írd vissza az URL-t. A sor utolsó
-lépése (`open`) a 3. lépés.
+lépése (`show_pane`) a 3. lépés.
 
 ### 3. Megnyitás
 
-Nyisd meg az Artifact eszközzel (`action: "open"`, `url`: az URL) — nem
-publikálsz vele, csak megmutatod. Utána, ha elérhető, hívd a
-`mcp__ccd_view__show_pane`-t `pane: "artifact"`-tal: egy sessionben már
-megnyitott lapra az `open` csak kártyát tesz a beszélgetésbe, a `show_pane`
-hozza elő a panelt.
+Hívd a `mcp__ccd_view__show_pane`-t `pane: "artifact"`-tal: ez a sessionben
+publikált Artifactot hozza elő. Ha ebben a sessionben nem publikáltál, és van
+`Artifact` eszközöd, előbb nyisd meg azzal (`action: "open"`, `url`: az URL);
+ha nincs, a válaszban a link nyitja meg.
 
 ### 4. Jelentsd vissza
 

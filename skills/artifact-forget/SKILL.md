@@ -1,7 +1,7 @@
 ---
 name: artifact-forget
 description: A git-graph Artifact törlése és a repó git-graph nyomainak eltakarítása (`git-graph --forget`) — az aktuális repóé vagy az összesé (a plugin eltávolítása előtt). Használd, ha a Fejlesztő egy repó Artifactját meg akarja szüntetni, a git-graph-ot el akarja távolítani, vagy /git-graph:artifact-forget-et ír.
-allowed-tools: Bash(git-graph:*), Bash(git config:*), Artifact, AskUserQuestion
+allowed-tools: Bash(git-graph:*), Bash(git config:*), mcp__claude-artifacts__get_artifact, mcp__claude-artifacts__delete_artifact, AskUserQuestion
 ---
 
 ## Feladat
@@ -37,8 +37,9 @@ Csak egyértelmű választásra törölj: Mégse, elutasítás vagy bármi más 
 
 A kiválasztott soronként:
 
-1. `Artifact`, `action: "delete"`, `url`: a sor URL-je. A platform minden törlést
-   külön jóváhagyat — ez rendben van.
+1. `mcp__claude-artifacts__get_artifact` a sor URL-jével (`slug`: az URL), majd
+   `mcp__claude-artifacts__delete_artifact` a kapott `slug`-gal és `artifact_title`-lel. A platform
+   minden törlést külön jóváhagyat — ez rendben van.
 2. Ha a törlés sikerült, vagy az Artifact már nem létezik: `git-graph --forget <repó>`.
    Ha a Fejlesztő elutasította vagy más hiba jött: hagyd ki (a kulcsai maradnak), és
    menj tovább.

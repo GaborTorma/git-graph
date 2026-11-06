@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import gitio
 from .gitio import config_get, remember_artifact, repo_name
+from .install import CLAUDE_SETTINGS
 from .page import build
 from .registry import register, slug_for
 from .state import STATE_DIR, place, read_json
@@ -33,57 +34,96 @@ PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
                                                "settings"]}]}}
 
 
+def caps_digest() -> str:
+    """A capability-deklaráció hashe: a `git-graph.artifactCaps` ezt őrzi a legutóbbi
+    deklarálásról. Amíg egyezik, a lap frissítéséhez nem kell modell (`mod_plan`)."""
+    return hashlib.sha256(json.dumps(PUBLISH_CAPS, sort_keys=True).encode()).hexdigest()
+
+
+def caps_current() -> bool:
+    """Igaz, ha a repó Artifactján a mostani capability-lista van deklarálva.
+
+    A nyilvántartás előtti Artifactnál (nincs `artifactCaps`) a lap hashe dönt: a
+    capability is része, így egyezésnél a mostanival publikálták.
+    """
+    if not config_get("artifact"):
+        return False
+    declared = config_get("artifactCaps")
+    if declared:
+        return declared == caps_digest()
+    html_page = build(page_title(repo_name()), register(gitio.REPO))
+    return page_digest(html_page) == config_get("artifactHash")
+
+
 def page_digest(html_page: str) -> str:
     """A publikált lap hashe — a capability-deklaráció is része: ha változik, újra kell."""
     return hashlib.sha256((html_page + json.dumps(PUBLISH_CAPS)).encode()).hexdigest()
 
 
-def is_current() -> bool:
-    """Igaz, ha van Artifact, és a lapja egyezik a legutóbb publikálttal (nem ír semmit)."""
-    html_page = build(page_title(repo_name()), register(gitio.REPO))
-    return bool(config_get("artifact")) and page_digest(html_page) == config_get("artifactHash")
-
-
-def prepare_publish() -> dict | None:
+def prepare_publish(force: bool = False) -> dict | None:
     """Az Artifact vékony lapja: kiírja, ha eltér a legutóbb publikálttól.
 
     Adat nincs benne — a lap a Claude appban a gép `git-graph --mcp`-jéből kéri —,
     így csak sablon- (kód-) vagy repónév-változáskor kell újra feltölteni.
-    None, ha van már Artifact, és a lap hashe egyezik.
+    None, ha van már Artifact, a lap hashe egyezik, és a deklarált capability a
+    mostani (egy elbukott deklarálás után nem az) — kivéve `force`-szal (a mod a
+    megnyitáshoz újraküldi: `mod_plan`).
     """
     html_page = build(page_title(repo_name()), register(gitio.REPO))
     url = config_get("artifact")
-    if url and page_digest(html_page) == config_get("artifactHash"):
+    declared = config_get("artifactCaps")      # üres: a nyilvántartás előtti lap, a hash dönt
+    if (not force and url and page_digest(html_page) == config_get("artifactHash")
+            and declared in ("", caps_digest())):
         return None
     page = artifact_path(gitio.REPO)
     page.parent.mkdir(parents=True, exist_ok=True)
     page.write_text(html_page, encoding="utf-8")
-    return {"page": page, "url": url}
+    return {"page": page, "url": url, "title": page_title(repo_name())}
 
 
 def publish_steps(job: dict) -> str:
     """A session teendője a lap publikálásához — a hook és a `git-graph --publish` adja a modellnek.
 
     Az Artifact API-t csak a modell éri el, ezért a publikálást a session
-    végzi (mérve, .claude/memory/publish-from-session.md): a `host:git-graph` akkor is
-    deklarálható, ha a session nem látja a szervert; egy meglévő Artifactra
-    viszont csak az élő verzió olvasása után publikálhat. Az URL-t és a hasht
-    a `--published` írja vissza — a hook a publikálás eredményét nem látja.
-    A `git-graph` a plugin `bin/`-jéből a Bash eszköz PATH-ján van (egy
-    `Bash(git-graph:*)` engedéllyel nem kérdez).
+    végzi (mérve, .claude/memory/publish-from-session.md), a `claude-artifacts`
+    eszközeivel. A lapot a `publish_files` a `~/.git-graph`-ból csatolja (a
+    telepítés olvashatóvá teszi: `install_read_dir`); a capability-t nem a
+    publikálás, hanem a `declare_capabilities` állítja — a republish a régit
+    viszi tovább. Az URL-t és a hasht a `--published` írja vissza — a hook a
+    publikálás eredményét nem látja. A `git-graph` a plugin `bin/`-jéből a Bash
+    eszköz PATH-ján van (egy `Bash(git-graph:*)` engedéllyel nem kérdez).
     """
     caps = json.dumps(PUBLISH_CAPS)
+    files = json.dumps([{"as": "index.html", "path": str(job["page"])}])
+    declare = ("mcp__claude-artifacts__read_declaration (slug); ha a capabilities eltér ettől: "
+               f"mcp__claude-artifacts__declare_capabilities — slug, base_version: a "
+               f"read_declaration verziója, capabilities: {caps}")
     record = (f"Bash: git-graph {shlex.quote(str(gitio.REPO))} --published <URL> "
               "(az URL a publish eredményéből)")
     # A publikálás magától nem nyitja meg a lapot (mérve: csak a kártya jelent
     # meg) — a hook pedig ebben a sessionben már nem kéri (`shown_in_session`).
-    show = "Artifact, action: \"open\", url: <URL>"
+    show = 'mcp__ccd_view__show_pane, pane: "artifact"'
     if job["url"]:
-        return (f"1) Artifact, action: \"read\", url: {job['url']}; 2) Artifact publish — url: "
-                f"{job['url']}, file_path: {job['page']}, capabilities: {caps}; 3) {record}; "
-                f"4) {show}.")
-    return (f"1) Artifact publish — file_path: {job['page']}, icon: \"branch\", "
-            f"capabilities: {caps}; 2) {record}; 3) {show}.")
+        return (f"1) mcp__claude-artifacts__get_artifact, slug: {job['url']}; "
+                "2) mcp__claude-artifacts__publish_files — slug, base_version: a get_artifact "
+                f"verziója (és shared_live: a read értéke, ha nem owner), files: {files}; "
+                f"3) {declare}; 4) {record}; 5) {show}.")
+    return (f"1) mcp__claude-artifacts__publish_files — title: {json.dumps(job['title'])}, "
+            f'icon: "branch", files: {files}; 2) {declare}; 3) {record}; 4) {show}.')
+
+
+# A mod csak ezekkel hívhatja kérés nélkül a lépéseit: szabály nélkül az auto mód
+# a publikálást elutasítja („Auto-Mode Bypass”), az olvasásra pedig olykor nem dönt
+# („gave no verdict”); az AI nem veheti fel őket (mérve, 2026-11-05/06).
+MOD_ALLOW = tuple(f"mcp__claude-artifacts__{tool}" for tool in ("get_artifact", "publish_files"))
+
+
+def mod_can_publish() -> bool:
+    """Igaz, ha a Claude Code beállításai engedik a mod kérés nélküli publikálását."""
+    data = read_json(CLAUDE_SETTINGS) or {}
+    perms = data.get("permissions")
+    allow = perms.get("allow") if isinstance(perms, dict) else None
+    return isinstance(allow, list) and all(rule in allow for rule in MOD_ALLOW)
 
 
 def auto_open() -> bool:
@@ -113,17 +153,22 @@ def config_unset(key: str) -> None:
         gitio.git("config", "--local", "--unset", f"git-graph.{key}")
 
 
-def mark_published(url: str) -> None:
-    """A session publikálása után: az URL és a feltöltött lap hashe a `.git/config`-ba.
+def mark_published(url: str, declared: bool = True) -> None:
+    """A publikálás után: az URL és a feltöltött lap hashe a `.git/config`-ba.
 
-    Az új Artifact (a `--forget` után is) bekapcsolt automatikus megnyitással
-    indul; a meglévő frissítése a beállítást nem érinti.
+    A session publikálása a capability-t is deklarálja (`declared`): annak hashe
+    is bekerül (`artifactCaps`). A mod újraküldése (`--republished`) nem
+    deklarál, a capability öröklődik — a hashe marad. Az új Artifact (a
+    `--forget` után is) bekapcsolt automatikus megnyitással indul; a meglévő
+    frissítése a beállítást nem érinti.
     """
     page = artifact_path(gitio.REPO)
     if not page.exists():
         raise SystemExit("HIBA: nincs kiírt Artifact-lap — előbb: git-graph --publish")
     fresh = not config_get("artifact")
     remember_artifact(url, page_digest(page.read_text(encoding="utf-8")))
+    if declared:
+        gitio.git("config", "--local", "git-graph.artifactCaps", caps_digest())
     if fresh:
         config_unset("autoOpen")
     register(gitio.REPO)
