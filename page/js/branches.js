@@ -64,7 +64,7 @@ function selItems() {
    ikonnal és névvel — amennyi elfér: a gomb legfeljebb `BTN_MAX` széles, és a fejléc sorában a
    repó és az eszközök mellett marad (több elemnél egy név legfeljebb 160 px) —, a többi csak
    színes ikonnal (a neve a súgóban), utána `+N` (a kimaradtak neve soronként a súgóban). Ha egy
-   remote rejtve van, a végén halvány áthúzott felhő. */
+   remote rejtve van, halvány áthúzott felhő; kijelölésnél a végén, a nyíl helyén x („Minden ág”). */
 const MAX_ITEMS = 6, MAX_NAMED = 3, BTN_MAX = 500;
 const chromeEl = /** @type {HTMLElement} */ (document.querySelector('.chrome'));
 /* A gomb elemeinek helye: `BTN_MAX`-ig, amennyi a repó és az eszközök mellett szabad; ha ott
@@ -92,7 +92,8 @@ function renderSel() {
       ? `<span class="sel-item" data-kind="${it.kind}">${it.ic}<span class="sel-name">${esc(it.name)}</span></span>`
       : `<span class="sel-item ic-only" data-kind="${it.kind}" data-tip="${esc(it.name)}">${it.ic}</span>`)).join('')
       + (rest.length ? `<span class="sel-more" data-tip="${esc(rest.map(it => it.name).join('\n'))}">+${rest.length}</span>` : ''))
-    + off;
+    + off
+    + (items.length ? `<span class="clear-x" id="branchX" role="button" aria-label="Minden ág" data-tip="Minden ág">${icon('close')}</span>` : '');
   const set = h => { if (branchView.innerHTML !== h) branchView.innerHTML = h; };
   branchView.classList.toggle('many', items.length > 1);
   branchBtn.classList.toggle('filtered', items.length > 0);   // kijelölt ág: lenyomott háttér (a rejtett remote nem)

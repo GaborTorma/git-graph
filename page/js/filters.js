@@ -28,6 +28,16 @@ makeMenu(branchBtn, branchPop, o => {
   branchPop.style.minWidth = `${branchPop.offsetWidth}px`;
   branchQuery.focus();
 });
+/* Az ágválasztó x-e (kijelölésnél a nyíl helyén) „Minden ág”-ra áll vissza, a menüt nem nyitja (a
+   makeMenu nyitása előtt, rögzítő fázisban). */
+branchBtn.addEventListener('click', e => {
+  if (!(/** @type {HTMLElement} */ (e.target).closest('#branchX'))) return;
+  e.stopPropagation();
+  setBranchSel([]);
+  fillBranches();
+  applyFilters();
+  revealHead();
+}, true);
 /* A pipára kattintás csak azt a sort veszi ki vagy teszi be; a remote fejlécének kapcsolója a
    remote-ot rejti vagy mutatja. A menü mindkettőnél nyitva marad (a makeMenu kattintás-kezelője
    elé, rögzítő fázisban). */

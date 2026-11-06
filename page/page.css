@@ -360,6 +360,8 @@ button { font: inherit; color: inherit; }
 .chrome .select.ghost { height: 28px; padding: 0 9px; }
 /* Szűrő él (ág kijelölve; keresés vagy ref-szűrő): lenyomott háttér, mint a fájlok gombja. */
 .select.ghost.filtered { background: var(--ghost-selected); color: var(--fg-0); }
+#branchBtn.filtered { padding-right: 2px; }
+#branchBtn.filtered .chev { display: none; }   /* kijelölésnél a nyíl helyén x (`#branchX`) */
 .chrome .select.ghost.gear, .chrome #searchBtn:not(.filtered) { width: 28px; padding: 0; }
 .chrome .select.ghost .chev { margin: 0 -3px 0 0; color: inherit; opacity: .6; }
 /* Az ágválasztó gombja a kijelölést mutatja (`renderSel`): elemenként ikon (+ név), `+N`, és ha

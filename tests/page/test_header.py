@@ -398,10 +398,24 @@ class BranchButtonTest(HeaderCase):
         self.page.mouse.move(600, 600)
         self.assertEqual(self.style("#branchBtn", "backgroundColor"), "rgba(0, 0, 0, 0.1)")
 
-    def test_no_clear(self) -> None:
-        """Az ágválasztó gombján nincs törlő x."""
+    def test_clear(self) -> None:
+        """Kijelölésnél a nyíl helyén x: „Minden ág”-ra áll vissza, a menüt nem nyitja; a gomb többi
+        része nyitja a menüt. Kijelölés nélkül nyíl, x nincs."""
+        self.assertTrue(self.page.locator("#branchBtn .chev").is_visible())
+        self.assertEqual(self.page.locator("#branchX").count(), 0)
+        total = self.page.locator("#rows .row").count()
         self.select("dev")
-        self.assertEqual(self.page.locator("#branchBtn .clear-x, #branchBtn [data-part='clear']").count(), 0)
+        self.assertFalse(self.page.locator("#branchBtn .chev").is_visible())
+        self.page.locator("#branchBtn .sel-name").click()
+        self.settle()
+        self.assertTrue(self.page.locator("#branchPop").is_visible())
+        self.close_menu()
+        self.page.locator("#branchX").click()
+        self.settle()
+        self.assertTrue(self.page.locator("#branchPop").is_hidden())
+        self.assertEqual(self.page.locator("#branchBtn .select-label").inner_text(), "Minden ág")
+        self.assertEqual(self.page.locator("#rows .row").count(), total)
+        self.assertTrue(self.page.locator("#branchBtn .chev").is_visible())
 
 
 class WorktreeButtonTest(HeaderCase):
