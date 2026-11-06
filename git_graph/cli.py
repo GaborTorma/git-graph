@@ -27,10 +27,11 @@ GitHub-avatarjáért megy (háttérben, gyorstárazva: `~/.git-graph/avatars.jso
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from .gitio import config_get, git, main_checkout, remember_artifact, repo_name, resolve_repo, set_repo
-from .hook import open_url, session_hook
+from .hook import mod_plan, open_url, session_hook
 from .install import dev_install
 from .mcp import mcp_serve
 from .publish import mark_published, prepare_publish, publish_steps
@@ -64,6 +65,9 @@ def main() -> int:
     ap.add_argument("--published", metavar="URL", default=None,
                     help="a session publikálása után: az URL és a lap hashe a "
                          ".git/config-ba (a --publish lépései kérik)")
+    ap.add_argument("--republished", metavar="URL", default=None,
+                    help="a plugin modjának: a lap újraküldése után a hash a .git/config-ba "
+                         "(a capability öröklődött, a nyilvántartása marad)")
     ap.add_argument("--mcp", action="store_true",
                     help="MCP szerver stdio-n a Claude appnak (az app indítja a "
                          "configjából; az Artifact innen kapja az élő adatot)")
@@ -74,20 +78,28 @@ def main() -> int:
                     help="Claude Code SessionStart hook: telepítés, és ha kell, a repó "
                          "Artifactjának publikálása (stdin: a hook JSON-ja)")
     ap.add_argument("--open-url", action="store_true", dest="open_url",
-                    help="a plugin modjának (--session-nel): a repó Artifactjának URL-je, ha "
-                         "most meg kell nyitni; a /git-graph:artifact-open-nak (nélküle): az "
-                         "URL, elavult lapnál a frissítés lépései, Artifact nélkül semmi")
+                    help="a /git-graph:artifact-open-nak: az URL, elavult lapnál a frissítés "
+                         "lépései, Artifact nélkül semmi")
+    ap.add_argument("--mod-plan", action="store_true", dest="mod_plan",
+                    help="a plugin modjának (--session-nel): JSON, ha most újra kell küldenie és "
+                         "megnyitnia a repó Artifactját; különben semmi")
     ap.add_argument("--session", metavar="ID", default=None,
-                    help="az --open-url-hez: a Claude Code session azonosítója")
+                    help="a --mod-plan-hez: a Claude Code session azonosítója")
     args = ap.parse_args()
 
     if args.session_hook:
         return session_hook()
 
     if args.open_url:
-        url = open_url(Path(args.repo).expanduser().resolve(), args.session)
+        url = open_url(Path(args.repo).expanduser().resolve())
         if url:
             print(url)
+        return 0
+
+    if args.mod_plan:
+        plan = mod_plan(Path(args.repo).expanduser().resolve(), args.session) if args.session else None
+        if plan:
+            print(json.dumps(plan))
         return 0
 
     if args.mcp:
@@ -112,12 +124,12 @@ def main() -> int:
     repo = main_checkout(resolve_repo(Path(args.repo).expanduser().resolve()))
     set_repo(repo)
 
-    if args.set_artifact or args.published:
-        url = args.set_artifact or args.published
+    if args.set_artifact or args.published or args.republished:
+        url = args.set_artifact or args.published or args.republished
         if not url.startswith("https://"):
             raise SystemExit("HIBA: az URL-nek https://-sel kell kezdődnie.")
-        if args.published:
-            mark_published(url)
+        if args.published or args.republished:
+            mark_published(url, declared=bool(args.published))
         else:
             remember_artifact(url)
             register(repo)

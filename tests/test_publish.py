@@ -43,6 +43,30 @@ class PublishTest(HomeTestCase):
         # Akkor az MCP szerver minden toolja benne van
         self.assertEqual(set(tools), {t["name"] for t in gg.mcp.MCP_TOOLS})
 
+    def test_caps_tracking(self) -> None:
+        """A session publikálása a capability hashét is rögzíti, a mod újraküldése nem; a kézi URL törli."""
+        # Adott egy kiírt lap
+        gg = self.load()
+        gg.gitio.set_repo(self.plain_repo())
+        gg.publish.prepare_publish()
+        # Ha a nyilvántartás előtt publikálták, akkor a naprakész lap hashe dönt
+        gg.publish.mark_published("https://claude.ai/artifact/x", declared=False)
+        self.assertTrue(gg.publish.caps_current())
+        gg.gitio.git("config", "--local", "git-graph.artifactHash", "elavult")
+        self.assertFalse(gg.publish.caps_current())
+        # Ha a session publikál, akkor a mostani capability a deklarált
+        gg.publish.mark_published("https://claude.ai/artifact/x")
+        self.assertTrue(gg.publish.caps_current())
+        gg.publish.mark_published("https://claude.ai/artifact/x", declared=False)
+        self.assertTrue(gg.publish.caps_current())                 # az újraküldés nem törli
+        # Ha a capability-lista változik, akkor már nem a deklarált
+        gg.publish.PUBLISH_CAPS["mcp"]["servers"][0]["tools"].append("uj_tool")
+        self.assertFalse(gg.publish.caps_current())
+        gg.publish.PUBLISH_CAPS["mcp"]["servers"][0]["tools"].pop()
+        # Ha kézzel adják meg az URL-t, akkor ismeretlen
+        gg.gitio.remember_artifact("https://claude.ai/artifact/y")
+        self.assertFalse(gg.publish.caps_current())
+
     def test_mark_published_needs_page(self) -> None:
         gg = self.load()
         gg.gitio.set_repo(self.plain_repo())
