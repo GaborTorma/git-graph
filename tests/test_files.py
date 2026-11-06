@@ -4,11 +4,16 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
-import time
 from pathlib import Path
 from unittest import mock
 
 from helpers import HomeTestCase, git_in
+
+
+def cpu_time() -> float:
+    """A folyamat és a befejezett gyerekfolyamatai (a git) CPU-ideje, s."""
+    t = os.times()
+    return t.user + t.system + t.children_user + t.children_system
 
 
 def sha256(data: bytes) -> str:
@@ -126,16 +131,17 @@ class BigRepoTest(FilesCase):
         self.assertIn("d003/uj.txt", [f["path"] for f in sub["files"]])
 
     def test_speed(self) -> None:
-        """20 000 fájl egy válaszban, 300 ms alatt."""
+        """20 000 fájl egy válaszban, 300 ms CPU-idő alatt (a saját és a git-hívásoké: a falióra a
+        Check párhuzamos lépései mellett ingadozik)."""
         # Adott egy commit 20 000 fájllal
         repo, gg, _ = self.repo()
         git_in(repo, "rm", "-q", "a.txt")
         sha = bulk_commit(repo, 20000)
         gg.files.file_tree(sha)                         # az ikonkészlet betöltése
         # Ha a lap a teljes listát kéri
-        start = time.perf_counter()
+        start = cpu_time()
         tree = gg.files.file_tree(sha)
-        took = time.perf_counter() - start
+        took = cpu_time() - start
         # Akkor egy válaszban jön, 300 ms alatt
         self.assertNotIn("lazy", tree)
         self.assertEqual(len(tree["files"]), 20000)
