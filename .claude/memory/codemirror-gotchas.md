@@ -1,6 +1,6 @@
 ---
 name: codemirror-gotchas
-description: A lap CodeMirror-diffjének buktatói — margós blokk-widget elcsúsztatja a sorokat, a lap ⌘F/Esc capture-kezelője elveszi a billentyűt, a panel újrarajzolása a nézetet költözteti
+description: A lap CodeMirror-diffjének buktatói — margós blokk-widget elcsúsztatja a sorokat, a widget estimatedHeight-je ≠ DOM-magasság egymás mellett végtelen újramérés, a lap ⌘F/Esc capture-kezelője elveszi a billentyűt, a panel újrarajzolása a nézetet költözteti
 metadata:
   type: project
 ---
@@ -21,10 +21,15 @@ Kiderült a #56 (CodeMirror-diff, WIP-szerkesztés) közben, 2026-10-27-én (Cod
   `{scanLimit: 500}`. Ha a változások együtt ennél nagyobbak (pl. 13+/11− sor egy 450 soros fájlban),
   a diff feladja, és a fájl nagy részét egy blokkban változottnak jelöli. A `diffConfig: {scanLimit:
   1e9, timeout: 1500}` (`DIFF_CONFIG`) pontos, a 2 MB-os fájlt az időkorlát védi.
+- **`estimatedHeight` ≠ a widget valódi magassága** (2026-11-06, #63): a saját rés (`Gap`) a merge
+  27 px-es becslését vallotta be, a CSS-ből 26 px lett. Egymás mellett (`MergeView`) ettől az igazítás
+  minden képkockában újramért (~60 frissítés/s, a lap sosem nyugodott meg); egymás alatt nem látszott.
+  Javítás: a widget DOM-ja a becsült magasságot kapja (`GAP_H`). A jel: a tesztek `settle()`-je
+  (`window.__quiet`) időtúllépéssel bukik.
 - **Saját mentés visszhangja**: a mentés előtt indult lekérdezés régi lemezállapota nem külső
   változás — a `CodeDiff.seen` a látott / saját írású hasheket szűri.
 
 **Why:** mind órákig tartó, a tesztben egy sorral elcsúszó vagy elnyelt billentyűként jelentkező hiba volt.
 
-**How to apply:** CM-widget stílusánál ne használj margót; új lapszintű billentyűkezelő a `.cm-editor`
+**How to apply:** CM-widget stílusánál ne használj margót, és az `estimatedHeight` a DOM-magassággal egyezzen (rögzítsd mindkettőt egy konstanssal); új lapszintű billentyűkezelő a `.cm-editor`
 célpontot hagyja ki; a kódnézetet ne építsd újra adatcserénél ([[page-modules-blob-linking]]).
