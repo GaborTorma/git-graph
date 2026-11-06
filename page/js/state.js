@@ -34,3 +34,7 @@ export const setQuery = (/** @type {string[]} */ words) => { query = words; };
    hogy a saját HEAD kiesett-e. */
 export let branchKeep = null;
 export const setBranchKeep = keep => { branchKeep = keep; };
+
+/* Esemény a `document`-en: a szűrt lista újraszámolása (`applyFilters`) olyan modulból, amely a
+   `filters.js`-t nem importálhatja (körkörös import volna), pl. rejtett commit felfedése után. */
+export const REFILTER = 'gg-refilter';

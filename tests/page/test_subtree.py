@@ -110,7 +110,12 @@ class SquashTest(PageTestCase):
         git_in(repo, "merge", "-q", "--allow-unrelated-histories", "-m", "widgets subtree", cls.squash)
 
     def test_squash_arc(self) -> None:
-        """A squash-commitot szaggatott ív köti a split-commithoz, nem folytonos él."""
+        """A squash-commitot szaggatott ív köti a split-commithoz, nem folytonos él. A squash csak a
+        merge 2. szülőjén át érhető el, ezért alapból a merge alá csukódik: előbb kibontjuk."""
+        merge = self.page.locator("#rows .row", has_text="widgets subtree")
+        merge.hover()
+        merge.locator(".merge-chev").click()
+        self.settle()
         y = lambda sha: self.page.locator(f'#rows .row[data-sha="{sha}"]').evaluate(  # noqa: E731
             "e => e.offsetTop + e.offsetHeight / 2")
         arcs = self.page.locator('#lanes path[stroke-dasharray="2 2"]')

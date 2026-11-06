@@ -108,6 +108,7 @@ interface Meta {
       ágnál a helyi párjához (`local`) — `branch_tracks`; közös ős nélkül `base` helyett `unrelated` */
   tracks: Record<string, { up?: [number, number]; base?: [number, number]; local?: [number, number]; unrelated?: boolean }>;
   base: string;
+  collapseMerges?: boolean;   // a beolvasztott commitok a merge alá csukódnak (a repó beállítása; hiányzik: be)
 }
 
 /** A `graph_data` tool válasza. */

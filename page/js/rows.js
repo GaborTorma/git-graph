@@ -5,7 +5,9 @@ import { dayKey, dayLabel, fmtTime, pinnedTime } from './dates.js';
 import { open } from './details.js';
 import { OPEN_PANEL, counter, headChip, pendingEl, rowsEl } from './dom.js';
 import { drawGraph, setOtherWip } from './graph.js';
+import { icon } from './icons.js';
 import { fitRows } from './layout.js';
+import { isOpen, layout } from './merges.js';
 import { commitBySha, focusWt, foreign, fresh, headFiltered, laneColor, worktrees } from './model.js';
 import { badges, linkify, subjectRefs, wtBadge } from './refs.js';
 import { stackDays } from './scroll.js';
@@ -57,8 +59,13 @@ function rowHtml(c) {
     + `${av ? '' : esc(initials(c.author))}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge',
     foreign(c) && 'foreign', c.mirrorOf && 'mirror'].filter(Boolean).join(' ');
-  return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
-      <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(subject)}</span>`
+  // Összecsukható merge: hoverre nyíl a gráfoszlop jobb szélén (csak egérrel; a `filters.js`
+  // kezeli), összecsukva a subject után a rejtett sorok száma — arra kattintva a sor nyílik.
+  const fold = layout(), open = isOpen(c.sha), n = fold.counts.get(c.sha);
+  const chev = fold.foldable.has(c.sha) ? `<span class="merge-chev" aria-hidden="true" aria-expanded="${open}">${icon('chev')}</span>` : '';
+  const count = n ? `<span class="merge-n" data-tip="${n} beolvasztott commit">+${n}</span>` : '';
+  return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">${chev}
+      <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(subject)}</span>${count}`
     + `${refs ? '<span class="br"></span>' : ''}${refs}</span>${meta}</span>
     </button>`;
 }

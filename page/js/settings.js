@@ -1,16 +1,19 @@
 /* ── Beállítások ── a fogaskerék-menü kapcsolói. A megnyitás a repóé (a
    `.git/config`-ban): a session indulásakor magától nyílik a lap, és ha elavult,
    frissül. A publikálás a gépé: Artifact nélküli repóban a session létrehozza.
+   A merge-ek összecsukása is a repóé; a lap a `graph_data`-ból már az első rajzolásnál ismeri.
    A git-graph tárolja (`settings` tool); a menü nyitáskor kérdezi le. */
 import { icon } from './icons.js';
 import { mcpProblem } from './mcp.js';
+import { clearOverrides } from './merges.js';
 import { makeMenu } from './menu.js';
-import { CTX, MCP_SERVER, SLUG } from './state.js';
+import { CTX, DATA, MCP_SERVER, REFILTER, SLUG } from './state.js';
 import { esc } from './util.js';
 
 const SETTINGS = [
   ['autoOpen', 'Automatikus megnyitás', 'Új session indításakor'],
   ['autoPublish', 'Automatikus publikálás', 'Új projekt/repo esetén'],
+  ['collapseMerges', 'Merge-ek összecsukása', 'A beolvasztott commitok a merge alatt'],
 ];
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsPop = document.getElementById('settingsPop');
@@ -42,6 +45,12 @@ makeMenu(settingsBtn, settingsPop, o => {
   const key = o.dataset.key;
   settings = { ...settings, [key]: !settings[key] };     // azonnal vált, a válasz igazítja
   fillSettings();
+  // A lista azonnal követi; a merge-enként kézzel nyitott / zárt állapotok törlődnek.
+  if (key === 'collapseMerges') {
+    DATA.meta.collapseMerges = settings[key];
+    clearOverrides();
+    document.dispatchEvent(new Event(REFILTER));
+  }
   callSettings({ [key]: settings[key] });
 }, () => {
   fillSettings();

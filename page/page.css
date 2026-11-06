@@ -621,6 +621,7 @@ button { font: inherit; color: inherit; }
 /* A sor háttere a belső sávon: a gráf-oszlop szabadon marad, a pöttyöket
    (`#lanes`, a sorok MÖGÖTT) semmi nem takarja. */
 .row {
+  position: relative;   /* a merge nyila (`.merge-chev`) ehhez igazodik */
   display: flex; align-items: stretch;
   width: 100%; height: 34px; padding: 2px 12px 2px var(--graph-w, 72px);
   border: 0; background: transparent; text-align: left; cursor: pointer;
@@ -655,7 +656,21 @@ button { font: inherit; color: inherit; }
 .desc { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; font-size: 14px; color: var(--fg-0); }
 .subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .subject mark { background: var(--highlight); color: inherit; border-radius: 3px; }   /* a keresés találata */
-.row.merge .desc { color: var(--fg-2); }
+/* Összecsukható merge (`merges.js`): hoverre nyíl a gráfoszlop jobb szélén (a gráf ennyivel
+   szélesebb, a subject nem mozdul), összecsukva a subject után a rejtett sorok száma. */
+.merge-chev {
+  position: absolute; top: 0; bottom: 0; left: calc(var(--graph-w, 72px) - 14px); width: 14px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--fg-2); opacity: 0; transition: opacity .12s;
+}
+.merge-chev .ic { width: 12px; height: 12px; transition: transform .12s; }   /* CaretRight (`xs`) */
+.row:hover .merge-chev { opacity: 1; }
+.merge-chev:hover { color: var(--fg-0); }
+.merge-chev[aria-expanded="true"] .ic { transform: rotate(90deg); }
+.merge-n { flex: none; color: var(--accent); font-variant-numeric: tabular-nums; }
+/* A kibontáskor megjelenő sorok lenyílnak (a `prefers-reduced-motion` szabály ezt is leállítja). */
+.row.unfold { animation: unfold .15s ease-out; }
+@keyframes unfold { from { clip-path: inset(0 0 100% 0); opacity: 0; } }
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
 /* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra az idő, az avatar és
    a diff. Badge-es sornál (`.tight`): fent a tárgy, lent balra a

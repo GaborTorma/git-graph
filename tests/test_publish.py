@@ -91,12 +91,26 @@ class PublishTest(HomeTestCase):
         gg = self.load()
         repo, other = self.plain_repo(), self.plain_repo("other")
         gg.gitio.set_repo(repo)
-        self.assertEqual(gg.publish.settings({}), {"autoOpen": True, "autoPublish": True})
+        self.assertEqual(gg.publish.settings({}), {"autoOpen": True, "autoPublish": True, "collapseMerges": True})
         self.assertEqual(gg.publish.settings({"autoOpen": False, "autoPublish": False}),
-                         {"autoOpen": False, "autoPublish": False})
+                         {"autoOpen": False, "autoPublish": False, "collapseMerges": True})
         self.assertEqual(gg.gitio.config_get("autoOpen"), "false")
         gg.gitio.set_repo(other)
-        self.assertEqual(gg.publish.settings({"autoOpen": "nem bool"}), {"autoOpen": True, "autoPublish": False})
+        self.assertEqual(gg.publish.settings({"autoOpen": "nem bool"}),
+                         {"autoOpen": True, "autoPublish": False, "collapseMerges": True})
+
+    def test_collapse_merges_default(self) -> None:
+        """Hiányzó `git-graph.collapseMerges` kulcsnál a merge-ek összecsukása bekapcsolva."""
+        gg = self.load()
+        gg.gitio.set_repo(self.plain_repo())
+        self.assertIs(gg.publish.settings({})["collapseMerges"], True)
+
+    def test_collapse_merges_off(self) -> None:
+        """A `collapseMerges: false` a repó `.git/config`-jába kerül, és a válasz is ezt adja."""
+        gg = self.load()
+        gg.gitio.set_repo(self.plain_repo())
+        self.assertIs(gg.publish.settings({"collapseMerges": False})["collapseMerges"], False)
+        self.assertEqual(gg.gitio.config_get("collapseMerges"), "false")
 
     def test_set_artifact_drops_hash(self) -> None:
         """Kézi URL (`--set-artifact`): a régi hash már nem érvényes."""

@@ -3,12 +3,13 @@
 import { branchBtn, branchPop, branchQuery, branchSel, fillBranches, filterBranches, setBranchSel } from './branches.js';
 import { headChip, rowsEl } from './dom.js';
 import { hydrateFocus } from './hydrate.js';
+import { hiddenSha, isOpen, layout, reveal, setOpen } from './merges.js';
 import { makeMenu } from './menu.js';
 import { icon } from './icons.js';
 import { ancestryOf, anyRemoteHidden, focusWt, headFiltered, localReach, remoteRefs, remoteShown, toggleRemote, worktrees } from './model.js';
 import { render } from './rows.js';
 import { revealSha, scrollToSha } from './scroll.js';
-import { DATA, expanded, setBranchKeep, setQuery, setVisible, visible } from './state.js';
+import { DATA, REFILTER, expanded, setBranchKeep, setQuery, setVisible, visible } from './state.js';
 import { esc, fold, menuOpen, queryWords } from './util.js';
 
 makeMenu(branchBtn, branchPop, o => {
@@ -85,6 +86,15 @@ export function applyFilters() {
   setBranchKeep(keep);
   const local = anyRemoteHidden() ? localReach() : null;
   const refs = refsOnly();
+  // Az összecsukott merge alatti találat (ha más szűrő nem zárja ki) és a nyitott panel commitja
+  // kibontja a merge-ét.
+  if (words.length) {
+    for (const c of DATA.commits) {
+      if (hiddenSha(c.sha) && (!keep || keep.has(c.sha)) && (!local || local.has(c.sha)) && matches(c, words)) reveal(c.sha);
+    }
+  }
+  if (expanded) reveal(expanded);
+  const { shown } = layout();
 
   setVisible(DATA.commits.filter(c => {
     // Állapot, nem commit: keresésnél nem kell; ágszűrésnél csak annak a worktree-nek
@@ -101,11 +111,30 @@ export function applyFilters() {
     // A rejtett remote-ok nélkül a helyi történet minden commitja marad (csak a remote-badge
     // tűnik el); ami csak rejtett remote ágból érhető el, az kimarad.
     if (local && !local.has(c.sha)) return false;
+    if (!shown.has(c.sha)) return false;               // összecsukott merge alatt
     if (refs && !c.refs.some(r => r.kind !== 'remote' || remoteShown(r.name))) return false;
     return matches(c, words);
   }));
   render();
 }
+/* Más modul kérése (pl. ugrás rejtett szülőre): a felfedés után újraszűrés. */
+document.addEventListener(REFILTER, applyFilters);
+
+/* A merge-sor nyila (csak egérrel): merge-enként kibont vagy összecsuk, szerverhívás nélkül; a
+   commit-panelt nem nyitja (rögzítő fázisban, a sor kattintása előtt). A megjelenő sorok 150 ms
+   alatt nyílnak le (`.unfold`). */
+rowsEl.addEventListener('click', e => {
+  const chev = /** @type {HTMLElement} */ (e.target).closest('.merge-chev');
+  if (!chev) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const sha = /** @type {HTMLElement} */ (chev.closest('.row')).dataset.sha;
+  const before = new Set(visible.map(c => c.sha));
+  setOpen(sha, !isOpen(sha));
+  applyFilters();
+  for (const r of rowsEl.querySelectorAll('.row')) if (!before.has(r.dataset.sha)) r.classList.add('unfold');
+}, true);
+
 /* A remote kapcsolója a fejléc chipjét is érinti (a ☁ szakasz). A nem látható remote refek a
    kijelölésből is kiesnek (üresen: minden ág). */
 function remotesChanged() {
