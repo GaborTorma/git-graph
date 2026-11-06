@@ -105,6 +105,15 @@ function frameKeys(shadow, border, hover) {
 
 const fills = new WeakMap();   // fejléc → a nyitásának hover-rétege (csukáskor eltűnik)
 
+/* A kártya animációi (a fejléc és a lenyíló rész a tartalmával) egy kezdőidővel indulnak: magától a
+   böngésző egyet-egyet egy képkockával korábban indíthat (mérve: a csukás `marginTop`-ja), és nem
+   érnének véget egyszerre. Vissza a közös kezdőidő. */
+function together(head, el) {
+  const t = document.timeline.currentTime;
+  for (const a of [...head.getAnimations(), ...el.getAnimations({ subtree: true })]) a.startTime = t;
+  return t;
+}
+
 /* Nyitás: a lenyíló rész a `grow`-val nő, a fejléc és a lenyíló rész kerete vele együtt jelenik
    meg. Ha a fejléc hover-színű volt (rajta az egér, vagy billentyűvel kijelölt), a teljes,
    növekvő mező is ezt a színt kapja, és a közepéről a széléig halványul — mind ugyanazon a
@@ -129,6 +138,7 @@ export function openCard(head, el, before, change, settle) {
   el.animate([{ marginTop }, { marginTop }], opts);
   // A tartalma 20 %-ról indul, és az idő felére teljesen látszik (a csukás tükre).
   for (const c of el.children) c.animate([{ opacity: .2 }, { offset: .5, opacity: 1 }, { opacity: 1 }], { duration: ANIM_MS });
+  const start = together(head, el);
   if (!hover) return;
   const host = /** @type {HTMLElement} */ (head.offsetParent);
   if (!host) return;
@@ -149,6 +159,7 @@ export function openCard(head, el, before, change, settle) {
   const anim = fill.animate([
     { boxShadow: `inset 0 0 ${SOFT}px ${spread}px ${hover}`, borderRadius: `${top(before.radius)} ${top(before.radius)} ${bottom} ${bottom}` },
     { boxShadow: `inset 0 0 0 0 ${hover}`, borderRadius: `${top(after.radius)} ${top(after.radius)} ${bottom} ${bottom}` }], opts);
+  anim.startTime = start;
   fills.set(head, anim);
   let frame = requestAnimationFrame(function tick() { place(); frame = requestAnimationFrame(tick); });
   const done = () => { cancelAnimationFrame(frame); fill.remove(); };
@@ -188,7 +199,7 @@ export function closeCard(head, el, before, done, follow) {
     c.animate([{ opacity: 1 }, { offset: 2 / 3, opacity: 1 }, { opacity: .2 }], { duration: ANIM_MS, fill: 'forwards' });
   }
   let bg = head.animate([{ backgroundColor: 'transparent' }, { backgroundColor: after.bg }], opts);
-  const end = Number(document.timeline.currentTime) + ANIM_MS;
+  const end = Number(together(head, el)) + ANIM_MS;
   const target = /** @type {HTMLElement} */ (head.closest('.row, .file'));
   const retarget = () => {
     if (bg.playState !== 'running') return;
