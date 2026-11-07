@@ -141,9 +141,13 @@ function foldedEdge(e, a, rowIndexBySha, rowY) {
   const b = rowIndexBySha.get(visibleBelow(to.sha));
   if (b === undefined || (b === a + 1 && from.parents[0] !== to.sha)) return '';
   const x1 = laneX(e.fromLane), xv = laneX(e.toLane), x2 = laneX(visible[b].lane), y1 = rowY(a), y2 = rowY(b);
-  // A rejtett ág sávjába fordul a merge alatt, és a cél fölött fordul a cél sávjába.
+  // A rejtett ág sávjába fordul a merge alatt, és a cél fölött fordul a cél sávjába. Ha a kiinduló
+  // már a rejtett ág sávjában van, vagy a két fordulónak nincs helye, egyetlen ív: két darabból a
+  // második derékszögbe lapulna (a köztes pont a cél magasságára esne).
   const ym = Math.max(y1 + ROW_H, y2 - ROW_H);
   const d = xv === x2 ? edgePath(x1, y1, x2, y2, true)
+    : x1 === xv ? edgePath(x1, y1, x2, y2, false)
+    : y2 - y1 < 2 * ROW_H ? edgePath(x1, y1, x2, y2, true)
     : `${edgePath(x1, y1, xv, ym, true)} ${edgePath(xv, ym, x2, y2, false)}`;
   const color = tint(from, laneColor(e.toLane));
   return `<path class="fold" d="${d}" fill="none" stroke="${color}" stroke-width="1.2" stroke-dasharray="2 2"/>`;
