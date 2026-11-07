@@ -321,6 +321,11 @@ színek: a 0. sáv a Claude narancs, a többi vele egyező telítettségű. A vo
 annak a sávnak a színét viseli, amelyben a hossza nagy részén fut: a merge-vonal
 a beolvasztott ágét, a leágazó a saját ágáét.
 
+A **merge-commit** pöttye telt mag gyűrűvel. A beolvasztott commitjai alapból alá csukódnak
+(a ref-es commitok maguk látszanak, alattuk szaggatott él); a pötty mellett `+N` áll, a merge
+gráfoszlopára kattintva animálva kibomlik. A fogaskerék-menü „Merge-ek összecsukása” kapcsolója
+repónként állítja az alapot ([Merge-ek összecsukása](docs/merge-collapse.md)).
+
 A **friss commitok** pöttye körül halvány gyűrű van, az üzenetük a gyűrű (a
 sáv) színét kapja. Friss a legújabb commit és a vele egy sorozatban készültek:
 visszafelé addig, amíg két szomszéd között legfeljebb 10 mp telt el — minden

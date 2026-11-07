@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tests" / "page"))
 from test_full_view import FullViewTest  # noqa: E402
 from test_header import HeaderCase  # noqa: E402
+from test_merges import ForkTest  # noqa: E402
 from test_subtree import SubtreeTest  # noqa: E402
 from test_wip_layer import WipCase  # noqa: E402
 
@@ -106,7 +107,23 @@ class WipShots(WipCase):
             "x": diff["x"] - 4, "y": top, "width": diff["width"] + 8, "height": min(520, diff["y"] + diff["height"] - top + 4)})
 
 
-SHOTS = [SubtreeShots, HeaderShots, FullViewShots, WipShots]
+class MergeShots(ForkTest):
+    """Merge-ek összecsukása: összecsukva (a gráfoszlop fölött az egérrel) és kibontva."""
+
+    WIDTH, HEIGHT = 700, 330
+
+    def test_shots(self) -> None:
+        out = folder("merge-collapse")
+        hit = self.row("Merge branch 'feat/login'").locator(".merge-hit")
+        hit.hover(position={"x": 4, "y": 4})
+        self.settle()
+        self.page.screenshot(path=str(out / "collapsed.png"), clip={"x": 0, "y": 0, "width": 700, "height": 248})
+        hit.click(position={"x": 4, "y": 4})
+        self.settle()
+        self.page.screenshot(path=str(out / "expanded.png"))
+
+
+SHOTS = [SubtreeShots, HeaderShots, FullViewShots, WipShots, MergeShots]
 # Csak a képek készülnek, a fixture-osztályok saját tesztjei nem.
 for shots in SHOTS:
     for name in [n for n in dir(shots.__mro__[1]) if n.startswith("test_")]:
