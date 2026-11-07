@@ -4,9 +4,11 @@ import { editingDiff } from './cm.js';
 import { dayKey, dayLabel, fmtTime, pinnedTime } from './dates.js';
 import { open } from './details.js';
 import { OPEN_PANEL, counter, headChip, pendingEl, rowsEl } from './dom.js';
-import { drawGraph, setOtherWip } from './graph.js';
+import { drawGraph, laneX, setOtherWip } from './graph.js';
+import { icon } from './icons.js';
 import { fitRows } from './layout.js';
-import { commitBySha, focusWt, foreign, fresh, headFiltered, laneColor, worktrees } from './model.js';
+import { isOpen, layout } from './merges.js';
+import { commitBySha, focusWt, foreign, fresh, headFiltered, laneColor, tint, worktrees } from './model.js';
 import { badges, linkify, subjectRefs, wtBadge } from './refs.js';
 import { stackDays } from './scroll.js';
 import { DATA, expanded, query, setExpanded, visible } from './state.js';
@@ -34,6 +36,9 @@ const collab = name => {
   return `var(--collab-${h % COLLABS})`;
 };
 
+/* Az összecsukott merge száma (a `filters.js` az összecsukás elején be is szúrja). */
+export const mergeCount = n => `<span class="merge-n" data-tip="${n} beolvasztott commit">+${n}</span>`;
+
 function rowHtml(c) {
   const color = fresh.has(c.sha) ? ` style="color:${laneColor(c.lane)}"` : '';
   const st = DATA.stats[c.sha];
@@ -57,7 +62,16 @@ function rowHtml(c) {
     + `${av ? '' : esc(initials(c.author))}</span>${sum}</span>`;
   const cls = ['row', c.uncommitted && 'uncommitted', c.parents.length > 1 && 'merge',
     foreign(c) && 'foreign', c.mirrorOf && 'mirror'].filter(Boolean).join(' ');
-  return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">
+  // Összecsukható merge: a gráfoszlopa (`.merge-hit`, a sor sávjáig) a merge-et bontja ki vagy
+  // csukja össze (csak egérrel; a `filters.js` kezeli). A pontja mellett összecsukva a rejtett sorok
+  // száma, utána hoverre a nyíl, mindkettő a beolvasztott ág (2. szülő) színében. Más sor
+  // gráfoszlopa nem reagál.
+  const fold = layout(), open = isOpen(c.sha), n = fold.counts.get(c.sha), from = commitBySha(c.parents[1]);
+  const count = n ? mergeCount(n) : '';
+  const chev = fold.foldable.has(c.sha)
+    ? `<span class="merge-hit"><span class="merge-fold" style="left:${laneX(c.lane) + 10}px;color:${tint(c, laneColor(from ? from.lane : c.lane))}">${count}`
+      + `<span class="merge-chev" aria-hidden="true" aria-expanded="${open}">${icon('caretDown')}</span></span></span>` : '';
+  return `<button class="${cls}" type="button" data-sha="${c.sha}" aria-expanded="false">${chev}
       <span class="row-in"><span class="desc"><span class="subject"${color}>${linkify(subject)}</span>`
     + `${refs ? '<span class="br"></span>' : ''}${refs}</span>${meta}</span>
     </button>`;

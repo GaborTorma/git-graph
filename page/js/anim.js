@@ -68,6 +68,67 @@ export function grow(el, change, settle) {
     });
 }
 
+/* Merge kibontása és összecsukása: a megjelenő sorok 0-ról a saját magasságukra nőnek (`unfoldRows`),
+   az eltűnők 0-ra csukódnak, utána `done` (`foldRows`). Együtt mozognak; a gráf képkockánként
+   újrarajzol, így a vonal velük nyúlik és rövidül. */
+const FOLD_MS = 200;
+function rows(els, frames, done) {
+  if (!els.length || reducedMotion()) { done?.(); return; }
+  const anims = els.map(el => {
+    el.style.overflow = 'hidden';
+    return el.animate(frames(el), { duration: FOLD_MS, easing: done ? CLOSE_EASE : OPEN_EASE, fill: done ? 'forwards' : 'none' });
+  });
+  let frame = requestAnimationFrame(function tick() { drawGraph(); frame = requestAnimationFrame(tick); });
+  Promise.allSettled(anims.map(a => a.finished)).then(() => {
+    cancelAnimationFrame(frame);
+    if (done) done();
+    else for (const el of els) el.style.overflow = '';
+    drawGraph();
+  });
+}
+export const unfoldRows = els => rows(els, el => [FLAT, fullBox(el)]);
+export const foldRows = (els, done) => rows(els, el => [fullBox(el), FLAT], done);
+
+/* A merge gráfoszlopa (`.merge-fold`) a változás előtt: a nyíl bal széle és szöge (a CSS-é: jobbra
+   −90°, kibontva felfelé −180°, így a fordulat mindig 90°). */
+const chevAngle = chev => `rotate(${chev.getAttribute('aria-expanded') === 'true' ? -180 : -90}deg)`;
+export function foldState(fold) {
+  const chev = fold?.querySelector('.merge-chev');
+  return chev && { left: chev.getBoundingClientRect().left, rot: chevAngle(chev) };
+}
+/* A változás után, a felcsukódással / lenyílással együtt (200 ms): a nyíl a régi helyéről (`before`,
+   a `foldState`-é) a mostaniba csúszik és fordul. A `count` szám összecsukáskor 0 szélességről nő,
+   maga előtt tolva a nyilat; kibontáskor (`shrink`) összemegy, a nyíl utánacsúszik, a végén a szám
+   eltűnik. Szögekkel animál: a mátrixok közti átmenet tükrözésnek bomlana. */
+export function morphFold(before, fold, count, shrink = false) {
+  const chev = fold?.querySelector('.merge-chev');
+  if (!before || !chev || reducedMotion()) { if (shrink) count?.remove(); return; }
+  const ic = /** @type {HTMLElement} */ (chev.firstElementChild), w = count ? count.offsetWidth : 0;
+  const m = parseFloat(getComputedStyle(chev).marginLeft), left = chev.getBoundingClientRect().left;
+  let m0 = before.left - (left - m - (shrink ? 0 : w)), m1 = m;
+  if (shrink && count) {
+    // A végső hely a szám nélkül: oda kell érnie, mire a szám 0 széles (a köz még ott van).
+    const next = count.nextSibling;
+    count.remove();
+    const end = chev.getBoundingClientRect().left;
+    fold.insertBefore(count, next);
+    m1 = end - (left - m - w);
+  }
+  // A sorok görbéjével (összecsukáskor a csukódásé, kibontáskor a nyílásé), hogy velük együtt mozogjon.
+  const opts = { duration: FOLD_MS, easing: count && !shrink ? CLOSE_EASE : OPEN_EASE };
+  chev.animate([{ marginLeft: `${m0}px` }, { marginLeft: `${m1}px` }], opts);
+  ic.animate([{ transform: before.rot }, { transform: chevAngle(chev) }], opts);
+  if (count) {
+    const cs = getComputedStyle(count);
+    // Közben színátmenet is, mint a commit-panel nyílásakor: 20 %-ról, az út felénél már teljes.
+    const full = { width: cs.width, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, opacity: 1 };
+    const none = { width: '0px', paddingLeft: '0px', paddingRight: '0px', opacity: 0.2 };
+    const grown = [none, { offset: 0.5, opacity: 1 }, full];
+    const a = count.animate(shrink ? grown.reverse() : grown, { ...opts, fill: shrink ? 'forwards' : 'none' });
+    if (shrink) a.finished.then(() => count.remove(), () => {});
+  }
+}
+
 /* Csukódás 0-ra, a végén `done` (eltávolít / elrejt) és a `follow`. Ha közben
    újra kinyílik (a `grow` megszakítja), `done` nem fut. */
 export function shrink(el, done, follow) {

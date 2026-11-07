@@ -8,11 +8,12 @@ import { openFromPanel } from './full.js';
 import { drawGraph } from './graph.js';
 import { fileIcon, icon } from './icons.js';
 import { fitWho } from './layout.js';
+import { hiddenSha, reveal } from './merges.js';
 import { commitBySha, wipCounts, wipHtml } from './model.js';
 import { fitPanel, followPending, revealCommit } from './panel.js';
 import { commitUrl, fileUrl, linkify } from './refs.js';
 import { rowOf, select } from './scroll.js';
-import { DATA, expanded, setExpanded, visible } from './state.js';
+import { DATA, REFILTER, expanded, setExpanded, visible } from './state.js';
 import { esc, fileCount, fmtBytes, fmtInt, ghLink, menuOpen } from './util.js';
 
 // A bináris fájl mérete (`size`: [régi, új], a hiányzó oldal `null`): az új +méret, a
@@ -185,6 +186,8 @@ function onListClick(e) {
   if (svg) { if ((svg.dataset.svgMode === 'code') !== svgCode) setSvgCode(!svgCode); return; }
   const jump = e.target.closest('[data-jump]');
   if (jump) {
+    // Összecsukott merge alatti szülő: előbb a merge kibontva.
+    if (hiddenSha(jump.dataset.jump)) { reveal(jump.dataset.jump); document.dispatchEvent(new Event(REFILTER)); }
     const target = rowsEl.querySelector(`.row[data-sha="${jump.dataset.jump}"]`);
     if (target) open(jump.dataset.jump, true);   // mint a kattintás: animálva, a nézetbe hozva
     return;
@@ -204,6 +207,8 @@ function onListClick(e) {
   if (e.target.closest('.details')) return;   // a panelben kattintás ne csukja be
   const row = e.target.closest('.row');
   if (!row) return;
+  // Egérrel csak a sor sávja (`.row-in`) nyit: a gráfoszlop és a sor széle nem (a billentyű marad).
+  if (e.target === row && e.detail > 0) return;
   if (row.getAttribute('aria-expanded') === 'true' && expanded) closeCommit(false);
   else open(row.dataset.sha, true);
 }

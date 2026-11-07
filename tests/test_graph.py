@@ -63,6 +63,16 @@ class GraphTest(HomeTestCase):
         gg.graph.mark_subtree_splits(commits)
         self.assertEqual({c["sha"]: c["splitOf"] for c in commits if "splitOf" in c}, {squash: split})
 
+    def test_collapse_merges_meta(self) -> None:
+        """A `graph_data` `meta`-ja hozza a merge-ek összecsukását, hogy a lap már az első
+        rajzolásnál a repó beállítását kövesse (hiányzó kulcs: be)."""
+        repo = self.plain_repo()
+        gg = self.load()
+        gg.gitio.set_repo(repo)
+        self.assertIs(gg.graph.collect_payload(None)["meta"]["collapseMerges"], True)
+        git_in(repo, "config", "--local", "git-graph.collapseMerges", "false")
+        self.assertIs(gg.graph.collect_payload(None)["meta"]["collapseMerges"], False)
+
     def test_worktrees(self) -> None:
         """Közös adat: minden worktree HEAD-je és ál-sora, a diff a saját mappájából."""
         main, extra = self.make_repo()

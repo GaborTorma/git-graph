@@ -1,9 +1,12 @@
 /* A gráf (sávok, élek, pöttyök) az `#lanes` SVG-be, és a fix sáv WIP-sorai. */
 import { pendingEl, rowsEl, scroller, svg } from './dom.js';
+import { hiddenSha, isMerge, visibleBelow } from './merges.js';
 import { commitBySha, fade, focusWt, fresh, laneColor, tint } from './model.js';
 import { DATA, visible } from './state.js';
 
 const ROW_H = 34, LANE_W = 14, X0 = 16, DOT_R = 4;
+const CORE_R = 3.5, RING_R = 6;     // a merge pontja: telt mag, körülötte gyűrű (köztük háttérszínű rés)
+const FOLD_W = 10 + 48;              // a merge pontja mellett a „+N” és a nyíl (`.merge-fold`): rés + szélesség
 const EDGE_HUG = DOT_R + 1;   // a sávváltó vonal ennyit fut a commit sávjában, mielőtt elfordul
 const STUB_GAP = 11;   // több worktree-csonk pöttyei közti függőleges távolság
 
@@ -12,11 +15,12 @@ let graphW = 72;
    használja (`--graph-w`: a sorok bal paddingje, a panel margója). */
 export function sizeGraph() {
   const laneCount = DATA.commits.reduce((m, c) => Math.max(m, c.lane, ...(c.stubs || []).map(t => t.lane)), 0) + 1;
-  graphW = Math.max(32, X0 * 2 + (laneCount - 1) * LANE_W);
+  const fold = DATA.commits.reduce((m, c) => isMerge(c) ? Math.max(m, laneX(c.lane) + FOLD_W) : m, 0);
+  graphW = Math.max(32, X0 * 2 + (laneCount - 1) * LANE_W, fold);
   document.documentElement.style.setProperty('--graph-w', graphW + 'px');
 }
 
-function laneX(l) { return X0 + l * LANE_W; }
+export function laneX(l) { return X0 + l * LANE_W; }
 
 /* A sorok Y-pozíciója a DOM-ból jön, nem sorszám × magasság: a napok fejléce
    és a kinyitott commit-panel az alattuk lévő sorokat lejjebb tolja, és a
@@ -47,6 +51,10 @@ export function drawGraph() {
   for (const e of DATA.edges) {
     const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
     const b = rowIndexBySha.get(DATA.commits[e.toRow].sha);
+    if (a !== undefined && b === undefined && hiddenSha(DATA.commits[e.toRow].sha)) {
+      out += foldedEdge(e, a, rowIndexBySha, rowY);
+      continue;
+    }
     if (a === undefined || b === undefined) continue;   // szűrve
     const x1 = laneX(e.fromLane), y1 = rowY(a);
     const x2 = laneX(e.toLane),   y2 = rowY(b);
@@ -104,16 +112,41 @@ export function drawGraph() {
   visible.forEach((c, i) => {
     if (c.uncommitted && c.worktree === focusWt()?.slug) return;   // a pontja a #pending sávban van
     const color = tint(c, laneColor(c.lane));
-    const merge = c.parents.length > 1;
+    const merge = isMerge(c), x = laneX(c.lane), y = rowY(i);
     // Az ál-sor és a stash pontja üres karika: a szaggatott vonal már jelzi, hogy nem
     // commit a branch-en — a pöttyözött körvonal ezen a méreten csak elmosódna.
     // A tükör-commit is: a forrása a valódi commit, ez csak a másolata.
-    const hollow = merge || c.uncommitted || c.stash || c.mirrorOf;
-    if (fresh.has(c.sha)) out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="8" fill="${color}" opacity=".28"/>`;
-    out += `<circle cx="${laneX(c.lane)}" cy="${rowY(i)}" r="${hollow ? DOT_R + 1 : DOT_R}"`
+    const hollow = c.uncommitted || c.stash || c.mirrorOf;
+    if (fresh.has(c.sha)) out += `<circle cx="${x}" cy="${y}" r="${merge ? 10 : 8}" fill="${color}" opacity=".28"/>`;
+    // A merge a történet fő pontja: telt mag gyűrűvel, egy színben (a beolvasztott ág színe a
+    // „+N”-en és a nyílon); a gyűrű háttérszínű kitöltése a rés.
+    if (merge) {
+      out += `<circle cx="${x}" cy="${y}" r="${RING_R}" fill="var(--bg)" stroke="${color}" stroke-width="2"/>`
+          +  `<circle cx="${x}" cy="${y}" r="${CORE_R}" fill="${color}"/>`;
+      return;
+    }
+    out += `<circle cx="${x}" cy="${y}" r="${hollow ? DOT_R + 1 : DOT_R}"`
         +  ` fill="${hollow ? 'var(--bg)' : color}" stroke="${color}" stroke-width="2"/>`;
   });
   svg.innerHTML = out;
+}
+
+/* Rejtett szülőre mutató él (összecsukott merge 2. szülője, vagy egy ref-es commit beolvasztott
+   lánca) helyette az első látható commitig (az első szülő láncán): szaggatott, mert commitot ugrik
+   át; a rejtett ág sávjában fut. A merge 2. szülőjénél, ha a cél a merge alatti sor (nincs köztük
+   látható sor), nincs él; az első szülő éle mindig megvan, különben a lánc elszakadna. `a`: a
+   kiinduló sor; a sorindex és a sor közepe a `drawGraph`-é. */
+function foldedEdge(e, a, rowIndexBySha, rowY) {
+  const from = DATA.commits[e.fromRow], to = DATA.commits[e.toRow];
+  const b = rowIndexBySha.get(visibleBelow(to.sha));
+  if (b === undefined || (b === a + 1 && from.parents[0] !== to.sha)) return '';
+  const x1 = laneX(e.fromLane), xv = laneX(e.toLane), x2 = laneX(visible[b].lane), y1 = rowY(a), y2 = rowY(b);
+  // A rejtett ág sávjába fordul a merge alatt, és a cél fölött fordul a cél sávjába.
+  const ym = Math.max(y1 + ROW_H, y2 - ROW_H);
+  const d = xv === x2 ? edgePath(x1, y1, x2, y2, true)
+    : `${edgePath(x1, y1, xv, ym, true)} ${edgePath(xv, ym, x2, y2, false)}`;
+  const color = tint(from, laneColor(e.toLane));
+  return `<path class="fold" d="${d}" fill="none" stroke="${color}" stroke-width="1.2" stroke-dasharray="2 2"/>`;
 }
 
 /* Sávváltásnál ott hajlik a vonal, ahol a git is: merge-nél rögtön a merge

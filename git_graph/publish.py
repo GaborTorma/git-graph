@@ -137,15 +137,21 @@ def auto_publish() -> bool:
     return (read_json(SETTINGS) or {}).get("autoPublish") is not False
 
 
+def collapse_merges() -> bool:
+    """A beolvasztott commitok a merge alá csukódnak a lapon (`git-graph.collapseMerges`, alap: igen)."""
+    return config_get("collapseMerges") != "false"
+
+
 def settings(changes: dict) -> dict:
-    """A lap beállítás-menüje (`settings` tool): a megadott kulcsokat írja, és mindkettőt adja."""
-    if isinstance(changes.get("autoOpen"), bool):
-        gitio.git("config", "--local", "git-graph.autoOpen", str(changes["autoOpen"]).lower())
+    """A lap beállítás-menüje (`settings` tool): a megadott kulcsokat írja, és mindet adja."""
+    for key in ("autoOpen", "collapseMerges"):      # a repóé: a `.git/config`-ban
+        if isinstance(changes.get(key), bool):
+            gitio.git("config", "--local", f"git-graph.{key}", str(changes[key]).lower())
     if isinstance(changes.get("autoPublish"), bool):
         data = read_json(SETTINGS) or {}
         data["autoPublish"] = changes["autoPublish"]
         place((json.dumps(data, indent=2) + "\n").encode(), SETTINGS, 0o644)
-    return {"autoOpen": auto_open(), "autoPublish": auto_publish()}
+    return {"autoOpen": auto_open(), "autoPublish": auto_publish(), "collapseMerges": collapse_merges()}
 
 
 def config_unset(key: str) -> None:

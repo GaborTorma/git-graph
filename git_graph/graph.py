@@ -10,7 +10,7 @@ from datetime import datetime
 
 from .avatars import avatars_for
 from .branches import branch_tracks, collect_branches
-from .gitio import ALL_BUT_STASH, FS, RS, default_base, git, numstat_new_path, remotes, repo_name, repo_url, stash_list
+from .gitio import ALL_BUT_STASH, FS, RS, config_get, default_base, git, numstat_new_path, remotes, repo_name, repo_url, stash_list
 from .lanes import assign_lanes, worktree_lanes_last, worktree_stubs
 from .page import attach_icons
 from .stats import cap_files, collect_stats, drop_ignored, mark_sizes
@@ -134,6 +134,7 @@ def repo_meta() -> dict:
             "total": pool.submit(git, "rev-list", *ALL_BUT_STASH, "--count"),
             "generated": pool.submit(git, "log", "-1", "--pretty=format:%aI"),
             "remotes": pool.submit(remotes),
+            "collapseMerges": pool.submit(config_get, "collapseMerges"),
         }
         tracks = pool.submit(branch_tracks, base.result())
         known = {key: job.result() for key, job in jobs.items()}
@@ -157,6 +158,8 @@ def collect_meta(commits: list[dict], worktrees: list[dict], known: dict | None 
         "remotes": sorted(known["remotes"]),     # több remote-nál a badge a nevüket is mutatja
         "tracks": known["tracks"],
         "base": base,                     # az alapág (origin/HEAD célja) — a helyi párján nem dolgozunk
+        # a lap már az első rajzolásnál a repó beállítását kövesse (a `settings` tool írja)
+        "collapseMerges": known["collapseMerges"] != "false",
     }
 
 

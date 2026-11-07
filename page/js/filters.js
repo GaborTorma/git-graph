@@ -1,14 +1,16 @@
 /* Szűrők: ágválasztás, remote-ok (az ágválasztó fejlécein), keresés és csak ref-es commitok (a
    keresés lenyílójában). */
+import { foldRows, foldState, morphFold, unfoldRows } from './anim.js';
 import { branchBtn, branchPop, branchQuery, branchSel, fillBranches, filterBranches, setBranchSel } from './branches.js';
 import { headChip, rowsEl } from './dom.js';
 import { hydrateFocus } from './hydrate.js';
+import { hiddenSha, isOpen, layout, reveal, setOpen } from './merges.js';
 import { makeMenu } from './menu.js';
 import { icon } from './icons.js';
 import { ancestryOf, anyRemoteHidden, focusWt, headFiltered, localReach, remoteRefs, remoteShown, toggleRemote, worktrees } from './model.js';
-import { render } from './rows.js';
+import { mergeCount, render } from './rows.js';
 import { revealSha, scrollToSha } from './scroll.js';
-import { DATA, expanded, setBranchKeep, setQuery, setVisible, visible } from './state.js';
+import { DATA, REFILTER, expanded, setBranchKeep, setQuery, setVisible, visible } from './state.js';
 import { esc, fold, menuOpen, queryWords } from './util.js';
 
 makeMenu(branchBtn, branchPop, o => {
@@ -85,6 +87,15 @@ export function applyFilters() {
   setBranchKeep(keep);
   const local = anyRemoteHidden() ? localReach() : null;
   const refs = refsOnly();
+  // Az összecsukott merge alatti találat (ha más szűrő nem zárja ki) és a nyitott panel commitja
+  // kibontja a merge-ét.
+  if (words.length) {
+    for (const c of DATA.commits) {
+      if (hiddenSha(c.sha) && (!keep || keep.has(c.sha)) && (!local || local.has(c.sha)) && matches(c, words)) reveal(c.sha);
+    }
+  }
+  if (expanded) reveal(expanded);
+  const { shown } = layout();
 
   setVisible(DATA.commits.filter(c => {
     // Állapot, nem commit: keresésnél nem kell; ágszűrésnél csak annak a worktree-nek
@@ -101,11 +112,61 @@ export function applyFilters() {
     // A rejtett remote-ok nélkül a helyi történet minden commitja marad (csak a remote-badge
     // tűnik el); ami csak rejtett remote ágból érhető el, az kimarad.
     if (local && !local.has(c.sha)) return false;
+    if (!shown.has(c.sha)) return false;               // összecsukott merge alatt
     if (refs && !c.refs.some(r => r.kind !== 'remote' || remoteShown(r.name))) return false;
     return matches(c, words);
   }));
   render();
 }
+/* Más modul kérése (pl. ugrás rejtett szülőre): a felfedés után újraszűrés. */
+document.addEventListener(REFILTER, applyFilters);
+
+/* A merge-sor gráfoszlopa (csak egérrel): merge-enként kibont vagy összecsuk, szerverhívás nélkül; a
+   commit-panelt nem nyitja (rögzítő fázisban, a sor kattintása előtt). A megjelenő sorok lenyílnak,
+   az eltűnők felcsukódnak, és csak utána tűnnek el a listából (`unfoldRows`, `foldRows`). */
+let folding = false;                   // egy csukódás fut: addig a gráfoszlop nem kattintható
+rowsEl.addEventListener('click', e => {
+  const hit = /** @type {HTMLElement} */ (e.target).closest('.merge-hit');
+  if (!hit) return;
+  e.stopPropagation();
+  e.preventDefault();
+  if (folding) return;
+  const sha = /** @type {HTMLElement} */ (hit.closest('.row')).dataset.sha;
+  const rows = () => [...rowsEl.querySelectorAll('.row')];
+  const foldEl = () => rowsEl.querySelector(`.row[data-sha="${CSS.escape(sha)}"] .merge-fold`);
+  // Az újrarajzolt gráfoszlop fölött ott az egér, de a böngésző csak később veszi hovernek: addig
+  // a `.hover` tartja látszón a nyilat (átmenet nélkül), különben kivillanna és visszajönne.
+  const keepHover = () => {
+    const h = foldEl()?.parentElement;
+    h?.classList.add('hover');
+    h?.addEventListener('mouseleave', () => h.classList.remove('hover'), { once: true });
+  };
+  if (!isOpen(sha)) {
+    // Kibontás: a sorok lenyílása alatt a szám összemegy, a nyíl utánacsúszik és felfelé fordul.
+    const before = new Set(visible.map(c => c.sha)), state = foldState(foldEl()), n = layout().counts.get(sha);
+    setOpen(sha, true);
+    applyFilters();
+    keepHover();
+    const chev = foldEl()?.querySelector('.merge-chev');
+    if (chev && n) chev.insertAdjacentHTML('beforebegin', mergeCount(n));
+    morphFold(state, foldEl(), /** @type {HTMLElement} */ (n ? chev?.previousElementSibling : null), true);
+    unfoldRows(rows().filter(r => !before.has(r.dataset.sha)));
+    return;
+  }
+  // Összecsukás: a sorok felcsukódása alatt a nyíl jobbra fordul, és a szám balról jobbra nő, maga
+  // előtt tolva a nyilat; a három együtt ér véget, utána a lista újrarajzol (már nincs mit mozgatni).
+  const state = foldState(foldEl());
+  setOpen(sha, false);
+  const { shown, counts } = layout();
+  const chev = hit.querySelector('.merge-chev');
+  chev?.setAttribute('aria-expanded', 'false');
+  const n = counts.get(sha);
+  if (chev && n) chev.insertAdjacentHTML('beforebegin', mergeCount(n));
+  morphFold(state, foldEl(), /** @type {HTMLElement} */ (chev?.previousElementSibling));
+  folding = true;
+  foldRows(rows().filter(r => !shown.has(r.dataset.sha)), () => { folding = false; applyFilters(); keepHover(); });
+}, true);
+
 /* A remote kapcsolója a fejléc chipjét is érinti (a ☁ szakasz). A nem látható remote refek a
    kijelölésből is kiesnek (üresen: minden ág). */
 function remotesChanged() {

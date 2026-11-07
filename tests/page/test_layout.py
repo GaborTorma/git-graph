@@ -8,11 +8,11 @@ from pathlib import Path
 from harness import PageTestCase, git_in
 
 # Minden listasor közepe és a hozzá legközelebbi commit-pötty (r 4: commit, r 5:
-# merge / ál-sor) közepe, a képernyőn mérve. A `drawGraph` a sorok `offsetTop`-jából
+# ál-sor, r 3.5: a merge magja) közepe, a képernyőn mérve. A `drawGraph` a sorok `offsetTop`-jából
 # rajzol: ha a sor és a gráf koordinátái elcsúsznak, a kettő eltér.
 DOT_OFFSETS = """() => {
   const dots = [...document.querySelectorAll('#lanes circle')]
-    .filter(c => ['4', '5'].includes(c.getAttribute('r')))
+    .filter(c => ['4', '5', '3.5'].includes(c.getAttribute('r')))
     .map(c => { const r = c.getBoundingClientRect(); return r.top + r.height / 2; });
   return [...document.querySelectorAll('#rows .row')].map(row => {
     const r = row.getBoundingClientRect(), mid = r.top + r.height / 2;

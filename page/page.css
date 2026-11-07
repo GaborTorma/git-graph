@@ -621,16 +621,17 @@ button { font: inherit; color: inherit; }
 /* A sor háttere a belső sávon: a gráf-oszlop szabadon marad, a pöttyöket
    (`#lanes`, a sorok MÖGÖTT) semmi nem takarja. */
 .row {
+  position: relative;   /* a merge „+N”-je és nyila (`.merge-fold`) ehhez igazodik */
   display: flex; align-items: stretch;
   width: 100%; height: 34px; padding: 2px 12px 2px var(--graph-w, 72px);
-  border: 0; background: transparent; text-align: left; cursor: pointer;
+  border: 0; background: transparent; text-align: left; cursor: default;
 }
 .row-in {
-  flex: 1; min-width: 0;
+  flex: 1; min-width: 0; cursor: pointer;
   display: flex; align-items: center; gap: 12px;
   padding: 0 10px; border-radius: 8px;
 }
-.row:hover .row-in { background: var(--bg-2); }
+.row-in:hover { background: var(--bg-2); }   /* a gráfoszlop nem: az a merge-é (`.merge-hit`) */
 .row:focus-visible { outline: 0; box-shadow: none; }
 /* Billentyűzetes kijelölés: halvány háttér + vékony akcentus-keret. */
 .row:focus-visible .row-in { background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -655,7 +656,29 @@ button { font: inherit; color: inherit; }
 .desc { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; font-size: 14px; color: var(--fg-0); }
 .subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .subject mark { background: var(--highlight); color: inherit; border-radius: 3px; }   /* a keresés találata */
-.row.merge .desc { color: var(--fg-2); }
+/* Összecsukható merge (`merges.js`): a gráfoszlopa (`.merge-hit`, a sor sávjáig) bont ki; a pontja
+   mellett összecsukva a rejtett sorok száma, utána hoverre a jobbra mutató nyíl (kibontva felfelé). A
+   gráf (`#lanes`) fölött, háttérrel: a vonal nem fut át rajta. A merge subjectje picit vastagabb. */
+.row.merge .subject { font-weight: var(--w-medium); }
+.merge-hit { position: absolute; top: 0; bottom: 0; left: 0; width: var(--graph-w, 72px); z-index: 2; cursor: pointer; }
+.merge-fold {
+  position: absolute; top: 0; bottom: 0;
+  display: flex; align-items: center; gap: 1px;
+  font-size: 11px; font-weight: var(--w-medium);
+}
+.merge-chev { display: flex; opacity: 0; transition: opacity .12s; }   /* a szín a `.merge-fold`-é: a beolvasztott ágé */
+/* A lenyíló menü CaretDown-ja (`sm`, 16 px): összecsukva jobbra, kibontva felfelé mutat. */
+.merge-chev .ic { width: 16px; height: 16px; transform: rotate(-90deg); }   /* a fordulatot a `morphFold` animálja */
+.merge-hit:is(:hover, .hover) .merge-chev { opacity: 1; }
+.merge-hit.hover .merge-chev { transition: none; }   /* újrarajzolás után, amíg az egér rajta van: nem villan */
+.merge-fold:not(:has(.merge-n)) .merge-chev { margin-left: 6px; }   /* szám nélkül (kibontva): a lenyílt ág vonalától el */
+.merge-chev[aria-expanded="true"] .ic { transform: rotate(-180deg); }   /* −90° → −180°: 90°-os fordulat */
+/* A szám halvány, tint hátterű kis címke vékony kerettel (a vonalat is takarja). */
+.merge-n {
+  flex: none; padding: 0 4px; border-radius: 4px; line-height: 15px; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, currentColor 10%, var(--bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent);
+}
 .refs { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; }
 /* Kétsoros sor (`fitRows`): fent a tárgy, alatta jobbra az idő, az avatar és
    a diff. Badge-es sornál (`.tight`): fent a tárgy, lent balra a

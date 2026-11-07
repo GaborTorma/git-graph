@@ -60,7 +60,7 @@ class SubtreeTest(PageTestCase):
             mirror = self.page.locator("#rows .row.mirror", has_text=f"{name}:")
             opacity = mirror.locator(".subject").evaluate("e => getComputedStyle(e).opacity")
             self.assertEqual(opacity, "0.55")
-        arcs = self.page.locator('#lanes path[stroke-dasharray="2 2"]')
+        arcs = self.page.locator('#lanes path[stroke-dasharray="2 2"]:not(.fold)')   # a rejtett lánc éle nem
         self.assertEqual(arcs.count(), len(MIRRORED))
         self.assertEqual(arcs.first.get_attribute("stroke-width"), "1.2")
         # a tükör pöttye üres karika: háttérszínű kitöltés
@@ -110,10 +110,14 @@ class SquashTest(PageTestCase):
         git_in(repo, "merge", "-q", "--allow-unrelated-histories", "-m", "widgets subtree", cls.squash)
 
     def test_squash_arc(self) -> None:
-        """A squash-commitot szaggatott ív köti a split-commithoz, nem folytonos él."""
+        """A squash-commitot szaggatott ív köti a split-commithoz, nem folytonos él. A squash csak a
+        merge 2. szülőjén át érhető el, ezért alapból a merge alá csukódik: előbb kibontjuk."""
+        merge = self.page.locator("#rows .row", has_text="widgets subtree")
+        merge.locator(".merge-chev").click()
+        self.settle()
         y = lambda sha: self.page.locator(f'#rows .row[data-sha="{sha}"]').evaluate(  # noqa: E731
             "e => e.offsetTop + e.offsetHeight / 2")
-        arcs = self.page.locator('#lanes path[stroke-dasharray="2 2"]')
+        arcs = self.page.locator('#lanes path[stroke-dasharray="2 2"]:not(.fold)')   # a rejtett lánc éle nem
         self.assertEqual(arcs.count(), 1)
         d = arcs.first.get_attribute("d")
         self.assertTrue(d.startswith("M ") and d.split()[2] == str(y(self.squash)), d)

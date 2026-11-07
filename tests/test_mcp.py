@@ -44,7 +44,7 @@ class McpServerTest(HomeTestCase):
             self.assertTrue(all("email" in c for c in data["commits"] if not c.get("uncommitted")))
             changes = client.call("changes", repo=SLUG)
             self.assertTrue({"state", "since", "focus", "version"} <= set(changes))
-            self.assertEqual(set(client.call("settings", repo=SLUG)), {"autoOpen", "autoPublish"})   # csak olvas
+            self.assertEqual(set(client.call("settings", repo=SLUG)), {"autoOpen", "autoPublish", "collapseMerges"})   # csak olvas
             icons = {f.get("icon") for st in data["stats"].values() for f in st["files"]}
             self.assertTrue(icons - {None} and icons - {None} <= set(data["fileIcons"]))
 
