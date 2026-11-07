@@ -24,7 +24,9 @@ az újabb felé járja be, így a beágyazott merge a saját ágát birtokolja, 
 és a saját ágát. A ref-es commit (lokális és remote branch, tag, HEAD, stash, WIP, worktree
 HEAD-je, gyerek nélküli commit) maga mindig látszik, mert a chipjének sor kell; az alatta lévő
 beolvasztott lánc viszont rejtett, és szaggatott él köti az első látható commithoz. Ugyanígy az
-összecsukott merge éle: a rejtett ág sávjában, szaggatottan fut a cél fölé. Ha a merge 2.
+összecsukott merge éle: a rejtett ág sávjában, szaggatottan fut a cél fölé. A szaggatott él olyan
+vastag, mint a fő vonal (2 px), és a cél fölött ívben fordul a cél sávjába, akkor is, ha a cél a
+közvetlenül alatta lévő sor. Ha a merge 2.
 szülője a merge alatti látható sorból ágazik, él nincs. A csupa rejtett commitból álló napnak
 nincs fejléce.
 
@@ -101,6 +103,12 @@ Jellemző: Merge-ek összecsukása
       Ha a User megnyitja a lapot
       Akkor a "Login váz" a chipjével látszik, a "Login űrlap" rejtett
         És a merge-től a "Login váz"-ig szaggatott, onnan folytonos él fut
+
+    Forgatókönyv: Szaggatott él a közvetlenül alatta lévő sorba
+      Adott a "Login űrlap"-on az "origin/feat/login", az "Indulás" vele egy napon
+      Ha a User megnyitja a lapot
+      Akkor a "Login űrlap"-tól az "Indulás"-ig futó szaggatott él a cél fölött ívben fordul
+        És a szaggatott él olyan vastag, mint a fő vonal
 
     Forgatókönyv: Szomszédos kiindulópont
       Adott egy merge, amelynek 2. szülője a merge alatti látható sorból ágazik
