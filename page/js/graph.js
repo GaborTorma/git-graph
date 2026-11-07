@@ -6,7 +6,7 @@ import { DATA, visible } from './state.js';
 
 const ROW_H = 34, LANE_W = 14, X0 = 16, DOT_R = 4;
 const CORE_R = 3.5, RING_R = 6;     // a merge pontja: telt mag, körülötte gyűrű (köztük háttérszínű rés)
-const FOLD_W = 9 + 48;              // a merge pontja mellett a „+N” és a nyíl (`.merge-fold`): rés + szélesség
+const FOLD_W = 10 + 48;              // a merge pontja mellett a „+N” és a nyíl (`.merge-fold`): rés + szélesség
 const EDGE_HUG = DOT_R + 1;   // a sávváltó vonal ennyit fut a commit sávjában, mielőtt elfordul
 const STUB_GAP = 11;   // több worktree-csonk pöttyei közti függőleges távolság
 

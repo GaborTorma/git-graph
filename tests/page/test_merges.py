@@ -291,31 +291,38 @@ class CollapseTest(MergeCase):
         self.assertEqual(self.row(MERGE).locator(".merge-n").inner_text(), "+2")
 
     def test_collapse_morph(self) -> None:
-        """Összecsukáskor a nyíl a helyén fordul (nem ugrik a pötty felé); a felcsukódás után a szám
-        balról jobbra nő, és maga előtt tolja a nyilat a végleges helyére."""
+        """Összecsukáskor a felcsukódással együtt (200 ms) a nyíl a helyéről jobbra fordul, és a szám
+        balról jobbra nő, maga előtt tolva a nyilat; a végén a nyíl a szám után áll."""
         self.expand()
         hit = self.row(MERGE).locator(".merge-hit")
         hit.hover(position={"x": 4, "y": 4})
-        res = hit.evaluate("""async el => {
-          const left = () => document.querySelector('#rows .row .merge-chev').getBoundingClientRect().left;
-          const x0 = left();
+        res = hit.evaluate("""el => {
           el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-          await new Promise(r => requestAnimationFrame(r));
-          const x1 = left();
-          while (!document.querySelector('#rows .row .merge-n')) await new Promise(r => requestAnimationFrame(r));
-          const n = document.querySelector('#rows .row .merge-n'), chev = n.nextElementSibling;
-          const kf = a => a.effect.getKeyframes();
-          return { x0, x1, x2: left(),
-                   n: n.getAnimations().map(a => [kf(a)[0].width, a.effect.getTiming().duration]),
-                   chev: chev.getAnimations().length };
+          const n = el.querySelector('.merge-n'), chev = el.querySelector('.merge-chev');
+          const anim = e => e.getAnimations().map(a => [a.effect.getKeyframes()[0], a.effect.getTiming().duration]);
+          const rows = [...document.querySelectorAll('#rows .row')]
+            .filter(r => r.querySelector('.subject').textContent.startsWith('Login'));
+          return { n: anim(n).map(([k, d]) => [k.width, d]), rot: anim(chev.firstElementChild).map(([k, d]) => [k.transform, d]),
+                   rows: rows.map(r => r.getAnimations().map(a => a.effect.getTiming().duration)) };
         }""")
-        self.assertAlmostEqual(res["x1"], res["x0"], delta=0.5)       # a nyíl a helyén marad
-        self.assertAlmostEqual(res["x2"], res["x0"], delta=1.5)       # az újrarajzolás után is onnan indul
-        self.assertEqual(res["n"], [["0px", 200]])                    # a szám 0 szélességről nő
-        self.assertGreater(res["chev"], 0)
+        self.assertEqual(res["n"], [["0px", 200]])                         # a szám rögtön, 0-ról nő
+        self.assertEqual(res["rot"], [["rotate(-180deg)", 200]])           # a nyíl felfelől fordul
+        self.assertEqual(res["rows"], [[200], [200]])                      # a sorokkal együtt ér véget
         self.settle()
         nb, cb = (self.row(MERGE).locator(s).bounding_box() for s in (".merge-n", ".merge-chev"))
         self.assertAlmostEqual(cb["x"], nb["x"] + nb["width"] + 1, delta=1.5)   # a végleges helyén
+        self.assertEqual(self.row(MERGE).locator(".merge-n").count(), 1)
+
+    def test_expand_rotates(self) -> None:
+        """Kibontáskor a nyíl 90°-ot fordul jobbról felfelé (szöggel, nem tükrözve), 200 ms alatt."""
+        hit = self.row(MERGE).locator(".merge-hit")
+        hit.hover(position={"x": 4, "y": 4})
+        rot = hit.evaluate("""el => {
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          const ic = document.querySelector('#rows .row .merge-chev .ic');
+          return ic.getAnimations().map(a => [...a.effect.getKeyframes().map(k => k.transform), a.effect.getTiming().duration]);
+        }""")
+        self.assertEqual(rot, [["rotate(-90deg)", "rotate(-180deg)", 200]])
 
     def test_hover_split(self) -> None:
         """A szürke kiemelés csak a sor sávján jelenik meg, a merge gráfoszlopa mutatót kap; a sima

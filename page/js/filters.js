@@ -8,7 +8,7 @@ import { hiddenSha, isOpen, layout, reveal, setOpen } from './merges.js';
 import { makeMenu } from './menu.js';
 import { icon } from './icons.js';
 import { ancestryOf, anyRemoteHidden, focusWt, headFiltered, localReach, remoteRefs, remoteShown, toggleRemote, worktrees } from './model.js';
-import { render } from './rows.js';
+import { mergeCount, render } from './rows.js';
 import { revealSha, scrollToSha } from './scroll.js';
 import { DATA, REFILTER, expanded, setBranchKeep, setQuery, setVisible, visible } from './state.js';
 import { esc, fold, menuOpen, queryWords } from './util.js';
@@ -134,21 +134,27 @@ rowsEl.addEventListener('click', e => {
   const sha = /** @type {HTMLElement} */ (hit.closest('.row')).dataset.sha;
   const rows = () => [...rowsEl.querySelectorAll('.row')];
   const foldEl = () => rowsEl.querySelector(`.row[data-sha="${CSS.escape(sha)}"] .merge-fold`);
-  // Újrarajzolás: a nyíl és a szám a régi helyéről mozog az újba (`morphFold`).
-  const redraw = () => { const before = foldState(foldEl()); applyFilters(); morphFold(before, foldEl()); };
   if (!isOpen(sha)) {
-    const before = new Set(visible.map(c => c.sha));
+    // Kibontás: a nyíl a szám helyéről csúszik a helyére és fordul felfelé, a sorok lenyílnak.
+    const before = new Set(visible.map(c => c.sha)), state = foldState(foldEl());
     setOpen(sha, true);
-    redraw();
+    applyFilters();
+    morphFold(state, foldEl());
     unfoldRows(rows().filter(r => !before.has(r.dataset.sha)));
     return;
   }
-  // Összecsukás: a nyíl a helyén fordul jobbra, a sorok felcsukódnak, utána jön a szám.
+  // Összecsukás: a sorok felcsukódása alatt a nyíl jobbra fordul, és a szám balról jobbra nő, maga
+  // előtt tolva a nyilat; a három együtt ér véget, utána a lista újrarajzol (már nincs mit mozgatni).
+  const state = foldState(foldEl());
   setOpen(sha, false);
-  const { shown } = layout();
-  hit.querySelector('.merge-chev')?.setAttribute('aria-expanded', 'false');
+  const { shown, counts } = layout();
+  const chev = hit.querySelector('.merge-chev');
+  chev?.setAttribute('aria-expanded', 'false');
+  const n = counts.get(sha);
+  if (chev && n) chev.insertAdjacentHTML('beforebegin', mergeCount(n));
+  morphFold(state, foldEl(), /** @type {HTMLElement} */ (chev?.previousElementSibling));
   folding = true;
-  foldRows(rows().filter(r => !shown.has(r.dataset.sha)), () => { folding = false; redraw(); });
+  foldRows(rows().filter(r => !shown.has(r.dataset.sha)), () => { folding = false; applyFilters(); });
 }, true);
 
 /* A remote kapcsolója a fejléc chipjét is érinti (a ☁ szakasz). A nem látható remote refek a
