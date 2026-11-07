@@ -419,6 +419,16 @@ class RemoteRefTest(MergeCase):
         self.assertEqual([e["dash"] for e in edges if abs(e["y1"] - a) < 1 and abs(e["y2"] - b) < 1], ["2 2"])
 
 
+class FoldWidthTest(MergeCase):
+    HISTORY = {"remote": True}
+
+    def test_fold_width(self) -> None:
+        """Az elrejtett commitot átugró szaggatott él olyan vastag, mint a fő vonal (2 px)."""
+        widths = self.page.eval_on_selector_all("#lanes path.fold", "ps => ps.map(p => p.getAttribute('stroke-width'))")
+        self.assertTrue(widths)
+        self.assertEqual(set(widths), {"2"})
+
+
 class RemoteSameDayTest(MergeCase):
     HISTORY = {"remote": True, "start_day": 1}
 

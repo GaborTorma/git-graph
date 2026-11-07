@@ -150,7 +150,7 @@ function foldedEdge(e, a, rowIndexBySha, rowY) {
     : y2 - y1 < 2 * ROW_H ? edgePath(x1, y1, x2, y2, true)
     : `${edgePath(x1, y1, xv, ym, true)} ${edgePath(xv, ym, x2, y2, false)}`;
   const color = tint(from, laneColor(e.toLane));
-  return `<path class="fold" d="${d}" fill="none" stroke="${color}" stroke-width="1.2" stroke-dasharray="2 2"/>`;
+  return `<path class="fold" d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="2 2"/>`;
 }
 
 /* Sávváltásnál ott hajlik a vonal, ahol a git is: merge-nél rögtön a merge
