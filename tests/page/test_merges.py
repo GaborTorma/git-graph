@@ -302,10 +302,12 @@ class CollapseTest(MergeCase):
           const anim = e => e.getAnimations().map(a => [a.effect.getKeyframes()[0], a.effect.getTiming().duration]);
           const rows = [...document.querySelectorAll('#rows .row')]
             .filter(r => r.querySelector('.subject').textContent.startsWith('Login'));
-          return { n: anim(n).map(([k, d]) => [k.width, d]), rot: anim(chev.firstElementChild).map(([k, d]) => [k.transform, d]),
+          const fade = n.getAnimations()[0].effect.getKeyframes().map(k => [k.computedOffset, k.opacity]);
+          return { fade, n: anim(n).map(([k, d]) => [k.width, d]), rot: anim(chev.firstElementChild).map(([k, d]) => [k.transform, d]),
                    rows: rows.map(r => r.getAnimations().map(a => a.effect.getTiming().duration)) };
         }""")
         self.assertEqual(res["n"], [["0px", 200]])                         # a szám rögtön, 0-ról nő
+        self.assertEqual(res["fade"], [[0, "0.2"], [0.5, "1"], [1, "1"]])  # 20 %-ról, félúton teljes
         self.assertEqual(res["rot"], [["rotate(-180deg)", 200]])           # a nyíl felfelől fordul
         self.assertEqual(res["rows"], [[200], [200]])                      # a sorokkal együtt ér véget
         self.settle()

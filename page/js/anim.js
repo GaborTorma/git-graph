@@ -120,9 +120,11 @@ export function morphFold(before, fold, count, shrink = false) {
   ic.animate([{ transform: before.rot }, { transform: chevAngle(chev) }], opts);
   if (count) {
     const cs = getComputedStyle(count);
-    const full = { width: cs.width, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight };
-    const none = { width: '0px', paddingLeft: '0px', paddingRight: '0px' };
-    const a = count.animate(shrink ? [full, none] : [none, full], { ...opts, fill: shrink ? 'forwards' : 'none' });
+    // Közben színátmenet is, mint a commit-panel nyílásakor: 20 %-ról, az út felénél már teljes.
+    const full = { width: cs.width, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, opacity: 1 };
+    const none = { width: '0px', paddingLeft: '0px', paddingRight: '0px', opacity: 0.2 };
+    const grown = [none, { offset: 0.5, opacity: 1 }, full];
+    const a = count.animate(shrink ? grown.reverse() : grown, { ...opts, fill: shrink ? 'forwards' : 'none' });
     if (shrink) a.finished.then(() => count.remove(), () => {});
   }
 }
