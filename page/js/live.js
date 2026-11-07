@@ -172,8 +172,13 @@ export function startLive(src) {
     clearTimeout(settle);
     settle = setTimeout(() => (resume ? resume() : open?.abort()), delay);
   }
-  /* Rejtve a rajzolás szünetel, megjelenéskor az IntersectionObserver jelez (mérve). */
-  new IntersectionObserver(es => { if (es[es.length - 1].isIntersecting) wake('megjelenés'); })
-    .observe(document.body);
+  /* Rejtve a rajzolás szünetel, megjelenéskor az IntersectionObserver jelez (mérve). Az első
+     jelzés a kezdeti állapot, nem megjelenés: a `follow` már fut, és ha az első hívása hamar
+     elbukik, a felébresztés a hiba utáni szünetet vágná el. */
+  let initial = true;
+  new IntersectionObserver(es => {
+    if (es[es.length - 1].isIntersecting && !initial) wake('megjelenés');
+    initial = false;
+  }).observe(document.body);
   follow();
 }
