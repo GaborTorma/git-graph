@@ -15,7 +15,7 @@ INNER = "Merge branch 'feat/helper' into feat/login"
 
 
 def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner: bool = False,
-                  adjacent: bool = False, fork: bool = False) -> None:
+                  adjacent: bool = False, fork: bool = False, start_day: int = 0) -> None:
     """A fixture-történet helyett: a `main`-en „Indulás”, „README javítás” és a `feat/login`
     merge-e; a beolvasztott ág („Login váz”, „Login űrlap”) branche törölve. Napok: az „Indulás” a
     0., a login-commitok az 1., a README és a merge a 2. napon.
@@ -23,7 +23,8 @@ def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner:
     `tag`: „v0.9” a „Login váz”-on; `remote`: `origin/feat/login` a „Login űrlap”-on; `inner`: a
     login-ágba egy törölt segédág („Segédfüggvény”) merge-e; `adjacent`: a merge 2. szülője
     közvetlenül az „Indulás”-ból ágazik, más commit nélkül a `main`-en; `fork`: a „Login váz”-ból
-    leágazó, megmaradt `side` branch egy „Mellékág” committal."""
+    leágazó, megmaradt `side` branch egy „Mellékág” committal; `start_day`: az „Indulás” napja
+    (1-nél a login-commitokkal egy napon, köztük nincs napfejléc)."""
     shutil.rmtree(repo)
     repo.mkdir()
     n = 0
@@ -40,7 +41,7 @@ def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner:
         git("commit", "-qm", subject, day=day)
 
     git("init", "-q", "-b", "main")
-    commit("Indulás", 0)
+    commit("Indulás", start_day)
     if adjacent:
         git("switch", "-q", "-c", "feat/login", day=1)
         commit("Login váz", 1)
@@ -77,6 +78,10 @@ EDGES = """() => [...document.querySelectorAll('#lanes path')].map(p => {
   const n = p.getAttribute('d').match(/-?[\\d.]+/g).map(Number);
   return { y1: n[1], y2: n.at(-1), dash: p.getAttribute('stroke-dasharray') };
 })"""
+
+# A gráf éleinek összes koordinátája (x, y párok sorban) és a szaggatás.
+PATHS = """() => [...document.querySelectorAll('#lanes path')].map(p => ({
+  n: p.getAttribute('d').match(/-?[\\d.]+/g).map(Number), dash: p.getAttribute('stroke-dasharray') }))"""
 
 # Egy sor közepének Y-ja a gráf SVG-jében.
 ROW_MID = """subject => {
@@ -412,6 +417,31 @@ class RemoteRefTest(MergeCase):
         edges = self.page.evaluate(EDGES)
         a, b = (self.page.evaluate(ROW_MID, s) for s in ("Login űrlap", "Indulás"))
         self.assertEqual([e["dash"] for e in edges if abs(e["y1"] - a) < 1 and abs(e["y2"] - b) < 1], ["2 2"])
+
+
+class FoldWidthTest(MergeCase):
+    HISTORY = {"remote": True}
+
+    def test_fold_width(self) -> None:
+        """Az elrejtett commitot átugró szaggatott él olyan vastag, mint a fő vonal (2 px)."""
+        widths = self.page.eval_on_selector_all("#lanes path.fold", "ps => ps.map(p => p.getAttribute('stroke-width'))")
+        self.assertTrue(widths)
+        self.assertEqual(set(widths), {"2"})
+
+
+class RemoteSameDayTest(MergeCase):
+    HISTORY = {"remote": True, "start_day": 1}
+
+    def test_adjacent_edge_curves(self) -> None:
+        """A közvetlenül alatta lévő sorba futó szaggatott él a cél fölött ívben fordul a cél sávjába:
+        a forrás sávjában nem fut le a cél pöttyének magasságáig (nincs derékszögű sarok)."""
+        a, b = (self.page.evaluate(ROW_MID, s) for s in ("Login űrlap", "Indulás"))
+        paths = self.page.evaluate(PATHS)
+        d = next(p["n"] for p in paths if abs(p["n"][1] - a) < 1 and abs(p["n"][-1] - b) < 1)
+        x2 = d[-2]
+        off_lane = [y for x, y in zip(d[::2], d[1::2]) if abs(x - x2) > 0.5]
+        self.assertTrue(off_lane)
+        self.assertLess(max(off_lane), b - 4)
 
 
 class ForkTest(MergeCase):
