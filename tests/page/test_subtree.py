@@ -60,7 +60,7 @@ class SubtreeTest(PageTestCase):
             mirror = self.page.locator("#rows .row.mirror", has_text=f"{name}:")
             opacity = mirror.locator(".subject").evaluate("e => getComputedStyle(e).opacity")
             self.assertEqual(opacity, "0.55")
-        arcs = self.page.locator('#lanes path[stroke-dasharray="2 2"]')
+        arcs = self.page.locator('#lanes path[stroke-dasharray="2 2"]:not(.fold)')   # a rejtett lánc éle nem
         self.assertEqual(arcs.count(), len(MIRRORED))
         self.assertEqual(arcs.first.get_attribute("stroke-width"), "1.2")
         # a tükör pöttye üres karika: háttérszínű kitöltés
@@ -117,7 +117,7 @@ class SquashTest(PageTestCase):
         self.settle()
         y = lambda sha: self.page.locator(f'#rows .row[data-sha="{sha}"]').evaluate(  # noqa: E731
             "e => e.offsetTop + e.offsetHeight / 2")
-        arcs = self.page.locator('#lanes path[stroke-dasharray="2 2"]')
+        arcs = self.page.locator('#lanes path[stroke-dasharray="2 2"]:not(.fold)')   # a rejtett lánc éle nem
         self.assertEqual(arcs.count(), 1)
         d = arcs.first.get_attribute("d")
         self.assertTrue(d.startswith("M ") and d.split()[2] == str(y(self.squash)), d)

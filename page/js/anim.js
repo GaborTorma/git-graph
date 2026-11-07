@@ -68,21 +68,26 @@ export function grow(el, change, settle) {
     });
 }
 
-/* Új sorok lenyílása (merge kibontása): 0-ról a saját magasságukra, együtt; a gráf képkockánként
-   újrarajzol, így a vonal velük nyúlik. */
-export function unfold(els, ms) {
-  if (!els.length || reducedMotion()) return;
+/* Merge kibontása és összecsukása: a megjelenő sorok 0-ról a saját magasságukra nőnek (`unfoldRows`),
+   az eltűnők 0-ra csukódnak, utána `done` (`foldRows`). Együtt mozognak; a gráf képkockánként
+   újrarajzol, így a vonal velük nyúlik és rövidül. */
+const FOLD_MS = 200;
+function rows(els, frames, done) {
+  if (!els.length || reducedMotion()) { done?.(); return; }
   const anims = els.map(el => {
     el.style.overflow = 'hidden';
-    return el.animate([FLAT, fullBox(el)], { duration: ms, easing: OPEN_EASE });
+    return el.animate(frames(el), { duration: FOLD_MS, easing: done ? CLOSE_EASE : OPEN_EASE, fill: done ? 'forwards' : 'none' });
   });
   let frame = requestAnimationFrame(function tick() { drawGraph(); frame = requestAnimationFrame(tick); });
   Promise.allSettled(anims.map(a => a.finished)).then(() => {
     cancelAnimationFrame(frame);
-    for (const el of els) el.style.overflow = '';
+    if (done) done();
+    else for (const el of els) el.style.overflow = '';
     drawGraph();
   });
 }
+export const unfoldRows = els => rows(els, el => [FLAT, fullBox(el)]);
+export const foldRows = (els, done) => rows(els, el => [fullBox(el), FLAT], done);
 
 /* Csukódás 0-ra, a végén `done` (eltávolít / elrejt) és a `follow`. Ha közben
    újra kinyílik (a `grow` megszakítja), `done` nem fut. */

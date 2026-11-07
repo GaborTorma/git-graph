@@ -131,19 +131,22 @@ export function drawGraph() {
   svg.innerHTML = out;
 }
 
-/* Összecsukott merge éle a rejtett szülő helyett az első látható commitjáig (az első szülő láncán):
-   szaggatott, mert commitot ugrik át; a rejtett ág sávjában fut. Ha a cél a merge alatti sor (nincs
-   köztük látható sor), nincs él. `a`: a merge sora; a sorindex és a sor közepe a `drawGraph`-é. */
+/* Rejtett szülőre mutató él (összecsukott merge 2. szülője, vagy egy ref-es commit beolvasztott
+   lánca) helyette az első látható commitig (az első szülő láncán): szaggatott, mert commitot ugrik
+   át; a rejtett ág sávjában fut. A merge 2. szülőjénél, ha a cél a merge alatti sor (nincs köztük
+   látható sor), nincs él; az első szülő éle mindig megvan, különben a lánc elszakadna. `a`: a
+   kiinduló sor; a sorindex és a sor közepe a `drawGraph`-é. */
 function foldedEdge(e, a, rowIndexBySha, rowY) {
-  const b = rowIndexBySha.get(visibleBelow(DATA.commits[e.toRow].sha));
-  if (b === undefined || b === a + 1) return '';
+  const from = DATA.commits[e.fromRow], to = DATA.commits[e.toRow];
+  const b = rowIndexBySha.get(visibleBelow(to.sha));
+  if (b === undefined || (b === a + 1 && from.parents[0] !== to.sha)) return '';
   const x1 = laneX(e.fromLane), xv = laneX(e.toLane), x2 = laneX(visible[b].lane), y1 = rowY(a), y2 = rowY(b);
   // A rejtett ág sávjába fordul a merge alatt, és a cél fölött fordul a cél sávjába.
   const ym = Math.max(y1 + ROW_H, y2 - ROW_H);
   const d = xv === x2 ? edgePath(x1, y1, x2, y2, true)
     : `${edgePath(x1, y1, xv, ym, true)} ${edgePath(xv, ym, x2, y2, false)}`;
-  const color = tint(DATA.commits[e.fromRow], laneColor(e.toLane));
-  return `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.2" stroke-dasharray="2 2"/>`;
+  const color = tint(from, laneColor(e.toLane));
+  return `<path class="fold" d="${d}" fill="none" stroke="${color}" stroke-width="1.2" stroke-dasharray="2 2"/>`;
 }
 
 /* Sávváltásnál ott hajlik a vonal, ahol a git is: merge-nél rögtön a merge

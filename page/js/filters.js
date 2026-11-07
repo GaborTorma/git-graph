@@ -1,6 +1,6 @@
 /* Szűrők: ágválasztás, remote-ok (az ágválasztó fejlécein), keresés és csak ref-es commitok (a
    keresés lenyílójában). */
-import { unfold } from './anim.js';
+import { foldRows, unfoldRows } from './anim.js';
 import { branchBtn, branchPop, branchQuery, branchSel, fillBranches, filterBranches, setBranchSel } from './branches.js';
 import { headChip, rowsEl } from './dom.js';
 import { hydrateFocus } from './hydrate.js';
@@ -122,18 +122,29 @@ export function applyFilters() {
 document.addEventListener(REFILTER, applyFilters);
 
 /* A merge-sor gráfoszlopa (csak egérrel): merge-enként kibont vagy összecsuk, szerverhívás nélkül; a
-   commit-panelt nem nyitja (rögzítő fázisban, a sor kattintása előtt). A megjelenő sorok 150 ms
-   alatt nyílnak le (`unfold`). */
+   commit-panelt nem nyitja (rögzítő fázisban, a sor kattintása előtt). A megjelenő sorok lenyílnak,
+   az eltűnők felcsukódnak, és csak utána tűnnek el a listából (`unfoldRows`, `foldRows`). */
+let folding = false;                   // egy csukódás fut: addig a gráfoszlop nem kattintható
 rowsEl.addEventListener('click', e => {
-  const chev = /** @type {HTMLElement} */ (e.target).closest('.merge-hit');
-  if (!chev) return;
+  const hit = /** @type {HTMLElement} */ (e.target).closest('.merge-hit');
+  if (!hit) return;
   e.stopPropagation();
   e.preventDefault();
-  const sha = /** @type {HTMLElement} */ (chev.closest('.row')).dataset.sha;
-  const before = new Set(visible.map(c => c.sha));
-  setOpen(sha, !isOpen(sha));
-  applyFilters();
-  unfold([...rowsEl.querySelectorAll('.row')].filter(r => !before.has(r.dataset.sha)), 150);
+  if (folding) return;
+  const sha = /** @type {HTMLElement} */ (hit.closest('.row')).dataset.sha;
+  const rows = () => [...rowsEl.querySelectorAll('.row')];
+  if (!isOpen(sha)) {
+    const before = new Set(visible.map(c => c.sha));
+    setOpen(sha, true);
+    applyFilters();
+    unfoldRows(rows().filter(r => !before.has(r.dataset.sha)));
+    return;
+  }
+  setOpen(sha, false);
+  const { shown } = layout();
+  hit.querySelector('.merge-chev')?.setAttribute('aria-expanded', 'false');
+  folding = true;
+  foldRows(rows().filter(r => !shown.has(r.dataset.sha)), () => { folding = false; applyFilters(); });
 }, true);
 
 /* A remote kapcsolója a fejléc chipjét is érinti (a ☁ szakasz). A nem látható remote refek a

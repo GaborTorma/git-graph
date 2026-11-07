@@ -1,7 +1,9 @@
-/* Merge-ek összecsukása: a csak egy merge 2. (vagy további) szülőjén át elérhető commitok a merge
-   alá rejtve. Minden ref (ág, remote, tag, HEAD, stash, WIP) first-parent lánca látható marad. Az
-   alapállapot a repó beállítása (`meta.collapseMerges`, a `settings` tool írja); merge-enként a
-   nyíl felülírja — csak a lap memóriájában, az újratöltésig, a kapcsoló váltása törli. */
+/* Merge-ek összecsukása: amit egy merge a 2. (vagy további) szülőjén át hozott be (`git log M^1..M`,
+   a merge-ek „birtoka”), az a merge alá rejtve. A ref-es commitok (ág, remote, tag, HEAD, stash,
+   WIP, worktree HEAD-je, gyerek nélküli commit) maguk látszanak, az alattuk lévő beolvasztott lánc
+   nem: azt szaggatott él köti át. Az alapállapot a repó beállítása (`meta.collapseMerges`, a
+   `settings` tool írja); merge-enként a gráfoszlop felülírja — csak a lap memóriájában, az
+   újratöltésig, a kapcsoló váltása törli. */
 import { commitBySha } from './model.js';
 import { DATA } from './state.js';
 
@@ -14,70 +16,86 @@ export const setOpen = (sha, open) => { overrides.set(sha, open); version++; };
 export const clearOverrides = () => { overrides.clear(); version++; };
 export const isMerge = c => c.parents.length > 1;
 
-/* A gyökerek: ami ref-es, WIP, stash, worktree HEAD-je, vagy aminek nincs gyereke a listában. */
+/* A mindig látható commitok: ami ref-es, WIP, stash, worktree HEAD-je, vagy aminek nincs gyereke. */
 function roots() {
   const child = new Set(DATA.commits.flatMap(c => c.parents));
   const heads = new Set((DATA.meta.worktrees || []).map(w => w.head));
-  return DATA.commits.filter(c => c.refs.length || c.uncommitted || c.stash || heads.has(c.sha) || !child.has(c.sha))
-    .map(c => c.sha);
+  return new Set(DATA.commits.filter(c => c.refs.length || c.uncommitted || c.stash || heads.has(c.sha) || !child.has(c.sha))
+    .map(c => c.sha));
 }
 
-/* A `from`-ból elérhető commitok: az első szülő mentén, és a `through` merge-ek többi szülőjén át;
-   a `stop`-ban lévőknél megáll (azok már látszanak). */
-function walk(from, through, stop = new Set()) {
-  const seen = new Set(), stack = [...from];
-  while (stack.length) {
-    const sha = stack.pop();
-    if (seen.has(sha) || stop.has(sha)) continue;
-    const c = commitBySha(sha);
-    if (!c) continue;
-    seen.add(sha);
-    if (c.parents[0]) stack.push(c.parents[0]);
-    if (isMerge(c) && through(c)) stack.push(...c.parents.slice(1));
+/* Az első szülők láncai szakaszokra bontva: minden commit egy szakaszé (`seg`), azon belül
+   lefelé nő a mélysége (`depth`); a szakasz alja után a lánc a `join` szakaszában folytatódik. */
+function segments() {
+  const seg = new Map(), depth = new Map(), join = [];
+  for (const c of DATA.commits) {
+    if (seg.has(c.sha)) continue;
+    const id = join.length;
+    let cur = c, d = 0;
+    while (cur && !seg.has(cur.sha)) { seg.set(cur.sha, id); depth.set(cur.sha, d++); cur = commitBySha(cur.parents[0]); }
+    join.push(cur ? cur.sha : null);
   }
-  return seen;
+  /* A `sha` a `from` első szülők láncán van (vagy maga a `from`). */
+  const onChain = (from, sha) => {
+    for (let cur = from; cur; cur = join[seg.get(cur)]) {
+      if (seg.get(sha) === seg.get(cur) && depth.get(sha) >= depth.get(cur)) return true;
+    }
+    return false;
+  };
+  return onChain;
 }
 
-/* A refek first-parent láncai (`base`) és a gyökerek: csak az adattól függenek. */
+/* A merge-ek birtoka (`owner`: commit → az a merge, amely behozta) és merge-enként a közvetlen,
+   nem ref-es commitok száma (`direct`): csak az adattól függ. A régebbi merge-ek előbb választanak,
+   így a beágyazott merge a saját ágát birtokolja, a külső a belső merge-et és a saját ágát. */
 let baseCache = null;
 function base() {
-  if (baseCache?.data !== DATA) {
-    const from = roots();
-    baseCache = { data: DATA, from, chains: walk(from, () => false) };
+  if (baseCache?.data === DATA) return baseCache;
+  const fixed = roots(), onChain = segments(), owner = new Map(), direct = new Map();
+  for (let i = DATA.commits.length - 1; i >= 0; i--) {
+    const m = DATA.commits[i];
+    if (!isMerge(m)) continue;
+    let n = 0;
+    const stack = m.parents.slice(1);
+    while (stack.length) {
+      const sha = stack.pop();
+      const c = commitBySha(sha);
+      if (!c || owner.has(sha) || onChain(m.sha, sha)) continue;
+      owner.set(sha, m.sha);
+      if (!fixed.has(sha)) n++;
+      stack.push(...c.parents);
+    }
+    if (n) direct.set(m.sha, n);
   }
+  baseCache = { data: DATA, fixed, owner, direct };
   return baseCache;
 }
 
 let cache = null;
-/* A látható commitok (`shown`), merge-enként a kibontáskor közvetlenül megjelenő sorok száma
-   (`counts`), az összecsukható merge-ek (`foldable`: van, amit elrejtenének), és a rejtett commitok
-   felfedője (`owner`: a látható, összecsukott merge, amely alatt — akár mélyebben — ül). */
+/* A látható commitok (`shown`), merge-enként a kibontáskor megjelenő sorok száma (`counts`), az
+   összecsukható merge-ek (`foldable`: van, amit elrejtenének) és a birtok (`owner`). */
 export function layout() {
   if (cache?.data === DATA && cache.on === collapseOn() && cache.version === version) return cache;
-  const { from, chains } = base();
-  const shown = walk(from, c => isOpen(c.sha));
-  const counts = new Map(), foldable = new Set(), owner = new Map();
+  const { fixed, owner, direct } = base();
+  // A merge a birtoka fölött áll a listában: egy menetben eldől, ki látszik.
+  const shown = new Set();
   for (const c of DATA.commits) {
-    if (!isMerge(c) || c.parents.slice(1).every(p => chains.has(p) || !commitBySha(p))) continue;
-    foldable.add(c.sha);
-    if (shown.has(c.sha) && !isOpen(c.sha)) {
-      const extra = c.parents.slice(1);
-      counts.set(c.sha, walk(extra, m => isOpen(m.sha), shown).size);
-      for (const sha of walk(extra, () => true, shown)) if (!owner.has(sha)) owner.set(sha, c.sha);
-    }
+    const m = owner.get(c.sha);
+    if (fixed.has(c.sha) || !m || (shown.has(m) && isOpen(m))) shown.add(c.sha);
   }
-  cache = { data: DATA, on: collapseOn(), version, shown, counts, foldable, owner };
+  const counts = new Map();
+  for (const [m, n] of direct) if (shown.has(m) && !isOpen(m)) counts.set(m, n);
+  cache = { data: DATA, on: collapseOn(), version, shown, counts, foldable: new Set(direct.keys()), owner, fixed };
   return cache;
 }
 export const hiddenSha = sha => Boolean(commitBySha(sha)) && !layout().shown.has(sha);
 
-/* Rejtett commit felfedése: a tartalmazó merge-ek (kívülről befelé) kibontva. */
+/* Rejtett commit felfedése: a birtokló merge-ek láncán (belülről kifelé) mind kibontva, a
+   legközelebbi mindig látható commitig. */
 export function reveal(sha) {
-  while (hiddenSha(sha)) {
-    const owner = layout().owner.get(sha);
-    if (!owner) return;
-    setOpen(owner, true);
-  }
+  if (!hiddenSha(sha)) return;
+  const { owner, fixed } = layout();
+  for (let m = owner.get(sha); m; m = fixed.has(m) ? null : owner.get(m)) if (!isOpen(m)) setOpen(m, true);
 }
 
 /* Az él célja, ha a szülő rejtett: az első szülő láncán az első nem rejtett commit (null: nincs). */

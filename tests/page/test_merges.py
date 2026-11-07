@@ -15,14 +15,15 @@ INNER = "Merge branch 'feat/helper' into feat/login"
 
 
 def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner: bool = False,
-                  adjacent: bool = False) -> None:
+                  adjacent: bool = False, fork: bool = False) -> None:
     """A fixture-történet helyett: a `main`-en „Indulás”, „README javítás” és a `feat/login`
     merge-e; a beolvasztott ág („Login váz”, „Login űrlap”) branche törölve. Napok: az „Indulás” a
     0., a login-commitok az 1., a README és a merge a 2. napon.
 
     `tag`: „v0.9” a „Login váz”-on; `remote`: `origin/feat/login` a „Login űrlap”-on; `inner`: a
     login-ágba egy törölt segédág („Segédfüggvény”) merge-e; `adjacent`: a merge 2. szülője
-    közvetlenül az „Indulás”-ból ágazik, más commit nélkül a `main`-en."""
+    közvetlenül az „Indulás”-ból ágazik, más commit nélkül a `main`-en; `fork`: a „Login váz”-ból
+    leágazó, megmaradt `side` branch egy „Mellékág” committal."""
     shutil.rmtree(repo)
     repo.mkdir()
     n = 0
@@ -57,6 +58,10 @@ def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner:
         git("switch", "-q", "feat/login", day=1)
         git("merge", "-q", "--no-ff", "-m", INNER, "feat/helper", day=1)
         git("branch", "-q", "-D", "feat/helper", day=1)
+    if fork:
+        git("switch", "-q", "-c", "side", day=1)
+        commit("Mellékág", 1)
+        git("switch", "-q", "feat/login", day=1)
     commit("Login űrlap", 1)
     if remote:
         git("remote", "add", "origin", "https://example.invalid/fixture.git", day=1)
@@ -251,7 +256,7 @@ class CollapseTest(MergeCase):
         }""")
         self.assertLess(res["ms"], 50)
         self.assertEqual(res["n"], 2)
-        self.assertEqual(res["anim"], [[150], [150]])             # a sorok magassága 0-ról nő
+        self.assertEqual(res["anim"], [[200], [200]])             # a sorok magassága 0-ról nő
         self.settle()
         self.assertEqual(self.subjects(), [MERGE, "README javítás", "Login űrlap", "Login váz", "Indulás"])
         self.assertEqual(self.row(MERGE).bounding_box()["y"], top)
@@ -270,6 +275,20 @@ class CollapseTest(MergeCase):
         self.row(MERGE).locator(".merge-hit").click(position={"x": 4, "y": 4})
         self.settle()
         self.assertNotIn("Login űrlap", self.subjects())
+
+    def test_collapse_animates(self) -> None:
+        """Összecsukáskor a beolvasztott sorok 200 ms alatt felcsukódnak, és csak utána tűnnek el."""
+        self.expand()
+        res = self.row(MERGE).locator(".merge-hit").evaluate("""el => {
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          return [...document.querySelectorAll('#rows .row')]
+            .filter(r => r.querySelector('.subject').textContent.startsWith('Login'))
+            .map(r => r.getAnimations().map(a => a.effect.getTiming().duration));
+        }""")
+        self.assertEqual(res, [[200], [200]])
+        self.settle()
+        self.assertEqual(self.subjects(), [MERGE, "README javítás", "Indulás"])
+        self.assertEqual(self.row(MERGE).locator(".merge-n").inner_text(), "+2")
 
     def test_hover_split(self) -> None:
         """A szürke kiemelés csak a sor sávján jelenik meg, a merge gráfoszlopa mutatót kap; a sima
@@ -333,11 +352,32 @@ class CollapseTest(MergeCase):
 class RemoteRefTest(MergeCase):
     HISTORY = {"remote": True}
 
-    def test_ref_chain_visible(self) -> None:
-        """A megmaradt `origin/feat/login` lánca látszik, a merge-soron nincs szám."""
-        self.assertIn("Login űrlap", self.subjects())
+    def test_ref_visible_chain_hidden(self) -> None:
+        """A megmaradt `origin/feat/login` commitja látszik, az alatta lévő beolvasztott lánc rejtett;
+        a merge száma „+1”, a ref-es commitot szaggatott él köti az „Indulás”-hoz."""
+        self.assertEqual(self.subjects(), [MERGE, "README javítás", "Login űrlap", "Indulás"])
+        self.assertEqual(self.row(MERGE).locator(".merge-n").inner_text(), "+1")
+        edges = self.page.evaluate(EDGES)
+        a, b = (self.page.evaluate(ROW_MID, s) for s in ("Login űrlap", "Indulás"))
+        self.assertEqual([e["dash"] for e in edges if abs(e["y1"] - a) < 1 and abs(e["y2"] - b) < 1], ["2 2"])
+
+
+class ForkTest(MergeCase):
+    HISTORY = {"fork": True}
+
+    def test_branch_off_merged(self) -> None:
+        """A beolvasztott ágból leágazó branch commitja látszik, a leágazás alatti lánc a merge alatt
+        rejtett; szaggatott él köti az első látható commithoz, kibontva folytonos."""
+        self.assertEqual(self.subjects(), [MERGE, "README javítás", "Mellékág", "Indulás"])
+        self.assertEqual(self.row(MERGE).locator(".merge-n").inner_text(), "+2")
+        a, b = (self.page.evaluate(ROW_MID, s) for s in ("Mellékág", "Indulás"))
+        dash = [e["dash"] for e in self.page.evaluate(EDGES) if abs(e["y1"] - a) < 1 and abs(e["y2"] - b) < 1]
+        self.assertEqual(dash, ["2 2"])
+        self.expand()
         self.assertIn("Login váz", self.subjects())
-        self.assertEqual(self.row(MERGE).locator(".merge-n").count(), 0)
+        a, b = (self.page.evaluate(ROW_MID, s) for s in ("Mellékág", "Login váz"))
+        dash = [e["dash"] for e in self.page.evaluate(EDGES) if abs(e["y1"] - a) < 1 and abs(e["y2"] - b) < 1]
+        self.assertEqual(dash, [None])
 
 
 class TagTest(MergeCase):
