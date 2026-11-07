@@ -1,3 +1,55 @@
+## [0.18.0] - 2026-11-07
+
+### 🚀 Features
+
+- *(page)* Egyesített fejléc — ghost gombok, remote-ok az ágválasztóban, lenyíló keresés
+- *(page)* Az ágválasztó gombja 500 px-ig nevekkel, a keresés teteje az app beágyazott keresője
+- *(page)* A fejléc gombjai 28 px-esek, a szűrt keresés lenyomott háttérrel
+- *(page)* Kijelölt ágnál lenyomott ágválasztó, Esc a keresett szöveget törli
+- *(page)* Az ágválasztó x-e kijelölésnél a nyíl helyén
+- *(page)* Az ágválasztó szűrőmezője ikon nélkül, 36 px, mint az app beágyazott keresője
+- *(page)* Gyűrűs merge-pont és összecsukható beolvasztott commitok
+- *(page)* Merge-sor — kétrészes hover, „+N” és nyíl a pötty mellett, lenyílás
+- *(page)* A ref alatti beolvasztott lánc is összecsukódik, animált felcsukódás
+- *(page)* Összecsukáskor a nyíl a helyén fordul, a szám balról jobbra nő
+- *(page)* A szám a felcsukódással együtt nő, a nyíl kibontáskor is fordul
+- *(page)* Kibontáskor a szám összemegy, a nyíl nem villan
+- *(page)* A merge száma színátmenettel jelenik meg és tűnik el
+
+### 🐛 Bug Fixes
+
+- *(publish)* Publikálás a claude-artifacts eszközeivel, olvasható ~/.git-graph-ból
+- *(skills)* Az Artifact-skillek a claude-artifacts eszközeivel
+- *(page)* A betöltő <!DOCTYPE html>-lel kezdődik
+- *(mod)* A lap megnyitása és a betöltő frissítése a claude-artifacts eszközeivel
+- *(page)* A kártya nyitó és csukó animációi egy képkockában indulnak
+- *(page)* Az egymás melletti WIP-diff nyugalomban nem rajzol újra minden képkockában
+- *(page)* Az ágválasztó x-e függőlegesen középen, mint a keresésé
+- *(page)* A lap indulásakor az IntersectionObserver kezdeti jelzése nem vágja el a hiba utáni szünetet
+- *(page)* A szomszédos sorba futó szaggatott merge-él ívben fordul, nem derékszögben
+- *(page)* A szaggatott merge-él olyan vastag, mint a fő vonal
+
+### 📚 Documentation
+
+- *(header)* A fejléc funkcióoldala — ágválasztó remote-kapcsolókkal, lenyíló keresés; a subtree-remote R-3 és a képek
+- *(claude)* Kész lapváltozás után a --dev-install az AI dolga, a lap megnézése nem Teendő
+- *(merge-collapse)* Funkcióoldal a merge-ek összecsukásáról, frissített képek
+- *(merge-collapse)* A szaggatott él 2 px vastag, és a szomszédos sorba is ívben fordul
+
+### ⚡ Performance
+
+- *(graph)* Graph_data 220 helyett 100 ms alatt egy kis repón
+
+### 🧪 Testing
+
+- Unit-tesztek 9 s alatt, a lap tesztjei 60 s alatt
+- *(page)* A lap tesztjei fix várakozás helyett feltételre várnak
+- *(files)* A test_speed CPU-időt mér a falióra helyett
+
+### ◀️ Revert
+
+- Memory: a lap megnézése sem Teendő
+- Memory: kész lapváltozás után a --dev-install-t az AI futtatja
 ## [0.17.0] - 2026-11-04
 
 ### 🚀 Features
