@@ -1,6 +1,6 @@
 /* Szűrők: ágválasztás, remote-ok (az ágválasztó fejlécein), keresés és csak ref-es commitok (a
    keresés lenyílójában). */
-import { foldRows, unfoldRows } from './anim.js';
+import { foldRows, foldState, morphFold, unfoldRows } from './anim.js';
 import { branchBtn, branchPop, branchQuery, branchSel, fillBranches, filterBranches, setBranchSel } from './branches.js';
 import { headChip, rowsEl } from './dom.js';
 import { hydrateFocus } from './hydrate.js';
@@ -133,18 +133,22 @@ rowsEl.addEventListener('click', e => {
   if (folding) return;
   const sha = /** @type {HTMLElement} */ (hit.closest('.row')).dataset.sha;
   const rows = () => [...rowsEl.querySelectorAll('.row')];
+  const foldEl = () => rowsEl.querySelector(`.row[data-sha="${CSS.escape(sha)}"] .merge-fold`);
+  // Újrarajzolás: a nyíl és a szám a régi helyéről mozog az újba (`morphFold`).
+  const redraw = () => { const before = foldState(foldEl()); applyFilters(); morphFold(before, foldEl()); };
   if (!isOpen(sha)) {
     const before = new Set(visible.map(c => c.sha));
     setOpen(sha, true);
-    applyFilters();
+    redraw();
     unfoldRows(rows().filter(r => !before.has(r.dataset.sha)));
     return;
   }
+  // Összecsukás: a nyíl a helyén fordul jobbra, a sorok felcsukódnak, utána jön a szám.
   setOpen(sha, false);
   const { shown } = layout();
   hit.querySelector('.merge-chev')?.setAttribute('aria-expanded', 'false');
   folding = true;
-  foldRows(rows().filter(r => !shown.has(r.dataset.sha)), () => { folding = false; applyFilters(); });
+  foldRows(rows().filter(r => !shown.has(r.dataset.sha)), () => { folding = false; redraw(); });
 }, true);
 
 /* A remote kapcsolója a fejléc chipjét is érinti (a ☁ szakasz). A nem látható remote refek a

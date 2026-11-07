@@ -290,6 +290,33 @@ class CollapseTest(MergeCase):
         self.assertEqual(self.subjects(), [MERGE, "README javítás", "Indulás"])
         self.assertEqual(self.row(MERGE).locator(".merge-n").inner_text(), "+2")
 
+    def test_collapse_morph(self) -> None:
+        """Összecsukáskor a nyíl a helyén fordul (nem ugrik a pötty felé); a felcsukódás után a szám
+        balról jobbra nő, és maga előtt tolja a nyilat a végleges helyére."""
+        self.expand()
+        hit = self.row(MERGE).locator(".merge-hit")
+        hit.hover(position={"x": 4, "y": 4})
+        res = hit.evaluate("""async el => {
+          const left = () => document.querySelector('#rows .row .merge-chev').getBoundingClientRect().left;
+          const x0 = left();
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          await new Promise(r => requestAnimationFrame(r));
+          const x1 = left();
+          while (!document.querySelector('#rows .row .merge-n')) await new Promise(r => requestAnimationFrame(r));
+          const n = document.querySelector('#rows .row .merge-n'), chev = n.nextElementSibling;
+          const kf = a => a.effect.getKeyframes();
+          return { x0, x1, x2: left(),
+                   n: n.getAnimations().map(a => [kf(a)[0].width, a.effect.getTiming().duration]),
+                   chev: chev.getAnimations().length };
+        }""")
+        self.assertAlmostEqual(res["x1"], res["x0"], delta=0.5)       # a nyíl a helyén marad
+        self.assertAlmostEqual(res["x2"], res["x0"], delta=1.5)       # az újrarajzolás után is onnan indul
+        self.assertEqual(res["n"], [["0px", 200]])                    # a szám 0 szélességről nő
+        self.assertGreater(res["chev"], 0)
+        self.settle()
+        nb, cb = (self.row(MERGE).locator(s).bounding_box() for s in (".merge-n", ".merge-chev"))
+        self.assertAlmostEqual(cb["x"], nb["x"] + nb["width"] + 1, delta=1.5)   # a végleges helyén
+
     def test_hover_split(self) -> None:
         """A szürke kiemelés csak a sor sávján jelenik meg, a merge gráfoszlopa mutatót kap; a sima
         commit gráfoszlopa nem reagál: nincs kiemelés, nincs nyíl, a kattintás nem nyit semmit."""

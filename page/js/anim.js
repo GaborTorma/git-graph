@@ -89,6 +89,31 @@ function rows(els, frames, done) {
 export const unfoldRows = els => rows(els, el => [FLAT, fullBox(el)]);
 export const foldRows = (els, done) => rows(els, el => [fullBox(el), FLAT], done);
 
+/* A merge gráfoszlopa (`.merge-fold`) újrarajzolás előtt: a nyíl bal széle, forgatása, és van-e szám. */
+export function foldState(fold) {
+  const chev = fold?.querySelector('.merge-chev');
+  return chev && { left: chev.getBoundingClientRect().left, rot: getComputedStyle(chev.firstElementChild).transform,
+                   n: Boolean(fold.querySelector('.merge-n')) };
+}
+/* Újrarajzolás után: a nyíl a régi helyéről (`before`, a `foldState`-é) a mostaniba csúszik és fordul;
+   az új szám balról jobbra nő, maga előtt tolva a nyilat a végleges helyére. */
+export function morphFold(before, fold) {
+  const chev = fold?.querySelector('.merge-chev');
+  if (!before || !chev || reducedMotion()) return;
+  const n = fold.querySelector('.merge-n'), ic = /** @type {HTMLElement} */ (chev.firstElementChild);
+  const grow = n && !before.n ? n.offsetWidth : 0;
+  const m = parseFloat(getComputedStyle(chev).marginLeft);
+  const m0 = before.left - (chev.getBoundingClientRect().left - m - grow);
+  const opts = { duration: FOLD_MS, easing: OPEN_EASE };
+  chev.animate([{ marginLeft: `${m0}px` }, { marginLeft: `${m}px` }], opts);
+  ic.animate([{ transform: before.rot }, { transform: getComputedStyle(ic).transform }], opts);
+  if (grow) {
+    const cs = getComputedStyle(n);
+    n.animate([{ width: '0px', paddingLeft: '0px', paddingRight: '0px' },
+               { width: cs.width, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight }], opts);
+  }
+}
+
 /* Csukódás 0-ra, a végén `done` (eltávolít / elrejt) és a `follow`. Ha közben
    újra kinyílik (a `grow` megszakítja), `done` nem fut. */
 export function shrink(el, done, follow) {
