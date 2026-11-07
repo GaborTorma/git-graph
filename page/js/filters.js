@@ -1,5 +1,6 @@
 /* Szűrők: ágválasztás, remote-ok (az ágválasztó fejlécein), keresés és csak ref-es commitok (a
    keresés lenyílójában). */
+import { unfold } from './anim.js';
 import { branchBtn, branchPop, branchQuery, branchSel, fillBranches, filterBranches, setBranchSel } from './branches.js';
 import { headChip, rowsEl } from './dom.js';
 import { hydrateFocus } from './hydrate.js';
@@ -120,11 +121,11 @@ export function applyFilters() {
 /* Más modul kérése (pl. ugrás rejtett szülőre): a felfedés után újraszűrés. */
 document.addEventListener(REFILTER, applyFilters);
 
-/* A merge-sor nyila (csak egérrel): merge-enként kibont vagy összecsuk, szerverhívás nélkül; a
+/* A merge-sor gráfoszlopa (csak egérrel): merge-enként kibont vagy összecsuk, szerverhívás nélkül; a
    commit-panelt nem nyitja (rögzítő fázisban, a sor kattintása előtt). A megjelenő sorok 150 ms
-   alatt nyílnak le (`.unfold`). */
+   alatt nyílnak le (`unfold`). */
 rowsEl.addEventListener('click', e => {
-  const chev = /** @type {HTMLElement} */ (e.target).closest('.merge-chev');
+  const chev = /** @type {HTMLElement} */ (e.target).closest('.merge-hit');
   if (!chev) return;
   e.stopPropagation();
   e.preventDefault();
@@ -132,7 +133,7 @@ rowsEl.addEventListener('click', e => {
   const before = new Set(visible.map(c => c.sha));
   setOpen(sha, !isOpen(sha));
   applyFilters();
-  for (const r of rowsEl.querySelectorAll('.row')) if (!before.has(r.dataset.sha)) r.classList.add('unfold');
+  unfold([...rowsEl.querySelectorAll('.row')].filter(r => !before.has(r.dataset.sha)), 150);
 }, true);
 
 /* A remote kapcsolója a fejléc chipjét is érinti (a ☁ szakasz). A nem látható remote refek a

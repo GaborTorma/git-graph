@@ -6,7 +6,7 @@ import { DATA, visible } from './state.js';
 
 const ROW_H = 34, LANE_W = 14, X0 = 16, DOT_R = 4;
 const CORE_R = 3.5, RING_R = 6;     // a merge pontja: telt mag, körülötte gyűrű (köztük háttérszínű rés)
-const CHEV_W = 14;                  // a merge-sor nyila a gráfoszlop jobb szélén (`.merge-chev`)
+const FOLD_W = 9 + 48;              // a merge pontja mellett a „+N” és a nyíl (`.merge-fold`): rés + szélesség
 const EDGE_HUG = DOT_R + 1;   // a sávváltó vonal ennyit fut a commit sávjában, mielőtt elfordul
 const STUB_GAP = 11;   // több worktree-csonk pöttyei közti függőleges távolság
 
@@ -15,11 +15,12 @@ let graphW = 72;
    használja (`--graph-w`: a sorok bal paddingje, a panel margója). */
 export function sizeGraph() {
   const laneCount = DATA.commits.reduce((m, c) => Math.max(m, c.lane, ...(c.stubs || []).map(t => t.lane)), 0) + 1;
-  graphW = Math.max(32, X0 * 2 + (laneCount - 1) * LANE_W) + (DATA.commits.some(isMerge) ? CHEV_W : 0);
+  const fold = DATA.commits.reduce((m, c) => isMerge(c) ? Math.max(m, laneX(c.lane) + FOLD_W) : m, 0);
+  graphW = Math.max(32, X0 * 2 + (laneCount - 1) * LANE_W, fold);
   document.documentElement.style.setProperty('--graph-w', graphW + 'px');
 }
 
-function laneX(l) { return X0 + l * LANE_W; }
+export function laneX(l) { return X0 + l * LANE_W; }
 
 /* A sorok Y-pozíciója a DOM-ból jön, nem sorszám × magasság: a napok fejléce
    és a kinyitott commit-panel az alattuk lévő sorokat lejjebb tolja, és a
@@ -117,7 +118,8 @@ export function drawGraph() {
     // A tükör-commit is: a forrása a valódi commit, ez csak a másolata.
     const hollow = c.uncommitted || c.stash || c.mirrorOf;
     if (fresh.has(c.sha)) out += `<circle cx="${x}" cy="${y}" r="${merge ? 10 : 8}" fill="${color}" opacity=".28"/>`;
-    // A merge a történet fő pontja: telt mag gyűrűvel; a gyűrű háttérszínű kitöltése a rés.
+    // A merge a történet fő pontja: telt mag gyűrűvel, egy színben (a beolvasztott ág színe a
+    // „+N”-en és a nyílon); a gyűrű háttérszínű kitöltése a rés.
     if (merge) {
       out += `<circle cx="${x}" cy="${y}" r="${RING_R}" fill="var(--bg)" stroke="${color}" stroke-width="2"/>`
           +  `<circle cx="${x}" cy="${y}" r="${CORE_R}" fill="${color}"/>`;

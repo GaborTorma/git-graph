@@ -207,6 +207,8 @@ function onListClick(e) {
   if (e.target.closest('.details')) return;   // a panelben kattintás ne csukja be
   const row = e.target.closest('.row');
   if (!row) return;
+  // Egérrel csak a sor sávja (`.row-in`) nyit: a gráfoszlop és a sor széle nem (a billentyű marad).
+  if (e.target === row && e.detail > 0) return;
   if (row.getAttribute('aria-expanded') === 'true' && expanded) closeCommit(false);
   else open(row.dataset.sha, true);
 }

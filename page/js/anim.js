@@ -68,6 +68,22 @@ export function grow(el, change, settle) {
     });
 }
 
+/* Új sorok lenyílása (merge kibontása): 0-ról a saját magasságukra, együtt; a gráf képkockánként
+   újrarajzol, így a vonal velük nyúlik. */
+export function unfold(els, ms) {
+  if (!els.length || reducedMotion()) return;
+  const anims = els.map(el => {
+    el.style.overflow = 'hidden';
+    return el.animate([FLAT, fullBox(el)], { duration: ms, easing: OPEN_EASE });
+  });
+  let frame = requestAnimationFrame(function tick() { drawGraph(); frame = requestAnimationFrame(tick); });
+  Promise.allSettled(anims.map(a => a.finished)).then(() => {
+    cancelAnimationFrame(frame);
+    for (const el of els) el.style.overflow = '';
+    drawGraph();
+  });
+}
+
 /* Csukódás 0-ra, a végén `done` (eltávolít / elrejt) és a `follow`. Ha közben
    újra kinyílik (a `grow` megszakítja), `done` nem fut. */
 export function shrink(el, done, follow) {

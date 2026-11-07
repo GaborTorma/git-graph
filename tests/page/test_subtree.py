@@ -113,7 +113,6 @@ class SquashTest(PageTestCase):
         """A squash-commitot szaggatott ív köti a split-commithoz, nem folytonos él. A squash csak a
         merge 2. szülőjén át érhető el, ezért alapból a merge alá csukódik: előbb kibontjuk."""
         merge = self.page.locator("#rows .row", has_text="widgets subtree")
-        merge.hover()
         merge.locator(".merge-chev").click()
         self.settle()
         y = lambda sha: self.page.locator(f'#rows .row[data-sha="{sha}"]').evaluate(  # noqa: E731

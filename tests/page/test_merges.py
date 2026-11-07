@@ -93,8 +93,17 @@ DOTS_AT = """subject => {
                  width: c.getAttribute('stroke-width'), opacity: c.getAttribute('opacity') }));
 }"""
 
-ACCENT = """() => { const d = document.createElement('span'); d.style.color = 'var(--accent)';
-  document.body.append(d); const c = getComputedStyle(d).color; d.remove(); return c; }"""
+def rotation(loc) -> list[int]:
+    """Egy elem `transform`-mátrixának forgató része (a, b, c, d), egészre kerekítve."""
+    m = loc.evaluate("el => getComputedStyle(el).transform")
+    return [round(float(v)) for v in m[7:-1].split(",")[:4]]
+
+
+BG = """() => getComputedStyle(document.body).backgroundColor"""
+
+# Egy CSS-szín (pl. `var(--lane-1)`) kiszámolt értéke.
+COLOR_OF = """c => { const d = document.createElement('span'); d.style.color = c;
+  document.body.append(d); const v = getComputedStyle(d).color; d.remove(); return v; }"""
 
 
 class MergeCase(PageTestCase):
@@ -114,7 +123,7 @@ class MergeCase(PageTestCase):
 
     def expand(self, subject: str = MERGE) -> None:
         row = self.row(subject)
-        row.hover()
+        row.locator(".merge-hit").hover(position={"x": 4, "y": 4})
         row.locator(".merge-chev").click()
         self.settle()
 
@@ -131,15 +140,24 @@ class MergeDotTest(MergeCase):
 
     def test_ring(self) -> None:
         """A merge pontja 3,5 px sugarú telt mag, körülötte 6 px sugarú, 2 px-es gyűrű háttérszínű
-        réssel; a subject színe a sima commité."""
+        réssel; a subject színe a sima commité, a vastagsága picit nagyobb."""
+        dots = self.page.evaluate(DOTS_AT, MERGE)
+        ring = next(d for d in dots if d["r"] == "6")
+        self.assertIn("3.5", [d["r"] for d in dots])
+        self.assertEqual((ring["width"], ring["fill"]), ("2", "var(--bg)"))
+        style = "el => { const s = getComputedStyle(el); return [s.color, +s.fontWeight]; }"
+        merge, plain = (self.row(s).locator(".subject").evaluate(style) for s in (MERGE, "README javítás"))
+        self.assertEqual(merge[0], plain[0])
+        self.assertGreater(merge[1], plain[1])
+
+    def test_core_color(self) -> None:
+        """A merge pontja egyszínű: a mag és a gyűrű a merge sávjának színe."""
         dots = self.page.evaluate(DOTS_AT, MERGE)
         ring = next(d for d in dots if d["r"] == "6")
         core = next(d for d in dots if d["r"] == "3.5")
-        self.assertEqual((ring["width"], ring["fill"]), ("2", "var(--bg)"))
+        readme = self.page.evaluate(DOTS_AT, "README javítás")[0]
+        self.assertEqual(ring["stroke"], readme["fill"])
         self.assertEqual(core["fill"], ring["stroke"])
-        color = "el => getComputedStyle(el).color"
-        self.assertEqual(self.row(MERGE).locator(".subject").evaluate(color),
-                         self.row("README javítás").locator(".subject").evaluate(color))
 
     def test_wip_and_stash_hollow(self) -> None:
         """Az Uncommitted sor és a stash pontja üres karika marad."""
@@ -168,12 +186,23 @@ class FreshMergeTest(MergeCase):
 
 class CollapseTest(MergeCase):
     def test_hidden_rows(self) -> None:
-        """A törölt branch commitjai a merge alá csukódnak; a merge-soron akcentuskék „+2”, háttér nélkül."""
+        """A törölt branch commitjai a merge alá csukódnak; a merge-soron „+2” és a nyíl a beolvasztott ág
+        színében; a szám halvány, tint hátterű kis címke kerettel, a nyílnak nincs háttere."""
         self.assertEqual(self.subjects(), [MERGE, "README javítás", "Indulás"])
         n = self.row(MERGE).locator(".merge-n")
         self.assertEqual(n.inner_text(), "+2")
-        self.assertEqual(n.evaluate("el => getComputedStyle(el).color"), self.page.evaluate(ACCENT))
-        self.assertEqual(n.evaluate("el => getComputedStyle(el).backgroundColor"), "rgba(0, 0, 0, 0)")
+        bg = "el => getComputedStyle(el).backgroundColor"
+        self.assertNotIn(n.evaluate(bg), ("rgba(0, 0, 0, 0)", self.page.evaluate(BG)))
+        self.assertIn("inset", n.evaluate("el => getComputedStyle(el).boxShadow"))
+        self.assertEqual(self.row(MERGE).locator(".merge-chev").evaluate(bg), "rgba(0, 0, 0, 0)")
+        color = "el => getComputedStyle(el).color"
+        chev = self.row(MERGE).locator(".merge-chev")
+        ring = self.page.evaluate(COLOR_OF, self.page.locator("#lanes circle[r='6']").get_attribute("stroke"))
+        self.assertEqual(chev.evaluate(color), n.evaluate(color))
+        self.assertNotEqual(n.evaluate(color), ring)
+        self.expand()
+        branch = self.page.evaluate(DOTS_AT, "Login űrlap")[0]["fill"]
+        self.assertEqual(chev.evaluate(color), self.page.evaluate(COLOR_OF, branch))
 
     def test_day_header(self) -> None:
         """A csupa rejtett commitból álló napnak nincs fejléce; kibontás után visszajön."""
@@ -182,17 +211,28 @@ class CollapseTest(MergeCase):
         self.assertEqual(self.page.locator("#rows .day").count(), 3)
 
     def test_hover_chevron(self) -> None:
-        """Hoverkor a subject előtt, a gráfoszlop jobb szélén jobbra mutató nyíl; a subject nem mozdul."""
+        """A merge pontja mellett „+2”, utána hoverkor jobbra mutató nyíl, mind a gráfoszlopban; a
+        subject végén nincs szám, és a hoverre nem mozdul."""
         row = self.row(MERGE)
-        chev = row.locator(".merge-chev")
+        chev, n = row.locator(".merge-chev"), row.locator(".merge-n")
         x = row.locator(".subject").bounding_box()["x"]
+        self.assertEqual(row.locator(".desc .merge-n").count(), 0)
         self.assertEqual(chev.evaluate("el => getComputedStyle(el).opacity"), "0")
-        row.hover()
+        row.hover()                                            # a sor sávja: a nyíl nem jelenik meg
+        self.settle()
+        self.assertEqual(chev.evaluate("el => getComputedStyle(el).opacity"), "0")
+        row.locator(".merge-hit").hover(position={"x": 4, "y": 4})
         self.settle()
         self.assertEqual(chev.evaluate("el => getComputedStyle(el).opacity"), "1")
         self.assertEqual(chev.get_attribute("aria-expanded"), "false")
-        box, inner = chev.bounding_box(), row.locator(".row-in").bounding_box()
-        self.assertAlmostEqual(box["x"] + box["width"], inner["x"], delta=1)
+        # a lenyíló menü 16 px-es CaretDown-ja, jobbra fordítva (−90°)
+        self.assertEqual(chev.locator(".ic").evaluate("el => [el.clientWidth, el.clientHeight]"), [16, 16])
+        self.assertEqual(rotation(chev.locator(".ic")), [0, -1, 1, 0])
+        dot = self.page.locator("#lanes circle[r='6']").bounding_box()
+        nb, cb, inner = n.bounding_box(), chev.bounding_box(), row.locator(".row-in").bounding_box()
+        self.assertAlmostEqual(nb["x"], dot["x"] + dot["width"] + 2, delta=2)   # a gyűrű mellett
+        self.assertAlmostEqual(cb["x"], nb["x"] + nb["width"], delta=2)         # a szám után
+        self.assertLessEqual(cb["x"] + cb["width"], inner["x"] + 1)               # a gráfoszlopban
         self.assertEqual(row.locator(".subject").bounding_box()["x"], x)
 
     def test_expand(self) -> None:
@@ -200,32 +240,59 @@ class CollapseTest(MergeCase):
         lenyílással a merge alá kerülnek; a merge-sor a helyén marad, a panel nem nyílik."""
         row = self.row(MERGE)
         top = row.bounding_box()["y"]
-        row.hover()
+        row.locator(".merge-hit").hover(position={"x": 4, "y": 4})
         res = row.locator(".merge-chev").evaluate("""el => {
           const t = performance.now();
           el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
           const ms = performance.now() - t;
           const rows = [...document.querySelectorAll('#rows .row')]
             .filter(r => r.querySelector('.subject').textContent.startsWith('Login'));
-          return { ms, n: rows.length, anim: rows.map(r => getComputedStyle(r).animationDuration) };
+          return { ms, n: rows.length, anim: rows.map(r => r.getAnimations().map(a => a.effect.getTiming().duration)) };
         }""")
         self.assertLess(res["ms"], 50)
         self.assertEqual(res["n"], 2)
-        self.assertEqual(res["anim"], ["0.15s", "0.15s"])
+        self.assertEqual(res["anim"], [[150], [150]])             # a sorok magassága 0-ról nő
         self.settle()
         self.assertEqual(self.subjects(), [MERGE, "README javítás", "Login űrlap", "Login váz", "Indulás"])
         self.assertEqual(self.row(MERGE).bounding_box()["y"], top)
         self.assertEqual(self.row(MERGE).locator(".merge-chev").get_attribute("aria-expanded"), "true")
         self.assertEqual(self.row(MERGE).locator(".merge-n").count(), 0)
         self.assertEqual(self.page.locator("#rows .details").count(), 0)
+        # kibontva a nyíl felfelé mutat (a CaretDown 180°-kal elforgatva)
+        self.assertEqual(rotation(self.row(MERGE).locator(".merge-chev .ic")), [-1, 0, 0, -1])
 
-    def test_count_opens_panel(self) -> None:
-        """A „+2”-re kattintás a merge commit-paneljét nyitja, a merge összecsukva marad."""
+    def test_graph_column_expands(self) -> None:
+        """A merge gráfoszlopára (a „+2”-re is) kattintás a merge-et bontja ki, a panelt nem nyitja."""
         self.row(MERGE).locator(".merge-n").click()
         self.settle()
-        self.assertEqual(self.page.locator("#rows .details").count(), 1)
-        self.assertEqual(self.row(MERGE).get_attribute("aria-expanded"), "true")
+        self.assertIn("Login űrlap", self.subjects())
+        self.assertEqual(self.page.locator("#rows .details").count(), 0)
+        self.row(MERGE).locator(".merge-hit").click(position={"x": 4, "y": 4})
+        self.settle()
         self.assertNotIn("Login űrlap", self.subjects())
+
+    def test_hover_split(self) -> None:
+        """A szürke kiemelés csak a sor sávján jelenik meg, a merge gráfoszlopa mutatót kap; a sima
+        commit gráfoszlopa nem reagál: nincs kiemelés, nincs nyíl, a kattintás nem nyit semmit."""
+        bg = "el => getComputedStyle(el).backgroundColor"
+        plain = self.row("README javítás")
+        inner = plain.locator(".row-in")
+        box = plain.bounding_box()
+        self.assertEqual(plain.locator(".merge-hit").count(), 0)
+        self.page.mouse.move(box["x"] + 6, box["y"] + box["height"] / 2)   # a gráfoszlop
+        self.settle()
+        self.assertEqual(inner.evaluate(bg), "rgba(0, 0, 0, 0)")
+        self.assertEqual(plain.evaluate("el => getComputedStyle(el).cursor"), "default")
+        self.page.mouse.click(box["x"] + 6, box["y"] + box["height"] / 2)
+        self.settle()
+        self.assertEqual(self.page.locator("#rows .details").count(), 0)
+        inner.hover()
+        self.settle()
+        self.assertNotEqual(inner.evaluate(bg), "rgba(0, 0, 0, 0)")
+        self.assertEqual(self.row(MERGE).locator(".merge-hit").evaluate("el => getComputedStyle(el).cursor"), "pointer")
+        inner.click()
+        self.settle()
+        self.assertEqual(self.page.locator("#rows .details").count(), 1)
 
     def test_reload_collapses(self) -> None:
         """A kézi kibontás csak az újratöltésig él."""
