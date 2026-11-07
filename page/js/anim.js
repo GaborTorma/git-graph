@@ -97,22 +97,33 @@ export function foldState(fold) {
   return chev && { left: chev.getBoundingClientRect().left, rot: chevAngle(chev) };
 }
 /* A változás után, a felcsukódással / lenyílással együtt (200 ms): a nyíl a régi helyéről (`before`,
-   a `foldState`-é) a mostaniba csúszik és fordul; a `count` szám 0 szélességről nő, maga előtt tolva
-   a nyilat a végleges helyére. Szögekkel animál: a mátrixok közti átmenet tükrözésnek bomlana. */
-export function morphFold(before, fold, count) {
+   a `foldState`-é) a mostaniba csúszik és fordul. A `count` szám összecsukáskor 0 szélességről nő,
+   maga előtt tolva a nyilat; kibontáskor (`shrink`) összemegy, a nyíl utánacsúszik, a végén a szám
+   eltűnik. Szögekkel animál: a mátrixok közti átmenet tükrözésnek bomlana. */
+export function morphFold(before, fold, count, shrink = false) {
   const chev = fold?.querySelector('.merge-chev');
-  if (!before || !chev || reducedMotion()) return;
+  if (!before || !chev || reducedMotion()) { if (shrink) count?.remove(); return; }
   const ic = /** @type {HTMLElement} */ (chev.firstElementChild), w = count ? count.offsetWidth : 0;
-  const m = parseFloat(getComputedStyle(chev).marginLeft);
-  const m0 = before.left - (chev.getBoundingClientRect().left - m - w);
-  // A sorok görbéjével (összecsukáskor, a számmal: a csukódásé), hogy velük együtt mozogjon.
-  const opts = { duration: FOLD_MS, easing: count ? CLOSE_EASE : OPEN_EASE };
-  chev.animate([{ marginLeft: `${m0}px` }, { marginLeft: `${m}px` }], opts);
+  const m = parseFloat(getComputedStyle(chev).marginLeft), left = chev.getBoundingClientRect().left;
+  let m0 = before.left - (left - m - (shrink ? 0 : w)), m1 = m;
+  if (shrink && count) {
+    // A végső hely a szám nélkül: oda kell érnie, mire a szám 0 széles (a köz még ott van).
+    const next = count.nextSibling;
+    count.remove();
+    const end = chev.getBoundingClientRect().left;
+    fold.insertBefore(count, next);
+    m1 = end - (left - m - w);
+  }
+  // A sorok görbéjével (összecsukáskor a csukódásé, kibontáskor a nyílásé), hogy velük együtt mozogjon.
+  const opts = { duration: FOLD_MS, easing: count && !shrink ? CLOSE_EASE : OPEN_EASE };
+  chev.animate([{ marginLeft: `${m0}px` }, { marginLeft: `${m1}px` }], opts);
   ic.animate([{ transform: before.rot }, { transform: chevAngle(chev) }], opts);
   if (count) {
     const cs = getComputedStyle(count);
-    count.animate([{ width: '0px', paddingLeft: '0px', paddingRight: '0px' },
-                  { width: cs.width, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight }], opts);
+    const full = { width: cs.width, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight };
+    const none = { width: '0px', paddingLeft: '0px', paddingRight: '0px' };
+    const a = count.animate(shrink ? [full, none] : [none, full], { ...opts, fill: shrink ? 'forwards' : 'none' });
+    if (shrink) a.finished.then(() => count.remove(), () => {});
   }
 }
 

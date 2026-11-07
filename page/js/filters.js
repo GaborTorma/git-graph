@@ -134,12 +134,22 @@ rowsEl.addEventListener('click', e => {
   const sha = /** @type {HTMLElement} */ (hit.closest('.row')).dataset.sha;
   const rows = () => [...rowsEl.querySelectorAll('.row')];
   const foldEl = () => rowsEl.querySelector(`.row[data-sha="${CSS.escape(sha)}"] .merge-fold`);
+  // Az újrarajzolt gráfoszlop fölött ott az egér, de a böngésző csak később veszi hovernek: addig
+  // a `.hover` tartja látszón a nyilat (átmenet nélkül), különben kivillanna és visszajönne.
+  const keepHover = () => {
+    const h = foldEl()?.parentElement;
+    h?.classList.add('hover');
+    h?.addEventListener('mouseleave', () => h.classList.remove('hover'), { once: true });
+  };
   if (!isOpen(sha)) {
-    // Kibontás: a nyíl a szám helyéről csúszik a helyére és fordul felfelé, a sorok lenyílnak.
-    const before = new Set(visible.map(c => c.sha)), state = foldState(foldEl());
+    // Kibontás: a sorok lenyílása alatt a szám összemegy, a nyíl utánacsúszik és felfelé fordul.
+    const before = new Set(visible.map(c => c.sha)), state = foldState(foldEl()), n = layout().counts.get(sha);
     setOpen(sha, true);
     applyFilters();
-    morphFold(state, foldEl());
+    keepHover();
+    const chev = foldEl()?.querySelector('.merge-chev');
+    if (chev && n) chev.insertAdjacentHTML('beforebegin', mergeCount(n));
+    morphFold(state, foldEl(), /** @type {HTMLElement} */ (n ? chev?.previousElementSibling : null), true);
     unfoldRows(rows().filter(r => !before.has(r.dataset.sha)));
     return;
   }
@@ -154,7 +164,7 @@ rowsEl.addEventListener('click', e => {
   if (chev && n) chev.insertAdjacentHTML('beforebegin', mergeCount(n));
   morphFold(state, foldEl(), /** @type {HTMLElement} */ (chev?.previousElementSibling));
   folding = true;
-  foldRows(rows().filter(r => !shown.has(r.dataset.sha)), () => { folding = false; applyFilters(); });
+  foldRows(rows().filter(r => !shown.has(r.dataset.sha)), () => { folding = false; applyFilters(); keepHover(); });
 }, true);
 
 /* A remote kapcsolója a fejléc chipjét is érinti (a ☁ szakasz). A nem látható remote refek a

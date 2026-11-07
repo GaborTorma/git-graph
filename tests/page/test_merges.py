@@ -313,6 +313,22 @@ class CollapseTest(MergeCase):
         self.assertAlmostEqual(cb["x"], nb["x"] + nb["width"] + 1, delta=1.5)   # a végleges helyén
         self.assertEqual(self.row(MERGE).locator(".merge-n").count(), 1)
 
+    def test_no_flash_after_redraw(self) -> None:
+        """Az újrarajzolt merge-sor nyila rögtön látszik (a gráfoszlop fölött marad az egér): sem
+        összecsukás, sem kibontás után nem villan ki és vissza."""
+        hit = self.row(MERGE).locator(".merge-hit")
+        hit.hover(position={"x": 4, "y": 4})
+        js = """async el => {
+          const old = document.querySelector('#rows .row');
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          while (document.querySelector('#rows .row') === old) await new Promise(r => requestAnimationFrame(r));
+          return getComputedStyle(document.querySelector('#rows .row .merge-chev')).opacity;
+        }"""
+        self.assertEqual(hit.evaluate(js), "1")              # kibontás
+        self.settle()
+        hit = self.row(MERGE).locator(".merge-hit")
+        self.assertEqual(hit.evaluate(js), "1")              # összecsukás
+
     def test_expand_rotates(self) -> None:
         """Kibontáskor a nyíl 90°-ot fordul jobbról felfelé (szöggel, nem tükrözve), 200 ms alatt."""
         hit = self.row(MERGE).locator(".merge-hit")
