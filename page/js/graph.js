@@ -1,12 +1,15 @@
 /* A gráf (sávok, élek, pöttyök) az `#lanes` SVG-be, és a fix sáv WIP-sorai. */
 import { pendingEl, rowsEl, scroller, svg } from './dom.js';
-import { hiddenSha, isMerge, visibleBelow } from './merges.js';
+import { directCount, hiddenSha, isMerge, layout, visibleBelow } from './merges.js';
 import { commitBySha, fade, focusWt, fresh, laneColor, tint } from './model.js';
 import { DATA, visible } from './state.js';
 
 const ROW_H = 34, LANE_W = 14, X0 = 16, DOT_R = 4;
 const CORE_R = 3.5, RING_R = 6;     // a merge pontja: telt mag, körülötte gyűrű (köztük háttérszínű rés)
-const FOLD_W = 10 + 48;              // a merge pontja mellett a „+N” és a nyíl (`.merge-fold`): rés + szélesség
+/* A merge pontja mellett a „+N” és a nyíl (`.merge-fold`) jobb széle a pont közepétől: rés (10) +
+   a szám keretje (8) + jelenként ~7 px (tabular) + köz (1) + a nyíl (16). Utána a sor 10 px-es
+   paddingje a subjectig. */
+const foldW = digits => 10 + 8 + (digits + 1) * 7 + 1 + 16;
 const EDGE_HUG = DOT_R + 1;   // a sávváltó vonal ennyit fut a commit sávjában, mielőtt elfordul
 const STUB_GAP = 11;   // több worktree-csonk pöttyei közti függőleges távolság
 
@@ -15,7 +18,9 @@ let graphW = 72;
    használja (`--graph-w`: a sorok bal paddingje, a panel margója). */
 export function sizeGraph() {
   const laneCount = DATA.commits.reduce((m, c) => Math.max(m, c.lane, ...(c.stubs || []).map(t => t.lane)), 0) + 1;
-  const fold = DATA.commits.reduce((m, c) => isMerge(c) ? Math.max(m, laneX(c.lane) + FOLD_W) : m, 0);
+  const { foldable } = layout();
+  const fold = DATA.commits.reduce((m, c) => foldable.has(c.sha)
+    ? Math.max(m, laneX(c.lane) + foldW(String(directCount(c.sha)).length)) : m, 0);
   graphW = Math.max(32, X0 * 2 + (laneCount - 1) * LANE_W, fold);
   document.documentElement.style.setProperty('--graph-w', graphW + 'px');
 }

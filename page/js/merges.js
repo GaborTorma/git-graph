@@ -74,6 +74,10 @@ function base() {
 let cache = null;
 /* A látható commitok (`shown`), merge-enként a kibontáskor megjelenő sorok száma (`counts`), az
    összecsukható merge-ek (`foldable`: van, amit elrejtenének) és a birtok (`owner`). */
+/* A merge összecsukott „+N”-jének száma (a beágyazottak állapotától független): a gráfoszlop
+   szélességéhez (`sizeGraph`), hogy kibontáskor ne ugorjon. */
+export const directCount = sha => base().direct.get(sha) || 0;
+
 export function layout() {
   if (cache?.data === DATA && cache.on === collapseOn() && cache.version === version) return cache;
   const { fixed, owner, direct } = base();

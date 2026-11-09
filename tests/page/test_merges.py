@@ -243,6 +243,8 @@ class CollapseTest(MergeCase):
         self.assertAlmostEqual(nb["x"], dot["x"] + dot["width"] + 2, delta=2)   # a gyűrű mellett
         self.assertAlmostEqual(cb["x"], nb["x"] + nb["width"], delta=2)         # a szám után
         self.assertLessEqual(cb["x"] + cb["width"], inner["x"] + 1)               # a gráfoszlopban
+        # a nyíl után csak a sor paddingje (10 px) a subjectig: a gráfoszlop a nyílig ér
+        self.assertAlmostEqual(row.locator(".subject").bounding_box()["x"] - (cb["x"] + cb["width"]), 10, delta=2)
         self.assertEqual(row.locator(".subject").bounding_box()["x"], x)
 
     def test_expand(self) -> None:
