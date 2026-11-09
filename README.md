@@ -195,23 +195,18 @@ Megkötések (a platformé, mérve — [host-bridge-limits](.claude/memory/host-
 
 **Publikálás:** a lap csak betöltő, így feltölteni csak akkor kell, ha maga a
 betöltő vagy a repó neve változik. Egy plugin-frissítés után a gépen futó
-git-graph percen belül magától frissül, a lap újratölt — app-újraindítás sem kell. Új lapot és
-capability-változást a **session** publikál, a többit a plugin **modja**:
+git-graph percen belül magától frissül, a lap újratölt — app-újraindítás sem kell. Új és
+elavult lapot a **session** publikál, a naprakészet a plugin **modja** nyitja meg:
 
 - **A session**: a hook (vagy a `/git-graph:artifact-publish` skill a `git-graph --publish`-sal)
-  kiírja az `artifact.html`-t és a lépéseket — `get_artifact`, `publish_files`,
-  `read_declaration` + `declare_capabilities` a `host:git-graph` capability-vel, végül
-  `git-graph --published <URL>`, ami az URL-t, a lap és a capability hashét visszaírja. A
-  capability-t modból az auto mód nem engedi deklarálni, a kattintással adott `consent`
-  mellett sem, ezért ez mindig a session dolga.
-- **A mod**, a modell nélkül, ha a Claude Code beállításai engedik (`~/.claude/settings.json` →
-  `permissions.allow`: `mcp__claude-artifacts__get_artifact`, `mcp__claude-artifacts__publish_files`).
-  Az Artifact-panel csak a sessionben publikált lapot mutatja, ezért a mod a session indulásakor
-  újraküldi a lapot (`git-graph --mod-plan`) — a csak betöltőt érintő frissítést is, a
-  capability öröklődik —, és előhozza a panelt; sessionönként egyszer. Szabály nélkül az auto
-  mód a kérés nélküli publikálást elutasítja, és a szabályt a telepítő nem veheti fel
-  helyetted: ilyenkor a lap elavulásakor a hook a sessiont kéri, a naprakész lap pedig nem
-  nyílik meg magától (a `/git-graph:artifact-open` megnyitja).
+  kiírja az `artifact.html`-t és a lépéseket — meglévőre `Artifact` `read`, majd `Artifact`
+  `publish` a lappal és a teljes `host:git-graph` capability-listával egy hívásban, végül
+  `git-graph --published <URL>`, ami az URL-t, a lap és a capability hashét visszaírja. Modból
+  az auto mód a publikálást nem engedi, ezért ez mindig a session dolga.
+- **A mod**, a modell nélkül: a session indulásakor megnyitja a naprakész lapot (`git-graph
+  --mod-plan`, `Artifact` `open`), és előhozza a panelt; sessionönként egyszer. Ahol a
+  sessionben nincs `Artifact` eszköz, csak a `claude-artifacts` eszközei (2026-11-05/06),
+  azokkal újraküldi a lapot.
 
 Kikapcsolt automatikus megnyitásnál (`git-graph.autoOpen=false`, a `--forget`
 is ezt írja) a hook nem kér publikálást, és a mod nem lép; a

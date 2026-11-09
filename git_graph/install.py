@@ -39,8 +39,8 @@ MANIFEST = Path(".claude-plugin") / "plugin.json"
 APP_CONFIG = (Path.home() / "Library" / "Application Support" / "Claude"
               / "claude_desktop_config.json")
 # A Claude Code beállításai: a sessionök innen olvasható mappái
-# (`permissions.additionalDirectories`). Az Artifact `publish_files` csak olyan
-# fájlt csatol, amit a session olvashat (mérve, 2026-11-04 óta) — a lap
+# (`permissions.additionalDirectories`). Az Artifact publish csak olyan
+# fájlt tölt fel, amit a session olvashat (mérve, 2026-11-04 óta) — a lap
 # a `~/.git-graph`-ban van, a projektmappába nem írunk.
 CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
 # A rendszer Pythonja: az app minimális környezetében is megvan, és nem tűnik

@@ -8,7 +8,6 @@ from pathlib import Path
 
 from . import gitio
 from .gitio import config_get, remember_artifact, repo_name
-from .install import CLAUDE_SETTINGS
 from .page import build
 from .registry import register, slug_for
 from .state import STATE_DIR, place, read_json
@@ -85,45 +84,27 @@ def publish_steps(job: dict) -> str:
     """A session teendője a lap publikálásához — a hook és a `git-graph --publish` adja a modellnek.
 
     Az Artifact API-t csak a modell éri el, ezért a publikálást a session
-    végzi (mérve, .claude/memory/publish-from-session.md), a `claude-artifacts`
-    eszközeivel. A lapot a `publish_files` a `~/.git-graph`-ból csatolja (a
-    telepítés olvashatóvá teszi: `install_read_dir`); a capability-t nem a
-    publikálás, hanem a `declare_capabilities` állítja — a republish a régit
-    viszi tovább. Az URL-t és a hasht a `--published` írja vissza — a hook a
-    publikálás eredményét nem látja. A `git-graph` a plugin `bin/`-jéből a Bash
-    eszköz PATH-ján van (egy `Bash(git-graph:*)` engedéllyel nem kérdez).
+    végzi (mérve, .claude/memory/publish-from-session.md), a beépített `Artifact`
+    eszközzel. A lap a `~/.git-graph`-ból megy fel (a telepítés a session mappái
+    közé veszi: `install_read_dir`), a capability-lista ugyanabban a hívásban,
+    teljes halmazként — így a deklaráció nem csúszhat el a nyilvántartott hashtől.
+    Meglévő lapra a publish csak egy `read` után megy. Az URL-t és a hasht a
+    `--published` írja vissza — a hook a publikálás eredményét nem látja. A
+    `git-graph` a plugin `bin/`-jéből a Bash eszköz PATH-ján van (egy
+    `Bash(git-graph:*)` engedéllyel nem kérdez).
     """
-    caps = json.dumps(PUBLISH_CAPS)
-    files = json.dumps([{"as": "index.html", "path": str(job["page"])}])
-    declare = ("mcp__claude-artifacts__read_declaration (slug); ha a capabilities eltér ettől: "
-               f"mcp__claude-artifacts__declare_capabilities — slug, base_version: a "
-               f"read_declaration verziója, capabilities: {caps}")
+    publish = (f'Artifact, action: "publish", file_path: {json.dumps(str(job["page"]))}, '
+               f"capabilities: {json.dumps(PUBLISH_CAPS)}")
     record = (f"Bash: git-graph {shlex.quote(str(gitio.REPO))} --published <URL> "
               "(az URL a publish eredményéből)")
-    # A publikálás magától nem nyitja meg a lapot (mérve: csak a kártya jelent
+    # A publikálás magától nem nyitja meg a panelt (mérve: csak a kártya jelent
     # meg) — a hook pedig ebben a sessionben már nem kéri (`shown_in_session`).
     show = 'mcp__ccd_view__show_pane, pane: "artifact"'
     if job["url"]:
-        return (f"1) mcp__claude-artifacts__get_artifact, slug: {job['url']}; "
-                "2) mcp__claude-artifacts__publish_files — slug, base_version: a get_artifact "
-                f"verziója (és shared_live: a read értéke, ha nem owner), files: {files}; "
-                f"3) {declare}; 4) {record}; 5) {show}.")
-    return (f"1) mcp__claude-artifacts__publish_files — title: {json.dumps(job['title'])}, "
-            f'icon: "branch", files: {files}; 2) {declare}; 3) {record}; 4) {show}.')
-
-
-# A mod csak ezekkel hívhatja kérés nélkül a lépéseit: szabály nélkül az auto mód
-# a publikálást elutasítja („Auto-Mode Bypass”), az olvasásra pedig olykor nem dönt
-# („gave no verdict”); az AI nem veheti fel őket (mérve, 2026-11-05/06).
-MOD_ALLOW = tuple(f"mcp__claude-artifacts__{tool}" for tool in ("get_artifact", "publish_files"))
-
-
-def mod_can_publish() -> bool:
-    """Igaz, ha a Claude Code beállításai engedik a mod kérés nélküli publikálását."""
-    data = read_json(CLAUDE_SETTINGS) or {}
-    perms = data.get("permissions")
-    allow = perms.get("allow") if isinstance(perms, dict) else None
-    return isinstance(allow, list) and all(rule in allow for rule in MOD_ALLOW)
+        return (f'1) Artifact, action: "read", url: {job["url"]}; '
+                f"2) {publish}, url: {job['url']}; 3) {record}; 4) {show}.")
+    return (f'1) {publish}, title: {json.dumps(job["title"])}, icon: "branch"; '
+            f"2) {record}; 3) {show}.")
 
 
 def auto_open() -> bool:

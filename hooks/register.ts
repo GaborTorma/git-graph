@@ -1,15 +1,13 @@
 import type { Register } from 'claude-code'
 
-// A plugin modja: a session indulásakor a modell nélkül küldi újra és nyitja
-// meg a repó Artifactját. Az app Artifact-panelje csak a sessionben publikált
-// lapot mutatja, ezért a mod a lapot újraküldi — a csak betöltőt érintő
-// frissítést is (a capability a republishnél öröklődik) —, visszaírja a hasht
-// (`--republished`), majd előhozza a panelt. Hogy kell-e, azt a Python dönti el
-// (`git-graph --mod-plan`): be van-e kapcsolva, a deklarált capability-lista a
-// mostani-e, a sessionben volt-e már, és engedik-e a Claude Code beállításai
-// (`permissions.allow`) a kérés nélküli hívást. Új lapot és capability-változást
-// a hook kéri a sessiontől: a `declare_capabilities` modból nem megy át, a
-// kattintás `consent`-jével sem (mérve, .claude/memory/mod-limits.md).
+// A plugin modja: a session indulásakor a modell nélkül nyitja meg a repó
+// Artifactját, a beépített `Artifact` eszköz `open`-jével, majd előhozza a panelt.
+// Hogy kell-e, azt a Python dönti el (`git-graph --mod-plan`): be van-e kapcsolva,
+// naprakész-e a lap és a deklarált capability-lista, és a sessionben volt-e már.
+// Új lapot, elavultat és capability-változást a hook kér a sessiontől: modból az
+// auto mód a publikálást elutasítja (mérve, .claude/memory/mod-limits.md).
+// Tartalék: ahol `Artifact` eszköz nincs (2026-11-05/06-i app), a `claude-artifacts`
+// eszközeivel újraküldi a lapot, mert ott a panel csak a sessionben publikáltat mutatja.
 
 type Plan = { repo: string; url: string; page: string }
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .gitio import config_get, main_checkout, resolve_repo, set_repo
 from .install import ensure_installed
-from .publish import auto_open, auto_publish, caps_current, mod_can_publish, prepare_publish, publish_steps
+from .publish import auto_open, auto_publish, caps_current, prepare_publish, publish_steps
 from .registry import register, shown_in_session
 from .state import log
 
@@ -23,8 +23,7 @@ def session_hook() -> int:
     `auto_publish`): a lap csak
     kódfrissítéskor változik, az pedig csak új sessionnel lép életbe — és
     ilyenkor először ez a hook fut. A meglévő lapot nem ez nyitja meg, hanem a
-    plugin modja (`hooks/register.ts` → `mod_plan`), a modell nélkül, ha a
-    beállítások engedik (`mod_can_publish`). Headless
+    plugin modja (`hooks/register.ts` → `mod_plan`), a modell nélkül. Headless
     (`-p`, SDK) sessionben nem kér publikálást: ott nincs, aki a gráfot nézné.
     """
     try:
@@ -47,8 +46,8 @@ def session_hook() -> int:
     # repóban a gép automatikus publikálása is kell (a lap beállítás-menüje).
     auto = auto_open() and (bool(config_get("artifact")) or auto_publish())
     job = prepare_publish() if auto and not headless() else None
-    context = None                                 # naprakész, vagy a mod frissíti; vagy nem kérünk
-    if job and not (mod_can_publish() and caps_current()):
+    context = None                                 # naprakész (a mod nyitja meg), vagy nem kérünk
+    if job:
         if payload.get("session_id"):              # a publikálás után a session nyitja meg, a mod ne
             shown_in_session(payload["session_id"], slug)
         state = "elavult (a git-graph frissült)" if job["url"] else "még nincs"
@@ -79,27 +78,24 @@ def open_url(start: Path) -> str | None:
 
 
 def mod_plan(start: Path, session_id: str) -> dict | None:
-    """A mod kérdése a session indulásakor: küldje-e újra és nyissa-e meg a repó Artifactját.
+    """A mod kérdése a session indulásakor: nyissa-e meg a repó Artifactját.
 
-    Az app Artifact-panelje csak a sessionben publikált lapot mutatja (az
-    `Artifact` tool és az `open` megszűnt, mérve 2026-11-05), ezért a mod a
-    megnyitáshoz újraküldi a lapot (`force`) — az elavultat is, ha csak a
-    betöltő változott: a capability a republishnél öröklődik. Ha a
-    capability-lista változott (`caps_current`), vagy nincs még Artifact, a hook
-    a sessiontől kéri: a `declare_capabilities`-t modból az auto mód az
-    allow-szabály és a kattintás `consent`-je mellett sem engedi (mérve,
-    2026-11-06). Akkor ad tervet, ha be van kapcsolva az automatikus megnyitás,
-    a beállítások engedik (`mod_can_publish`), és ebben a sessionben még nem volt
-    (`shown_in_session`).
+    A mod a beépített `Artifact` eszköz `open`-jével nyit (2026-11-09 óta újra ez
+    van; a `claude-artifacts` eszközeit csak tartalékként hívja, a lap
+    újraküldésével). Elavult lapot, új capability-listát és új Artifactot a hook
+    a sessiontől kér (modból az auto mód a publikálást elutasítja, mérve
+    2026-10-09 és 2026-11-06), ilyenkor nincs terv. Akkor ad tervet, ha be van
+    kapcsolva az automatikus megnyitás, a lap naprakész, és ebben a sessionben még
+    nem volt (`shown_in_session`).
     """
-    if headless() or not mod_can_publish():
+    if headless():
         return None
     try:
         repo = main_checkout(resolve_repo(start))
     except (SystemExit, subprocess.CalledProcessError):
         return None
     set_repo(repo)
-    if not auto_open() or not caps_current():
+    if not auto_open() or not caps_current() or prepare_publish():
         return None
     if shown_in_session(session_id, register(repo)):
         return None
