@@ -21,3 +21,9 @@ módban fogalmaz ([[dig-before-declaring-limits]]).
 
 **How to apply:** capability-re épülő terv előtt eldobható mérőlappal ellenőrizd; a deploy válasza
 (`422: capabilities.<x>: unavailable`) a mérvadó, nem a doksi.
+
+**Néző hozzájárulása** (2026-11-09): a néző a lap első megnyitásakor az akkor deklarált toolokra
+ad engedélyt. Ha a deklaráció később bővül (pl. `file_tree`, `write_file`), az új tool hívása
+*„outside the scope you consented to. Reload to review.”* hibát ad, amíg a néző a lapot újra
+nem tölti és az új listát jóvá nem hagyja. Ugyanez a szöveg jön akkor is, ha a deklarációból
+hiányzik a tool (2026-11-04): előbb a deklarációt nézd meg (`Artifact read` → `artifact-stored-declaration`).
