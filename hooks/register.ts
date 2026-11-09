@@ -57,11 +57,26 @@ const republish = async ($: any, plan: Plan): Promise<void> => {
   })
 }
 
+// Az app új chathez előre melegített sessiont tart (`~/.claude/spares/spare-*`):
+// a `session.start` ott fut, a végleges mappát csak a chat indulásakor kapja meg
+// (`relocated`), erre nincs esemény. Addig másodpercenként újranézzük.
+const SPARE = '/.claude/spares/'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const settledCwd = async ($: any): Promise<string> => {
+  let cwd: string = await $.session.cwd()
+  while (cwd.includes(SPARE)) {
+    await $.clock.sleep(1000)
+    cwd = await $.session.cwd()
+  }
+  return cwd
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const run = async ($: any): Promise<void> => {
   const bin = `${$.plugin.root}/bin/git-graph`
   const { stdout } = await $.process.run([
-    '/usr/bin/python3', bin, await $.session.cwd(), '--mod-plan', '--session', await $.session.id(),
+    '/usr/bin/python3', bin, await settledCwd($), '--mod-plan', '--session', await $.session.id(),
   ])
   if (!stdout.trim()) return
   const plan: Plan = JSON.parse(stdout)
