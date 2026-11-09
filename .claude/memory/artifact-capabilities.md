@@ -22,8 +22,9 @@ módban fogalmaz ([[dig-before-declaring-limits]]).
 **How to apply:** capability-re épülő terv előtt eldobható mérőlappal ellenőrizd; a deploy válasza
 (`422: capabilities.<x>: unavailable`) a mérvadó, nem a doksi.
 
-**Néző hozzájárulása** (2026-11-09): a néző a lap első megnyitásakor az akkor deklarált toolokra
-ad engedélyt. Ha a deklaráció később bővül (pl. `file_tree`, `write_file`), az új tool hívása
-*„outside the scope you consented to. Reload to review.”* hibát ad, amíg a néző a lapot újra
-nem tölti és az új listát jóvá nem hagyja. Ugyanez a szöveg jön akkor is, ha a deklarációból
-hiányzik a tool (2026-11-04): előbb a deklarációt nézd meg (`Artifact read` → `artifact-stored-declaration`).
+**„outside the scope you consented to. Reload to review.”** (`not_in_manifest`): a lap
+deklarációjából hiányzik a tool. A néző hozzájárulása szerverenként szól (`mcp:host:git-graph`),
+nem toolonként, ezért az újratöltés nem segít. Mérve 2026-11-04-én és 2026-11-09-én: a Lesown
+lapján 5 tool volt, a `git-graph.artifactCaps` mégis a 7 toolos hasht őrizte (a `--published`
+a deklarálás sikerétől függetlenül írja). Ellenőrzés: `Artifact read` → `artifact-stored-declaration`;
+javítás: `Artifact publish` a lappal és a teljes `capabilities`-szel, utána `--published`.
