@@ -72,6 +72,22 @@ const settledCwd = async ($: any): Promise<string> => {
   return cwd
 }
 
+// A beépített `Artifact` eszköz `open`-je: ahol van, a meglévő lapot újraküldés
+// nélkül nyitja meg (2.1.293-on mérve, kérdés nélkül megy; a 2026-11-09-i appban
+// újra ez van a `claude-artifacts` eszközei helyett). Hamis, ha nincs ilyen eszköz,
+// vagy nem sikerült: akkor a `claude-artifacts` útja jön.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const openBuiltin = async ($: any, plan: Plan): Promise<boolean> => {
+  const input = { tool: 'Artifact', action: 'open', url: plan.url }
+  try {
+    let r = await $.tool.call(input)
+    if (r.deny !== undefined && String(r.deny).includes('gave no verdict')) r = await $.tool.call(input)
+    return r.deny === undefined && !r.isError
+  } catch {
+    return false
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const run = async ($: any): Promise<void> => {
   const bin = `${$.plugin.root}/bin/git-graph`
@@ -80,8 +96,10 @@ const run = async ($: any): Promise<void> => {
   ])
   if (!stdout.trim()) return
   const plan: Plan = JSON.parse(stdout)
-  await republish($, plan)
-  await $.process.run(['/usr/bin/python3', bin, plan.repo, '--republished', plan.url])
+  if (!(await openBuiltin($, plan))) {
+    await republish($, plan)
+    await $.process.run(['/usr/bin/python3', bin, plan.repo, '--republished', plan.url])
+  }
   await $.tool.call({ tool: 'mcp__ccd_view__show_pane', pane: 'artifact' })
 }
 
