@@ -48,8 +48,18 @@ PNG = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000"
 VIEW = "CM.EditorView.findFromDOM(document.querySelector(sel + ' .cm-content').closest('.cm-editor'))"
 CURSOR = f"""sel => {{ const v = {VIEW}, h = v.state.selection.main.head, l = v.state.doc.lineAt(h);
   return [l.number, h - l.from, v.contentDOM.contentEditable]; }}"""
-COORDS = f"""([sel, line, col]) => {{ const v = {VIEW}, p = v.state.doc.line(line).from + col;
-  const c = v.coordsAtPos(p); return [c.left + 1, (c.top + c.bottom) / 2]; }}"""
+# A pont csak akkor kell, ha két képkockán át a helyén marad, és a szerkesztőre esik: terhelt gépen a
+# panel görgetése a `settle()` után is tarthat, és a kattintás egy commit-sorra esne.
+COORDS = f"""async ([sel, line, col]) => {{
+  const at = () => {{ const v = {VIEW}, c = v.coordsAtPos(v.state.doc.line(line).from + col);
+    return [c.left + 1, (c.top + c.bottom) / 2]; }};
+  const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  for (let i = 0; i < 200; i++) {{
+    const a = at(); await frames(); const b = at();
+    if (a[0] === b[0] && a[1] === b[1] && document.elementFromPoint(b[0], b[1])?.closest(sel + ' .cm-content')) return b;
+  }}
+  throw new Error('a pont nem áll meg a szerkesztőn: ' + sel);
+}}"""
 
 
 class EditTest(PageTestCase):
