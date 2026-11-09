@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: d1b66ed6-bb87-473f-9f58-41922cfc1afa
-  modified: 2026-11-06T07:23:26.416Z
+  modified: 2026-11-09T18:53:35.190Z
 ---
 
 Mérve 2026-10-09-én (Claude Code 2.1.293), eldobható moddal, auto módban:
@@ -52,6 +52,11 @@ Mérve 2026-10-09-én (Claude Code 2.1.293), eldobható moddal, auto módban:
   A sessionből, felhasználói kérés mögött azonnal átmegy.
 - A `publish_files` a `<!DOCTYPE html>` nélküli lapot elutasítja (*„must be HTML”*), és a
   válasza a JSON után szöveget fűz.
+
+2026-11-09-én (Claude Code 2.1.317, desktop) a session újra a beépített `Artifact` eszközt kapja
+(`open` művelettel), a `mcp__claude-artifacts__*` eszközök nincsenek: a régi út csendben elbukott.
+A mod ezért előbb `Artifact` `open`-t hív, és csak ha az nem megy, a `claude-artifacts` útját. A
+hook `publish_steps`-e és a `mod_can_publish` (`MOD_ALLOW`) még a `claude-artifacts` eszközeit nevezi meg.
 
 **Why:** ezért új lapot és capability-változást a hook a sessiontől kér; a mod csak újraküld
 (a capability öröklődik) és megnyit ([[hook-publishes-mod-opens]], [[publish-from-session]]).
