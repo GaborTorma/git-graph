@@ -336,6 +336,34 @@ class CollapseTest(MergeCase):
         self.assertEqual(self.page.locator("#lanes path.fold").get_attribute("opacity"), None)
         self.assertEqual(self.page.locator("#lanes [opacity]:not(circle)").count(), 0)
 
+    def test_expand_fades_from_dotted(self) -> None:
+        """Kibontáskor fordítva: a pontozott él a lenyílás alatt halványul el, a lenyíló ág élei és
+        pöttyei beúsznak."""
+        # Adott egy összecsukott merge
+        # Ha a User kibontja, és a lenyílás félúton tart
+        row = self.row(MERGE)
+        row.locator(".merge-hit").hover(position={"x": 4, "y": 4})
+        res = row.locator(".merge-chev").evaluate("""async el => {
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          const anim = [...document.querySelectorAll('#rows .row')]
+            .find(r => r.querySelector('.subject').textContent.startsWith('Login')).getAnimations()[0];
+          anim.pause(); anim.currentTime = 100;
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const fold = [...document.querySelectorAll('#lanes path.fold')].map(p => Number(p.getAttribute('opacity') ?? 1));
+          const faded = [...document.querySelectorAll('#lanes [opacity]')].filter(e => !e.matches('.fold'))
+            .map(e => Number(e.getAttribute('opacity')));
+          anim.play();
+          return { fold, faded };
+        }""")
+        # Akkor a pontozott él még látszik, de halványul; az új ág beúszik
+        self.assertEqual(len(res["fold"]), 1)
+        self.assertTrue(0 < res["fold"][0] < 1, res)
+        self.assertTrue(res["faded"] and all(0 < o < 1 for o in res["faded"]), res)
+        # És a végén nincs pontozott él, halványított elem sem
+        self.settle()
+        self.assertEqual(self.page.locator("#lanes path.fold").count(), 0)
+        self.assertEqual(self.page.locator("#lanes [opacity]:not(circle)").count(), 0)
+
     def test_collapse_morph(self) -> None:
         """Összecsukáskor a felcsukódással együtt (200 ms) a nyíl a helyéről jobbra fordul, és a szám
         balról jobbra nő, maga előtt tolva a nyilat; a végén a nyíl a szám után áll."""

@@ -71,7 +71,7 @@ export function grow(el, change, settle) {
 /* Merge kibontása és összecsukása: a megjelenő sorok 0-ról a saját magasságukra nőnek (`unfoldRows`),
    az eltűnők 0-ra csukódnak, utána `done` (`foldRows`). Együtt mozognak; a gráf képkockánként
    újrarajzol, így a vonal velük nyúlik és rövidül. Csukáskor a felcsukódó ág a haladással együtt
-   halványul, és a merge pontozott éle beúszik (`setFoldFx`). */
+   halványul, és a merge pontozott éle beúszik; nyitáskor fordítva (`setFoldFx`). */
 const FOLD_MS = 200;
 function rows(els, frames, done) {
   if (!els.length || reducedMotion()) { done?.(); return; }
@@ -79,9 +79,12 @@ function rows(els, frames, done) {
     el.style.overflow = 'hidden';
     return el.animate(frames(el), { duration: FOLD_MS, easing: done ? CLOSE_EASE : OPEN_EASE, fill: done ? 'forwards' : 'none' });
   });
-  const hidden = done ? new Set(els.map(el => el.dataset.sha)) : null;
+  const hidden = new Set(els.map(el => el.dataset.sha));
+  setFoldFx({ hidden, p: done ? 0 : 1 });   // már az első képkockán az induló állapot
+  drawGraph();
   let frame = requestAnimationFrame(function tick() {
-    if (hidden) setFoldFx({ hidden, p: anims[0].effect.getComputedTiming().progress ?? 1 });
+    const t = anims[0].effect.getComputedTiming().progress ?? 1;
+    setFoldFx({ hidden, p: done ? t : 1 - t });
     drawGraph();
     frame = requestAnimationFrame(tick);
   });

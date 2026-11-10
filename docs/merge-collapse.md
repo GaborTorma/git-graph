@@ -51,7 +51,8 @@ nem nyit semmit. Billentyűvel a merge nem bontható ki.
 
 Kibontáskor a megjelenő sorok magassága 200 ms alatt 0-ról nő, a gráf vonala képkockánként
 velük nyúlik; közben a szám összemegy (az út második felében 20 %-ig halványul), a nyíl
-utánacsúszik a pötty mellé, és 90°-ot fordul jobbról felfelé. Összecsukáskor fordítva, ugyanazzal
+utánacsúszik a pötty mellé, és 90°-ot fordul jobbról felfelé; a pontozott él elhalványul, a
+lenyíló ág élei és pöttyei beúsznak. Összecsukáskor fordítva, ugyanazzal
 a görbével, mint a sorok felcsukódása: a sorok 200 ms alatt 0-ra csukódnak, és csak utána tűnnek
 el; közben a szám 0 szélességről nő (20 %-os fedésről, félúton teljes), maga előtt tolva a
 jobbra forduló nyilat; a három egyszerre ér véget. A felcsukódó ág élei és pöttyei ugyanezzel a
@@ -160,6 +161,7 @@ Jellemző: Merge-ek összecsukása
       Ha a User kibontja
       Akkor a sorok 200 ms alatt lenyílnak, a gráf velük nyúlik
         És közben a szám összemegy és halványul, a nyíl a pötty mellé csúszik, és felfelé fordul
+        És közben a pontozott él elhalványul, a lenyíló ág beúszik
 
     Forgatókönyv: Összecsukás
       Adott egy kibontott merge

@@ -14,8 +14,9 @@ const EDGE_HUG = DOT_R + 1;   // a sávváltó vonal ennyit fut a commit sávjá
 const STUB_GAP = 11;   // több worktree-csonk pöttyei közti függőleges távolság
 
 let graphW = 72;
-/* Összecsukás közben (`foldRows`): a felcsukódó sorok és a haladás (0 → 1). A pontozott él ennyire
-   látszik, a felcsukódó ág élei és pöttyei ennyivel halványabbak: a végén nincs ugrás. */
+/* Összecsukás és kibontás közben (`foldRows`, `unfoldRows`): az eltűnő / megjelenő sorok, és a
+   pontozott él láthatósága (`p`: csukáskor 0 → 1, nyitáskor 1 → 0). A sorok élei és pöttyei
+   1 − p erősséggel látszanak: a végén nincs ugrás. */
 let foldFx = /** @type {{ hidden: Set<string>, p: number } | null} */ (null);
 export function setFoldFx(fx) { foldFx = fx; }
 const fadeAttr = op => (op < 1 ? ` opacity="${+op.toFixed(3)}"` : '');
@@ -162,7 +163,7 @@ export function drawGraph() {
    a listában vannak, de már nem számítanak; az él `opacity` erősséggel látszik. */
 function foldedEdge(e, a, rowIndexBySha, rowY, skip = null, opacity = 1) {
   const from = DATA.commits[e.fromRow], to = DATA.commits[e.toRow];
-  const b = rowIndexBySha.get(visibleBelow(to.sha));
+  const b = rowIndexBySha.get(skip ? belowSkipping(to.sha, skip, rowIndexBySha) : visibleBelow(to.sha));
   let next = a + 1;
   while (skip && next < (b ?? 0) && skip.has(visible[next].sha)) next++;
   if (b === undefined || (b === next && from.parents[0] !== to.sha)) return '';
@@ -177,6 +178,13 @@ function foldedEdge(e, a, rowIndexBySha, rowY, skip = null, opacity = 1) {
     : `${edgePath(x1, y1, xv, ym, true)} ${edgePath(xv, ym, x2, y2, false)}`;
   const color = tint(from, laneColor(e.toLane));
   return `<path class="fold" d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="2 2"${fadeAttr(opacity)}/>`;
+}
+
+/* Az első látható commit az első szülő láncán, a `skip` sorait (és a már rejtetteket) átlépve. */
+function belowSkipping(sha, skip, rowIndexBySha) {
+  let c = commitBySha(sha);
+  while (c && (skip.has(c.sha) || !rowIndexBySha.has(c.sha))) c = commitBySha(c.parents[0]);
+  return c ? c.sha : null;
 }
 
 /* Sávváltásnál ott hajlik a vonal, ahol a git is: merge-nél rögtön a merge
