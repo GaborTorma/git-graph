@@ -283,13 +283,17 @@ function morphJoins(rowIndexBySha, rowY, stems, heightOf) {
     const track = yb - p ** 3 * Math.max(0, yb - shrinking - y1[0]);
     const yS = Math.min(Math.max(track, y1[0]), Math.max(y0[0], y1[0]));
     const yE = Math.min(yS + lerp(y0[1] - y0[0], y1[1] - y1[0]), Math.max(bend, y1[1]), shown ? ye : Infinity);
-    const d = xm === xg ? `M ${xm} ${ym} L ${xg} ${yS} ${sCurve(xg, yS, xp, yE)}`
-      : `${edgePath(xm, ym, xg, ym + ROW_H, true)} L ${xg} ${yS} ${sCurve(xg, yS, xp, yE)}`;
+    const upper = xm === xg ? `M ${xm} ${ym} L ${xg} ${yS}` : `${edgePath(xm, ym, xg, ym + ROW_H, true)} L ${xg} ${yS}`;
+    const curve = sCurve(xg, yS, xp, yE), d = `${upper} ${curve}`;
     const color = tint(m, laneColor(e.toLane)), line = `d="${d}" fill="none" stroke="${color}" stroke-width="2"`;
     const dotted = `<path class="fold" ${line} stroke-dasharray="2 2"`;
-    // összecsukott szárnál mindkét végállapot pontozott: egy vonal, teljes erővel (a folytonos ág
-    // élei alatta halványulnak); kibontott szárnál a folytonos átvált pontozottá
-    res.set(e, { skip, path: shown ? `<path ${line}${fadeAttr(1 - p)}/>${dotted}${fadeAttr(p)}/>` : `${dotted}/>` });
+    // Kibontott szárnál az egész vonal folytonosból pontozottá vált. Összecsukott szárnál a
+    // csatlakozó ív mindkét végállapotban pontozott: a pontozott vonal végig teljes erővel látszik,
+    // a merge-ből induló szakaszán pedig egy folytonos réteg a haladással jelenik meg / halványul
+    // (kibontva ez takarja: folytonos).
+    const solidUpper = `<path d="${upper}" fill="none" stroke="${color}" stroke-width="2"${fadeAttr(1 - p)}/>`;
+    res.set(e, { skip, path: shown ? `<path ${line}${fadeAttr(1 - p)}/>${dotted}${fadeAttr(p)}/>`
+      : `${dotted}/>${solidUpper}` });
   }
   return res;
 }

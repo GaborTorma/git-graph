@@ -811,6 +811,34 @@ class StackedTest(MergeCase):
             self.settle()
 
 
+    def test_expand_turns_solid_during_animation(self) -> None:
+        """Összecsukott login-merge mellett a profil-merge kibontásakor a merge-ből induló szakasz a
+        lenyílással együtt vált pontozottból folytonossá, nem csak utána."""
+        # Adott: mindkét merge összecsukva
+        # Ha a User kibontja a profil-merge-et, és az animáció félúton tart
+        row = self.row(STACKED)
+        row.locator(".merge-hit").hover(position={"x": 4, "y": 4})
+        res = row.locator(".merge-chev").evaluate("""async el => {
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          const anims = document.getAnimations().filter(a => a.effect?.target?.classList?.contains('row'));
+          anims.forEach(a => { a.pause(); a.currentTime = 100; });
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const row = [...document.querySelectorAll('#rows .row')]
+            .find(r => r.querySelector('.subject').textContent === "Merge branch 'feat/profile'");
+          const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+          const top = rb.top + rb.height / 2 - sb.top;
+          const res = [...document.querySelectorAll('#lanes path')]
+            .filter(p => Math.abs(Number(p.getAttribute('d').match(/-?[\\d.]+/g)[1]) - top) < 1)
+            .map(p => ({ dash: p.getAttribute('stroke-dasharray'), op: Number(p.getAttribute('opacity') ?? 1) }));
+          anims.forEach(a => a.play());
+          return res;
+        }""")
+        # Akkor a merge-ből induló szakaszon a folytonos réteg már részben látszik (sem nem hiányzik,
+        # sem nem teljes): a pontozottból folytonosba váltás a lenyílással együtt halad
+        solid = [r["op"] for r in res if r["dash"] is None and r["op"] < 1]
+        self.assertTrue(solid and 0 < min(solid) < 1, res)
+
+
 class RemoteRefTest(MergeCase):
     HISTORY = {"remote": True}
 
