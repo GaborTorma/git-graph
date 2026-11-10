@@ -35,7 +35,6 @@ from helpers import ROOT, SCRIPT, McpClient  # noqa: E402
 
 from playwright.sync_api import Page, sync_playwright  # noqa: E402
 
-LOAD_MS = 15_000   # a lap első betöltése (`setUp`), az indok ott
 
 SLUG = "fixture"
 URL = "https://git-graph.test/"
@@ -235,11 +234,9 @@ class PageTestCase(unittest.TestCase):
         self.page.route(URL, lambda route: route.fulfill(
             content_type="text/html", headers={"Content-Security-Policy": CSP}, body=self.html))
         self.page.goto(URL)
-        # A lap első betöltése több időt kap: a teljes lapkód és az adat MCP-n jön egy frissen indult
-        # `git-graph --mcp`-től, párhuzamos futásban ez terhelés nélkül is ~5 s. A többi várakozás 5 s.
-        self.page.wait_for_selector("#rows .row", timeout=LOAD_MS)
+        self.page.wait_for_selector("#rows .row")
         # a betűk (`font.js`) a FontFace betöltése után rendezik újra a lapot: ezt a `__quiet` nem látja
-        self.page.wait_for_function("[...document.fonts].filter(f => f.family.includes('Anthropic') && f.status === 'loaded').length === 2", timeout=LOAD_MS)
+        self.page.wait_for_function("[...document.fonts].filter(f => f.family.includes('Anthropic') && f.status === 'loaded').length === 2")
         self.settle()
 
     def tearDown(self) -> None:
