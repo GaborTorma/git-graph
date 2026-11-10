@@ -73,7 +73,7 @@ export function drawGraph() {
   }
   // Animáció közben a kibontott másik merge szárára épülő ág csatlakozása egyetlen, a helyére csúszó
   // vonal (`morphJoins`): a merge éle és az ág legalsó commitjának éle helyett.
-  const morphs = foldFx ? morphJoins(rowIndexBySha, rowY, stems) : new Map();
+  const morphs = foldFx ? morphJoins(rowIndexBySha, rowY, stems, sha => heightBySha.get(sha) || 0) : new Map();
   const morphed = new Set([...morphs.values()].map(m => m.skip));
   for (const e of DATA.edges) {
     const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
@@ -249,7 +249,7 @@ function joinStem(e, a, b, rowIndexBySha, rowY, skip, stems, from) {
    fölött) a csukott helyre (a másik merge alatt) megy a haladással (`foldFx.p`), és ugyanazon az
    útvonalon a folytonos rajzolat halványul, a pontozott erősödik. Kulcs: a merge éle; `skip`: az
    ág legalsó commitjának éle, ezt a vonal helyettesíti. */
-function morphJoins(rowIndexBySha, rowY, stems) {
+function morphJoins(rowIndexBySha, rowY, stems, heightOf) {
   const res = new Map();
   for (const e of DATA.edges) {
     if (!e.merge) continue;
@@ -271,8 +271,18 @@ function morphJoins(rowIndexBySha, rowY, stems) {
     const ym = rowY(a), yb = rowY(rowIndexBySha.get(prev.sha)), ye = rowY(end);
     const bend = Math.max(rowY(stemRow) + ROW_H, ye - ROW_H);
     const yJoin = Math.min(Math.max(rowY(stemRow) + ROW_H, ym + 2 * ROW_H), bend);
+    // A forduló a legalsó commit pillanatnyi helyét követi (a sorokkal együtt mozog). Ahol az a
+    // sorok csukott állapotában is a csukott forduló alatt marad (köztük látható sorok), a
+    // különbséget a haladás köbével vonjuk le: eleinte a sorokkal megy, a végén befut a helyére.
+    // A kibontott és a csukott helye közé szorítva; az ív hossza a kettő között a haladással vált.
     const y0 = shown ? [Math.max(ye - ROW_H, yb), ye] : [yb, Math.min(yb + ROW_H, bend)];
-    const yS = lerp(y0[0], Math.max(ym + ROW_H, yJoin - ROW_H)), yE = lerp(y0[1], yJoin);
+    const y1 = [Math.max(ym + ROW_H, yJoin - ROW_H), yJoin];
+    const ib = rowIndexBySha.get(prev.sha);
+    let shrinking = heightOf(prev.sha) / 2;              // ennyivel kerül még feljebb a legalsó commit
+    for (let i = a + 1; i < ib; i++) if (foldFx.hidden.has(visible[i].sha)) shrinking += heightOf(visible[i].sha);
+    const track = yb - p ** 3 * Math.max(0, yb - shrinking - y1[0]);
+    const yS = Math.min(Math.max(track, y1[0]), Math.max(y0[0], y1[0]));
+    const yE = Math.min(yS + lerp(y0[1] - y0[0], y1[1] - y1[0]), Math.max(bend, y1[1]), shown ? ye : Infinity);
     const d = xm === xg ? `M ${xm} ${ym} L ${xg} ${yS} ${sCurve(xg, yS, xp, yE)}`
       : `${edgePath(xm, ym, xg, ym + ROW_H, true)} L ${xg} ${yS} ${sCurve(xg, yS, xp, yE)}`;
     const color = tint(m, laneColor(e.toLane)), line = `d="${d}" fill="none" stroke="${color}" stroke-width="2"`;

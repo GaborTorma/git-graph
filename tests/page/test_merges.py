@@ -26,7 +26,8 @@ def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner:
     közvetlenül az „Indulás”-ból ágazik, más commit nélkül a `main`-en; `fork`: a „Login váz”-ból
     leágazó, megmaradt `side` branch egy „Mellékág” committal; `start_day`: az „Indulás” napja
     (1-nél a login-commitokkal egy napon, köztük nincs napfejléc); `stacked`: a login-ág csúcsára
-    épülő `feat/profile` („Profil oldal”, az 1. napon), külön merge-dzsel a login merge-e után (3. nap)."""
+    épülő `feat/profile` („Profil oldal”, „Profil 2–5”, az 1. napon), külön merge-dzsel a login
+    merge-e után (3. nap)."""
     shutil.rmtree(repo)
     repo.mkdir()
     n = 0
@@ -72,6 +73,8 @@ def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner:
     if stacked:
         git("switch", "-q", "-c", "feat/profile", day=1)
         commit("Profil oldal", 1)
+        for k in range(2, 6):                       # hosszabb ág: a sorok mozgása látszik az animációban
+            commit(f"Profil {k}", 1)
     git("switch", "-q", "main", day=2)
     commit("README javítás", 2)
     git("merge", "-q", "--no-ff", "-m", MERGE, "feat/login", day=2)
@@ -753,6 +756,50 @@ class StackedTest(MergeCase):
             }""")
             # Akkor a login-merge szárán kívül egyetlen látható pontozott vonal van (a csatlakozás)
             self.assertEqual(len(res), 1, (closing, res))
+            self.settle()
+
+
+    def test_join_follows_rows(self) -> None:
+        """A helyére csúszó csatlakozás a ráépülő ág legalsó commitjával együtt mozog, összecsukáskor
+        és kibontáskor is: sosem jár a commit fölött, amíg az a végső hely alatt van."""
+        probe = """async el => {
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          const anims = document.getAnimations().filter(a => a.effect?.target?.classList?.contains('row'));
+          anims.forEach(a => a.pause());
+          const mid = s => { const row = [...document.querySelectorAll('#rows .row')]
+            .find(r => r.querySelector('.subject').textContent === s);
+            const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+            return rb.top + rb.height / 2 - sb.top; };
+          const out = [];
+          for (const t of [40, 80, 120, 160, 190]) {
+            anims.forEach(a => { a.currentTime = t; });
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+            const top = mid("Merge branch 'feat/profile'");
+            const ends = [...document.querySelectorAll('#lanes path.fold')]
+              .map(p => p.getAttribute('d').match(/-?[\\d.]+/g).map(Number))
+              .filter(n => Math.abs(n[1] - top) < 1).map(n => n.at(-1));
+            out.push({ t, ends, profile: mid('Profil oldal'), login: mid("Merge branch 'feat/login'") });
+          }
+          anims.forEach(a => a.play());
+          return out;
+        }"""
+        for expanded_login in (True, False):
+            if expanded_login:
+                self.expand(MERGE)
+            self.expand(STACKED)
+            for closing in (True, False):
+                # Ha a User a profil-merge-re kattint, és az animáció különböző pontjain nézzük
+                res = self.row(STACKED).locator(".merge-hit").evaluate(probe)
+                # Akkor a csatlakozás sosincs a legalsó commit fölött (amíg az a végső hely alatt jár)
+                for r in res:
+                    self.assertEqual(len(r["ends"]), 1, r)
+                    floor = min(r["profile"], r["login"] + 34)
+                    self.assertGreaterEqual(r["ends"][0], floor - 1, (expanded_login, closing, r))
+                    # és nem is marad le alatta (egy sor + egy napfejléc)
+                    self.assertLessEqual(r["ends"][0], max(r["profile"], floor) + 34 + 25, (expanded_login, closing, r))
+                self.settle()
+            self.page.reload()
+            self.page.wait_for_selector("#rows .row")
             self.settle()
 
 
