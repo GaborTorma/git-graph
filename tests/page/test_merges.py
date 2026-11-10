@@ -873,6 +873,42 @@ class StackedTest(MergeCase):
             self.assertGreaterEqual(r["end"] - r["turn"], 10, r)
 
 
+    def test_dependent_bottom_one_line_while_older_toggles(self) -> None:
+        """Kibontott profil-ág mellett a login-merge kapcsolásakor a profil-ág legalsó commitjától a
+        login-ág sávjába egyetlen vonal fut (egy fordulóval), nem egy folytonos és egy pontozott."""
+        self.expand(STACKED)
+        self.expand(MERGE)
+        for _ in range(2):              # összecsukás, majd kibontás
+            hit = self.row(MERGE).locator(".merge-hit")
+            hit.hover(position={"x": 4, "y": 4})
+            frames = hit.evaluate("""async el => {
+              const mid = s => { const row = [...document.querySelectorAll('#rows .row')]
+                .find(r => r.querySelector('.subject').textContent === s);
+                const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+                return rb.top + rb.height / 2 - sb.top; };
+              el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+              const anims = document.getAnimations().filter(a => a.effect?.target?.classList?.contains('row'));
+              anims.forEach(a => a.pause());
+              const out = [];
+              for (const t of [60, 120, 170]) {
+                anims.forEach(a => { a.currentTime = t; });
+                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+                const y = mid('Profil oldal');
+                out.push([...document.querySelectorAll('#lanes path')]
+                  .filter(p => Number(p.getAttribute('opacity') ?? 1) > 0.05)
+                  .map(p => p.getAttribute('d').match(/-?[\\d.]+/g).map(Number))
+                  .filter(n => Math.abs(n[1] - y) < 1 && n.at(-2) !== n[0])
+                  .map(n => n.slice(-2).map(Math.round).join(',')));
+              }
+              anims.forEach(a => a.play());
+              return out;
+            }""")
+            for ends in frames:
+                # a Profil oldal alól a login-ág sávjába futó látható utak egy helyen végződnek
+                self.assertLessEqual(len(set(ends)), 1, frames)
+            self.settle()
+
+
 class RemoteRefTest(MergeCase):
     HISTORY = {"remote": True}
 

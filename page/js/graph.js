@@ -91,6 +91,8 @@ export function drawGraph() {
     let op = 1;
     if (foldFx) {
       const hf = foldFx.hidden.has(DATA.commits[e.fromRow].sha), ht = foldFx.hidden.has(DATA.commits[e.toRow].sha);
+      const bottom = ht && !hf && !e.merge ? dependentBottom(e, a, b, rowY, stems) : '';
+      if (bottom) { out += bottom; continue; }
       if (ht && !hf) out += foldedEdge(e, a, rowIndexBySha, rowY, foldFx.hidden, foldFx.p, stems);
       if (ht || hf) op = 1 - foldFx.p;
     }
@@ -298,6 +300,21 @@ function morphJoins(rowIndexBySha, rowY, stems, heightOf) {
       : `${dotted}/>${solidUpper}` });
   }
   return res;
+}
+
+/* Kibontott ráépülő ág legalsó commitja, miközben a másik merge (amelynek a csúcsára épül)
+   összecsukódik / kinyílik: egyetlen vonal a commitból a másik ág sávjába. A vége a másik ág
+   csúcsát követi, amíg az egy sornyinál messzebb van, onnan a csukott helyén (egy sornyi ív a
+   szárba) marad; közben a folytonos halványul, a pontozott erősödik. */
+function dependentBottom(e, a, b, rowY, stems) {
+  const stem = stems.get(e.toRow);
+  if (stem === undefined || stem >= a) return '';
+  const x1 = laneX(e.fromLane), x2 = laneX(e.toLane), y1 = rowY(a);
+  const yEnd = Math.max(rowY(b), y1 + ROW_H), turn = Math.max(yEnd - ROW_H, y1);
+  const d = `M ${x1} ${y1} L ${x1} ${turn} ${sCurve(x1, turn, x2, yEnd)}`;
+  const color = tint(DATA.commits[e.fromRow], laneColor(e.fromLane));
+  const line = `d="${d}" fill="none" stroke="${color}" stroke-width="2"`;
+  return `<path ${line}${fadeAttr(1 - foldFx.p)}/><path class="fold" ${line} stroke-dasharray="2 2"${fadeAttr(foldFx.p)}/>`;
 }
 
 /* Egy útvonal folytatása: a kezdő `M` helyett `L` (ugyanoda), így a szaggatás nem indul újra. */
