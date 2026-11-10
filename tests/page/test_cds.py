@@ -382,7 +382,7 @@ class CardAnimTest(CdsCase):
             self.page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")   # elindultak
             timings = [t for loc in (fill, row.locator(".row-in"), self.page.locator("#rows .details"))
                        for t in loc.evaluate(TIMINGS)]
-        self.assertEqual({(d, e) for d, e, _ in timings}, {(200, "cubic-bezier(0.2, 0.7, 0.3, 1)")})
+        self.assertEqual({(d, e) for d, e, _ in timings}, {(200, "cubic-bezier(0.25, 0.6, 0.3, 1)")})
         self.assertEqual(len({end for *_, end in timings}), 1)          # egyszerre érnek véget
         self.settle()
         self.assertEqual(fill.count(), 0)

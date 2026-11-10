@@ -27,7 +27,7 @@ export function glide(el, delta) {
    együtt nyúlik); a `follow` is képkockánként fut. A csukódás a nyílás görbéje
    időben visszafelé: a kettő ugyanaz a mozgás, két irányban. */
 const ANIM_MS = 200;
-const OPEN_EASE = 'cubic-bezier(.2, .7, .3, 1)', CLOSE_EASE = 'cubic-bezier(.7, 0, .8, .3)';
+const OPEN_EASE = 'cubic-bezier(.25, .6, .3, 1)', CLOSE_EASE = 'cubic-bezier(.7, 0, .8, .3)';
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 // A keret (a panelé) is 0-ról nő és oda csukódik: a nyílással együtt ér véget.
 const FLAT = { height: '0px', marginTop: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px',
