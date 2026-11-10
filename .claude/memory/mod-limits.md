@@ -53,5 +53,5 @@ szabály marad). A korábbi mérések (2.1.293–2.1.317) ezzel elavultak.
 **Why:** ezért új és elavult lapot, capability- és contract-változást a hook a sessiontől kér; a
 mod csak megnyit (`Artifact` `open`) ([[hook-publishes-mod-opens]], [[publish-from-session]]).
 
-**How to apply:** modból publish ne legyen; a `git-graph.artifactCaps` mondja meg, mikor kell a
-session. Újranyitás: [[artifact-open-paths]].
+**How to apply:** a mod publikál és nyit ([[hook-publishes-mod-opens]]); a `git-graph.artifactHash`
+mondja meg, mikor kell publikálni. Újranyitás: [[artifact-open-paths]].
