@@ -374,13 +374,14 @@ class CardAnimTest(CdsCase):
         row = self.row("main-3-2")
         row.hover()
         self.settle()
-        row.click()
-        fill = self.page.locator("#rows .hover-fill")
-        self.assertEqual(fill.count(), 1)
-        self.assertIn("rgb(242, 242, 242)", fill.evaluate("e => e.getAnimations()[0].effect.getKeyframes()[0].boxShadow"))
-        self.page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")   # elindultak
-        timings = [t for loc in (fill, row.locator(".row-in"), self.page.locator("#rows .details"))
-                   for t in loc.evaluate(TIMINGS)]
+        with self.frozen():
+            row.click()
+            fill = self.page.locator("#rows .hover-fill")
+            self.assertEqual(fill.count(), 1)
+            self.assertIn("rgb(242, 242, 242)", fill.evaluate("e => e.getAnimations()[0].effect.getKeyframes()[0].boxShadow"))
+            self.page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")   # elindultak
+            timings = [t for loc in (fill, row.locator(".row-in"), self.page.locator("#rows .details"))
+                       for t in loc.evaluate(TIMINGS)]
         self.assertEqual({(d, e) for d, e, _ in timings}, {(200, "cubic-bezier(0.2, 0.7, 0.3, 1)")})
         self.assertEqual(len({end for *_, end in timings}), 1)          # egyszerre érnek véget
         self.settle()
@@ -393,13 +394,14 @@ class CardAnimTest(CdsCase):
         row.click()
         row.hover()
         self.settle()
-        row.click()
-        self.assertEqual(row.get_attribute("aria-expanded"), "false")
-        self.assertEqual(self.page.locator("#rows .hover-fill").count(), 0)
-        panel = self.page.locator("#rows .details.folding")
-        self.assertEqual(panel.evaluate("e => getComputedStyle(e).borderTopWidth"), "0px")
-        self.page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")   # elindultak
-        timings = row.locator(".row-in").evaluate(TIMINGS) + panel.evaluate(TIMINGS)
+        with self.frozen():
+            row.click()
+            self.assertEqual(row.get_attribute("aria-expanded"), "false")
+            self.assertEqual(self.page.locator("#rows .hover-fill").count(), 0)
+            panel = self.page.locator("#rows .details.folding")
+            self.assertEqual(panel.evaluate("e => getComputedStyle(e).borderTopWidth"), "0px")
+            self.page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")   # elindultak
+            timings = row.locator(".row-in").evaluate(TIMINGS) + panel.evaluate(TIMINGS)
         self.assertEqual({(d, e) for d, e, _ in timings}, {(200, "cubic-bezier(0.7, 0, 0.8, 0.3)")})
         self.assertEqual(len({end for *_, end in timings}), 1)
         self.settle()
@@ -411,8 +413,9 @@ class CardAnimTest(CdsCase):
         row = self.row("main-3-2")
         row.hover()
         self.settle()
-        row.click()
-        keys = row.locator(".row-in").evaluate("e => e.getAnimations()[0].effect.getKeyframes().map(k => k.boxShadow)")
+        with self.frozen():
+            row.click()
+            keys = row.locator(".row-in").evaluate("e => e.getAnimations()[0].effect.getKeyframes().map(k => k.boxShadow)")
         self.assertEqual(len(keys), 3)
         self.assertIn("rgb(242, 242, 242)", keys[1])
 
@@ -423,10 +426,11 @@ class CardAnimTest(CdsCase):
         row.click()
         row.hover()
         self.settle()
-        row.click()
-        self.page.mouse.move(5, 5)
-        bg = row.locator(".row-in").evaluate("""e => e.getAnimations().map(a => a.effect.getKeyframes())
-          .filter(k => k[0].backgroundColor).map(k => k.at(-1).backgroundColor)""")
+        with self.frozen():
+            row.click()
+            self.page.mouse.move(5, 5)
+            bg = row.locator(".row-in").evaluate("""e => e.getAnimations().map(a => a.effect.getKeyframes())
+              .filter(k => k[0].backgroundColor).map(k => k.at(-1).backgroundColor)""")
         self.assertEqual(bg, [TRANSPARENT])
 
     def test_close_forgets_files(self) -> None:
@@ -438,9 +442,10 @@ class CardAnimTest(CdsCase):
         self.page.wait_for_selector("#rows .details .diff:not([hidden])")
         self.settle()
         row = self.page.locator("#rows .row[aria-expanded='true']")
-        row.click()
-        self.assertEqual(file.get_attribute("aria-expanded"), "false")
-        self.assertGreater(file.evaluate("e => e.nextElementSibling.getAnimations().length"), 0)   # csukódik
+        with self.frozen():
+            row.click()
+            self.assertEqual(file.get_attribute("aria-expanded"), "false")
+            self.assertGreater(file.evaluate("e => e.nextElementSibling.getAnimations().length"), 0)   # csukódik
         self.settle()
         self.open_commit(FILES_SUBJECT)
         self.assertEqual(self.page.locator("#rows .details .file[aria-expanded='true']").count(), 0)
@@ -450,9 +455,10 @@ class CardAnimTest(CdsCase):
         row = self.row("main-3-2")
         row.hover()
         self.settle()
-        row.click()
-        radii = self.page.locator("#rows .hover-fill").evaluate(
-            "e => e.getAnimations()[0].effect.getKeyframes().map(k => k.borderRadius)")
+        with self.frozen():
+            row.click()
+            radii = self.page.locator("#rows .hover-fill").evaluate(
+                "e => e.getAnimations()[0].effect.getKeyframes().map(k => k.borderRadius)")
         self.assertTrue(all(r == "12px" or r.endswith(" 12px 12px") for r in radii), radii)   # 4 egyforma: „12px”
 
     def test_seam(self) -> None:
@@ -461,8 +467,9 @@ class CardAnimTest(CdsCase):
         row = self.row("main-3-2")
         row.hover()
         self.settle()
-        row.click()
-        self.page.evaluate("document.getAnimations().forEach(a => a.pause())")
+        with self.frozen():
+            row.click()
+            self.page.evaluate("document.getAnimations().forEach(a => a.pause())")
         for t in (30, 60, 120):
             gap = self.page.evaluate(f"""(() => {{
               document.getAnimations().forEach(a => {{ if (a.effect.getComputedTiming().duration === 200) a.currentTime = {t} }});
@@ -488,9 +495,10 @@ class CardAnimTest(CdsCase):
     def test_open_fades_content(self) -> None:
         """Nyitáskor a panel tartalma 20 %-ról indul, és az idő felére teljesen látszik."""
         row = self.row("main-3-2")
-        row.click()
-        keys = self.page.locator("#rows .details > *").first.evaluate(
-            "e => e.getAnimations()[0].effect.getKeyframes().map(k => [Math.round(k.computedOffset * 100), k.opacity])")
+        with self.frozen():
+            row.click()
+            keys = self.page.locator("#rows .details > *").first.evaluate(
+                "e => e.getAnimations()[0].effect.getKeyframes().map(k => [Math.round(k.computedOffset * 100), k.opacity])")
         self.assertEqual(keys, [[0, "0.2"], [50, "1"], [100, "1"]])
 
     def test_close_fades_content(self) -> None:
@@ -498,9 +506,10 @@ class CardAnimTest(CdsCase):
         row = self.row("main-3-2")
         row.click()
         self.settle()
-        row.click()
-        keys = self.page.locator("#rows .details.folding > *").first.evaluate(
-            "e => e.getAnimations()[0].effect.getKeyframes().map(k => [Math.round(k.computedOffset * 100), k.opacity])")
+        with self.frozen():
+            row.click()
+            keys = self.page.locator("#rows .details.folding > *").first.evaluate(
+                "e => e.getAnimations()[0].effect.getKeyframes().map(k => [Math.round(k.computedOffset * 100), k.opacity])")
         self.assertEqual(keys, [[0, "1"], [67, "1"], [100, "0.2"]])
 
     def test_file_hover_fill(self) -> None:
@@ -699,6 +708,7 @@ class TooltipTest(CdsCase):
         """A képnéző bezáró gombjának buboréka: „Bezárás”, mellette halványan „Esc”."""
         self.open_file("logo.svg")
         self.page.wait_for_selector(".diff .img-fig")
+        self.settle()                              # a fájl nyitása: a kép (és a gombja) a helyén
         self.page.locator(".diff .img-fig").first.hover()
         self.page.locator(".diff [data-img-full]").click()
         self.settle()                              # a teljes lapos nézet elrendezése (görgetés rejti a buborékot)
@@ -813,10 +823,10 @@ class ControlsTest(CdsCase):
         track = "#onlyRefs .track"
         off = self.style(track, "backgroundColor")
         self.page.locator("#onlyRefs").hover()
-        self.page.wait_for_timeout(250)   # a sáv színe .15 s alatt vált
+        self.settle()   # a sáv színe .15 s alatt vált
         self.assertNotEqual(self.style(track, "backgroundColor"), off)
         self.page.locator("#onlyRefs").click()
-        self.page.wait_for_timeout(250)
+        self.settle()
         moved = self.page.locator(track).evaluate("t => new DOMMatrix(getComputedStyle(t, '::after').transform).m41")
         self.assertEqual(moved, 12)
 
