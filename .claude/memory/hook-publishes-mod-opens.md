@@ -9,8 +9,7 @@ metadata:
   hook a publikálás lépéseit adja a sessionnek (`publish_steps`: `Artifact` `read` + `publish` a
   teljes capability-listával). A naprakészet a plugin modja (`hooks/register.ts`) nyitja meg a
   modell nélkül, a session indulásakor: a `git-graph --mod-plan` dönt, a mod `$.tool.call`-lal
-  hívja az `Artifact` `open`-t ([[mod-limits]], 2026-11-09 óta újra; előtte a
-  `claude-artifacts` republish volt).
+  hívja az `Artifact` `open`-t ([[mod-limits]]).
 - Sessionönként egyszer: `~/.git-graph/sessions.json` (`session_id → slug`, 7 nap után törlődik), a
   `source`-tól függetlenül — a `resume`, a `/clear` és a `compact` nem zárja be a lapot; archiválásra
   nincs hook, a `SessionEnd` app-bezáráskor is fut. Publikáláskor a hook jegyzi be a sessiont: utána a

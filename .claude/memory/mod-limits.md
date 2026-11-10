@@ -1,6 +1,6 @@
 ---
 name: mod-limits
-description: "Modból: Artifact tool nincs; publish_files csak allow-szabállyal; declare_capabilities sehogy (consent-tel sem); show_pane a sessionben publikáltat; classic.* nem jön; a mod-panel nem DOM"
+description: "Modból: Artifact open kérdés nélkül megy, publish nem (auto mód), capability-deklarálás sehogy; show_pane hívható; classic.* nem jön; a mod-panel nem DOM"
 metadata:
   node_type: memory
   type: project
@@ -37,29 +37,14 @@ Mérve 2026-10-09-én (Claude Code 2.1.293), eldobható moddal, auto módban:
   és az eseménykezelőt kiszűri; `source` max. 131 072 karakter. A gráf így csak statikus SVG-ként,
   a sor-, panel- és diff-logika újraírásával férne be.
 
-Újramérve 2026-11-05/06-án (Claude Code 2.1.317, desktop, auto mód), az `Artifact` tool helyén a
-`mcp__claude-artifacts__*` eszközökkel:
+2026-11-04–06. között az app a beépített `Artifact` helyett egy `claude-artifacts` MCP szervert
+adott; visszavonták (anthropics/claude-code#107400), 2026-11-09 óta újra az `Artifact` van, a
+plugin csak ezt használja. Ebből az időből: a `show_pane` (`pane: "artifact"`) modból hívható, de
+csak ablakban nyitott sessionben hat; capability-t modból deklarálni az auto mód akkor sem engedett,
+`allow`-szabállyal és valódi kattintás `consent`-jével sem.
 
-- `$.tool.call({ tool: 'Artifact' })` → *„no tool named "Artifact" in this session”*; `open`
-  művelet nincs. A `mcp__ccd_view__show_pane` (`pane: "artifact"`) modból hívható, de csak a
-  sessionben publikált lapot mutatja, és csak ablakban nyitott sessionben.
-- A `publish_files` modból csak a felhasználó `permissions.allow` szabályával megy (a
-  szabályt az *AI* nem írhatja be). Az olvasók szabály nélkül lassúak, és olykor *„gave no
-  verdict”*.
-- A `declare_capabilities` modból **sehogy**: `allow`-szabállyal, újrapróbával és a `$.ui.ask`
-  valódi kattintásából adott `consent`-tel (a deklarálást név szerint kérő kérdéssel) is
-  *„The server-side auto mode classifier gave no verdict … did not ask for one”*, 4 próbából 4.
-  A sessionből, felhasználói kérés mögött azonnal átmegy.
-- A `publish_files` a `<!DOCTYPE html>` nélküli lapot elutasítja (*„must be HTML”*), és a
-  válasza a JSON után szöveget fűz.
+**Why:** ezért új és elavult lapot, capability- és contract-változást a hook a sessiontől kér; a
+mod csak megnyit (`Artifact` `open`) ([[hook-publishes-mod-opens]], [[publish-from-session]]).
 
-2026-11-09-én (Claude Code 2.1.317, desktop) a session újra a beépített `Artifact` eszközt kapja
-(`open` művelettel), a `mcp__claude-artifacts__*` eszközök nincsenek: a régi út csendben elbukott.
-A mod ezért előbb `Artifact` `open`-t hív, és csak ha az nem megy, a `claude-artifacts` útját. A
-hook `publish_steps`-e és a `mod_can_publish` (`MOD_ALLOW`) még a `claude-artifacts` eszközeit nevezi meg.
-
-**Why:** ezért új lapot és capability-változást a hook a sessiontől kér; a mod csak újraküld
-(a capability öröklődik) és megnyit ([[hook-publishes-mod-opens]], [[publish-from-session]]).
-
-**How to apply:** modból `declare_capabilities` ne legyen; a `git-graph.artifactCaps` mondja
-meg, mikor kell a session. Újranyitás: [[artifact-open-paths]].
+**How to apply:** modból publish ne legyen; a `git-graph.artifactCaps` mondja meg, mikor kell a
+session. Újranyitás: [[artifact-open-paths]].
