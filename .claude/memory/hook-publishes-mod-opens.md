@@ -10,6 +10,8 @@ metadata:
   `git-graph --mod-plan` terve szerint új vagy elavult lapnál `Artifact` `read` + `publish`
   (teljes `PUBLISH_CAPS`, `PUBLISH_CONTRACT`), `--published`, majd `Artifact` `open` +
   `show_pane`. A SessionStart hook csak telepít és regisztrál, a sessiontől nem kér semmit.
+  Élesben mérve 2026-11-10-én a Lesownon: új chat → a mod újrapublikálta (0.2.96, 7 tool), a
+  `--published` frissítette a hasheket.
 - Előtte (2.1.293–2.1.317) a mod nem publikálhatott (auto mód), ezért a hook kérte a sessiont
   (`publish_steps` additionalContextként). A `publish_steps` ma csak a kézi skilleké.
 - Sessionönként egyszer: `~/.git-graph/sessions.json` (`session_id → slug`, 7 nap után törlődik), a
