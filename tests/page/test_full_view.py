@@ -772,6 +772,14 @@ class WipDiffFilterTest(PageTestCase):
         self.assertEqual(util.locator(".churn").count(), 1)
         self.assertIn("README.md", self.side_files())
         self.assertEqual(self.page.locator(".side .fv-diff").get_attribute("aria-pressed"), "false")
+        # És a változott fájl és mappája neve vastagabb (a merge subjectjéé), a többi a törzsé
+        weight = "sel => getComputedStyle(document.querySelector(sel)).fontWeight"
+        css = "n => getComputedStyle(document.documentElement).getPropertyValue(n).trim()"
+        medium, body = self.page.evaluate(css, "--w-medium"), self.page.evaluate(css, "--w-body")
+        self.assertNotEqual(medium, body)
+        self.assertEqual(self.page.evaluate(weight, '.side .fv-file[data-path="tools/util.py"] .name'), medium)
+        self.assertEqual(self.page.evaluate(weight, '.side .fv-row[data-dir="tools"] .name'), medium)
+        self.assertEqual(self.page.evaluate(weight, '.side .fv-file[data-path="README.md"] .name'), body)
 
     def test_sidebar_diff_selects_wip(self) -> None:
         """A sidebar diff-szűrője a WIP sort nyitja le: a fa a nem commitolt fájlokat mutatja."""

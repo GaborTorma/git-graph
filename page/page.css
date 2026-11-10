@@ -1412,6 +1412,8 @@ body.side-on .pending, body.side-on .scroll { margin-right: var(--fv-tree-w, 280
 .fv-row.deleted .name { color: var(--del); }
 .fv-file.deleted .name { text-decoration: line-through; }
 .fv-row.modified .name { color: var(--git-modified); }
+/* a változott fájl és mappája picit vastagabb, mint a merge subjectje */
+.fv-row:is(.added, .deleted, .modified) .name { font-weight: var(--w-medium); }
 .fv-empty { margin: 8px; font-size: 12px; color: var(--fg-2); }
 .fv-error { color: var(--critical); }
 /* a teljes képernyő commitlistája a fa alatt */
