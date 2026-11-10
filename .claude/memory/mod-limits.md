@@ -43,6 +43,13 @@ plugin csak ezt használja. Ebből az időből: a `show_pane` (`pane: "artifact"
 csak ablakban nyitott sessionben hat; capability-t modból deklarálni az auto mód akkor sem engedett,
 `allow`-szabállyal és valódi kattintás `consent`-jével sem.
 
+**Mérve 2026-11-10-én (Claude Code 2.1.321, desktop app 4.23118.1, auto mód)**, eldobható moddal
+(`session.start`-ból, kérés nélkül, a modell nélkül): az `Artifact` `read` (2,0 s), a `publish`
+`url` + `file_path` + `contract`-tal (1,1 s) és a `publish` `capabilities`-szel (1,1 s, a
+deklaráció átment) **mind sikerült**, elutasítás és kérdés nélkül. A 2.1.321 óta a mod saját
+`$.tool.call`-jai nem kérnek engedélyt (a release note szerint a `deny`-szabály és a szervezeti
+szabály marad). A korábbi mérések (2.1.293–2.1.317) ezzel elavultak.
+
 **Why:** ezért új és elavult lapot, capability- és contract-változást a hook a sessiontől kér; a
 mod csak megnyit (`Artifact` `open`) ([[hook-publishes-mod-opens]], [[publish-from-session]]).
 
