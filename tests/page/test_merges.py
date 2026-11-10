@@ -633,6 +633,45 @@ class StackedTest(MergeCase):
             self.settle()
 
 
+    def test_dotted_paths_continuous_and_smooth(self) -> None:
+        """A pontozott él egyetlen folytonos útvonal (a szaggatás nem indul újra a fordulónál), és a
+        ráépülő ág csatlakozó íve egyetlen sima S-ív."""
+        # Adott: a profil-ág kibontva, a login-merge összecsukva
+        self.expand(STACKED)
+        profile = self.page.evaluate(ROW_MID, "Profil oldal")
+        ds = self.page.evaluate("""() => [...document.querySelectorAll('#lanes path.fold')].map(p => p.getAttribute('d'))""")
+        # Akkor minden pontozott él egy darab
+        self.assertTrue(all(d.count("M") == 1 for d in ds), ds)
+        # És a csatlakozó ív egyetlen görbe, egyenes szakasz nélkül
+        join = next(d for d in ds if abs(float(d.split()[2]) - profile) < 1)
+        self.assertEqual((join.count("C"), join.count("L")), (1, 0), join)
+
+    def test_expand_fades_in_dependent_join(self) -> None:
+        """A ráépülő ág lenyílásakor a legalsó commitja csatlakozó íve is a lenyílással együtt úszik
+        be, nem teljes erővel jelenik meg."""
+        # Adott: mindkét merge összecsukva
+        # Ha a User kibontja a profil-merge-et, és az animáció félúton tart
+        row = self.row(STACKED)
+        row.locator(".merge-hit").hover(position={"x": 4, "y": 4})
+        ops = row.locator(".merge-chev").evaluate("""async el => {
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          const anims = document.getAnimations().filter(a => a.effect?.target?.classList?.contains('row'));
+          anims.forEach(a => { a.pause(); a.currentTime = 100; });
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const row = [...document.querySelectorAll('#rows .row')].find(r => r.querySelector('.subject').textContent === 'Profil oldal');
+          const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+          const y = rb.top + rb.height / 2 - sb.top;
+          const res = [...document.querySelectorAll('#lanes path.fold')]
+            .filter(p => Math.abs(Number(p.getAttribute('d').match(/-?[\\d.]+/g)[1]) - y) < 1)
+            .map(p => Number(p.getAttribute('opacity') ?? 1));
+          anims.forEach(a => a.play());
+          return res;
+        }""")
+        # Akkor a Profil oldal csatlakozó íve még nem teljes erejű
+        self.assertEqual(len(ops), 1, ops)
+        self.assertLess(ops[0], 1)
+
+
 class RemoteRefTest(MergeCase):
     HISTORY = {"remote": True}
 

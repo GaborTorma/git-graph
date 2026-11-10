@@ -75,7 +75,9 @@ export function drawGraph() {
     const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
     const b = rowIndexBySha.get(DATA.commits[e.toRow].sha);
     if (a !== undefined && b === undefined && hiddenSha(DATA.commits[e.toRow].sha)) {
-      out += foldedEdge(e, a, rowIndexBySha, rowY, null, 1, stems);
+      // a lenyíló / felcsukódó ág sorából induló pontozott él is a sorokkal együtt halványul
+      const op = foldFx?.hidden.has(DATA.commits[e.fromRow].sha) ? 1 - foldFx.p : 1;
+      out += foldedEdge(e, a, rowIndexBySha, rowY, null, op, stems);
       continue;
     }
     if (a === undefined || b === undefined) continue;   // szűrve
@@ -189,7 +191,7 @@ function foldedEdge(e, a, rowIndexBySha, rowY, skip = null, opacity = 1, stems =
   const d = xv === x2 ? edgePath(x1, y1, x2, y2, true)
     : x1 === xv ? edgePath(x1, y1, x2, y2, false)
     : y2 - y1 < 2 * ROW_H ? edgePath(x1, y1, x2, y2, true)
-    : `${edgePath(x1, y1, xv, ym, true)} ${edgePath(xv, ym, x2, y2, false)}`;
+    : `${edgePath(x1, y1, xv, ym, true)} ${chain(edgePath(xv, ym, x2, y2, false))}`;
   const color = tint(from, laneColor(e.toLane));
   return `<path class="fold" d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="2 2"${fadeAttr(opacity)}/>`;
 }
@@ -224,15 +226,25 @@ function joinStem(e, a, b, rowIndexBySha, rowY, skip, stems, from) {
   let d;
   if (stemRow < a) {
     if (bend <= y1 + 4) return '';
-    d = edgePath(x1, y1, xs, Math.min(y1 + ROW_H, bend), false);
+    d = `M ${x1} ${y1} ${sCurve(x1, y1, xs, Math.min(y1 + ROW_H, bend))}`;
   } else {
     const xo = laneX(e.toLane), yJoin = Math.min(Math.max(rowY(stemRow) + ROW_H, y1 + 2 * ROW_H), bend);
     if (yJoin <= y1 + ROW_H) return '';
-    d = x1 === xo ? edgePath(x1, y1, xs, yJoin, false)
-      : `${edgePath(x1, y1, xo, y1 + ROW_H, true)} ${edgePath(xo, y1 + ROW_H, xs, yJoin, false)}`;
+    const yTurn = Math.max(y1 + ROW_H, yJoin - ROW_H);     // a rejtett sávjában eddig egyenesen
+    d = x1 === xo ? `M ${x1} ${y1} L ${x1} ${yTurn} ${sCurve(x1, yTurn, xs, yJoin)}`
+      : `${edgePath(x1, y1, xo, y1 + ROW_H, true)} L ${xo} ${yTurn} ${sCurve(xo, yTurn, xs, yJoin)}`;
   }
   return `<path class="fold" d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="2 2"`;
 }
+
+/* Egy útvonal folytatása: a kezdő `M` helyett `L` (ugyanoda), így a szaggatás nem indul újra. */
+const chain = d => d.replace(/^M/, 'L');
+
+/* Sima S-ív két sáv között: függőleges érintővel indul és érkezik (a csatlakozó ívé). */
+const sCurve = (x1, y1, x2, y2) => {
+  const dy = (y2 - y1) / 2;
+  return `C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`;
+};
 
 /* A commitok sora a teljes listában (`DATA.commits`), sha szerint; adatcserekor újraépül. */
 let rowCache = { data: null, map: new Map() };
