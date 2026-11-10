@@ -102,9 +102,13 @@ export function reveal(sha) {
   for (let m = owner.get(sha); m; m = fixed.has(m) ? null : owner.get(m)) if (!isOpen(m)) setOpen(m, true);
 }
 
-/* Az él célja, ha a szülő rejtett: az első szülő láncán az első nem rejtett commit (null: nincs). */
-export function visibleBelow(sha) {
-  let c = commitBySha(sha);
-  while (c && hiddenSha(c.sha)) c = commitBySha(c.parents[0]);
-  return c ? c.sha : null;
+/* Az első szülők láncán lefelé a `sha`-tól (vele együtt), amíg a commit `hidden`: az első nem
+   rejtett (`c`, ha nincs: undefined) és az utolsó rejtett (`prev`, ha nincs: null). */
+export function walkDown(sha, hidden) {
+  let prev = null, c = commitBySha(sha);
+  while (c && hidden(c.sha)) { prev = c; c = commitBySha(c.parents[0]); }
+  return { prev, c };
 }
+
+/* Az él célja, ha a szülő rejtett: az első szülő láncán az első nem rejtett commit (null: nincs). */
+export const visibleBelow = sha => walkDown(sha, hiddenSha).c?.sha ?? null;

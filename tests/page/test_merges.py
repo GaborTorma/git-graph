@@ -12,10 +12,11 @@ from harness import DAY, T0, PageTestCase, git_in
 
 MERGE = "Merge branch 'feat/login'"
 INNER = "Merge branch 'feat/helper' into feat/login"
+STACKED = "Merge branch 'feat/profile'"
 
 
 def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner: bool = False,
-                  adjacent: bool = False, fork: bool = False, start_day: int = 0) -> None:
+                  adjacent: bool = False, fork: bool = False, stacked: bool = False, start_day: int = 0) -> None:
     """A fixture-történet helyett: a `main`-en „Indulás”, „README javítás” és a `feat/login`
     merge-e; a beolvasztott ág („Login váz”, „Login űrlap”) branche törölve. Napok: az „Indulás” a
     0., a login-commitok az 1., a README és a merge a 2. napon.
@@ -24,7 +25,9 @@ def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner:
     login-ágba egy törölt segédág („Segédfüggvény”) merge-e; `adjacent`: a merge 2. szülője
     közvetlenül az „Indulás”-ból ágazik, más commit nélkül a `main`-en; `fork`: a „Login váz”-ból
     leágazó, megmaradt `side` branch egy „Mellékág” committal; `start_day`: az „Indulás” napja
-    (1-nél a login-commitokkal egy napon, köztük nincs napfejléc)."""
+    (1-nél a login-commitokkal egy napon, köztük nincs napfejléc); `stacked`: a login-ág csúcsára
+    épülő `feat/profile` („Profil oldal”, „Profil 2–5”, az 1. napon; köztük a `main`-en „Közbülső”),
+    külön merge-dzsel a login merge-e után (3. nap)."""
     shutil.rmtree(repo)
     repo.mkdir()
     n = 0
@@ -67,29 +70,44 @@ def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner:
     if remote:
         git("remote", "add", "origin", "https://example.invalid/fixture.git", day=1)
         git("update-ref", "refs/remotes/origin/feat/login", "HEAD", day=1)
+    if stacked:
+        git("switch", "-q", "-c", "feat/profile", day=1)
+        commit("Profil oldal", 1)
+        # a main-en egy commit a profil-ág commitjai közé: a csukott ág legalja e sor alatt marad
+        git("switch", "-q", "main", day=1)
+        commit("Közbülső", 1)
+        git("switch", "-q", "feat/profile", day=1)
+        for k in range(2, 6):                       # hosszabb ág: a sorok mozgása látszik az animációban
+            commit(f"Profil {k}", 1)
     git("switch", "-q", "main", day=2)
     commit("README javítás", 2)
     git("merge", "-q", "--no-ff", "-m", MERGE, "feat/login", day=2)
     git("branch", "-q", "-D", "feat/login", day=2)
+    if stacked:
+        git("merge", "-q", "--no-ff", "-m", STACKED, "feat/profile", day=3)
+        git("branch", "-q", "-D", "feat/profile", day=3)
 
 
-# A gráf élei: a kezdő- és végpont Y-ja (az SVG koordinátáiban) és a szaggatás.
-EDGES = """() => [...document.querySelectorAll('#lanes path')].map(p => {
-  const n = p.getAttribute('d').match(/-?[\\d.]+/g).map(Number);
-  return { y1: n[1], y2: n.at(-1), dash: p.getAttribute('stroke-dasharray') };
-})"""
+# A mérések segédei a lapon: egy sor közepe a gráf SVG-jében (null, ha nincs ilyen sor), és a gráf
+# útjai (koordináták, szaggatás, erősség, pontozott-e, és ha ívvel végződik, az ív kezdetének Y-ja: `turn`).
+LIB = """const mid = s => { const row = [...document.querySelectorAll('#rows .row')]
+    .find(r => r.querySelector('.subject').textContent === s);
+  if (!row) return null;
+  const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+  return rb.top + rb.height / 2 - sb.top; };
+const paths = () => [...document.querySelectorAll('#lanes path')].map(p => {
+  const d = p.getAttribute('d'), n = d.match(/-?[\\d.]+/g).map(Number);
+  return { n, dash: p.getAttribute('stroke-dasharray'), fold: p.matches('.fold'), op: Number(p.getAttribute('opacity') ?? 1),
+           turn: d.lastIndexOf('C') > d.lastIndexOf('L') ? n.at(-7) : null }; });"""
 
 # A gráf éleinek összes koordinátája (x, y párok sorban) és a szaggatás.
-PATHS = """() => [...document.querySelectorAll('#lanes path')].map(p => ({
-  n: p.getAttribute('d').match(/-?[\\d.]+/g).map(Number), dash: p.getAttribute('stroke-dasharray') }))"""
+PATHS = f"""() => {{ {LIB} return paths(); }}"""
+
+# A gráf élei: a kezdő- és végpont Y-ja (az SVG koordinátáiban) és a szaggatás.
+EDGES = f"""() => {{ {LIB} return paths().map(p => ({{ y1: p.n[1], y2: p.n.at(-1), dash: p.dash }})); }}"""
 
 # Egy sor közepének Y-ja a gráf SVG-jében.
-ROW_MID = """subject => {
-  const row = [...document.querySelectorAll('#rows .row')]
-    .find(r => r.querySelector('.subject').textContent === subject);
-  const r = row.getBoundingClientRect(), s = document.querySelector('#lanes').getBoundingClientRect();
-  return r.top + r.height / 2 - s.top;
-}"""
+ROW_MID = f"""s => {{ {LIB} return mid(s); }}"""
 
 # A sor közepének magasságában ülő körök a gráfban.
 DOTS_AT = """subject => {
@@ -136,6 +154,30 @@ class MergeCase(PageTestCase):
         row.locator(".merge-hit").hover(position={"x": 4, "y": 4})
         row.locator(".merge-chev").click()
         self.settle()
+
+    def frames(self, subject: str, times: list[float], measure: str) -> list[dict]:
+        """Kattintás a `subject` merge gráfoszlopára; a sorok animációja megállítva, és a `times`
+        időpontjaiban (ms) képkockánként a `measure` (JS-függvény, a `LIB` segédeivel) eredménye
+        (`v`), a sorok haladása (`progress`) és az animált sorok száma (`n`). Utána az animáció végig
+        fut, és a lap megnyugszik."""
+        hit = self.row(subject).locator(".merge-hit")
+        hit.hover(position={"x": 4, "y": 4})
+        res = hit.evaluate(f"""async (el, times) => {{ {LIB}
+          const measure = {measure};
+          el.dispatchEvent(new MouseEvent('click', {{ bubbles: true }}));
+          const anims = document.getAnimations().filter(a => a.effect?.target?.classList?.contains('row'));
+          anims.forEach(a => a.pause());
+          const out = [];
+          for (const t of times) {{
+            anims.forEach(a => {{ a.currentTime = t; }});
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+            out.push({{ t, n: anims.length, progress: anims[0]?.effect.getComputedTiming().progress, v: measure() }});
+          }}
+          anims.forEach(a => a.play());
+          return out;
+        }}""", times)
+        self.settle()
+        return res
 
 
 class MergeDotTest(MergeCase):
@@ -309,6 +351,31 @@ class CollapseTest(MergeCase):
         self.assertEqual(self.subjects(), [MERGE, "README javítás", "Indulás"])
         self.assertEqual(self.row(MERGE).locator(".merge-n").inner_text(), "+2")
 
+    def test_fold_fades(self) -> None:
+        """Összecsukáskor a pontozott él a felcsukódás alatt beúszik, a felcsukódó ág élei, pöttyei és
+        sorai kihalványulnak; kibontáskor fordítva. A végén nincs ugrás: halványított elem nem marad."""
+        measure = """() => ({
+          fold: paths().filter(p => p.fold).map(p => p.op),
+          faded: [...document.querySelectorAll('#lanes [opacity]')].filter(e => !e.matches('.fold'))
+            .map(e => Number(e.getAttribute('opacity'))),
+          row: Number(getComputedStyle([...document.querySelectorAll('#rows .row')]
+            .find(r => r.querySelector('.subject').textContent.startsWith('Login'))).opacity) })"""
+        for opening in (True, False):
+            # Ha a User kibontja (majd összecsukja) a merge-et, és az animáció félúton tart
+            [f] = self.frames(MERGE, [100], measure)
+            # Akkor a pontozott él még / már látszik, de nem teljes; az ág élei, pöttyei és sorai félig
+            self.assertEqual(len(f["v"]["fold"]), 1, (opening, f))
+            self.assertTrue(0 < f["v"]["fold"][0] < 1, (opening, f))
+            self.assertTrue(f["v"]["faded"] and all(0 < o < 1 for o in f["v"]["faded"]), (opening, f))
+            self.assertTrue(0 < f["v"]["row"] < 1, (opening, f))
+            # És a végén nincs halványított elem; összecsukva a pontozott él teljes, kibontva nincs
+            self.assertEqual(self.page.locator("#lanes [opacity]:not(circle)").count(), 0, opening)
+            fold = self.page.locator("#lanes path.fold")
+            if opening:
+                self.assertEqual(fold.count(), 0)
+            else:
+                self.assertEqual(fold.get_attribute("opacity"), None)
+
     def test_collapse_morph(self) -> None:
         """Összecsukáskor a felcsukódással együtt (200 ms) a nyíl a helyéről jobbra fordul, és a szám
         balról jobbra nő, maga előtt tolva a nyilat; a végén a nyíl a szám után áll."""
@@ -418,6 +485,219 @@ class CollapseTest(MergeCase):
         merge, start = self.page.evaluate(ROW_MID, MERGE), self.page.evaluate(ROW_MID, "Indulás")
         dashed = [e for e in edges if abs(e["y1"] - merge) < 1 and abs(e["y2"] - start) < 1 and e["dash"]]
         self.assertEqual(len(dashed), 1)
+
+
+class StackedTest(MergeCase):
+    HISTORY = {"stacked": True}
+
+    def test_dependent_branch_joins_collapsed_stem(self) -> None:
+        """Ha a ráépülő ág ki van bontva, a régebbi merge pedig össze van csukva, a ráépülő ág
+        pontozott vége a régebbi merge pontozott szárába fut be: egy vonal megy tovább."""
+        # Adott: a profil-ág (a login-ág csúcsára épül) kibontva, a login-merge összecsukva
+        self.expand(STACKED)
+        self.assertNotIn("Login űrlap", self.subjects())
+        # Ha a gráf kirajzolódik
+        paths = self.page.evaluate(PATHS)
+        start = self.page.evaluate(ROW_MID, "Indulás")
+        profile = self.page.evaluate(ROW_MID, "Profil oldal")
+        dotted = [p["n"] for p in paths if p["dash"] == "2 2"]
+        # Akkor egyetlen pontozott vonal ér le az Indulásig (a login-merge szára)
+        self.assertEqual(sum(1 for n in dotted if abs(n[-1] - start) < 1), 1, dotted)
+        # És a profil-ág pontozott vége a sora alatt egy sornyira, a szár sávjában véget ér
+        join = [n for n in dotted if abs(n[1] - profile) < 1]
+        self.assertEqual(len(join), 1, dotted)
+        # És a szár még egyenes részén ér véget: a szár a cél előtt egy sornyival (34 px) fordul el
+        self.assertLessEqual(join[0][-1], start - 34 + 0.5, join)
+        # És a profil-ág színét kapja, nem a login-ágét
+        colors = self.page.evaluate("""y => ({
+          join: [...document.querySelectorAll('#lanes path.fold')]
+            .find(p => Math.abs(Number(p.getAttribute('d').match(/-?[\\d.]+/g)[1]) - y) < 1).getAttribute('stroke'),
+          dot: [...document.querySelectorAll('#lanes circle')]
+            .find(c => Math.abs(Number(c.getAttribute('cy')) - y) < 1).getAttribute('fill') })""", profile)
+        self.assertEqual(colors["join"], colors["dot"])
+
+    def test_both_collapsed_join(self) -> None:
+        """Ha mindkét merge össze van csukva, a profil-merge pontozott éle a saját sávjában a
+        login-merge alá fut, és ott a login-merge szárába csatlakozik: látszik, hogy arra épül."""
+        # Adott: mindkét merge összecsukva (alapállapot)
+        paths = self.page.evaluate(PATHS)
+        start = self.page.evaluate(ROW_MID, "Indulás")
+        top, below = (self.page.evaluate(ROW_MID, s) for s in (STACKED, MERGE))
+        dotted = [p["n"] for p in paths if p["dash"] == "2 2"]
+        # Akkor egyetlen pontozott vonal ér le az Indulásig
+        self.assertEqual(sum(1 for n in dotted if abs(n[-1] - start) < 1), 1, dotted)
+        # És a profil-merge éle a login-merge alatt, a szár egyenes részén ér véget
+        own = [n for n in dotted if abs(n[1] - top) < 1]
+        self.assertEqual(len(own), 1, dotted)
+        self.assertGreater(own[0][-1], below)
+        self.assertLessEqual(own[0][-1], start - 34 + 0.5)
+
+    def test_join_under_expanded_merge(self) -> None:
+        """Kibontott login-merge mellett is a login-merge alatt fut be a profil-merge pontozott éle
+        a login-ág sávjába, nem alul, a login-ág csúcsánál."""
+        # Adott: a login-merge kibontva, a profil-merge összecsukva
+        self.expand(MERGE)
+        # Ha a gráf kirajzolódik
+        top, below, tip = (self.page.evaluate(ROW_MID, s) for s in (STACKED, MERGE, "Login űrlap"))
+        fold = [p["n"] for p in self.page.evaluate(PATHS) if p["dash"] == "2 2" and abs(p["n"][1] - top) < 1]
+        # Akkor a pontozott él a login-merge alatt, a csúcs előtt legalább egy sornyival ér véget
+        self.assertEqual(len(fold), 1, fold)
+        self.assertGreater(fold[0][-1], below)
+        self.assertLessEqual(fold[0][-1], tip - 34 + 0.5, (fold, tip))
+
+    def test_dotted_paths_continuous_and_smooth(self) -> None:
+        """A pontozott él egyetlen folytonos útvonal (a szaggatás nem indul újra a fordulónál), és a
+        ráépülő ág csatlakozó íve egyetlen sima S-ív."""
+        # Adott: a profil-ág kibontva, a login-merge összecsukva
+        self.expand(STACKED)
+        profile = self.page.evaluate(ROW_MID, "Profil oldal")
+        ds = self.page.evaluate("""() => [...document.querySelectorAll('#lanes path.fold')].map(p => p.getAttribute('d'))""")
+        # Akkor minden pontozott él egy darab
+        self.assertTrue(all(d.count("M") == 1 for d in ds), ds)
+        # És a csatlakozó ív egyetlen görbe, egyenes szakasz nélkül
+        join = next(d for d in ds if abs(float(d.split()[2]) - profile) < 1)
+        self.assertEqual((join.count("C"), join.count("L")), (1, 0), join)
+
+    # Egy képkocka a mátrixhoz: a sorok közepe és a látható (nem kihalványult) utak.
+    SCENE = """() => ({ start: mid('Indulás'), below: mid("Merge branch 'feat/login'"),
+      top: mid("Merge branch 'feat/profile'"), profile: mid('Profil oldal'),
+      paths: paths().filter(p => p.op > 0.05) })"""
+
+    def test_toggle_matrix(self) -> None:
+        """Bármelyik merge kapcsolásakor, a másik kibontott és összecsukott állapotában, kibontáskor és
+        összecsukáskor is, az animáció minden képkockáján:
+        - legfeljebb egy pontozott vonal ér le a login-ág aljáig (a szár);
+        - a profil-merge és a profil-ág legalsó commitja felől a login-ág sávjába egy-egy vonal fut
+          (a folytonos és a pontozott rétege egy helyen végződik), és az íve nem lapul el, nem fordul
+          vissza;
+        - a profil-merge pontozott éle a login-merge alatt, a szár egyenes részén csatlakozik (a
+          login-merge kapcsolásakor a helyén marad);
+        - az utolsó képkocka a statikus rajz (az animáció után nincs ugrás)."""
+        self.expand(MERGE)
+        login = self.page.evaluate("""y => Number([...document.querySelectorAll('#lanes circle')]
+          .find(c => Math.abs(Number(c.getAttribute('cy')) - y) < 1).getAttribute('cx'))""",
+                                   self.page.evaluate(ROW_MID, "Login űrlap"))
+        for toggle, other in ((MERGE, STACKED), (STACKED, MERGE)):
+            for other_open in (False, True):
+                # Adott: a kapcsolt merge összecsukva, a másik kibontva vagy összecsukva
+                self.page.reload()
+                self.page.wait_for_selector("#rows .row")
+                self.settle()
+                if other_open:
+                    self.expand(other)
+                for opening in (True, False):
+                    case = (toggle, other_open, opening)
+                    # Ha a User a merge-re kattint
+                    frames = [f["v"] for f in self.frames(toggle, [5, 20, 60, 100, 140, 170, 199.9], self.SCENE)]
+                    final = self.page.evaluate(f"() => {{ {LIB} return ({self.SCENE})(); }}")
+                    for f in frames:
+                        dotted = [p for p in f["paths"] if p["dash"] == "2 2"]
+                        # Akkor legfeljebb egy pontozott vonal ér le az Indulásig
+                        self.assertLessEqual(sum(1 for p in dotted if abs(p["n"][-1] - f["start"]) < 1), 1, (case, f))
+                        for y in (f["top"], f["profile"]):
+                            joins = self._joins(f, y, login)
+                            # És a sor felől a login-ág sávjába futó vonalak egy helyen végződnek
+                            self.assertLessEqual(len({round(p["n"][-1]) for p in joins}), 1, (case, y, f))
+                            # És az ív vége nincs a fordulója fölött (nem fordul vissza)
+                            for p in joins:
+                                if p["turn"] is not None:
+                                    self.assertGreaterEqual(p["n"][-1], p["turn"], (case, p))
+                        # És a profil-merge pontozott éle a login-merge alatt, a szár egyenes részén ér véget
+                        for p in dotted:
+                            if abs(p["n"][1] - f["top"]) < 1 and p["n"][-2] == login:
+                                self.assertGreater(p["n"][-1], f["below"], (case, f))
+                                self.assertLessEqual(p["n"][-1], f["start"] - 34 + 0.5, (case, f))
+                                # a login-merge kapcsolásakor a helyén marad: a login-merge mellett
+                                if toggle == MERGE:
+                                    self.assertLessEqual(p["n"][-1], max(f["below"] + 34, f["top"] + 2 * 34) + 0.5, (case, f))
+                    # És az utolsó képkocka csatlakozásai ott végződnek, ahol a statikus rajzéi (a mozgó
+                    # vonal a merge felől indul, a statikus a legalsó commit alól is)
+                    want = {round(p["n"][-1]) for key in ("top", "profile")
+                            for p in self._joins(final, final[key], login) if p["op"] == 1}
+                    got = [p["n"][-1] for key in ("top", "profile") for p in self._joins(frames[-1], frames[-1][key], login)]
+                    for y in want:
+                        self.assertTrue(any(abs(y - g) < 3 for g in got), (case, want, got))
+
+    @staticmethod
+    def _joins(frame: dict, y: float | None, lane: float) -> list[dict]:
+        """A `y` magasságú sorból induló, a login-ág sávjában (`lane`), de nem az Indulásnál végződő utak."""
+        if y is None:
+            return []
+        return [p for p in frame["paths"] if abs(p["n"][1] - y) < 1 and p["n"][-2] == lane and p["n"][0] != lane
+                and abs(p["n"][-1] - frame["start"]) >= 1]
+
+    def test_expand_fades_in_dependent_join(self) -> None:
+        """A ráépülő ág lenyílásakor a legalsó commitjának nincs külön csatlakozó íve: a csatlakozást
+        a merge-ből induló, a helyére csúszó egyetlen vonal rajzolja."""
+        # Adott: mindkét merge összecsukva
+        # Ha a User kibontja a profil-merge-et, és az animáció félúton tart
+        [f] = self.frames(STACKED, [100], """() => {
+          const y = mid('Profil oldal');
+          return paths().filter(p => p.fold && Math.abs(p.n[1] - y) < 1); }""")
+        # Akkor a Profil oldal alól nem indul külön csatlakozó ív
+        self.assertEqual(f["v"], [])
+
+    def test_join_follows_rows(self) -> None:
+        """A helyére csúszó csatlakozás a ráépülő ág legalsó commitjával együtt mozog: az összecsukás
+        elején nem fut előre (a legalsó commit fölé), a végén pedig befut a végső helyére — akkor is,
+        ha a ráépülő ág commitjai között látható sor van (ott a csukott ág legalja is alatta marad)."""
+        measure = """() => { const top = mid("Merge branch 'feat/profile'");
+          return { ends: paths().filter(p => p.fold && Math.abs(p.n[1] - top) < 1).map(p => p.n.at(-1)),
+                   profile: mid('Profil oldal') }; }"""
+        for expanded_login in (True, False):
+            if expanded_login:
+                self.expand(MERGE)
+            self.expand(STACKED)
+            # Ha a User összecsukja a profil-merge-et: az animáció több pontján és a legvégén nézzük
+            res = [f["v"] for f in self.frames(STACKED, [60, 100, 140, 170, 199.9], measure)]
+            top = self.page.evaluate(ROW_MID, STACKED)
+            final = next(p["n"][-1] for p in self.page.evaluate(PATHS) if p["dash"] == "2 2" and abs(p["n"][1] - top) < 1)
+            for r in res:
+                self.assertEqual(len(r["ends"]), 1, r)
+            # Akkor közben a csatlakozás a legalsó committal együtt jár (legfeljebb 15 px-szel előtte)
+            for r in res[:-1]:
+                self.assertGreaterEqual(r["ends"][0], r["profile"] - 15, (expanded_login, r))
+            # És a végén már a végső helyén (nem ugrik az animáció után)
+            self.assertAlmostEqual(res[-1]["ends"][0], final, delta=3, msg=(expanded_login, res[-1], final))
+            self.page.reload()
+            self.page.wait_for_selector("#rows .row")
+            self.settle()
+
+    def test_expand_turns_solid_during_animation(self) -> None:
+        """Összecsukott login-merge mellett a profil-merge kibontásakor a merge-ből induló szakasz a
+        lenyílással együtt vált pontozottból folytonossá, nem csak utána."""
+        # Adott: mindkét merge összecsukva
+        # Ha a User kibontja a profil-merge-et, és az animáció félúton tart
+        [f] = self.frames(STACKED, [100], """() => {
+          const top = mid("Merge branch 'feat/profile'");
+          return paths().filter(p => Math.abs(p.n[1] - top) < 1); }""")
+        # Akkor a merge-ből induló szakaszon a folytonos réteg már részben látszik (sem nem hiányzik,
+        # sem nem teljes): a pontozottból folytonosba váltás a lenyílással együtt halad
+        solid = [p["op"] for p in f["v"] if p["dash"] is None and p["op"] < 1]
+        self.assertTrue(solid and 0 < min(solid) < 1, f)
+
+    def test_dependent_bottom_moves_with_progress(self) -> None:
+        """Kibontott profil-ág mellett a login-merge kibontásakor a profil-ág alja és a login-ág közti
+        ív vége a login-sorok nyílásával együtt halad a csukott helyéről a kibontottra (ugyanannyira,
+        amennyire a sorok kinyíltak), nem ugrik az elején a végére."""
+        self.expand(STACKED)
+
+        def end() -> float:
+            y = self.page.evaluate(ROW_MID, "Profil oldal")
+            return next(p["n"][-1] for p in self.page.evaluate(PATHS) if abs(p["n"][1] - y) < 1 and p["n"][-2] != p["n"][0])
+        # Adott: a csukott és a kibontott állapot íve (statikusan)
+        closed = end()
+        self.expand(MERGE)
+        opened = end()
+        self.expand(MERGE)
+        # Ha a User kibontja a login-merge-et, és az animáció az elején tart
+        [f] = self.frames(MERGE, [25], """() => { const y = mid('Profil oldal');
+          return paths().filter(p => Math.abs(p.n[1] - y) < 1 && p.n.at(-2) !== p.n[0]).map(p => p.n.at(-1)); }""")
+        # Akkor az ív vége a csukott és a kibontott hely között ott van, ahol a sorok haladása tart
+        t = f["progress"]
+        self.assertTrue(f["v"] and 0.05 < t < 0.95, f)
+        want = closed + (opened - closed) * t
+        self.assertTrue(all(abs(y - want) < 1.5 for y in f["v"]), (closed, opened, f, want))
 
 
 class RemoteRefTest(MergeCase):

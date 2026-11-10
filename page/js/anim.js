@@ -1,5 +1,5 @@
 /* Nyílás, csukódás és görgetés animálva. */
-import { drawGraph } from './graph.js';
+import { drawGraph, setFoldFx } from './graph.js';
 
 /* Rövid, lassuló görgetés `delta` px-lel. Ha közben más görget (kerék,
    billentyű), az övé marad. */
@@ -27,7 +27,7 @@ export function glide(el, delta) {
    együtt nyúlik); a `follow` is képkockánként fut. A csukódás a nyílás görbéje
    időben visszafelé: a kettő ugyanaz a mozgás, két irányban. */
 const ANIM_MS = 200;
-const OPEN_EASE = 'cubic-bezier(.2, .7, .3, 1)', CLOSE_EASE = 'cubic-bezier(.7, 0, .8, .3)';
+const OPEN_EASE = 'cubic-bezier(.25, .6, .3, 1)', CLOSE_EASE = 'cubic-bezier(.7, 0, .8, .3)';
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 // A keret (a panelé) is 0-ról nő és oda csukódik: a nyílással együtt ér véget.
 const FLAT = { height: '0px', marginTop: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px',
@@ -70,24 +70,37 @@ export function grow(el, change, settle) {
 
 /* Merge kibontása és összecsukása: a megjelenő sorok 0-ról a saját magasságukra nőnek (`unfoldRows`),
    az eltűnők 0-ra csukódnak, utána `done` (`foldRows`). Együtt mozognak; a gráf képkockánként
-   újrarajzol, így a vonal velük nyúlik és rövidül. */
+   újrarajzol, így a vonal velük nyúlik és rövidül. Csukáskor a felcsukódó ág a haladással együtt
+   halványul (a sorok is, ugyanazzal a görbével), és a merge pontozott éle beúszik; nyitáskor
+   fordítva (`setFoldFx`). */
 const FOLD_MS = 200;
 function rows(els, frames, done) {
   if (!els.length || reducedMotion()) { done?.(); return; }
+  const full = new Map(els.map(el => [el.dataset.sha, el.offsetHeight]));   // a sorok teljes magassága
   const anims = els.map(el => {
     el.style.overflow = 'hidden';
     return el.animate(frames(el), { duration: FOLD_MS, easing: done ? CLOSE_EASE : OPEN_EASE, fill: done ? 'forwards' : 'none' });
   });
-  let frame = requestAnimationFrame(function tick() { drawGraph(); frame = requestAnimationFrame(tick); });
+  const hidden = new Set(els.map(el => el.dataset.sha));
+  setFoldFx({ hidden, full, p: done ? 0 : 1 });   // már az első képkockán az induló állapot
+  drawGraph();
+  let frame = requestAnimationFrame(function tick() {
+    const t = anims[0].effect.getComputedTiming().progress ?? 1;
+    setFoldFx({ hidden, full, p: done ? t : 1 - t });
+    drawGraph();
+    frame = requestAnimationFrame(tick);
+  });
   Promise.allSettled(anims.map(a => a.finished)).then(() => {
     cancelAnimationFrame(frame);
+    setFoldFx(null);
     if (done) done();
     else for (const el of els) el.style.overflow = '';
     drawGraph();
   });
 }
-export const unfoldRows = els => rows(els, el => [FLAT, fullBox(el)]);
-export const foldRows = (els, done) => rows(els, el => [fullBox(el), FLAT], done);
+// A sor a pöttyével együtt (ugyanazzal a görbével) halványul el / úszik be.
+export const unfoldRows = els => rows(els, el => [{ ...FLAT, opacity: 0 }, { ...fullBox(el), opacity: 1 }]);
+export const foldRows = (els, done) => rows(els, el => [{ ...fullBox(el), opacity: 1 }, { ...FLAT, opacity: 0 }], done);
 
 /* A merge gráfoszlopa (`.merge-fold`) a változás előtt: a nyíl bal széle és szöge (a CSS-é: jobbra
    −90°, kibontva felfelé −180°, így a fordulat mindig 90°). */
