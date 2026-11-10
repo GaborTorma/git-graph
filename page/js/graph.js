@@ -282,7 +282,9 @@ function morphJoins(rowIndexBySha, rowY, stems, heightOf) {
     for (let i = a + 1; i < ib; i++) if (foldFx.hidden.has(visible[i].sha)) shrinking += heightOf(visible[i].sha);
     const track = yb - p ** 3 * Math.max(0, yb - shrinking - y1[0]);
     const yS = Math.min(Math.max(track, y1[0]), Math.max(y0[0], y1[0]));
-    const yE = Math.min(yS + lerp(y0[1] - y0[0], y1[1] - y1[0]), Math.max(bend, y1[1]), shown ? ye : Infinity);
+    // Az ív vége: kibontott szárnál legfeljebb a csúcs, összecsukottnál a szár fordulópontja (ott
+    // fordul el a sávjából); sosem a forduló fölött (különben az ív visszakanyarodna).
+    const yE = Math.max(yS, Math.min(yS + lerp(y0[1] - y0[0], y1[1] - y1[0]), shown ? ye : Math.max(bend, y1[1])));
     const upper = xm === xg ? `M ${xm} ${ym} L ${xg} ${yS}` : `${edgePath(xm, ym, xg, ym + ROW_H, true)} L ${xg} ${yS}`;
     const curve = sCurve(xg, yS, xp, yE), d = `${upper} ${curve}`;
     const color = tint(m, laneColor(e.toLane)), line = `d="${d}" fill="none" stroke="${color}" stroke-width="2"`;

@@ -839,6 +839,40 @@ class StackedTest(MergeCase):
         self.assertTrue(solid and 0 < min(solid) < 1, res)
 
 
+    def test_moving_join_curve_never_folds_back(self) -> None:
+        """Kibontott login-merge mellett a helyére csúszó csatlakozás íve sosem fordul vissza és nem
+        lapul el: a vége legalább 10 px-szel a fordulója alatt van (különben szögletes)."""
+        # Adott: mindkét merge kibontva
+        self.expand(MERGE)
+        self.expand(STACKED)
+        # Ha a User összecsukja a profil-merge-et, és az animáció elején / közepén nézzük
+        res = self.row(STACKED).locator(".merge-hit").evaluate("""async el => {
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          const anims = document.getAnimations().filter(a => a.effect?.target?.classList?.contains('row'));
+          anims.forEach(a => a.pause());
+          const out = [];
+          for (const t of [5, 20, 100, 160]) {
+            anims.forEach(a => { a.currentTime = t; });
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+            const row = [...document.querySelectorAll('#rows .row')]
+              .find(r => r.querySelector('.subject').textContent === "Merge branch 'feat/profile'");
+            const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+            const top = rb.top + rb.height / 2 - sb.top;
+            const d = [...document.querySelectorAll('#lanes path')].map(p => p.getAttribute('d'))
+              .find(d => d.includes('C') && Math.abs(Number(d.match(/-?[\\d.]+/g)[1]) - top) < 1
+                && d.lastIndexOf('L') > 0);
+            const n = d.match(/-?[\\d.]+/g).map(Number);
+            const turn = Number(d.slice(d.lastIndexOf('L')).match(/-?[\\d.]+/g)[1]);
+            out.push({ t, turn, end: n.at(-1) });
+          }
+          anims.forEach(a => a.play());
+          return out;
+        }""")
+        # Akkor az ív vége mindig legalább 10 px-szel a forduló alatt van
+        for r in res:
+            self.assertGreaterEqual(r["end"] - r["turn"], 10, r)
+
+
 class RemoteRefTest(MergeCase):
     HISTORY = {"remote": True}
 
