@@ -59,11 +59,22 @@ export function drawGraph() {
   // Az egyenesek előbb, a sávváltó vonalak felül: az elágazás a commit pöttyénél
   // is a saját színével indul, nem takarja el a sáv vonala.
   let out = '', bends = '';
+  // Az összecsukott merge-ek szára: a rejtett 2. szülő sora → a merge sora. Ha egy látható
+  // commit (egy ráépülő, kibontott ág alja) ugyanerre a rejtett commitra épül, a pontozott vége
+  // ebbe a szárba fut be, nem húz külön vonalat (`foldedEdge`, `stemAbove`).
+  const stems = new Map();
+  for (const e of DATA.edges) {
+    if (!e.merge) continue;
+    const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
+    if (a !== undefined && !rowIndexBySha.has(DATA.commits[e.toRow].sha) && hiddenSha(DATA.commits[e.toRow].sha)) {
+      stems.set(e.toRow, Math.min(stems.get(e.toRow) ?? Infinity, a));
+    }
+  }
   for (const e of DATA.edges) {
     const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
     const b = rowIndexBySha.get(DATA.commits[e.toRow].sha);
     if (a !== undefined && b === undefined && hiddenSha(DATA.commits[e.toRow].sha)) {
-      out += foldedEdge(e, a, rowIndexBySha, rowY);
+      out += foldedEdge(e, a, rowIndexBySha, rowY, null, 1, stems);
       continue;
     }
     if (a === undefined || b === undefined) continue;   // szűrve
@@ -161,8 +172,17 @@ export function drawGraph() {
    látható sor), nincs él; az első szülő éle mindig megvan, különben a lánc elszakadna. `a`: a
    kiinduló sor; a sorindex és a sor közepe a `drawGraph`-é. Összecsukás közben a `skip` sorai még
    a listában vannak, de már nem számítanak; az él `opacity` erősséggel látszik. */
-function foldedEdge(e, a, rowIndexBySha, rowY, skip = null, opacity = 1) {
+function foldedEdge(e, a, rowIndexBySha, rowY, skip = null, opacity = 1, stems = null) {
   const from = DATA.commits[e.fromRow], to = DATA.commits[e.toRow];
+  // Egy fölötte álló összecsukott merge szára ugyanerre a rejtett commitra fut: ide csak egy sornyi
+  // pontozott vég kell, a szár sávjába fordulva — onnan a szár viszi tovább.
+  const stem = !e.merge && stems?.get(e.toRow);
+  if (stem !== undefined && stem !== false && stem < a) {
+    const x1 = laneX(e.fromLane), xv = laneX(e.toLane), y1 = rowY(a);
+    const color = tint(from, laneColor(e.toLane));
+    return `<path class="fold" d="${edgePath(x1, y1, xv, y1 + ROW_H, false)}" fill="none" stroke="${color}"`
+      + ` stroke-width="2" stroke-dasharray="2 2"${fadeAttr(opacity)}/>`;
+  }
   const b = rowIndexBySha.get(skip ? belowSkipping(to.sha, skip, rowIndexBySha) : visibleBelow(to.sha));
   let next = a + 1;
   while (skip && next < (b ?? 0) && skip.has(visible[next].sha)) next++;

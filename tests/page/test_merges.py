@@ -12,10 +12,11 @@ from harness import DAY, T0, PageTestCase, git_in
 
 MERGE = "Merge branch 'feat/login'"
 INNER = "Merge branch 'feat/helper' into feat/login"
+STACKED = "Merge branch 'feat/profile'"
 
 
 def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner: bool = False,
-                  adjacent: bool = False, fork: bool = False, start_day: int = 0) -> None:
+                  adjacent: bool = False, fork: bool = False, stacked: bool = False, start_day: int = 0) -> None:
     """A fixture-történet helyett: a `main`-en „Indulás”, „README javítás” és a `feat/login`
     merge-e; a beolvasztott ág („Login váz”, „Login űrlap”) branche törölve. Napok: az „Indulás” a
     0., a login-commitok az 1., a README és a merge a 2. napon.
@@ -24,7 +25,8 @@ def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner:
     login-ágba egy törölt segédág („Segédfüggvény”) merge-e; `adjacent`: a merge 2. szülője
     közvetlenül az „Indulás”-ból ágazik, más commit nélkül a `main`-en; `fork`: a „Login váz”-ból
     leágazó, megmaradt `side` branch egy „Mellékág” committal; `start_day`: az „Indulás” napja
-    (1-nél a login-commitokkal egy napon, köztük nincs napfejléc)."""
+    (1-nél a login-commitokkal egy napon, köztük nincs napfejléc); `stacked`: a login-ág csúcsára
+    épülő `feat/profile` („Profil oldal”, az 1. napon), külön merge-dzsel a login merge-e után (3. nap)."""
     shutil.rmtree(repo)
     repo.mkdir()
     n = 0
@@ -67,10 +69,16 @@ def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner:
     if remote:
         git("remote", "add", "origin", "https://example.invalid/fixture.git", day=1)
         git("update-ref", "refs/remotes/origin/feat/login", "HEAD", day=1)
+    if stacked:
+        git("switch", "-q", "-c", "feat/profile", day=1)
+        commit("Profil oldal", 1)
     git("switch", "-q", "main", day=2)
     commit("README javítás", 2)
     git("merge", "-q", "--no-ff", "-m", MERGE, "feat/login", day=2)
     git("branch", "-q", "-D", "feat/login", day=2)
+    if stacked:
+        git("merge", "-q", "--no-ff", "-m", STACKED, "feat/profile", day=3)
+        git("branch", "-q", "-D", "feat/profile", day=3)
 
 
 # A gráf élei: a kezdő- és végpont Y-ja (az SVG koordinátáiban) és a szaggatás.
@@ -473,6 +481,28 @@ class CollapseTest(MergeCase):
         merge, start = self.page.evaluate(ROW_MID, MERGE), self.page.evaluate(ROW_MID, "Indulás")
         dashed = [e for e in edges if abs(e["y1"] - merge) < 1 and abs(e["y2"] - start) < 1 and e["dash"]]
         self.assertEqual(len(dashed), 1)
+
+
+class StackedTest(MergeCase):
+    HISTORY = {"stacked": True}
+
+    def test_dependent_branch_joins_collapsed_stem(self) -> None:
+        """Ha a ráépülő ág ki van bontva, a régebbi merge pedig össze van csukva, a ráépülő ág
+        pontozott vége a régebbi merge pontozott szárába fut be: egy vonal megy tovább."""
+        # Adott: a profil-ág (a login-ág csúcsára épül) kibontva, a login-merge összecsukva
+        self.expand(STACKED)
+        self.assertNotIn("Login űrlap", self.subjects())
+        # Ha a gráf kirajzolódik
+        paths = self.page.evaluate(PATHS)
+        start = self.page.evaluate(ROW_MID, "Indulás")
+        profile = self.page.evaluate(ROW_MID, "Profil oldal")
+        dotted = [p["n"] for p in paths if p["dash"] == "2 2"]
+        # Akkor egyetlen pontozott vonal ér le az Indulásig (a login-merge szára)
+        self.assertEqual(sum(1 for n in dotted if abs(n[-1] - start) < 1), 1, dotted)
+        # És a profil-ág pontozott vége a sora alatt egy sornyira, a szár sávjában véget ér
+        join = [n for n in dotted if abs(n[1] - profile) < 1]
+        self.assertEqual(len(join), 1, dotted)
+        self.assertLess(join[0][-1], start - 1)
 
 
 class RemoteRefTest(MergeCase):
