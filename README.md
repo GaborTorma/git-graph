@@ -5,7 +5,8 @@ appban.
 A gráf a VS Code [`mhutchie.git-graph`](https://marketplace.visualstudio.com/items?itemName=mhutchie.git-graph)
 mintáját követi, a megjelenés a Claude appét: az app design-systemje (CDS, a fizzy-lake
 téma: semleges szürkék, kék akcentus, az app ikonjai, Anthropic Sans és Mono), Claude Light /
-Dark kódszínek, napokra bontott egysoros lista. A soron kattintva lefelé nyílik a
+Dark kódszínek, napokra bontott egysoros lista, a szerzői idő szerint (a cherry-pickelt és
+rebase-elt commit is az eredeti helyén). A soron kattintva lefelé nyílik a
 commit: szerző GitHub-avatarral, szülő(k), GitHub-link, fájlok és
 szintaxisszínezett diff. A lenyitott commit kerek kártya: a sor hover-színéből nyílik (a
 közepéről halványul, közben megjelenik a kerete), csukáskor a lenyitott fájljai vele együtt

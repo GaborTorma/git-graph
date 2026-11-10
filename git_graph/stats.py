@@ -16,7 +16,7 @@ def collect_stats(limit: int | None) -> dict[str, dict]:
     a `-u`-val félretett követetlen fájljai (`untracked_stashed`) új fájlként.
     """
     opts = ["--numstat", "--summary", "--diff-merges=first-parent", f"--pretty=format:{RS}%H %P"]
-    args = ["log", *ALL_BUT_STASH, "--date-order", *opts]
+    args = ["log", *ALL_BUT_STASH, "--author-date-order", *opts]   # a `graph.collect_commits` sorrendje
     if limit:
         args.append(f"-{limit}")
     stashes = stash_list(*opts)
