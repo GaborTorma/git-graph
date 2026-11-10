@@ -76,16 +76,17 @@ export function grow(el, change, settle) {
 const FOLD_MS = 200;
 function rows(els, frames, done) {
   if (!els.length || reducedMotion()) { done?.(); return; }
+  const full = new Map(els.map(el => [el.dataset.sha, el.offsetHeight]));   // a sorok teljes magassága
   const anims = els.map(el => {
     el.style.overflow = 'hidden';
     return el.animate(frames(el), { duration: FOLD_MS, easing: done ? CLOSE_EASE : OPEN_EASE, fill: done ? 'forwards' : 'none' });
   });
   const hidden = new Set(els.map(el => el.dataset.sha));
-  setFoldFx({ hidden, p: done ? 0 : 1 });   // már az első képkockán az induló állapot
+  setFoldFx({ hidden, full, p: done ? 0 : 1 });   // már az első képkockán az induló állapot
   drawGraph();
   let frame = requestAnimationFrame(function tick() {
     const t = anims[0].effect.getComputedTiming().progress ?? 1;
-    setFoldFx({ hidden, p: done ? t : 1 - t });
+    setFoldFx({ hidden, full, p: done ? t : 1 - t });
     drawGraph();
     frame = requestAnimationFrame(tick);
   });

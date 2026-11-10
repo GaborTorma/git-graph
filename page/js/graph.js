@@ -14,10 +14,10 @@ const EDGE_HUG = DOT_R + 1;   // a sávváltó vonal ennyit fut a commit sávjá
 const STUB_GAP = 11;   // több worktree-csonk pöttyei közti függőleges távolság
 
 let graphW = 72;
-/* Összecsukás és kibontás közben (`foldRows`, `unfoldRows`): az eltűnő / megjelenő sorok, és a
-   pontozott él láthatósága (`p`: csukáskor 0 → 1, nyitáskor 1 → 0). A sorok élei és pöttyei
-   1 − p erősséggel látszanak: a végén nincs ugrás. */
-let foldFx = /** @type {{ hidden: Set<string>, p: number } | null} */ (null);
+/* Összecsukás és kibontás közben (`foldRows`, `unfoldRows`): az eltűnő / megjelenő sorok, a teljes
+   magasságuk (`full`), és a pontozott él láthatósága (`p`: csukáskor 0 → 1, nyitáskor 1 → 0). A sorok
+   élei és pöttyei 1 − p erősséggel látszanak: a végén nincs ugrás. */
+let foldFx = /** @type {{ hidden: Set<string>, full: Map<string, number>, p: number } | null} */ (null);
 export function setFoldFx(fx) { foldFx = fx; }
 const fadeAttr = op => (op < 1 ? ` opacity="${+op.toFixed(3)}"` : '');
 /* A gráf-oszlop szélessége a sávok számából (a csonkokéval együtt); a CSS is ezt
@@ -41,11 +41,13 @@ export function laneX(l) { return X0 + l * LANE_W; }
    Y, az SVG túllóghat) fut le a HEAD-ig. */
 const WRAP_TOP = 4;                   // a .graph-wrap felső margója
 /* Egy rajzolás közös adatai (`drawGraph` tölti): a látható sorok indexe (`idx`), a sor közepe
-   (`rowY`) és magassága (`height`), a merge-szárak (`stems`: a 2. szülő sora a teljes listában →
-   a legfelső merge sora a láthatók közt), és hogy egy commit nem látszik-e (`gone`: nincs a
-   listában, vagy épp felcsukódik / lenyílik). */
-let g = /** @type {{ idx: Map<string, number>, rowY: (i: number) => number, height: (sha: string) => number,
-  stems: Map<number, number>, gone: (sha: string) => boolean }} */ (/** @type {unknown} */ (null));
+   (`rowY`), animáció közben a kibontott (`open`) és a csukott (`closed`) állapotban is, a
+   merge-szárak (`stems`: a 2. szülő sora a teljes listában → a legfelső merge sora a láthatók
+   közt), és hogy egy commit nem látszik-e (`gone`: nincs a listában, vagy épp felcsukódik /
+   lenyílik). */
+let g = /** @type {{ idx: Map<string, number>, rowY: (i: number) => number, open: (i: number) => number,
+  closed: (i: number) => number, stems: Map<number, number>, gone: (sha: string) => boolean }} */
+  (/** @type {unknown} */ (null));
 
 export function drawGraph() {
   drawPending();
@@ -72,8 +74,8 @@ export function drawGraph() {
     if (a === undefined || foldFx?.hidden.has(DATA.commits[e.fromRow].sha)) continue;
     stems.set(e.toRow, Math.min(stems.get(e.toRow) ?? Infinity, a));
   }
-  g = { idx, rowY, stems, height: sha => heightBySha.get(sha) || 0,
-    gone: sha => Boolean(foldFx?.hidden.has(sha)) || !idx.has(sha) };
+  g = { idx, rowY, open: rowY, closed: rowY, stems, gone: sha => Boolean(foldFx?.hidden.has(sha)) || !idx.has(sha) };
+  if (foldFx) foldStates(heightBySha);
 
   // Az egyenesek előbb, a sávváltó vonalak felül: az elágazás a commit pöttyénél
   // is a saját színével indul, nem takarja el a sáv vonala.
@@ -213,27 +215,40 @@ function foldedEdge(e, a, anim, opacity) {
   return dotted(d, tint(from, laneColor(e.toLane)), opacity);
 }
 
+/* Animáció közben a sorok közepe a két végállapotban: kibontva (a felcsukódó / lenyíló sorok teljes
+   magasságukkal) és csukva (nélkülük; a rejtett sor a helye tetejére kerül). A sorok magassága a
+   haladással arányos, így a pillanatnyi hely a kettő közt van: `rowY = open + (closed − open)·p`. */
+function foldStates(heightBySha) {
+  const open = [], closed = [];
+  let now = 0, full = 0;                    // a fölötte lévő rejtett sorok pillanatnyi és teljes magassága
+  visible.forEach((c, i) => {
+    const y = g.rowY(i);
+    if (!foldFx.hidden.has(c.sha)) { open.push(y + full - now); closed.push(y - now); return; }
+    const h = heightBySha.get(c.sha) || 0, top = y - h / 2, f = foldFx.full.get(c.sha) ?? h;
+    open.push(top + full - now + f / 2);
+    closed.push(top - now);
+    now += h; full += f;
+  });
+  g.open = i => open[i];
+  g.closed = i => closed[i];
+}
+
 /* A szár fordulópontja: egy sornyival a cél (`yEnd`) fölött, de legalább egy sornyival a szár
-   merge-e (`stemRow`) alatt — itt fordul ki a szár a rejtett ág sávjából. */
-const stemBend = (stemRow, yEnd) => Math.max(g.rowY(stemRow) + ROW_H, yEnd - ROW_H);
+   merge-e (`stemRow`) alatt — itt fordul ki a szár a rejtett ág sávjából. `Y`: a sorok közepe. */
+const stemBend = (stemRow, yEnd, Y) => Math.max(Y(stemRow) + ROW_H, yEnd - ROW_H);
 /* Ahol egy lentebbi merge ága (merge-e: `y1`) befut a szárba: a szár merge-e és a saját merge-e
    alatt, de legkésőbb a szár fordulópontjában (`bend`). */
-const stemJoin = (stemRow, y1, bend) => Math.min(Math.max(g.rowY(stemRow) + ROW_H, y1 + 2 * ROW_H), bend);
-/* A felcsukódó / lenyíló sorok (`foldFx`) magassága a `lo` és a `hi` látható sor között: ennyivel
-   kerül feljebb a `hi` sor, mire a sorok összecsukódnak. */
-function foldingHeight(lo, hi) {
-  let h = 0;
-  for (let i = lo + 1; i < hi; i++) if (foldFx.hidden.has(visible[i].sha)) h += g.height(visible[i].sha);
-  return h;
-}
+const stemJoin = (stemRow, y1, bend, Y) => Math.min(Math.max(Y(stemRow) + ROW_H, y1 + 2 * ROW_H), bend);
 
 /* Egy másik merge szárába befutó rövid pontozott él, ha az él rejtett lánca (az első szülők
    mentén) olyan commiton át vezet, amelyre egy másik merge szára fut. A szár a merge alatt fordul
    a rejtett ág sávjába, és a cél előtt egy sornyival fordul el onnan: a befutás e két pont között
    van. A szár a forrás fölött (egy ráépülő, kibontott ág alja): egy sornyi ív a szár sávjába. A
    szár a forrás alatt (a ráépülő ág merge-e is összecsukva): a saját rejtett sávjában le a szár
-   merge-e alá, ott be a szárba. Ha nincs ilyen szár: null. */
-function joinStem(e, a, b) {
+   merge-e alá, ott be a szárba. `Y`: a sorok közepe (animáció közben a két végállapot egyike is).
+   Az eredmény az útvonal, és a szár sávjába forduló ív eleje (`turn`) és vége (`end`); ha nincs
+   ilyen szár: null. */
+function joinStem(e, a, b, Y = g.rowY) {
   if (!g.stems.size) return null;
   // A rejtett lánc első olyan commitja, amelyre egy másik merge szára fut; ha a lánc egy látható
   // commiton ér véget, az is lehet szár-cél (kibontott merge 2. szülője).
@@ -247,28 +262,32 @@ function joinStem(e, a, b) {
   if (stemRow === undefined) return null;
   const hc = DATA.commits[hRow], tip = g.idx.get(hc.sha);
   const end = tip !== undefined && !g.gone(hc.sha) ? tip : b;
-  const x1 = laneX(e.fromLane), xs = laneX(hc.lane), y1 = g.rowY(a);
-  const bend = stemBend(stemRow, g.rowY(end));
+  const x1 = laneX(e.fromLane), xs = laneX(hc.lane), y1 = Y(a);
+  const bend = stemBend(stemRow, Y(end), Y);
   // Az ív annak az ágnak a színe, amelyikből jön: a commit alól a commit sávjáé, a merge-ből a
   // rejtett ágáé.
   const color = tint(DATA.commits[e.fromRow], laneColor(stemRow < a ? e.fromLane : e.toLane));
   if (stemRow < a) {
     if (bend <= y1 + 4) return null;
-    return { color, d: `M ${x1} ${y1} ${sCurve(x1, y1, xs, Math.min(y1 + ROW_H, bend))}` };
+    const end = Math.min(y1 + ROW_H, bend);
+    return { color, turn: y1, end, d: `M ${x1} ${y1} ${sCurve(x1, y1, xs, end)}` };
   }
-  const xo = laneX(e.toLane), yJoin = stemJoin(stemRow, y1, bend);
+  const xo = laneX(e.toLane), yJoin = stemJoin(stemRow, y1, bend, Y);
   if (yJoin <= y1 + ROW_H) return null;
   const yTurn = Math.max(y1 + ROW_H, yJoin - ROW_H);     // a rejtett sávjában eddig egyenesen
-  return { color, d: x1 === xo ? `M ${x1} ${y1} L ${x1} ${yTurn} ${sCurve(x1, yTurn, xs, yJoin)}`
+  return { color, turn: yTurn, end: yJoin, d: x1 === xo ? `M ${x1} ${y1} L ${x1} ${yTurn} ${sCurve(x1, yTurn, xs, yJoin)}`
     : `${edgePath(x1, y1, xo, y1 + ROW_H, true)} L ${xo} ${yTurn} ${sCurve(xo, yTurn, xs, yJoin)}` };
 }
 
-/* Összecsukás / kibontás közben: ha a csukódó / nyíló ág (`foldFx.hidden`) egy kibontott másik
-   merge szárára épül (az ág legalsó commitjának szülője annak a merge-nek a látható 2. szülője),
-   a csatlakozás egyetlen vonal, amely a helyére csúszik: a fordulója a kibontott helyről (a csúcs
-   fölött) a csukott helyre (a másik merge alatt) megy a haladással (`foldFx.p`), és ugyanazon az
-   útvonalon a folytonos rajzolat halványul, a pontozott erősödik. Kulcs: a merge éle; `skip`: az
-   ág legalsó commitjának éle, ezt a vonal helyettesíti. */
+/* Összecsukás / kibontás közben: ha a csukódó / nyíló ág (`foldFx.hidden`) egy másik merge szárára
+   épül (az ág legalsó commitjának szülője annak a merge-nek a 2. szülője), a csatlakozás egyetlen
+   vonal, amely a helyére csúszik. A két végállapota a statikus rajz: kibontva az ág legalsó
+   commitjának éle (a csúcsba vagy a szárba), csukva a merge pontozott éle a szárba. A forduló a
+   legalsó committal együtt mozog, és a haladás köbével fut be a csukott helyére (eleinte a sorokkal
+   megy, a végén ér célba); az ív hossza a haladással vált. Kibontott szárnál az egész vonal
+   folytonosból pontozottá vált; összecsukottnál a pontozott végig látszik, és a merge-ből induló
+   szakaszán egy folytonos réteg halványul (kibontva ez takarja). Kulcs: a merge éle; `skip`: az ág
+   legalsó commitjának éle, ezt a vonal helyettesíti. */
 function morphJoins() {
   const res = new Map();
   for (const e of DATA.edges) {
@@ -276,37 +295,29 @@ function morphJoins() {
     const m = DATA.commits[e.fromRow], a = g.idx.get(m.sha);
     if (a === undefined || foldFx.hidden.has(m.sha) || !foldFx.hidden.has(DATA.commits[e.toRow].sha)) continue;
     const { prev, c } = walkDown(DATA.commits[e.toRow].sha, sha => foldFx.hidden.has(sha));
-    // A másik merge kibontva: a szár célja a látható csúcs (`tip`), a kibontott csatlakozás a csúcs
-    // fölött fordul (folytonos). Összecsukva: a szár a csúcs alatti első látható commitig fut, a
-    // kibontott csatlakozás a legalsó commit alól egy sornyi pontozott ív — a vonal végig pontozott.
     const stemRow = c && g.stems.get(rowOfSha().get(c.sha));
     if (!prev || !c || stemRow === undefined || stemRow <= a) continue;
+    // a szár célja: kibontva a látható csúcs, összecsukva az alatta lévő első látható commit
     const tip = g.idx.get(c.sha), shown = tip !== undefined;
-    const end = shown ? tip : g.idx.get(walkDown(c.sha, g.gone).c?.sha);
-    if (end === undefined) continue;
+    const b = shown ? tip : g.idx.get(walkDown(c.sha, g.gone).c?.sha);
+    if (b === undefined) continue;
     const skip = DATA.edges.find(x => !x.merge && DATA.commits[x.fromRow] === prev && DATA.commits[x.toRow] === c);
-    const p = foldFx.p, lerp = (u, v) => u + (v - u) * p;
-    const xm = laneX(e.fromLane), xg = laneX(e.toLane), xp = laneX(c.lane);
-    const ib = g.idx.get(prev.sha), ym = g.rowY(a), yb = g.rowY(ib), ye = g.rowY(end);
-    const bend = stemBend(stemRow, ye), yJoin = stemJoin(stemRow, ym, bend);
-    // A forduló a legalsó commit pillanatnyi helyét követi (a sorokkal együtt mozog). Ahol az a
-    // sorok csukott állapotában is a csukott forduló alatt marad (köztük látható sorok), a
-    // különbséget a haladás köbével vonjuk le: eleinte a sorokkal megy, a végén befut a helyére.
-    // A kibontott és a csukott helye közé szorítva; az ív hossza a kettő között a haladással vált.
-    const y0 = shown ? [Math.max(ye - ROW_H, yb), ye] : [yb, Math.min(yb + ROW_H, bend)];
-    const y1 = [Math.max(ym + ROW_H, yJoin - ROW_H), yJoin];
-    const shrinking = g.height(prev.sha) / 2 + foldingHeight(a, ib);   // ennyivel kerül még feljebb a legalsó commit
-    const track = yb - p ** 3 * Math.max(0, yb - shrinking - y1[0]);
-    const yS = Math.min(Math.max(track, y1[0]), Math.max(y0[0], y1[0]));
-    // Az ív vége: kibontott szárnál legfeljebb a csúcs, összecsukottnál a szár fordulópontja (ott
-    // fordul el a sávjából); sosem a forduló fölött (különben az ív visszakanyarodna).
-    const yE = Math.max(yS, Math.min(yS + lerp(y0[1] - y0[0], y1[1] - y1[0]), shown ? ye : Math.max(bend, y1[1])));
+    const ib = g.idx.get(prev.sha), O = g.open;
+    const open = shown ? { turn: Math.max(O(tip) - ROW_H, O(ib)), end: O(tip) } : joinStem(skip, ib, b, O);
+    const closed = joinStem(e, a, b, g.closed);
+    if (!open || !closed) continue;
+    // a forduló a legalsó committal mozog; ahová az a csukott állapotban kerülne, és a csukott
+    // forduló közti különbséget a haladás köbével vonjuk le
+    const p = foldFx.p, rows = g.rowY(ib) - O(ib), settled = open.turn + g.closed(ib) - O(ib);
+    const yS = open.turn + rows + (closed.turn - settled) * p ** 3;
+    const len = open.end - open.turn + (closed.end - closed.turn - (open.end - open.turn)) * p;
+    // Az ív vége kibontott szárnál legfeljebb a csúcs, összecsukottnál a szár pillanatnyi
+    // fordulópontja (ott fordul el a sávjából); sosem a forduló fölött (nem kanyarodik vissza).
+    const cap = shown ? g.rowY(tip) : Math.max(stemBend(stemRow, g.rowY(b), g.rowY), closed.end);
+    const yE = Math.max(yS, Math.min(yS + len, cap));
+    const xm = laneX(e.fromLane), xg = laneX(e.toLane), ym = g.rowY(a);
     const upper = xm === xg ? `M ${xm} ${ym} L ${xg} ${yS}` : `${edgePath(xm, ym, xg, ym + ROW_H, true)} L ${xg} ${yS}`;
-    const d = `${upper} ${sCurve(xg, yS, xp, yE)}`, color = tint(m, laneColor(e.toLane));
-    // Kibontott szárnál az egész vonal folytonosból pontozottá vált. Összecsukott szárnál a
-    // csatlakozó ív mindkét végállapotban pontozott: a pontozott vonal végig teljes erővel látszik,
-    // a merge-ből induló szakaszán pedig egy folytonos réteg a haladással jelenik meg / halványul
-    // (kibontva ez takarja: folytonos).
+    const d = `${upper} ${sCurve(xg, yS, laneX(c.lane), yE)}`, color = tint(m, laneColor(e.toLane));
     res.set(e, { skip, path: shown ? crossfade(d, color, p) : dotted(d, color) + solid(upper, color, 1 - p) });
   }
   return res;
@@ -314,20 +325,18 @@ function morphJoins() {
 
 /* Kibontott ráépülő ág legalsó commitja, miközben a másik merge (amelynek a csúcsára épül)
    összecsukódik / kinyílik: egyetlen vonal a commitból a másik ág sávjába. A vége a haladással
-   megy a kibontott helyéről (a másik ág csúcsa) a csukott helyére (egy sornyi ív a szárba), a
-   másik ág sorainak ütemében; közben a folytonos halványul, a pontozott erősödik. */
+   megy a kibontott helyéről (a másik ág csúcsa) a csukott helyére (a statikus rajz íve a szárba);
+   közben a folytonos halványul, a pontozott erősödik. */
 function dependentBottom(e, a, b) {
   const stem = g.stems.get(e.toRow);
   if (stem === undefined || stem >= a) return '';
   const x1 = laneX(e.fromLane), x2 = laneX(e.toLane), y1 = g.rowY(a);
-  // a csukott vége, mint a statikus rajzé (`joinStem`): egy sornyi, legfeljebb a szár fordulópontjáig;
-  // a cél csukott helye: a pillanatnyi, a még nyitott rejtett sorok magassága nélkül
-  const target = g.idx.get(walkDown(DATA.commits[e.toRow].sha, g.gone).c?.sha);
-  const bend = target === undefined ? Infinity : stemBend(stem, g.rowY(target) - foldingHeight(a, target));
-  const p = foldFx.p, open = Math.max(g.rowY(b), y1 + ROW_H), closed = Math.max(y1 + 4, Math.min(y1 + ROW_H, bend));
-  const yEnd = open + (closed - open) * p, turn = Math.max(yEnd - ROW_H, y1);
+  const bc = g.idx.get(walkDown(DATA.commits[e.toRow].sha, g.gone).c?.sha);
+  const closed = bc === undefined ? { end: y1 + ROW_H } : joinStem(e, a, bc, g.closed) ?? { end: y1 + 4 };
+  const open = Math.max(g.open(b), g.open(a) + ROW_H);
+  const yEnd = open + (closed.end - open) * foldFx.p, turn = Math.max(yEnd - ROW_H, y1);
   const d = `M ${x1} ${y1} L ${x1} ${turn} ${sCurve(x1, turn, x2, yEnd)}`;
-  return crossfade(d, tint(DATA.commits[e.fromRow], laneColor(e.fromLane)), p);
+  return crossfade(d, tint(DATA.commits[e.fromRow], laneColor(e.fromLane)), foldFx.p);
 }
 
 /* Egy útvonal folytatása: a kezdő `M` helyett `L` (ugyanoda), így a szaggatás nem indul újra. */
