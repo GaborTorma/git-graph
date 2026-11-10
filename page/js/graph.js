@@ -71,9 +71,15 @@ export function drawGraph() {
     if (a === undefined || foldFx?.hidden.has(DATA.commits[e.fromRow].sha)) continue;
     stems.set(e.toRow, Math.min(stems.get(e.toRow) ?? Infinity, a));
   }
+  // Animáció közben a kibontott másik merge szárára épülő ág csatlakozása egyetlen, a helyére csúszó
+  // vonal (`morphJoins`): a merge éle és az ág legalsó commitjának éle helyett.
+  const morphs = foldFx ? morphJoins(rowIndexBySha, rowY, stems) : new Map();
+  const morphed = new Set([...morphs.values()].map(m => m.skip));
   for (const e of DATA.edges) {
     const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
     const b = rowIndexBySha.get(DATA.commits[e.toRow].sha);
+    if (morphed.has(e)) continue;
+    if (morphs.has(e)) { out += morphs.get(e).path; continue; }
     if (a !== undefined && b === undefined && hiddenSha(DATA.commits[e.toRow].sha)) {
       // a lenyíló / felcsukódó ág sorából induló pontozott él is a sorokkal együtt halványul
       const op = foldFx?.hidden.has(DATA.commits[e.fromRow].sha) ? 1 - foldFx.p : 1;
@@ -235,6 +241,37 @@ function joinStem(e, a, b, rowIndexBySha, rowY, skip, stems, from) {
       : `${edgePath(x1, y1, xo, y1 + ROW_H, true)} L ${xo} ${yTurn} ${sCurve(xo, yTurn, xs, yJoin)}`;
   }
   return `<path class="fold" d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="2 2"`;
+}
+
+/* Összecsukás / kibontás közben: ha a csukódó / nyíló ág (`foldFx.hidden`) egy kibontott másik
+   merge szárára épül (az ág legalsó commitjának szülője annak a merge-nek a látható 2. szülője),
+   a csatlakozás egyetlen vonal, amely a helyére csúszik: a fordulója a kibontott helyről (a csúcs
+   fölött) a csukott helyre (a másik merge alatt) megy a haladással (`foldFx.p`), és ugyanazon az
+   útvonalon a folytonos rajzolat halványul, a pontozott erősödik. Kulcs: a merge éle; `skip`: az
+   ág legalsó commitjának éle, ezt a vonal helyettesíti. */
+function morphJoins(rowIndexBySha, rowY, stems) {
+  const res = new Map();
+  for (const e of DATA.edges) {
+    if (!e.merge) continue;
+    const m = DATA.commits[e.fromRow], a = rowIndexBySha.get(m.sha);
+    if (a === undefined || foldFx.hidden.has(m.sha) || !foldFx.hidden.has(DATA.commits[e.toRow].sha)) continue;
+    let prev = null, c = DATA.commits[e.toRow];
+    while (c && foldFx.hidden.has(c.sha)) { prev = c; c = commitBySha(c.parents[0]); }
+    const tip = c && rowIndexBySha.get(c.sha), stemRow = c && stems.get(rowOfSha().get(c.sha));
+    if (!prev || tip === undefined || stemRow === undefined || stemRow <= a) continue;
+    const skip = DATA.edges.find(x => !x.merge && DATA.commits[x.fromRow] === prev && DATA.commits[x.toRow] === c);
+    const p = foldFx.p, lerp = (u, v) => u + (v - u) * p;
+    const xm = laneX(e.fromLane), xg = laneX(e.toLane), xp = laneX(c.lane);
+    const ym = rowY(a), yb = rowY(rowIndexBySha.get(prev.sha)), yt = rowY(tip);
+    const bend = Math.max(rowY(stemRow) + ROW_H, yt - ROW_H);
+    const yJoin = Math.min(Math.max(rowY(stemRow) + ROW_H, ym + 2 * ROW_H), bend);
+    const yS = lerp(Math.max(yt - ROW_H, yb), Math.max(ym + ROW_H, yJoin - ROW_H)), yE = lerp(yt, yJoin);
+    const d = xm === xg ? `M ${xm} ${ym} L ${xg} ${yS} ${sCurve(xg, yS, xp, yE)}`
+      : `${edgePath(xm, ym, xg, ym + ROW_H, true)} L ${xg} ${yS} ${sCurve(xg, yS, xp, yE)}`;
+    const color = tint(m, laneColor(e.toLane)), line = `d="${d}" fill="none" stroke="${color}" stroke-width="2"`;
+    res.set(e, { skip, path: `<path ${line}${fadeAttr(1 - p)}/><path class="fold" ${line} stroke-dasharray="2 2"${fadeAttr(p)}/>` });
+  }
+  return res;
 }
 
 /* Egy útvonal folytatása: a kezdő `M` helyett `L` (ugyanoda), így a szaggatás nem indul újra. */

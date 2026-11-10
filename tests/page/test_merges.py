@@ -693,6 +693,42 @@ class StackedTest(MergeCase):
         self.assertLess(ops[0], 1)
 
 
+    def test_join_moves_into_place(self) -> None:
+        """Kibontott login-merge mellett a profil-merge összecsukásakor (és kibontásakor) a csatlakozás
+        egyetlen vonal, amely a helyére csúszik: a vége a login-ág csúcsa fölötti helyről a login-merge
+        alatti helyre megy, nem két külön vonal halványul át."""
+        # Adott: mindkét merge kibontva
+        self.expand(MERGE)
+        self.expand(STACKED)
+        tip = self.page.evaluate(ROW_MID, "Login űrlap")
+        lane = self.page.evaluate("""y => Number([...document.querySelectorAll('#lanes circle')]
+          .find(c => Math.abs(Number(c.getAttribute('cy')) - y) < 1).getAttribute('cx'))""", tip)
+        for closing in (True, False):
+            # Ha a User a profil-merge-re kattint, és az animáció félúton tart
+            res = self.row(STACKED).locator(".merge-hit").evaluate("""async el => {
+              el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+              const anims = document.getAnimations().filter(a => a.effect?.target?.classList?.contains('row'));
+              anims.forEach(a => { a.pause(); a.currentTime = 100; });
+              await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+              const below = (() => { const row = [...document.querySelectorAll('#rows .row')]
+                .find(r => r.querySelector('.subject').textContent === "Merge branch 'feat/login'");
+                const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+                return rb.top + rb.height / 2 - sb.top; })();
+              const ends = [...document.querySelectorAll('#lanes path')].map(p => {
+                const n = p.getAttribute('d').match(/-?[\\d.]+/g).map(Number);
+                return { x: n.at(-2), y: n.at(-1), dash: p.getAttribute('stroke-dasharray'), op: Number(p.getAttribute('opacity') ?? 1) };
+              });
+              anims.forEach(a => a.play());
+              return { below, ends };
+            }""")
+            # Akkor a login-ág sávjába futó csatlakozások (folytonos és pontozott) egy helyen végződnek,
+            # a login-merge alatti és a csúcs fölötti hely között
+            joins = [e for e in res["ends"] if e["x"] == lane and res["below"] + 34 - 1 < e["y"] < tip - 1 and e["op"] < 1]
+            self.assertTrue(joins, (closing, res))
+            self.assertEqual(len({(round(e["x"]), round(e["y"])) for e in joins}), 1, (closing, joins))
+            self.settle()
+
+
 class RemoteRefTest(MergeCase):
     HISTORY = {"remote": True}
 
