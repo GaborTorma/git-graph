@@ -56,8 +56,8 @@ class HookTest(HomeTestCase):
         self.assertEqual(self.mod_plan(main, "s2"), {"repo": str(main), "url": "https://claude.ai/artifact/x"})
 
     def test_mod_republishes_stale(self) -> None:
-        """A mod sessionönként egyszer lép; elavult betöltőnél és capability- vagy contract-változásnál
-        publikálási tervet kap."""
+        """A mod sessionönként egyszer lép; elavult lapnál (a hash a betöltőé, a capability-listáé és a
+        contracté) publikálási tervet kap."""
         # Adott egy naprakész Artifact
         main, extra = self.make_repo()
         self.run_script("--publish", cwd=main)
@@ -71,10 +71,6 @@ class HookTest(HomeTestCase):
         git_in(main, "config", "git-graph.artifactHash", "elavult")
         self.assertEqual(self.mod_plan(main, "s4")["url"], "https://claude.ai/artifact/x")
         self.assertIn("publish", self.mod_plan(main, "s5"))
-        # Ha a capability-lista vagy a contract változott, akkor is
-        self.run_script(str(main), "--published", "https://claude.ai/artifact/x")
-        git_in(main, "config", "git-graph.artifactCaps", "regi")
-        self.assertIn("publish", self.mod_plan(main, "s6"))
 
     def test_hook_registers_quietly(self) -> None:
         """A hook nem kér a sessiontől: nem repóban, repóban és új repóban sincs kimenete, de regisztrál."""

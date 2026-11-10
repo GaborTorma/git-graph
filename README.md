@@ -101,13 +101,12 @@ benne, a `git-graph --mcp` ~1 perc múlva leszerel — a következő session új
 
 A cél: **ne kelljen parancsot írni a chatbe**, mégis friss gráfot láss.
 
-A **SessionStart hook** a session indulásakor a repó Artifactját nézi:
+A plugin **modja** a session indulásakor, a modell nélkül a repó Artifactját nézi:
 
-- ha **naprakész**, nem kér semmit (a modnál a mod nyitja meg);
-- ha **még nincs**, vagy a lapja **elavult** (a git-graph frissült — a lap
-  hashe eltér a `git-graph.artifactHash`-től), megkéri, hogy publikálja: a lap
-  csak kódfrissítéskor változik, az pedig csak új sessionnel lép életbe — és
-  ilyenkor először ez a hook fut.
+- ha **naprakész**, megnyitja;
+- ha **még nincs**, vagy a lapja **elavult** (a git-graph frissült, vagy a
+  capability-lista, a contract változott — a lap hashe eltér a
+  `git-graph.artifactHash`-től), előbb publikálja, aztán megnyitja.
 
 **Worktree-k:** repónként egy Artifact van, a worktree-k közösen látják (a fő
 checkout slugján). A „saját” worktree az előtérben lévő sessioné: a lap a
@@ -137,13 +136,12 @@ tetején szűrő: ág- vagy worktree-név szerint szűkít (a worktree nevére a
 ága), a worktree-fejléc csak akkor marad, ha alatta
 legalább egy ág látszik; az Enter az első találatot választja.
 
-A hook némán kilép, ha a mappa nem git repó; headless (`-p`, SDK) sessionben nem
-kér publikálást. Az „off kapcsoló" a plugin kikapcsolása
+A hook némán kilép, ha a mappa nem git repó; headless (`-p`, SDK) sessionben a mod
+nem lép. Az „off kapcsoló" a plugin kikapcsolása
 (`claude plugin disable git-graph@git-graph`), vagy a lap fogaskerék-menüje: az
 **Automatikus megnyitás** repónként (`git-graph.autoOpen`; ha be van kapcsolva,
 az elavult lapot is frissíti), az **Automatikus publikálás** a gépen, minden
-repóra (`~/.git-graph/settings.json`: Artifact nélküli repóban kér-e
-publikálást). Mindkettő alapból be van kapcsolva; a `git-graph --forget` a
+repóra (`~/.git-graph/settings.json`: Artifact nélküli repóban a mod létrehozza-e). Mindkettő alapból be van kapcsolva; a `git-graph --forget` a
 repóét kikapcsolja.
 
 ## Felépítés
