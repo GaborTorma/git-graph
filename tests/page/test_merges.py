@@ -502,7 +502,53 @@ class StackedTest(MergeCase):
         # És a profil-ág pontozott vége a sora alatt egy sornyira, a szár sávjában véget ér
         join = [n for n in dotted if abs(n[1] - profile) < 1]
         self.assertEqual(len(join), 1, dotted)
-        self.assertLess(join[0][-1], start - 1)
+        # És a szár még egyenes részén ér véget: a szár a cél előtt egy sornyival (34 px) fordul el
+        self.assertLessEqual(join[0][-1], start - 34 + 0.5, join)
+
+
+    def test_both_collapsed_join(self) -> None:
+        """Ha mindkét merge össze van csukva, a profil-merge pontozott éle a saját sávjában a
+        login-merge alá fut, és ott a login-merge szárába csatlakozik: látszik, hogy arra épül."""
+        # Adott: mindkét merge összecsukva (alapállapot)
+        paths = self.page.evaluate(PATHS)
+        start = self.page.evaluate(ROW_MID, "Indulás")
+        top, below = (self.page.evaluate(ROW_MID, s) for s in (STACKED, MERGE))
+        dotted = [p["n"] for p in paths if p["dash"] == "2 2"]
+        # Akkor egyetlen pontozott vonal ér le az Indulásig
+        self.assertEqual(sum(1 for n in dotted if abs(n[-1] - start) < 1), 1, dotted)
+        # És a profil-merge éle a login-merge alatt, a szár egyenes részén ér véget
+        own = [n for n in dotted if abs(n[1] - top) < 1]
+        self.assertEqual(len(own), 1, dotted)
+        self.assertGreater(own[0][-1], below)
+        self.assertLessEqual(own[0][-1], start - 34 + 0.5)
+
+    def test_join_during_fold_animation(self) -> None:
+        """Összecsukás és kibontás közben sincs egy pillanatra sem második pontozott vonal a célig."""
+        # Adott: a profil-ág és a login-merge is kibontva
+        self.expand(STACKED)
+        self.expand(MERGE)
+        for _ in range(2):              # összecsukás, majd kibontás
+            # Ha a User a login-merge-re kattint, és az animáció félúton tart
+            res = self.row(MERGE).locator(".merge-hit").evaluate("""async el => {
+              el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+              const anims = document.getAnimations().filter(a => a.effect?.target?.classList?.contains('row'));
+              anims.forEach(a => { a.pause(); a.currentTime = 100; });
+              await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+              const row = [...document.querySelectorAll('#rows .row')]
+                .find(r => r.querySelector('.subject').textContent === 'Indulás');
+              const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+              const start = rb.top + rb.height / 2 - sb.top;
+              const dotted = [...document.querySelectorAll('#lanes path')]
+                .filter(p => p.getAttribute('stroke-dasharray') === '2 2' && p.getAttribute('opacity') !== '0')
+                .map(p => p.getAttribute('d').match(/-?[\\d.]+/g).map(Number));
+              anims.forEach(a => a.play());
+              return { start, dotted, n: anims.length };
+            }""")
+            # Akkor legfeljebb egy pontozott vonal ér le az Indulásig
+            self.assertGreater(res["n"], 0)
+            reaching = [n for n in res["dotted"] if abs(n[-1] - res["start"]) < 1]
+            self.assertLessEqual(len(reaching), 1, res)
+            self.settle()
 
 
 class RemoteRefTest(MergeCase):
