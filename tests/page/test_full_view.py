@@ -754,6 +754,20 @@ class WipDiffFilterTest(PageTestCase):
     def side_files(self) -> list[str]:
         return sorted(self.page.locator(".side .fv-file").evaluate_all("els => els.map(e => e.dataset.path)"))
 
+    def test_sidebar_shows_wip_diff(self) -> None:
+        """A sidebar commit nélkül, WIP sorral: minden fájl, a WIP változott fájlja színezve, számokkal."""
+        # Adott a sidebar commit nélkül, WIP sorral
+        self.page.locator("#sideBtn").click()
+        # Ha a Fejlesztő a fára néz
+        util = self.page.locator('.side .fv-file[data-path="tools/util.py"]')
+        util.wait_for()
+        # Akkor a változott fájl mappája nyitva, a fájl színezve, számokkal, a többi fájl is látszik,
+        # a szűrő nincs lenyomva
+        self.assertIn("modified", util.get_attribute("class"))
+        self.assertEqual(util.locator(".churn").count(), 1)
+        self.assertIn("README.md", self.side_files())
+        self.assertEqual(self.page.locator(".side .fv-diff").get_attribute("aria-pressed"), "false")
+
     def test_sidebar_diff_selects_wip(self) -> None:
         """A sidebar diff-szűrője a WIP sort nyitja le: a fa a nem commitolt fájlokat mutatja."""
         # Adott a sidebar commit nélkül, WIP sorral
