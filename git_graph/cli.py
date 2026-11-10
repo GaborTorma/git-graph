@@ -8,8 +8,9 @@ nyíló commit-részletek, szintaxisszínezett diffel.
 Az Artifact lapjában nincs adat: a Claude appban megnyitva a gépen futó
 `git-graph --mcp`-ből kéri (a Claude app host-hídján át). Kétmásodpercenként olcsó
 ujjlenyomatot kér, és csak tényleges változásra tölt új adatot. A lapot a
-session publikálja, amikor a hook kéri: ha még nincs, vagy a sablonja (a
-git-graph kódja) változott. Kézzel: a `/git-graph:artifact-publish` skill.
+plugin modja publikálja a session indulásakor: ha még nincs, vagy a sablonja (a
+git-graph kódja), a capability-listája vagy a contractja változott. Kézzel: a
+`/git-graph:artifact-publish` skill.
 
     git-graph --publish                  # az Artifact publikálásának lépései a sessionnek
     git-graph --published <URL>          # a publikálás után: URL + hash a .git/config-ba

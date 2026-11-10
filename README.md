@@ -156,7 +156,7 @@ repóét kikapcsolja.
 | `tests/` | modulonkénti tesztek és füstteszt az MCP szerverre (stdlib `unittest`) |
 | `.claude-plugin/plugin.json` | a plugin manifestje — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace (egyetlen plugin: ez a repó) |
-| `hooks/hooks.json` | SessionStart hook: `git-graph --session-hook` (telepít + publikáltatja a gráfot); és a mod |
+| `hooks/hooks.json` | SessionStart hook: `git-graph --session-hook` (telepít, regisztrál); és a mod (publikál, megnyit) |
 | `hooks/register.ts` | a plugin modja: az Artifactot a modell nélkül újraküldi (a csak betöltőt érintő frissítést is) és megnyitja a session indulásakor, ha az `allow`-szabályok engedik |
 | `skills/artifact-publish/SKILL.md` | `/git-graph:artifact-publish`: `git-graph --publish`, publikálja az Artifactot, ha kell, és megnyitja |
 | `skills/artifact-open/SKILL.md` | `/git-graph:artifact-open`: `git-graph --open-url`, és megnyitja az Artifactot — ha elavult, előbb frissíti (újat nem hoz létre) |
@@ -195,22 +195,24 @@ Megkötések (a platformé, mérve — [host-bridge-limits](.claude/memory/host-
 
 **Publikálás:** a lap csak betöltő, így feltölteni csak akkor kell, ha maga a
 betöltő vagy a repó neve változik. Egy plugin-frissítés után a gépen futó
-git-graph percen belül magától frissül, a lap újratölt — app-újraindítás sem kell. Új és
-elavult lapot a **session** publikál, a naprakészet a plugin **modja** nyitja meg:
+git-graph percen belül magától frissül, a lap újratölt — app-újraindítás sem kell. A
+publikálást és a megnyitást a plugin **modja** végzi, a modell nélkül, a session indulásakor
+(Claude Code 2.1.321 óta; `git-graph --mod-plan` dönt, sessionönként egyszer):
 
-- **A session**: a hook (vagy a `/git-graph:artifact-publish` skill a `git-graph --publish`-sal)
-  kiírja az `artifact.html`-t és a lépéseket — meglévőre `Artifact` `read`, majd `Artifact`
-  `publish` a lappal, a teljes `host:git-graph` capability-listával és a rögzített
-  runtime-contracttal (`PUBLISH_CONTRACT`, minden lapon ugyanaz) egy hívásban, végül
-  `git-graph --published <URL>`, ami az URL-t, a lap és a capability hashét visszaírja. Modból
-  az auto mód a publikálást nem engedi, ezért ez mindig a session dolga.
-- **A mod**, a modell nélkül: a session indulásakor megnyitja a naprakész lapot (`git-graph
-  --mod-plan`, `Artifact` `open`), és előhozza a panelt; sessionönként egyszer.
+- **Új vagy elavult lap** (változott a betöltő, a capability-lista vagy a contract): `Artifact`
+  `read` a meglévőn, majd `Artifact` `publish` a lappal, a teljes `host:git-graph`
+  capability-listával és a rögzített runtime-contracttal (`PUBLISH_CONTRACT`, minden lapon
+  ugyanaz), végül `git-graph --published <URL>`, ami az URL-t, a lap és a deklaráció hashét
+  visszaírja.
+- **Utána, és naprakész lapnál**: `Artifact` `open`, és előhozza a panelt.
+
+Kézzel ugyanezt a session végzi: a `/git-graph:artifact-publish` és a `/git-graph:artifact-open`
+skill a `git-graph --publish` / `--open-url` lépéseit hajtja végre.
 
 Kikapcsolt automatikus megnyitásnál (`git-graph.autoOpen=false`, a `--forget`
-is ezt írja) a hook nem kér publikálást, és a mod nem lép; a
-`/git-graph:artifact-open` ilyenkor is megnyitja, és ha elavult, előbb frissíti.
-Az új Artifact (a `/git-graph:artifact-publish`-é) bekapcsolt megnyitással indul.
+is ezt írja) a mod nem lép; a `/git-graph:artifact-open` ilyenkor is megnyitja, és ha
+elavult, előbb frissíti. Új Artifactot a mod csak bekapcsolt automatikus publikálásnál
+(a gép beállítása) hoz létre; a `/git-graph:artifact-publish`-é bekapcsolt megnyitással indul.
 
 A repó **lokális** git configjában (`.git/config`, sosem commitolódik):
 

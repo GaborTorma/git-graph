@@ -35,72 +35,68 @@ class HookTest(HomeTestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         return json.loads(out.stdout) if out.stdout.strip() else None
 
-    def test_session_publishes_new(self) -> None:
-        """Artifact nélkül a hook a sessiont kéri a publikálásra, a mod nem lép; utána a mod nyit."""
+    def test_mod_publishes_new(self) -> None:
+        """Artifact nélkül a mod publikálási tervet kap (worktree-ből is a fő checkout lapja); a hook
+        nem kér semmit a sessiontől."""
         # Adott egy Artifact nélküli repó
         main, extra = self.make_repo()
         # Ha a session indul
-        context = self.hook(extra)                                   # worktree-ből is a fő checkout lapja
-        # Akkor a hook a sessiont kéri, a mod tervet nem kap
-        self.assertIn("még nincs", context)
-        self.assertIn(str(main), context)
-        self.assertIsNone(self.mod_plan(extra, "s1"))
+        self.assertIsNone(self.hook(extra))
+        plan = self.mod_plan(extra, "s1")
+        # Akkor a mod a lap fájljával, címével, a teljes listával és a contracttal publikál
+        self.assertEqual((plan["repo"], plan["url"]), (str(main), ""))
+        job = plan["publish"]
+        self.assertTrue(Path(job["file_path"]).is_file())
+        self.assertEqual(job["title"], "Git Graph (repo)")
+        self.assertIn("file_tree", job["capabilities"]["mcp"]["servers"][0]["tools"])
+        self.assertRegex(job["contract"], r"^\d+\.\d+\.\d+$")
+        # Ha visszaírta, akkor a következő session csak megnyitja
         out = self.run_script(str(extra), "--published", "https://claude.ai/artifact/x")
         self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual(git_in(main, "config", "git-graph.artifact").strip(), "https://claude.ai/artifact/x")
-        # Ha új session indul a naprakész lappal, akkor a hook hallgat, a mod megnyitja
-        self.assertIsNone(self.hook(main, session="s2"))
-        self.assertEqual(self.mod_plan(main, "s2")["url"], "https://claude.ai/artifact/x")
+        self.assertEqual(self.mod_plan(main, "s2"), {"repo": str(main), "url": "https://claude.ai/artifact/x"})
 
-    def test_mod_opens_once(self) -> None:
-        """A mod a naprakész lapot sessionönként egyszer nyitja meg, szabály nélkül; elavult lapot
-        és capability-változást a hook a sessiontől kér (modból a publikálást az auto mód elutasítja)."""
+    def test_mod_republishes_stale(self) -> None:
+        """A mod sessionönként egyszer lép; elavult betöltőnél és capability- vagy contract-változásnál
+        publikálási tervet kap."""
         # Adott egy naprakész Artifact
         main, extra = self.make_repo()
         self.run_script("--publish", cwd=main)
         self.run_script(str(main), "--published", "https://claude.ai/artifact/x")
-        # Ha a session indul, akkor a mod tervet kap, a repó másik worktree-jéből már nem
-        plan = self.mod_plan(main, "s2")
-        self.assertEqual(plan, {"url": "https://claude.ai/artifact/x", "repo": str(main)})
+        # Ha a session indul, akkor megnyitja, a repó másik worktree-jéből ugyanabban a sessionben már nem
+        self.assertNotIn("publish", self.mod_plan(main, "s2"))
         self.assertIsNone(self.mod_plan(extra, "s2"))
         self.assertIsNone(self.mod_plan(main, "s3", CLAUDE_CODE_ENTRYPOINT="sdk-py"))
         self.assertIsNone(self.mod_plan(self.home, "s3"))             # nem repó
-        # Ha a betöltő avul el, akkor a hook kér, a mod nem lép
+        # Ha a betöltő elavul, akkor publikál
         git_in(main, "config", "git-graph.artifactHash", "elavult")
-        self.assertIsNone(self.mod_plan(main, "s4"))
-        self.assertIn("elavult", self.hook(main, session="s4"))
-        # Ha a capability-lista változott, akkor is
+        self.assertEqual(self.mod_plan(main, "s4")["url"], "https://claude.ai/artifact/x")
+        self.assertIn("publish", self.mod_plan(main, "s5"))
+        # Ha a capability-lista vagy a contract változott, akkor is
         self.run_script(str(main), "--published", "https://claude.ai/artifact/x")
         git_in(main, "config", "git-graph.artifactCaps", "regi")
-        self.assertIsNone(self.mod_plan(main, "s5"))
-        self.assertIn("elavult", self.hook(main, session="s5"))
+        self.assertIn("publish", self.mod_plan(main, "s6"))
 
-    def test_quiet(self) -> None:
-        """Nem repó, headless session és kikapcsolt megnyitás: nincs kimenet."""
+    def test_hook_registers_quietly(self) -> None:
+        """A hook nem kér a sessiontől: nem repóban, repóban és új repóban sincs kimenete, de regisztrál."""
         self.assertIsNone(self.hook(self.home))
         repo = self.plain_repo()
-        self.assertIsNone(self.hook(repo, CLAUDE_CODE_ENTRYPOINT="sdk-py"))
-        git_in(repo, "config", "git-graph.autoOpen", "false")
         self.assertIsNone(self.hook(repo))
-        self.assertIsNotNone(self.hook(self.plain_repo("other")))          # a többi repóban kér
         registered = json.loads((self.state / "repos.json").read_text(encoding="utf-8")).values()
-        self.assertIn(str(repo), registered)                          # csendben is regisztrál
+        self.assertIn(str(repo), registered)
 
     def test_settings(self) -> None:
-        """Kikapcsolt automatikus publikálás: új Artifactot nem kér, a meglévőt frissíti;
-        kikapcsolt megnyitás: a mod nem nyit, és a hook nem frissít."""
+        """Kikapcsolt automatikus publikálás: új Artifactot nem hoz létre, a meglévőt frissíti;
+        kikapcsolt megnyitás: a mod nem lép."""
         (self.state).mkdir(parents=True, exist_ok=True)
         (self.state / "settings.json").write_text('{"autoPublish": false}', encoding="utf-8")
         repo = self.plain_repo()
-        self.assertIsNone(self.hook(repo))
+        self.assertIsNone(self.mod_plan(repo, "s1"))
         self.run_script("--publish", cwd=repo)
         self.run_script(str(repo), "--published", "https://claude.ai/artifact/x")
         git_in(repo, "config", "git-graph.artifactHash", "elavult")
-        self.assertIn("elavult", self.hook(repo, session="s2"))     # a meglévőt frissíti
+        self.assertIn("publish", self.mod_plan(repo, "s2"))           # a meglévőt frissíti
         git_in(repo, "config", "git-graph.autoOpen", "false")
-        self.assertIsNone(self.hook(repo, session="s3"))
-        self.run_script(str(repo), "--published", "https://claude.ai/artifact/x")
-        self.assertIsNone(self.mod_plan(repo, "s4"))                 # naprakész, de nem nyílik meg
+        self.assertIsNone(self.mod_plan(repo, "s3"))
 
     def test_open_url_for_skill(self) -> None:
         """Session nélkül (a skillé): a beállítástól függetlenül URL, elavultnál frissítés, Artifact nélkül semmi."""

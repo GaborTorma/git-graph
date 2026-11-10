@@ -40,7 +40,7 @@ PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
 
 def caps_digest() -> str:
     """A capability-deklaráció és a contract hashe: a `git-graph.artifactCaps` ezt őrzi a
-    legutóbbi publikálásról. Ha eltér, a hook a sessiontől kér újrapublikálást."""
+    legutóbbi publikálásról. Ha eltér, a mod újrapublikálja a lapot (`mod_plan`)."""
     declared = {"capabilities": PUBLISH_CAPS, "contract": PUBLISH_CONTRACT}
     return hashlib.sha256(json.dumps(declared, sort_keys=True).encode()).hexdigest()
 
@@ -86,7 +86,8 @@ def prepare_publish() -> dict | None:
 
 
 def publish_steps(job: dict) -> str:
-    """A session teendője a lap publikálásához — a hook és a `git-graph --publish` adja a modellnek.
+    """A session teendője a lap kézi publikálásához — a `git-graph --publish` és az `--open-url` adja
+    a modellnek (az automatikusat a mod végzi: `mod_plan`).
 
     Az Artifact API-t csak a modell éri el, ezért a publikálást a session
     végzi (mérve, .claude/memory/publish-from-session.md), a beépített `Artifact`
@@ -95,7 +96,7 @@ def publish_steps(job: dict) -> str:
     teljes halmazként, a rögzített contracttal (`PUBLISH_CONTRACT`) — így a
     deklaráció nem csúszhat el a nyilvántartott hashtől.
     Meglévő lapra a publish csak egy `read` után megy. Az URL-t és a hasht a
-    `--published` írja vissza — a hook a publikálás eredményét nem látja. A
+    `--published` írja vissza — a Python a publikálás eredményét nem látja. A
     `git-graph` a plugin `bin/`-jéből a Bash eszköz PATH-ján van (egy
     `Bash(git-graph:*)` engedéllyel nem kérdez).
     """

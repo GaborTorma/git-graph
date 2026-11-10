@@ -25,8 +25,8 @@ Használat és felépítés: [README.md](../README.md).
 | `ruff.toml`, `biome.json` | lint: Python (3.9-célverzióval) és a `page/` JS / CSS / HTML-je |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
-| `hooks/hooks.json` | a plugin SessionStart hookja (`--session-hook`) és a mod (`modules`) |
-| `hooks/register.ts` | a plugin modja: a naprakész repó-Artifactot a modell nélkül megnyitja (`git-graph --mod-plan`, `Artifact` `open`, `show_pane`); új és elavult lapot, capability- és contract-változást a hook kéri a sessiontől; teszt: `register.test.ts` |
+| `hooks/hooks.json` | a plugin SessionStart hookja (`--session-hook`: telepítés, regisztráció) és a mod (`modules`) |
+| `hooks/register.ts` | a plugin modja: a repó Artifactját a modell nélkül publikálja, ha kell (új, elavult, capability- vagy contract-változás: `Artifact` `read` + `publish`, `--published`), és megnyitja (`Artifact` `open`, `show_pane`); `git-graph --mod-plan` dönt; teszt: `register.test.ts` |
 | `skills/artifact-publish/SKILL.md` | a `/git-graph:artifact-publish` skill (`git-graph --publish`, publikálja, ha kell, és megnyitja) |
 | `skills/artifact-open/SKILL.md` | a `/git-graph:artifact-open` skill (`git-graph --open-url`, és megnyitja az Artifactot; elavultat előbb frissít, újat nem hoz létre) |
 | `skills/artifact-forget/SKILL.md` | a `/git-graph:artifact-forget` skill: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; uninstall előtt: mind) |
@@ -44,7 +44,7 @@ git-graph --published <URL>  # a session publikálása után: URL + hash a .git/
 git-graph --mcp              # MCP szerver stdio-n — a Claude app indítja, nem kézzel
 git-graph --artifacts        # ismert repók Artifactjai (regiszter + a szülőmappák repói)
 git-graph --forget           # a repó git-graph nyomai + automatikus megnyitás KI
-git-graph --mod-plan --session <ID>   # a mod kérdése: JSON, ha most újra kell küldenie és megnyitnia
+git-graph --mod-plan --session <ID>   # a mod kérdése: JSON, ha most publikálnia és/vagy megnyitnia kell
 claude plugin test .         # a mod tesztjei (hooks/*.test.ts)
 uv run --no-project --with playwright==1.63.0 --with pytest==9.0.3 --with pytest-xdist==3.8.0 python -m pytest tests/page -n auto --dist worksteal -q -p no:cacheprovider   # a lap böngészőben
 uv run --no-project --with playwright==1.63.0 python scripts/screenshots.py   # a funkcióoldalak képei

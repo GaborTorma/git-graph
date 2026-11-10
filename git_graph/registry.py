@@ -53,7 +53,7 @@ def repo_for_slug(slug: str) -> Path | None:
 
 
 def shown_in_session(session_id: str, slug: str) -> bool:
-    """Igaz, ha ebben a sessionben a hook már kérte a lap megnyitását vagy publikálását.
+    """Igaz, ha ebben a sessionben a mod már publikálta vagy megnyitotta a lapot (`mod_plan`).
 
     Egyúttal felveszi a mostanit, és törli a `SESSION_TTL`-nél régebbi
     bejegyzéseket. A `resume` és a `/clear` a sessionben megnyitott Artifactot

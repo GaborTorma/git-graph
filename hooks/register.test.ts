@@ -2,6 +2,11 @@ import { expect, test } from 'claude-code/testing'
 
 const URL = 'https://claude.ai/artifact/x'
 const PLAN = JSON.stringify({ repo: '/repo', url: URL })
+const CAPS = { mcp: { servers: [{ server: 'host:git-graph', tools: ['graph_data'] }] } }
+const JOB = { file_path: '/state/artifact.html', title: 'Git Graph (repo)', capabilities: CAPS, contract: '0.2.96' }
+const STALE = JSON.stringify({ repo: '/repo', url: URL, publish: JOB })
+const NEW = JSON.stringify({ repo: '/repo', url: '', publish: JOB })
+const NEW_URL = 'https://claude.ai/artifact/Ab12_cd'
 
 // A mod futása: a git-graph válasza (`--mod-plan`), az eszközök kamu válaszai, és
 // amit a mod ebből hív.
@@ -11,7 +16,7 @@ const runs = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on: any,
   stdout: string,
-  { denyOnce = false, fail = false, cwds = ['/repo'] } = {},
+  { denyOnce = false, fail = '', cwds = ['/repo'] } = {},
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<{ argv: string[][]; calls: any[]; sleeps: number }> => {
   const argv: string[][] = []
@@ -39,8 +44,12 @@ const runs = async (
       denied = true
       return { deny: 'The server-side auto mode classifier gave no verdict for Artifact' }
     }
-    if (args.tool === 'Artifact' && fail) return { result: {}, isError: true, text: 'not found' }
-    return { result: {}, text: 'ok' }
+    if (args.tool === 'Artifact' && args.action === fail) return { result: {}, isError: true, text: 'refused' }
+    // a publish válasza (mérve, 2026-11-10)
+    const text = args.action === 'publish'
+      ? `Published ${args.file_path} at ${args.url ?? NEW_URL} (Version 2, version id 1-a)\n\nStored — contract 0.2.96`
+      : 'ok'
+    return { result: {}, text }
   })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
@@ -80,9 +89,40 @@ test('a döntés nélküli elutasítás után egyszer újrapróbál', async ($, 
 
 test('ha a megnyitás nem sikerül, a panelt sem hozza elő', async ($, on) => {
   // Adott: az Artifact open hibát ad
-  const { calls } = await runs($, on, PLAN, { fail: true })
+  const { calls } = await runs($, on, PLAN, { fail: 'open' })
   // Akkor nincs show_pane
   expect(calls.map(c => c.tool)).toEqual(['Artifact'])
+})
+
+test('elavult lapot olvasás után újraküld a teljes listával, visszaírja, és megnyitja', async ($, on) => {
+  // Adott egy meglévő, de elavult lap
+  const { argv, calls } = await runs($, on, STALE)
+  // Akkor read, publish (url, fájl, capability, contract), --published, open, show_pane
+  expect(calls).toEqual([
+    { tool: 'Artifact', action: 'read', url: URL },
+    { tool: 'Artifact', action: 'publish', url: URL, file_path: JOB.file_path, capabilities: CAPS, contract: '0.2.96' },
+    { tool: 'Artifact', action: 'open', url: URL },
+    { tool: 'mcp__ccd_view__show_pane', pane: 'artifact' },
+  ])
+  expect(argv[1]).toEqual(['/repo', '--published', URL])
+})
+
+test('új lapot címmel és ikonnal publikál, és a válasz URL-jét írja vissza', async ($, on) => {
+  // Adott egy Artifact nélküli repó
+  const { argv, calls } = await runs($, on, NEW)
+  // Akkor read nélkül publikál, az új URL-t visszaírja, és azt nyitja meg
+  expect(calls[0]).toEqual({ tool: 'Artifact', action: 'publish', file_path: JOB.file_path, title: JOB.title,
+    icon: 'branch', capabilities: CAPS, contract: '0.2.96' })
+  expect(argv[1]).toEqual(['/repo', '--published', NEW_URL])
+  expect(calls[1]).toEqual({ tool: 'Artifact', action: 'open', url: NEW_URL })
+})
+
+test('ha a publikálás nem sikerül, nem ír vissza és nem nyit', async ($, on) => {
+  // Adott: a publish elutasított
+  const { argv, calls } = await runs($, on, STALE, { fail: 'publish' })
+  // Akkor a régi lapot sem nyitja meg, és a hash marad
+  expect(calls.map(c => c.action)).toEqual(['read', 'publish'])
+  expect(argv.length).toBe(1)
 })
 
 test('nem lép, ha a git-graph nem ad tervet', async ($, on) => {
