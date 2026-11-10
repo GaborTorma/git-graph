@@ -14,6 +14,11 @@ const EDGE_HUG = DOT_R + 1;   // a sávváltó vonal ennyit fut a commit sávjá
 const STUB_GAP = 11;   // több worktree-csonk pöttyei közti függőleges távolság
 
 let graphW = 72;
+/* Összecsukás közben (`foldRows`): a felcsukódó sorok és a haladás (0 → 1). A pontozott él ennyire
+   látszik, a felcsukódó ág élei és pöttyei ennyivel halványabbak: a végén nincs ugrás. */
+let foldFx = /** @type {{ hidden: Set<string>, p: number } | null} */ (null);
+export function setFoldFx(fx) { foldFx = fx; }
+const fadeAttr = op => (op < 1 ? ` opacity="${+op.toFixed(3)}"` : '');
 /* A gráf-oszlop szélessége a sávok számából (a csonkokéval együtt); a CSS is ezt
    használja (`--graph-w`: a sorok bal paddingje, a panel margója). */
 export function sizeGraph() {
@@ -61,6 +66,13 @@ export function drawGraph() {
       continue;
     }
     if (a === undefined || b === undefined) continue;   // szűrve
+    // Összecsukás közben a felcsukódó ág éle halványul, a merge pontozott éle beúszik.
+    let op = 1;
+    if (foldFx) {
+      const hf = foldFx.hidden.has(DATA.commits[e.fromRow].sha), ht = foldFx.hidden.has(DATA.commits[e.toRow].sha);
+      if (ht && !hf) out += foldedEdge(e, a, rowIndexBySha, rowY, foldFx.hidden, foldFx.p);
+      if (ht || hf) op = 1 - foldFx.p;
+    }
     const x1 = laneX(e.fromLane), y1 = rowY(a);
     const x2 = laneX(e.toLane),   y2 = rowY(b);
     // A vonal annak a sávnak a színét kapja, amelyikben a hossza nagy részén fut:
@@ -75,7 +87,7 @@ export function drawGraph() {
     // A stash sem commit a branch-en: az éle a bázisára ugyanígy szaggatott.
     const dash = from.uncommitted ? ` class="pend-edge${own}" stroke-dasharray="3 3"`
       : from.stash ? ' stroke-dasharray="3 3"' : '';
-    const path = `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
+    const path = `<path d="${edgePath(x1, y1, x2, y2, e.merge)}" fill="none" stroke="${color}" stroke-width="2"${dash}${fadeAttr(op)}/>`;
     if (x1 === x2) out += path; else bends += path;
   }
   out += bends;
@@ -116,6 +128,12 @@ export function drawGraph() {
   });
   visible.forEach((c, i) => {
     if (c.uncommitted && c.worktree === focusWt()?.slug) return;   // a pontja a #pending sávban van
+    // a felcsukódó sor pöttye az élével együtt halványul
+    const start = out.length, op = foldFx?.hidden.has(c.sha) ? 1 - foldFx.p : 1;
+    dot(c, i);
+    if (op < 1) out = `${out.slice(0, start)}<g${fadeAttr(op)}>${out.slice(start)}</g>`;
+  });
+  function dot(c, i) {
     const color = tint(c, laneColor(c.lane));
     const merge = isMerge(c), x = laneX(c.lane), y = rowY(i);
     // Az ál-sor és a stash pontja üres karika: a szaggatott vonal már jelzi, hogy nem
@@ -132,7 +150,7 @@ export function drawGraph() {
     }
     out += `<circle cx="${x}" cy="${y}" r="${hollow ? DOT_R + 1 : DOT_R}"`
         +  ` fill="${hollow ? 'var(--bg)' : color}" stroke="${color}" stroke-width="2"/>`;
-  });
+  }
   svg.innerHTML = out;
 }
 
@@ -140,11 +158,14 @@ export function drawGraph() {
    lánca) helyette az első látható commitig (az első szülő láncán): szaggatott, mert commitot ugrik
    át; a rejtett ág sávjában fut. A merge 2. szülőjénél, ha a cél a merge alatti sor (nincs köztük
    látható sor), nincs él; az első szülő éle mindig megvan, különben a lánc elszakadna. `a`: a
-   kiinduló sor; a sorindex és a sor közepe a `drawGraph`-é. */
-function foldedEdge(e, a, rowIndexBySha, rowY) {
+   kiinduló sor; a sorindex és a sor közepe a `drawGraph`-é. Összecsukás közben a `skip` sorai még
+   a listában vannak, de már nem számítanak; az él `opacity` erősséggel látszik. */
+function foldedEdge(e, a, rowIndexBySha, rowY, skip = null, opacity = 1) {
   const from = DATA.commits[e.fromRow], to = DATA.commits[e.toRow];
   const b = rowIndexBySha.get(visibleBelow(to.sha));
-  if (b === undefined || (b === a + 1 && from.parents[0] !== to.sha)) return '';
+  let next = a + 1;
+  while (skip && next < (b ?? 0) && skip.has(visible[next].sha)) next++;
+  if (b === undefined || (b === next && from.parents[0] !== to.sha)) return '';
   const x1 = laneX(e.fromLane), xv = laneX(e.toLane), x2 = laneX(visible[b].lane), y1 = rowY(a), y2 = rowY(b);
   // A rejtett ág sávjába fordul a merge alatt, és a cél fölött fordul a cél sávjába. Ha a kiinduló
   // már a rejtett ág sávjában van, vagy a két fordulónak nincs helye, egyetlen ív: két darabból a
@@ -155,7 +176,7 @@ function foldedEdge(e, a, rowIndexBySha, rowY) {
     : y2 - y1 < 2 * ROW_H ? edgePath(x1, y1, x2, y2, true)
     : `${edgePath(x1, y1, xv, ym, true)} ${edgePath(xv, ym, x2, y2, false)}`;
   const color = tint(from, laneColor(e.toLane));
-  return `<path class="fold" d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="2 2"/>`;
+  return `<path class="fold" d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="2 2"${fadeAttr(opacity)}/>`;
 }
 
 /* Sávváltásnál ott hajlik a vonal, ahol a git is: merge-nél rögtön a merge

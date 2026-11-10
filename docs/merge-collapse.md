@@ -54,7 +54,9 @@ velük nyúlik; közben a szám összemegy (az út második felében 20 %-ig hal
 utánacsúszik a pötty mellé, és 90°-ot fordul jobbról felfelé. Összecsukáskor fordítva, ugyanazzal
 a görbével, mint a sorok felcsukódása: a sorok 200 ms alatt 0-ra csukódnak, és csak utána tűnnek
 el; közben a szám 0 szélességről nő (20 %-os fedésről, félúton teljes), maga előtt tolva a
-jobbra forduló nyilat; a három egyszerre ér véget. A forgatás szögekkel animál (−90° ↔ −180°),
+jobbra forduló nyilat; a három egyszerre ér véget. A felcsukódó ág élei és pöttyei ugyanezzel a
+haladással halványulnak el, a merge pontozott éle pedig közben úszik be, így a végén a gráf nem
+ugrik. A forgatás szögekkel animál (−90° ↔ −180°),
 mert a mátrixok közti átmenet tükrözésnek bomlana. Az újrarajzolt nyíl nem villan: amíg az egér
 a gráfoszlopon marad, a `.hover` osztály átmenet nélkül tartja látszón. A
 `prefers-reduced-motion` szabály ezt is leállítja.
@@ -164,6 +166,7 @@ Jellemző: Merge-ek összecsukása
       Ha a User összecsukja
       Akkor a sorok 200 ms alatt felcsukódnak, és csak utána tűnnek el
         És közben a szám 20 %-os fedésről nő, maga előtt tolva a jobbra forduló nyilat
+        És közben a felcsukódó ág halványul, a pontozott él beúszik
         És a három egyszerre ér véget, a nyíl végig látszik
 
   Szabály: R-6 — A kézi állapot az újratöltésig él

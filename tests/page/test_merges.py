@@ -309,6 +309,33 @@ class CollapseTest(MergeCase):
         self.assertEqual(self.subjects(), [MERGE, "README javítás", "Indulás"])
         self.assertEqual(self.row(MERGE).locator(".merge-n").inner_text(), "+2")
 
+    def test_collapse_fades_to_dotted(self) -> None:
+        """Összecsukáskor a pontozott él a felcsukódás alatt beúszik, a felcsukódó ág élei és
+        pöttyei kihalványulnak: a végén nincs ugrás."""
+        # Adott egy kibontott merge
+        self.expand()
+        # Ha a User összecsukja, és a felcsukódás félúton tart
+        res = self.row(MERGE).locator(".merge-hit").evaluate("""async el => {
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          const anim = [...document.querySelectorAll('#rows .row')]
+            .find(r => r.querySelector('.subject').textContent.startsWith('Login')).getAnimations()[0];
+          anim.pause(); anim.currentTime = 100;
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const fold = [...document.querySelectorAll('#lanes path.fold')].map(p => Number(p.getAttribute('opacity') ?? 1));
+          const faded = [...document.querySelectorAll('#lanes [opacity]')].filter(e => !e.matches('.fold'))
+            .map(e => Number(e.getAttribute('opacity')));
+          anim.play();
+          return { fold, faded };
+        }""")
+        # Akkor a pontozott él már ott van, de még nem teljes; a régi ág halványul
+        self.assertEqual(len(res["fold"]), 1)
+        self.assertTrue(0 < res["fold"][0] < 1, res)
+        self.assertTrue(res["faded"] and all(0 < o < 1 for o in res["faded"]), res)
+        # És a végén a pontozott él teljes, halványított elem nem marad
+        self.settle()
+        self.assertEqual(self.page.locator("#lanes path.fold").get_attribute("opacity"), None)
+        self.assertEqual(self.page.locator("#lanes [opacity]:not(circle)").count(), 0)
+
     def test_collapse_morph(self) -> None:
         """Összecsukáskor a felcsukódással együtt (200 ms) a nyíl a helyéről jobbra fordul, és a szám
         balról jobbra nő, maga előtt tolva a nyilat; a végén a nyíl a szám után áll."""
