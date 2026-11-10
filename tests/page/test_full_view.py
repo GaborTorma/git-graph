@@ -742,6 +742,47 @@ class WipGoneTest(PageTestCase):
         self.assertIn("tools/util.py", self.page.locator(".fv-path").inner_text())
 
 
+class WipDiffFilterTest(PageTestCase):
+    """Commit nélkül, WIP sorral a diff-szűrő a WIP sort jelöli ki, nem a HEAD-commitot."""
+    WIDTH, HEIGHT = 1100, 760
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        FullViewTest.prepare(repo)
+        (repo / "tools/util.py").write_text("def segit():\n    return 'mas'\n", encoding="utf-8")
+
+    def side_files(self) -> list[str]:
+        return sorted(self.page.locator(".side .fv-file").evaluate_all("els => els.map(e => e.dataset.path)"))
+
+    def test_sidebar_diff_selects_wip(self) -> None:
+        """A sidebar diff-szűrője a WIP sort nyitja le: a fa a nem commitolt fájlokat mutatja."""
+        # Adott a sidebar commit nélkül, WIP sorral
+        self.page.locator("#sideBtn").click()
+        self.page.wait_for_selector('.side .fv-row[data-dir="hooks"]')
+        # Ha a Fejlesztő a diff-szűrőre kattint
+        self.page.locator(".side .fv-diff").click()
+        # Akkor a WIP sor nyílik le, a fa a változott fájljait mutatja
+        self.page.wait_for_selector(".row.uncommitted[aria-expanded='true']")
+        self.page.wait_for_function("!document.querySelector('.side .fv-file[data-path=\"README.md\"]')")
+        self.assertEqual(self.side_files(), ["tools/util.py"])
+        self.assertEqual(self.page.locator(".side .fv-diff").get_attribute("aria-pressed"), "true")
+
+    def test_full_diff_selects_wip(self) -> None:
+        """Teljes képernyőn commit nélkül a diff-szűrő a WIP sort jelöli ki."""
+        # Adott a sidebar fájlja teljes képernyőn, commit nélkül, WIP sorral
+        self.page.locator("#sideBtn").click()
+        self.page.locator('.side .fv-file[data-path="README.md"]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.assertEqual(self.page.locator(".fv-commit.sel").count(), 0)
+        # Ha a Fejlesztő a diff-szűrőre kattint
+        self.page.locator(".fv .fv-diff").click()
+        # Akkor a WIP sor a kijelölt, a fa a változott fájljait mutatja
+        self.page.wait_for_selector(".fv-commits .fv-commit:first-child.sel")
+        self.assertEqual(self.page.locator(".fv-commit.sel .sha").count(), 0)
+        files = self.page.locator(".fv .fv-list .fv-file").evaluate_all("els => els.map(e => e.dataset.path)")
+        self.assertEqual(files, ["tools/util.py"])
+
+
 class WipFullViewTest(PageTestCase):
     """A WIP sor teljes nézete a munkakönyvtár mostani állapotát mutatja."""
 

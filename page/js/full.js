@@ -2,7 +2,7 @@
    A sidebar az eszközsor gombjával nyílik (a lap megjegyzi): a gráf mellett, jobbra a fájlfa, az
    eszközsor és a lábléc között. A fa a lenyitott commitot követi (a változásai szerint színezve);
    lenyitott commit nélkül a saját worktree mostani állapotát mutatja minden fájllal, színezés nélkül
-   (`plain`); ilyenkor a diff-szűrő a HEAD-commitot nyitja le, és a fa már azt követi. A fában a lenyitott commit változott fájlja a commit-panelben nyílik le, odagörgetve;
+   (`plain`); ilyenkor a diff-szűrő a WIP sort (ha nincs, a HEAD-commitot) nyitja le, és a fa már azt követi. A fában a lenyitott commit változott fájlja a commit-panelben nyílik le, odagörgetve;
    a többi fájl (változatlan, vagy nincs lenyitott commit) teljes képernyőn.
    A teljes képernyő a panel lenyitott fájljának fejlécéből nyílik (`data-full`), a fájl első
    változásánál: a lap tetejétől a láblécig. Fent teljes szélességben a fejléc: a repó neve, a HEAD-chip (ha a
@@ -244,15 +244,15 @@ function onQuery(t, value) {
 /* A fa kattintásai: a diff-szűrő, a mappák; a fájlra `onFile(path)`. */
 function treeClick(t, target, onFile) {
   const diff = target.closest('.fv-diff');
-  if (diff && t.plain && t === fv) {     // teljes képernyőn commit nélkül: a HEAD-commit lesz a kijelölt
+  // commit nélkül a fa tárgya (`t.sha`) a WIP sor, ha van, különben a HEAD-commit: a szűrő ezt jelöli ki
+  if (diff && t.plain && t === fv) {     // teljes képernyőn: ez lesz a kijelölt
     t.all = false;
     diff.setAttribute('aria-pressed', 'true');
-    switchCommit(focusWt()?.head, false);
+    switchCommit(t.sha, false);
     return true;
   }
-  if (diff && t.plain) {                 // commit nélkül: a HEAD-commit lenyílik, a fa azt követi
-    const head = focusWt()?.head;
-    /** @type {HTMLElement} */ (head && document.querySelector(`.row[data-sha="${CSS.escape(head)}"]`))?.click();
+  if (diff && t.plain) {                 // a sidebarban: ez nyílik le, a fa azt követi
+    /** @type {HTMLElement} */ (t.sha && document.querySelector(`.row[data-sha="${CSS.escape(t.sha)}"]`))?.click();
     return true;
   }
   if (diff) {
