@@ -33,9 +33,9 @@ folytonos) fut be, mindig felül, legkésőbb a szár fordulópontjánál (a cé
 kibontva a legalsó commitja alól egy sornyi ívvel, összecsukva a merge-e a saját sávjában a másik
 merge alá fut, és ott csatlakozik. Az ív annak az ágnak a színét kapja, amelyikből jön. Onnan
 egyetlen vonal megy tovább, a kibontás és az összecsukás animációja alatt is. Ha a ráépülő merge-et
-egy kibontott másik merge mellett csukják össze vagy nyitják ki, a csatlakozás ugyanaz a vonal marad:
-a fordulója a csúcs fölötti helyről a másik merge alatti helyre csúszik (és vissza), közben
-folytonosból pontozottá vált. A csupa rejtett commitból álló napnak
+összecsukják vagy kinyitják, a csatlakozás ugyanaz a vonal marad, és a helyére csúszik a másik merge
+alá (és vissza): kibontott másik merge mellett a csúcs fölötti helyről, közben folytonosból
+pontozottá válva; összecsukott mellett a legalsó commit alól, végig pontozottan. A csupa rejtett commitból álló napnak
 nincs fejléce.
 
 ### A szám és a nyíl

@@ -668,8 +668,8 @@ class StackedTest(MergeCase):
         self.assertEqual((join.count("C"), join.count("L")), (1, 0), join)
 
     def test_expand_fades_in_dependent_join(self) -> None:
-        """A ráépülő ág lenyílásakor a legalsó commitja csatlakozó íve is a lenyílással együtt úszik
-        be, nem teljes erővel jelenik meg."""
+        """A ráépülő ág lenyílásakor a legalsó commitjának nincs külön csatlakozó íve: a csatlakozást
+        a merge-ből induló, a helyére csúszó egyetlen vonal rajzolja."""
         # Adott: mindkét merge összecsukva
         # Ha a User kibontja a profil-merge-et, és az animáció félúton tart
         row = self.row(STACKED)
@@ -688,9 +688,8 @@ class StackedTest(MergeCase):
           anims.forEach(a => a.play());
           return res;
         }""")
-        # Akkor a Profil oldal csatlakozó íve még nem teljes erejű
-        self.assertEqual(len(ops), 1, ops)
-        self.assertLess(ops[0], 1)
+        # Akkor a Profil oldal alól nem indul külön csatlakozó ív
+        self.assertEqual(ops, [])
 
 
     def test_join_moves_into_place(self) -> None:
@@ -726,6 +725,34 @@ class StackedTest(MergeCase):
             joins = [e for e in res["ends"] if e["x"] == lane and res["below"] + 34 - 1 < e["y"] < tip - 1 and e["op"] < 1]
             self.assertTrue(joins, (closing, res))
             self.assertEqual(len({(round(e["x"]), round(e["y"])) for e in joins}), 1, (closing, joins))
+            self.settle()
+
+
+    def test_join_moves_into_place_collapsed_stem(self) -> None:
+        """Összecsukott login-merge mellett is egyetlen pontozott csatlakozás csúszik a helyére a
+        profil-merge kapcsolásakor: a login-merge szárán kívül csak egy pontozott vonal látszik."""
+        # Adott: a login-merge összecsukva, a profil-merge kibontva
+        self.expand(STACKED)
+        for closing in (True, False):
+            # Ha a User a profil-merge-re kattint, és az animáció félúton tart
+            res = self.row(STACKED).locator(".merge-hit").evaluate("""async el => {
+              el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+              const anims = document.getAnimations().filter(a => a.effect?.target?.classList?.contains('row'));
+              anims.forEach(a => { a.pause(); a.currentTime = 100; });
+              await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+              const row = [...document.querySelectorAll('#rows .row')]
+                .find(r => r.querySelector('.subject').textContent === "Merge branch 'feat/login'");
+              const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+              const login = rb.top + rb.height / 2 - sb.top;
+              const res = [...document.querySelectorAll('#lanes path.fold')]
+                .filter(p => Number(p.getAttribute('opacity') ?? 1) > 0.01)
+                .map(p => p.getAttribute('d').match(/-?[\\d.]+/g).map(Number))
+                .filter(n => Math.abs(n[1] - login) > 1);
+              anims.forEach(a => a.play());
+              return res;
+            }""")
+            # Akkor a login-merge szárán kívül egyetlen látható pontozott vonal van (a csatlakozás)
+            self.assertEqual(len(res), 1, (closing, res))
             self.settle()
 
 

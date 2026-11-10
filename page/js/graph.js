@@ -257,19 +257,29 @@ function morphJoins(rowIndexBySha, rowY, stems) {
     if (a === undefined || foldFx.hidden.has(m.sha) || !foldFx.hidden.has(DATA.commits[e.toRow].sha)) continue;
     let prev = null, c = DATA.commits[e.toRow];
     while (c && foldFx.hidden.has(c.sha)) { prev = c; c = commitBySha(c.parents[0]); }
-    const tip = c && rowIndexBySha.get(c.sha), stemRow = c && stems.get(rowOfSha().get(c.sha));
-    if (!prev || tip === undefined || stemRow === undefined || stemRow <= a) continue;
+    // A másik merge kibontva: a szár célja a látható csúcs (`tip`), a kibontott csatlakozás a csúcs
+    // fölött fordul (folytonos). Összecsukva: a szár a csúcs alatti első látható commitig fut, a
+    // kibontott csatlakozás a legalsó commit alól egy sornyi pontozott ív — a vonal végig pontozott.
+    const stemRow = c && stems.get(rowOfSha().get(c.sha));
+    if (!prev || !c || stemRow === undefined || stemRow <= a) continue;
+    const tip = rowIndexBySha.get(c.sha), shown = tip !== undefined;
+    const end = shown ? tip : rowIndexBySha.get(belowSkipping(c.sha, foldFx.hidden, rowIndexBySha));
+    if (end === undefined) continue;
     const skip = DATA.edges.find(x => !x.merge && DATA.commits[x.fromRow] === prev && DATA.commits[x.toRow] === c);
     const p = foldFx.p, lerp = (u, v) => u + (v - u) * p;
     const xm = laneX(e.fromLane), xg = laneX(e.toLane), xp = laneX(c.lane);
-    const ym = rowY(a), yb = rowY(rowIndexBySha.get(prev.sha)), yt = rowY(tip);
-    const bend = Math.max(rowY(stemRow) + ROW_H, yt - ROW_H);
+    const ym = rowY(a), yb = rowY(rowIndexBySha.get(prev.sha)), ye = rowY(end);
+    const bend = Math.max(rowY(stemRow) + ROW_H, ye - ROW_H);
     const yJoin = Math.min(Math.max(rowY(stemRow) + ROW_H, ym + 2 * ROW_H), bend);
-    const yS = lerp(Math.max(yt - ROW_H, yb), Math.max(ym + ROW_H, yJoin - ROW_H)), yE = lerp(yt, yJoin);
+    const y0 = shown ? [Math.max(ye - ROW_H, yb), ye] : [yb, Math.min(yb + ROW_H, bend)];
+    const yS = lerp(y0[0], Math.max(ym + ROW_H, yJoin - ROW_H)), yE = lerp(y0[1], yJoin);
     const d = xm === xg ? `M ${xm} ${ym} L ${xg} ${yS} ${sCurve(xg, yS, xp, yE)}`
       : `${edgePath(xm, ym, xg, ym + ROW_H, true)} L ${xg} ${yS} ${sCurve(xg, yS, xp, yE)}`;
     const color = tint(m, laneColor(e.toLane)), line = `d="${d}" fill="none" stroke="${color}" stroke-width="2"`;
-    res.set(e, { skip, path: `<path ${line}${fadeAttr(1 - p)}/><path class="fold" ${line} stroke-dasharray="2 2"${fadeAttr(p)}/>` });
+    const dotted = `<path class="fold" ${line} stroke-dasharray="2 2"`;
+    // összecsukott szárnál mindkét végállapot pontozott: egy vonal, teljes erővel (a folytonos ág
+    // élei alatta halványulnak); kibontott szárnál a folytonos átvált pontozottá
+    res.set(e, { skip, path: shown ? `<path ${line}${fadeAttr(1 - p)}/>${dotted}${fadeAttr(p)}/>` : `${dotted}/>` });
   }
   return res;
 }
