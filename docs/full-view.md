@@ -9,8 +9,8 @@ diffje, jobbra a fa és a commitlista. A diff maga a [Kóddiff és szerkesztés]
 
 **Sidebar.** Az eszközsor jobb szélső gombja a gráf mellé nyitja a fájlfát; a gráf annyival
 keskenyebb, az eszközsor a megszokott. A fa a lenyitott commitot követi: a változott fájljait mutatja,
-a változás színével és `+N −N` számokkal. Commit nélkül a worktree minden fájlját, színezés és számok
-nélkül; ilyenkor a diff-szűrő a HEAD-commitot nyitja le. A lenyitott commit változott fájlja a
+a változás színével és `+N −N` számokkal. Commit nélkül a worktree minden fájlját: WIP sor esetén a
+nem commitolt fájlokat színezve, számokkal (a mappáik csukva, csak jelölve), tiszta worktree-ben színezés és számok nélkül; ilyenkor a diff-szűrő a WIP sort nyitja le, tiszta worktree-ben a HEAD-commitot. A lenyitott commit változott fájlja a
 commit-panelben nyílik le (a lap odagörget), a többi fájl teljes képernyőn. A lap megjegyzi, hogy a
 sidebar nyitva van.
 
@@ -28,7 +28,8 @@ tetejétől a láblécig tölti ki:
 - **Lábléc** (28 px) mindig látszik; a commitszám helyén a fájl útja.
 
 **A fa.** A diff-szűrő alapból lenyomva: csak a változott fájlok, a mappáikkal; az egyetlen gyereket
-tartalmazó mappalánc egy sor (`page/js`). Kikapcsolva a commit állapotának minden fájlja: a módosult
+tartalmazó mappalánc egy sor (`page/js`). A változott fájl és mappa neve a változás színével, picit
+vastagabban (a merge subjectjének vastagságával) áll. Kikapcsolva a commit állapotának minden fájlja: a módosult
 fájlok mappája a változás színét kapja (vegyes változásnál a „módosult” színt), a törölt fájl áthúzva a
 helyén marad. A nem módosult fájl tartalma színezve, diffjel nélkül látszik. A fa commitonként egyben
 töltődik (`file_tree`, `git ls-tree`), 20 000 fájl fölött mappánként. Ha nem jön meg, a fában pirosan a
@@ -67,9 +68,26 @@ Jellemző: Fájlfa és teljes nézet
         És a fában a worktree minden fájlja látszik, színezés és számok nélkül
 
     Forgatókönyv: Diff-szűrő commit nélkül
-      Adott a sidebar lenyitott commit nélkül
+      Adott a sidebar lenyitott commit nélkül, a worktree tiszta
       Ha a Fejlesztő a fa diff-szűrőjére kattint
       Akkor a HEAD-commit lenyílik, a fa a változott fájljait mutatja
+
+    Forgatókönyv: Sidebar commit nélkül, WIP sorral
+      Adott a worktree-ben nem commitolt változás van, egy commit sincs lenyitva
+      Ha a Fejlesztő megnyitja a sidebart
+      Akkor a fában a worktree minden fájlja látszik
+        És a nem commitolt fájlok és mappáik színezve, +N −N számokkal; a mappák csukva maradnak
+
+    Forgatókönyv: Diff-szűrő commit nélkül, WIP sorral
+      Adott a sidebar lenyitott commit nélkül, a worktree-ben nem commitolt változás van
+      Ha a Fejlesztő a fa diff-szűrőjére kattint
+      Akkor a WIP sor lenyílik, a fa a nem commitolt fájlokat mutatja
+
+    Forgatókönyv: A WIP sor megjelenik commit nélkül
+      Adott a sidebar lenyitott commit nélkül, tiszta worktree-ben, a "README.md" kijelölve
+      Ha a worktree-ben új fájl jelenik meg
+      Akkor a fa a WIP sor állapotát mutatja, az új fájllal
+        És a "README.md" kijelölve marad, a teljes képernyő fájában is
 
     Forgatókönyv: A sidebar a lenyitott commitot követi
       Adott a sidebar nyitva
@@ -119,6 +137,7 @@ Jellemző: Fájlfa és teljes nézet
       Adott egy commit, amely a "page/js/diff.js" és a "git_graph/diff.py" fájlt módosítja
       Ha a teljes képernyő megnyílik
       Akkor a diff-szűrő lenyomva, a fában csak ez a két fájl látszik, a mappáikkal és +N −N számokkal
+        És a fájlok és a mappáik neve a változás színével, picit vastagabban áll
         És a "page/js" mappalánc egy sor
 
     Forgatókönyv: Összes fájl

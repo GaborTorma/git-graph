@@ -742,6 +742,127 @@ class WipGoneTest(PageTestCase):
         self.assertIn("tools/util.py", self.page.locator(".fv-path").inner_text())
 
 
+class WipDiffFilterTest(PageTestCase):
+    """Commit nélkül, WIP sorral a diff-szűrő a WIP sort jelöli ki, nem a HEAD-commitot."""
+    WIDTH, HEIGHT = 1100, 760
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        FullViewTest.prepare(repo)
+        (repo / "tools/util.py").write_text("def segit():\n    return 'mas'\n", encoding="utf-8")
+
+    def side_files(self) -> list[str]:
+        return sorted(self.page.locator(".side .fv-file").evaluate_all("els => els.map(e => e.dataset.path)"))
+
+    def test_sidebar_shows_wip_diff(self) -> None:
+        """A sidebar commit nélkül, WIP sorral: minden fájl, a WIP változott fájlja és mappája színezve, a mappa csukva."""
+        # Adott a sidebar commit nélkül, WIP sorral
+        self.page.locator("#sideBtn").click()
+        tools = self.page.locator('.side .fv-row[data-dir="tools"]')
+        tools.wait_for()
+        # Akkor a változott fájl mappája jelölve, de csukva
+        self.assertIn("modified", tools.get_attribute("class"))
+        self.assertEqual(tools.get_attribute("aria-expanded"), "false")
+        self.assertEqual(self.page.locator('.side .fv-file[data-path="tools/util.py"]').count(), 0)
+        # Ha a Fejlesztő kinyitja a mappát
+        tools.click()
+        # Akkor a fájl színezve, számokkal, a többi fájl is látszik, a szűrő nincs lenyomva
+        util = self.page.locator('.side .fv-file[data-path="tools/util.py"]')
+        self.assertIn("modified", util.get_attribute("class"))
+        self.assertEqual(util.locator(".churn").count(), 1)
+        self.assertIn("README.md", self.side_files())
+        self.assertEqual(self.page.locator(".side .fv-diff").get_attribute("aria-pressed"), "false")
+        # És a változott fájl és mappája neve vastagabb (a merge subjectjéé), a többi a törzsé
+        weight = "sel => getComputedStyle(document.querySelector(sel)).fontWeight"
+        css = "n => getComputedStyle(document.documentElement).getPropertyValue(n).trim()"
+        medium, body = self.page.evaluate(css, "--w-medium"), self.page.evaluate(css, "--w-body")
+        self.assertNotEqual(medium, body)
+        self.assertEqual(self.page.evaluate(weight, '.side .fv-file[data-path="tools/util.py"] .name'), medium)
+        self.assertEqual(self.page.evaluate(weight, '.side .fv-row[data-dir="tools"] .name'), medium)
+        self.assertEqual(self.page.evaluate(weight, '.side .fv-file[data-path="README.md"] .name'), body)
+
+    def test_sidebar_diff_selects_wip(self) -> None:
+        """A sidebar diff-szűrője a WIP sort nyitja le: a fa a nem commitolt fájlokat mutatja."""
+        # Adott a sidebar commit nélkül, WIP sorral
+        self.page.locator("#sideBtn").click()
+        self.page.wait_for_selector('.side .fv-row[data-dir="hooks"]')
+        # Ha a Fejlesztő a diff-szűrőre kattint
+        self.page.locator(".side .fv-diff").click()
+        # Akkor a WIP sor nyílik le, a fa a változott fájljait mutatja
+        self.page.wait_for_selector(".row.uncommitted[aria-expanded='true']")
+        self.page.wait_for_function("!document.querySelector('.side .fv-file[data-path=\"README.md\"]')")
+        self.assertEqual(self.side_files(), ["tools/util.py"])
+        self.assertEqual(self.page.locator(".side .fv-diff").get_attribute("aria-pressed"), "true")
+
+    def test_full_diff_selects_wip(self) -> None:
+        """Teljes képernyőn commit nélkül a diff-szűrő a WIP sort jelöli ki."""
+        # Adott a sidebar fájlja teljes képernyőn, commit nélkül, WIP sorral
+        self.page.locator("#sideBtn").click()
+        self.page.locator('.side .fv-file[data-path="README.md"]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.assertEqual(self.page.locator(".fv-commit.sel").count(), 0)
+        # Ha a Fejlesztő a diff-szűrőre kattint
+        self.page.locator(".fv .fv-diff").click()
+        # Akkor a WIP sor a kijelölt, a fa a változott fájljait mutatja
+        self.page.wait_for_selector(".fv-commits .fv-commit:first-child.sel")
+        self.assertEqual(self.page.locator(".fv-commit.sel .sha").count(), 0)
+        files = self.page.locator(".fv .fv-list .fv-file").evaluate_all("els => els.map(e => e.dataset.path)")
+        self.assertEqual(files, ["tools/util.py"])
+
+
+class WipAppearsTest(PageTestCase):
+    """Commit nélkül a fa a worktree mostani állapotát követi: a megjelenő, változó WIP sorét, a
+    kijelölt fájl megmarad (saját repó: ír)."""
+    WIDTH, HEIGHT = 1100, 760
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        FullViewTest.prepare(repo)
+
+    def tearDown(self) -> None:
+        for name in ("uj.txt", "masik.txt"):
+            (self.repo / name).unlink(missing_ok=True)
+        super().tearDown()
+
+    def wip_appears(self, name: str = "uj.txt") -> None:
+        (self.repo / name).write_text("új\n", encoding="utf-8")
+        self.poke()
+        self.page.wait_for_selector(".row.uncommitted")
+
+    def test_sidebar_keeps_selection(self) -> None:
+        """A sidebar kijelölt fájlja megmarad, amikor a WIP sor megjelenik; az új fájl a fában."""
+        # Adott a sidebar commit nélkül, tiszta worktree-ben, kijelölt README.md-vel
+        self.page.locator("#sideBtn").click()
+        self.page.locator('.side .fv-file[data-path="README.md"]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.page.keyboard.press("Escape")
+        self.page.wait_for_selector('.side .fv-file.sel[data-path="README.md"]')
+        # Ha megjelenik a WIP sor egy új fájllal
+        self.wip_appears()
+        # Akkor a fában az új fájl is ott van, a kijelölés a README.md-n marad
+        self.page.wait_for_selector('.side .fv-file[data-path="uj.txt"]')
+        self.assertEqual(self.page.locator(".side .fv-file.sel").get_attribute("data-path"), "README.md")
+
+    def test_full_follows_wip(self) -> None:
+        """Teljes képernyőn commit nélkül a fa a megjelenő, majd változó WIP sor fájljait mutatja."""
+        # Adott a sidebar README.md-je teljes képernyőn, tiszta worktree-ben
+        self.page.locator("#sideBtn").click()
+        self.page.locator('.side .fv-file[data-path="README.md"]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        # Ha megjelenik a WIP sor egy új fájllal
+        self.wip_appears()
+        # Akkor a fában az új fájl, a kijelölés a README.md-n, commit nincs kijelölve
+        self.page.wait_for_selector('.fv .fv-file[data-path="uj.txt"]')
+        self.assertEqual(self.page.locator(".fv .fv-file.sel").get_attribute("data-path"), "README.md")
+        self.assertEqual(self.page.locator(".fv-commit.sel").count(), 0)
+        # Ha a WIP sor változik: még egy új fájl
+        (self.repo / "masik.txt").write_text("más\n", encoding="utf-8")
+        self.poke()
+        # Akkor az is megjelenik a fában
+        self.page.wait_for_selector('.fv .fv-file[data-path="masik.txt"]')
+        self.assertEqual(self.page.locator(".fv .fv-file.sel").get_attribute("data-path"), "README.md")
+
+
 class WipFullViewTest(PageTestCase):
     """A WIP sor teljes nézete a munkakönyvtár mostani állapotát mutatja."""
 

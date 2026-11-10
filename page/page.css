@@ -671,7 +671,7 @@ button { font: inherit; color: inherit; }
 .merge-chev .ic { width: 16px; height: 16px; transform: rotate(-90deg); }   /* a fordulatot a `morphFold` animálja */
 .merge-hit:is(:hover, .hover) .merge-chev { opacity: 1; }
 .merge-hit.hover .merge-chev { transition: none; }   /* újrarajzolás után, amíg az egér rajta van: nem villan */
-.merge-fold:not(:has(.merge-n)) .merge-chev { margin-left: 6px; }   /* szám nélkül (kibontva): a lenyílt ág vonalától el */
+.merge-fold:not(:has(.merge-n)) .merge-chev { margin-left: 3px; }   /* szám nélkül (kibontva): a közepe a merge melletti két sáv (+1, +2) között, a sávtól 10 + 3 + 8 = 21 px = 1,5 sáv */
 .merge-chev[aria-expanded="true"] .ic { transform: rotate(-180deg); }   /* −90° → −180°: 90°-os fordulat */
 /* A szám halvány, tint hátterű kis címke vékony kerettel (a vonalat is takarja). */
 .merge-n {
@@ -1412,6 +1412,8 @@ body.side-on .pending, body.side-on .scroll { margin-right: var(--fv-tree-w, 280
 .fv-row.deleted .name { color: var(--del); }
 .fv-file.deleted .name { text-decoration: line-through; }
 .fv-row.modified .name { color: var(--git-modified); }
+/* a változott fájl és mappája picit vastagabb, mint a merge subjectje */
+.fv-row:is(.added, .deleted, .modified) .name { font-weight: var(--w-medium); }
 .fv-empty { margin: 8px; font-size: 12px; color: var(--fg-2); }
 .fv-error { color: var(--critical); }
 /* a teljes képernyő commitlistája a fa alatt */

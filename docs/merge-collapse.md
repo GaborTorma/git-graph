@@ -37,7 +37,8 @@ megjelenő sorok száma (a belső merge-ek alá rejtettek és a ref-es commitok 
 Halvány, a beolvasztott ág (2. szülő) színével tintelt kis címke vékony kerettel, 11 px-es
 betűvel; a háttere a gráf vonalát is takarja. Utána, csak a merge gráfoszlopa fölött, a nyíl:
 a lenyíló menü 16 px-es CaretDown-ja, ugyanabban a színben, háttér nélkül; összecsukva jobbra,
-kibontva felfelé mutat, és a lenyílt ág vonalától jobbra áll.
+kibontva felfelé mutat, és a közepe pont a merge melletti két sáv között áll. A gráfoszlop a lap legszélesebb
+számához igazodik, így a subject a nyíl után 10 px-re kezdődik.
 
 ### Kétrészes sor
 
@@ -126,6 +127,7 @@ Jellemző: Merge-ek összecsukása
       Ha a User megnyitja a lapot
       Akkor a pöttye mellett "+2" áll, halvány tint címkeként kerettel
         És a szám és a nyíl színe a beolvasztott ág sávszíne
+        És a subject a nyíl után 10 px-re kezdődik
 
     Forgatókönyv: Belső merge saját számmal
       Adott egy összecsukott merge, amelynek ágában egy összecsukott belső merge van

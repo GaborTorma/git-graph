@@ -1,8 +1,8 @@
 /* ── Fájlfa: sidebar és teljes képernyő ──
    A sidebar az eszközsor gombjával nyílik (a lap megjegyzi): a gráf mellett, jobbra a fájlfa, az
    eszközsor és a lábléc között. A fa a lenyitott commitot követi (a változásai szerint színezve);
-   lenyitott commit nélkül a saját worktree mostani állapotát mutatja minden fájllal, színezés nélkül
-   (`plain`); ilyenkor a diff-szűrő a HEAD-commitot nyitja le, és a fa már azt követi. A fában a lenyitott commit változott fájlja a commit-panelben nyílik le, odagörgetve;
+   lenyitott commit nélkül a saját worktree mostani állapotát mutatja minden fájllal (`plain`): a WIP sor
+   változásait színezve, tiszta worktree-ben színezés nélkül; ilyenkor a diff-szűrő a WIP sort (ha nincs, a HEAD-commitot) nyitja le, és a fa már azt követi. A fában a lenyitott commit változott fájlja a commit-panelben nyílik le, odagörgetve;
    a többi fájl (változatlan, vagy nincs lenyitott commit) teljes képernyőn.
    A teljes képernyő a panel lenyitott fájljának fejlécéből nyílik (`data-full`), a fájl első
    változásánál: a lap tetejétől a láblécig. Fent teljes szélességben a fejléc: a repó neve, a HEAD-chip (ha a
@@ -89,7 +89,7 @@ const newTree = (el, sha, all, clean = false) => ({ el, sha, all, clean, path: n
 /* A fa bejegyzései: a változott fájlok, a kapcsolóval a commit minden fájlja (a törölt is, a
    helyén), kereséskor a találatok. */
 function entries(t) {
-  const changed = t.plain ? new Map() : changedFiles(t.sha);
+  const changed = bare(t) ? new Map() : changedFiles(t.sha);
   if (t.grep) return (t.all ? t.grep : t.grep.filter(f => changed.has(f.path))).map(f => changed.get(f.path) || { ...f, changed: false });
   let list = [...changed.values()];
   if (t.all && t.tree) {
@@ -145,7 +145,8 @@ function buildTree(t, list) {
 
 /* Nyitva-e a mappa: kereséskor mind; alapnézetben mind, amit a Fejlesztő nem csukott be; a
    minden fájl nézetben csak a változott fájlok mappái és amit kinyitott. */
-const isOpen = (t, d) => (t.query ? true : t.all ? t.opened.has(d.path) || (d.st.size > 0 && !t.closed.has(d.path))
+// commit nélkül (`plain`) a WIP sor változott mappái csak jelölve, nem nyílnak ki maguktól
+const isOpen = (t, d) => (t.query ? true : t.all ? t.opened.has(d.path) || (!t.plain && d.st.size > 0 && !t.closed.has(d.path))
   : !t.closed.has(d.path));
 
 const ST_CLASS = { A: ' added', D: ' deleted', M: ' modified' };
@@ -182,13 +183,17 @@ function renderTree(t) {
   if (!t) return;
   const list = t.el.querySelector('.fv-list');
   const top = list.scrollTop;
-  t.wip = t.plain ? new Map() : wipCounts(t.sha);
-  t.el.classList.toggle('wip-tone', !t.plain && Boolean(commitBySha(t.sha)?.uncommitted));
+  t.wip = bare(t) ? new Map() : wipCounts(t.sha);
+  t.el.classList.toggle('wip-tone', !bare(t) && Boolean(commitBySha(t.sha)?.uncommitted));
   list.innerHTML = rowsHtml(t, buildTree(t, entries(t)), 0) || `<p class="fv-empty">${t.grep ? 'Nincs találat.' : 'Nincs ilyen fájl.'}</p>`;
   list.scrollTop = top;
 }
 
 const current = t => t === fv || t === side;
+
+/* Commit nélkül, tiszta worktree-ben (a HEAD-en) a fa színezés és számok nélküli; a WIP sornál a
+   változásai látszanak, minden fájl között. */
+const bare = t => t.plain && !t.sha?.startsWith('*');
 
 function loadTree(t) {
   const sha = t.sha;
@@ -244,15 +249,15 @@ function onQuery(t, value) {
 /* A fa kattintásai: a diff-szűrő, a mappák; a fájlra `onFile(path)`. */
 function treeClick(t, target, onFile) {
   const diff = target.closest('.fv-diff');
-  if (diff && t.plain && t === fv) {     // teljes képernyőn commit nélkül: a HEAD-commit lesz a kijelölt
+  // commit nélkül a fa tárgya (`t.sha`) a WIP sor, ha van, különben a HEAD-commit: a szűrő ezt jelöli ki
+  if (diff && t.plain && t === fv) {     // teljes képernyőn: ez lesz a kijelölt
     t.all = false;
     diff.setAttribute('aria-pressed', 'true');
-    switchCommit(focusWt()?.head, false);
+    switchCommit(t.sha, false);
     return true;
   }
-  if (diff && t.plain) {                 // commit nélkül: a HEAD-commit lenyílik, a fa azt követi
-    const head = focusWt()?.head;
-    /** @type {HTMLElement} */ (head && document.querySelector(`.row[data-sha="${CSS.escape(head)}"]`))?.click();
+  if (diff && t.plain) {                 // a sidebarban: ez nyílik le, a fa azt követi
+    /** @type {HTMLElement} */ (t.sha && document.querySelector(`.row[data-sha="${CSS.escape(t.sha)}"]`))?.click();
     return true;
   }
   if (diff) {
@@ -303,8 +308,13 @@ function sideTarget() {
   if (expanded) return { sha: expanded, all: false, clean: false, commit: true, plain: false };
   const wt = focusWt();
   if (!wt) return null;
-  const wip = DATA.commits.find(c => c.uncommitted && !c.staged && c.worktree === wt.slug);
-  return { sha: wip ? wip.sha : wt.head, all: true, clean: !wip, commit: false, plain: true };
+  const sha = plainSha(wt);
+  return { sha, all: true, clean: sha === wt.head, commit: false, plain: true };
+}
+
+/* Commit nélkül a fa tárgya: a worktree nem commitolt sora, ha van, különben a HEAD-commitja. */
+function plainSha(wt) {
+  return DATA.commits.find(c => c.uncommitted && !c.staged && c.worktree === wt.slug)?.sha || wt.head;
 }
 
 function retarget() {
@@ -312,11 +322,12 @@ function retarget() {
   const want = sideTarget();
   // a lenyitott HEAD-commit és a tiszta worktree HEAD-je ugyanaz a sha, más tárgy
   if (want && want.sha === side.sha && want.commit === side.commit) { renderTree(side); return; }
-  const { el, query } = side;
+  const { el, query, path, plain } = side;
   side = want ? { ...newTree(el, want.sha, want.all, want.clean), commit: want.commit, plain: want.plain }
     : { ...newTree(el, null, false), commit: false };
   if (!want) { renderTree(side); return; }   // nincs tárgy (nincs saját worktree): üres fa, nem a régi
   side.query = query;
+  if (plain && want.plain) side.path = path;  // a WIP sor megjelent / eltűnt: a kijelölt fájl marad
   const btn = el.querySelector('.fv-diff');
   btn.setAttribute('aria-pressed', String(!want.all));
   btn.disabled = want.clean && !want.plain;
@@ -497,7 +508,7 @@ function renderCommits() {
    a nem mentett szöveg, a szerkesztő mód és a kinyitott rések maradnak (a panel új nézetet kap). */
 function switchCommit(sha, plain = false) {
   if (!sha || (sha === fv.sha && plain === fv.plain) || !commitBySha(sha)) return;
-  const changed = plain ? new Map() : changedFiles(sha);
+  const changed = bare({ plain, sha }) ? new Map() : changedFiles(sha);
   const path = fv.path || (changed.size ? changed.keys().next().value : fv.path);
   const keep = path && path === fv.path ? codeViews.get(fv.key) : null;
   if (keep) {
@@ -557,7 +568,7 @@ function selectFile(path, line = null, keep = null) {
 function pathHead() {
   const head = fv.el.querySelector('.fv-path'), path = fv.path;
   const icon = (fv.tree || side?.tree)?.files.find(x => x.path === path)?.icon;
-  const f = (fv.plain ? null : changedFiles(fv.sha).get(path)) || { path, icon };
+  const f = (bare(fv) ? null : changedFiles(fv.sha).get(path)) || { path, icon };
   head.innerHTML = `${fileIcon(f)}<span class="path">${esc(path)}</span>${churn(f, fv.wip?.get(path))}`;
   head.classList.toggle('deleted', f.status === 'D');
   fitHead();
@@ -586,12 +597,14 @@ export function refreshFull() {
   const wip = fv.plain && !fv.sha.startsWith('*') && codeViews.get(fv.key)?.wrote && wt
     && DATA.commits.find(c => c.uncommitted && c.worktree === wt.slug && c.sha.startsWith('*uncommitted:'));
   if (wip) { switchCommit(wip.sha); return; }
+  // commit nélkül a fa a worktree mostani állapotát követi: a megjelent WIP sort, vagy újra a HEAD-et
+  if (fv.plain && wt && plainSha(wt) !== fv.sha && commitBySha(plainSha(wt))) { switchCommit(plainSha(wt), true); return; }
   if (fv.all && fv.sha.startsWith('*')) loadTree(fv);
   renderTree(fv);
   renderCommits();
   pathHead();
   const box = fv.el.querySelector('.fv-box'), key = fv.key;
-  const f = fv.plain ? null : changedFiles(fv.sha).get(fv.path);
+  const f = bare(fv) ? null : changedFiles(fv.sha).get(fv.path);
   fileContent(box, fv.sha, fv.path, key, fill => { if (fv?.key === key) fill(); }, { changed: Boolean(f?.changed) });
 }
 
