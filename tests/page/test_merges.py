@@ -909,6 +909,49 @@ class StackedTest(MergeCase):
             self.settle()
 
 
+class StackedBottomFollowsProgressTest(MergeCase):
+    HISTORY = {"stacked": True}
+
+    def test_dependent_bottom_moves_with_progress(self) -> None:
+        """Kibontott profil-ág mellett a login-merge kibontásakor a profil-ág alja és a login-ág közti
+        ív vége a login-sorok nyílásával együtt halad a csukott helyéről a kibontottra (ugyanannyira,
+        amennyire a sorok kinyíltak), nem ugrik az elején a végére."""
+        self.expand(STACKED)
+        hit = self.row(MERGE).locator(".merge-hit")
+        hit.hover(position={"x": 4, "y": 4})
+        # a csukott és a kibontott állapot vége (statikusan)
+        def end() -> float:
+            y = self.page.evaluate(ROW_MID, "Profil oldal")
+            return next(n["n"][-1] for n in self.page.evaluate(PATHS)
+                        if abs(n["n"][1] - y) < 1 and n["n"][-2] != n["n"][0])
+        closed = end()
+        self.expand(MERGE)
+        opened = end()
+        hit.evaluate("el => el.dispatchEvent(new MouseEvent('click', { bubbles: true }))")
+        self.settle()
+        # Ha a User kibontja a login-merge-et, és az animáció félúton tart
+        mid = hit.evaluate("""async el => {
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          const anims = document.getAnimations().filter(a => a.effect?.target?.classList?.contains('row'));
+          anims.forEach(a => { a.pause(); a.currentTime = 25; });
+          const t = anims[0].effect.getComputedTiming().progress;
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const row = [...document.querySelectorAll('#rows .row')].find(r => r.querySelector('.subject').textContent === 'Profil oldal');
+          const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+          const y = rb.top + rb.height / 2 - sb.top;
+          const ends = [...document.querySelectorAll('#lanes path')]
+            .map(p => p.getAttribute('d').match(/-?[\\d.]+/g).map(Number))
+            .filter(n => Math.abs(n[1] - y) < 1 && n.at(-2) !== n[0]).map(n => n.at(-1));
+          anims.forEach(a => a.play());
+          return { ends, t };
+        }""")
+        # Akkor az ív vége a csukott és a kibontott hely között ott van, ahol a sorok haladása tart
+        self.assertTrue(mid["ends"], mid)
+        want = closed + (opened - closed) * mid["t"]
+        self.assertTrue(0.05 < mid["t"] < 0.95, mid)
+        self.assertTrue(all(abs(y - want) < 1.5 for y in mid["ends"]), (closed, opened, mid, want))
+
+
 class RemoteRefTest(MergeCase):
     HISTORY = {"remote": True}
 

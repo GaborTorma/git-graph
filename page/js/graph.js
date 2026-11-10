@@ -91,7 +91,8 @@ export function drawGraph() {
     let op = 1;
     if (foldFx) {
       const hf = foldFx.hidden.has(DATA.commits[e.fromRow].sha), ht = foldFx.hidden.has(DATA.commits[e.toRow].sha);
-      const bottom = ht && !hf && !e.merge ? dependentBottom(e, a, b, rowY, stems) : '';
+      const bottom = ht && !hf && !e.merge
+        ? dependentBottom(e, a, b, rowY, stems, rowIndexBySha, sha => heightBySha.get(sha) || 0) : '';
       if (bottom) { out += bottom; continue; }
       if (ht && !hf) out += foldedEdge(e, a, rowIndexBySha, rowY, foldFx.hidden, foldFx.p, stems);
       if (ht || hf) op = 1 - foldFx.p;
@@ -303,14 +304,21 @@ function morphJoins(rowIndexBySha, rowY, stems, heightOf) {
 }
 
 /* Kibontott ráépülő ág legalsó commitja, miközben a másik merge (amelynek a csúcsára épül)
-   összecsukódik / kinyílik: egyetlen vonal a commitból a másik ág sávjába. A vége a másik ág
-   csúcsát követi, amíg az egy sornyinál messzebb van, onnan a csukott helyén (egy sornyi ív a
-   szárba) marad; közben a folytonos halványul, a pontozott erősödik. */
-function dependentBottom(e, a, b, rowY, stems) {
+   összecsukódik / kinyílik: egyetlen vonal a commitból a másik ág sávjába. A vége a haladással
+   megy a kibontott helyéről (a másik ág csúcsa) a csukott helyére (egy sornyi ív a szárba), a
+   másik ág sorainak ütemében; közben a folytonos halványul, a pontozott erősödik. */
+function dependentBottom(e, a, b, rowY, stems, rowIndexBySha, heightOf) {
   const stem = stems.get(e.toRow);
   if (stem === undefined || stem >= a) return '';
   const x1 = laneX(e.fromLane), x2 = laneX(e.toLane), y1 = rowY(a);
-  const yEnd = Math.max(rowY(b), y1 + ROW_H), turn = Math.max(yEnd - ROW_H, y1);
+  // a csukott vége, mint a statikus rajzé (`joinStem`): egy sornyi, legfeljebb a szár fordulópontjáig;
+  // a cél csukott helye: a pillanatnyi, a még nyitott rejtett sorok magassága nélkül
+  const target = rowIndexBySha.get(belowSkipping(DATA.commits[e.toRow].sha, foldFx.hidden, rowIndexBySha));
+  let left = 0;
+  if (target !== undefined) for (let i = a + 1; i < target; i++) if (foldFx.hidden.has(visible[i].sha)) left += heightOf(visible[i].sha);
+  const bend = target === undefined ? Infinity : Math.max(rowY(stem) + ROW_H, rowY(target) - left - ROW_H);
+  const p = foldFx.p, open = Math.max(rowY(b), y1 + ROW_H), closed = Math.max(y1 + 4, Math.min(y1 + ROW_H, bend));
+  const yEnd = open + (closed - open) * p, turn = Math.max(yEnd - ROW_H, y1);
   const d = `M ${x1} ${y1} L ${x1} ${turn} ${sCurve(x1, turn, x2, yEnd)}`;
   const color = tint(DATA.commits[e.fromRow], laneColor(e.fromLane));
   const line = `d="${d}" fill="none" stroke="${color}" stroke-width="2"`;
