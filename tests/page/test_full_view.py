@@ -755,14 +755,19 @@ class WipDiffFilterTest(PageTestCase):
         return sorted(self.page.locator(".side .fv-file").evaluate_all("els => els.map(e => e.dataset.path)"))
 
     def test_sidebar_shows_wip_diff(self) -> None:
-        """A sidebar commit nélkül, WIP sorral: minden fájl, a WIP változott fájlja színezve, számokkal."""
+        """A sidebar commit nélkül, WIP sorral: minden fájl, a WIP változott fájlja és mappája színezve, a mappa csukva."""
         # Adott a sidebar commit nélkül, WIP sorral
         self.page.locator("#sideBtn").click()
-        # Ha a Fejlesztő a fára néz
+        tools = self.page.locator('.side .fv-row[data-dir="tools"]')
+        tools.wait_for()
+        # Akkor a változott fájl mappája jelölve, de csukva
+        self.assertIn("modified", tools.get_attribute("class"))
+        self.assertEqual(tools.get_attribute("aria-expanded"), "false")
+        self.assertEqual(self.page.locator('.side .fv-file[data-path="tools/util.py"]').count(), 0)
+        # Ha a Fejlesztő kinyitja a mappát
+        tools.click()
+        # Akkor a fájl színezve, számokkal, a többi fájl is látszik, a szűrő nincs lenyomva
         util = self.page.locator('.side .fv-file[data-path="tools/util.py"]')
-        util.wait_for()
-        # Akkor a változott fájl mappája nyitva, a fájl színezve, számokkal, a többi fájl is látszik,
-        # a szűrő nincs lenyomva
         self.assertIn("modified", util.get_attribute("class"))
         self.assertEqual(util.locator(".churn").count(), 1)
         self.assertIn("README.md", self.side_files())

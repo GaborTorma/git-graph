@@ -145,7 +145,8 @@ function buildTree(t, list) {
 
 /* Nyitva-e a mappa: kereséskor mind; alapnézetben mind, amit a Fejlesztő nem csukott be; a
    minden fájl nézetben csak a változott fájlok mappái és amit kinyitott. */
-const isOpen = (t, d) => (t.query ? true : t.all ? t.opened.has(d.path) || (d.st.size > 0 && !t.closed.has(d.path))
+// commit nélkül (`plain`) a WIP sor változott mappái csak jelölve, nem nyílnak ki maguktól
+const isOpen = (t, d) => (t.query ? true : t.all ? t.opened.has(d.path) || (!t.plain && d.st.size > 0 && !t.closed.has(d.path))
   : !t.closed.has(d.path));
 
 const ST_CLASS = { A: ' added', D: ' deleted', M: ' modified' };

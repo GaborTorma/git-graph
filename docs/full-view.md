@@ -10,7 +10,7 @@ diffje, jobbra a fa és a commitlista. A diff maga a [Kóddiff és szerkesztés]
 **Sidebar.** Az eszközsor jobb szélső gombja a gráf mellé nyitja a fájlfát; a gráf annyival
 keskenyebb, az eszközsor a megszokott. A fa a lenyitott commitot követi: a változott fájljait mutatja,
 a változás színével és `+N −N` számokkal. Commit nélkül a worktree minden fájlját: WIP sor esetén a
-nem commitolt fájlokat színezve, számokkal, tiszta worktree-ben színezés és számok nélkül; ilyenkor a diff-szűrő a WIP sort nyitja le, tiszta worktree-ben a HEAD-commitot. A lenyitott commit változott fájlja a
+nem commitolt fájlokat színezve, számokkal (a mappáik csukva, csak jelölve), tiszta worktree-ben színezés és számok nélkül; ilyenkor a diff-szűrő a WIP sort nyitja le, tiszta worktree-ben a HEAD-commitot. A lenyitott commit változott fájlja a
 commit-panelben nyílik le (a lap odagörget), a többi fájl teljes képernyőn. A lap megjegyzi, hogy a
 sidebar nyitva van.
 
@@ -75,7 +75,7 @@ Jellemző: Fájlfa és teljes nézet
       Adott a worktree-ben nem commitolt változás van, egy commit sincs lenyitva
       Ha a Fejlesztő megnyitja a sidebart
       Akkor a fában a worktree minden fájlja látszik
-        És a nem commitolt fájlok színezve, +N −N számokkal, a mappáik nyitva
+        És a nem commitolt fájlok és mappáik színezve, +N −N számokkal; a mappák csukva maradnak
 
     Forgatókönyv: Diff-szűrő commit nélkül, WIP sorral
       Adott a sidebar lenyitott commit nélkül, a worktree-ben nem commitolt változás van
