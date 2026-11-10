@@ -55,7 +55,7 @@
 
 - [Stabil másolat, telepítés](stable-copy-install.md) — nincs install-esemény, a SessionStart hook telepít; stabil zip; csere: lap → zip → manifest; bump nélkül a `plugin update` nem hoz le semmit
 - [Önfrissítő szerver](server-self-update.md) — a futó szerver frissít és szerel le (`watch_plugin`); puffereletlen stdin
-- [A hook publikáltat, a mod nyit](hook-publishes-mod-opens.md) — `publish_steps` a hookból, `--open-url` a modból; modból `publish` nem megy
+- [A mod publikál és nyit](hook-publishes-mod-opens.md) — 2.1.321 óta a mod `read`+`publish`+`open`; a hook csak telepít; kézzel a skillek
 - [Spare session mappája](spare-session-cwd.md) — új chat előre melegített sessionből: a mod `session.start`-ja a `~/.claude/spares/` alatt fut
 - [Runtime-contract rögzítve](artifact-contract.md) — `PUBLISH_CONTRACT` minden lapon; újabbra csak egyeztetés után
 - [Publikálás a sessionből](publish-from-session.md) — meglévőre csak `Artifact read` után; a lépésekben `git-graph`, nem abszolút út
