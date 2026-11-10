@@ -76,6 +76,12 @@ Jellemző: Fájlfa és teljes nézet
       Ha a Fejlesztő a fa diff-szűrőjére kattint
       Akkor a WIP sor lenyílik, a fa a nem commitolt fájlokat mutatja
 
+    Forgatókönyv: A WIP sor megjelenik commit nélkül
+      Adott a sidebar lenyitott commit nélkül, tiszta worktree-ben, a "README.md" kijelölve
+      Ha a worktree-ben új fájl jelenik meg
+      Akkor a fa a WIP sor állapotát mutatja, az új fájllal
+        És a "README.md" kijelölve marad, a teljes képernyő fájában is
+
     Forgatókönyv: A sidebar a lenyitott commitot követi
       Adott a sidebar nyitva
       Ha a Fejlesztő lenyit egy commitot, amely a "page/js/diff.js" és a "git_graph/diff.py" fájlt módosítja

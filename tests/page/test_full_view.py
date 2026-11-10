@@ -783,6 +783,59 @@ class WipDiffFilterTest(PageTestCase):
         self.assertEqual(files, ["tools/util.py"])
 
 
+class WipAppearsTest(PageTestCase):
+    """Commit nélkül a fa a worktree mostani állapotát követi: a megjelenő, változó WIP sorét, a
+    kijelölt fájl megmarad (saját repó: ír)."""
+    WIDTH, HEIGHT = 1100, 760
+
+    @classmethod
+    def prepare(cls, repo: Path) -> None:
+        FullViewTest.prepare(repo)
+
+    def tearDown(self) -> None:
+        for name in ("uj.txt", "masik.txt"):
+            (self.repo / name).unlink(missing_ok=True)
+        super().tearDown()
+
+    def wip_appears(self, name: str = "uj.txt") -> None:
+        (self.repo / name).write_text("új\n", encoding="utf-8")
+        self.poke()
+        self.page.wait_for_selector(".row.uncommitted")
+
+    def test_sidebar_keeps_selection(self) -> None:
+        """A sidebar kijelölt fájlja megmarad, amikor a WIP sor megjelenik; az új fájl a fában."""
+        # Adott a sidebar commit nélkül, tiszta worktree-ben, kijelölt README.md-vel
+        self.page.locator("#sideBtn").click()
+        self.page.locator('.side .fv-file[data-path="README.md"]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        self.page.keyboard.press("Escape")
+        self.page.wait_for_selector('.side .fv-file.sel[data-path="README.md"]')
+        # Ha megjelenik a WIP sor egy új fájllal
+        self.wip_appears()
+        # Akkor a fában az új fájl is ott van, a kijelölés a README.md-n marad
+        self.page.wait_for_selector('.side .fv-file[data-path="uj.txt"]')
+        self.assertEqual(self.page.locator(".side .fv-file.sel").get_attribute("data-path"), "README.md")
+
+    def test_full_follows_wip(self) -> None:
+        """Teljes képernyőn commit nélkül a fa a megjelenő, majd változó WIP sor fájljait mutatja."""
+        # Adott a sidebar README.md-je teljes képernyőn, tiszta worktree-ben
+        self.page.locator("#sideBtn").click()
+        self.page.locator('.side .fv-file[data-path="README.md"]').click()
+        self.page.wait_for_selector(".fv .fv-box .cm-editor")
+        # Ha megjelenik a WIP sor egy új fájllal
+        self.wip_appears()
+        # Akkor a fában az új fájl, a kijelölés a README.md-n, commit nincs kijelölve
+        self.page.wait_for_selector('.fv .fv-file[data-path="uj.txt"]')
+        self.assertEqual(self.page.locator(".fv .fv-file.sel").get_attribute("data-path"), "README.md")
+        self.assertEqual(self.page.locator(".fv-commit.sel").count(), 0)
+        # Ha a WIP sor változik: még egy új fájl
+        (self.repo / "masik.txt").write_text("más\n", encoding="utf-8")
+        self.poke()
+        # Akkor az is megjelenik a fában
+        self.page.wait_for_selector('.fv .fv-file[data-path="masik.txt"]')
+        self.assertEqual(self.page.locator(".fv .fv-file.sel").get_attribute("data-path"), "README.md")
+
+
 class WipFullViewTest(PageTestCase):
     """A WIP sor teljes nézete a munkakönyvtár mostani állapotát mutatja."""
 

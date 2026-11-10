@@ -303,8 +303,13 @@ function sideTarget() {
   if (expanded) return { sha: expanded, all: false, clean: false, commit: true, plain: false };
   const wt = focusWt();
   if (!wt) return null;
-  const wip = DATA.commits.find(c => c.uncommitted && !c.staged && c.worktree === wt.slug);
-  return { sha: wip ? wip.sha : wt.head, all: true, clean: !wip, commit: false, plain: true };
+  const sha = plainSha(wt);
+  return { sha, all: true, clean: sha === wt.head, commit: false, plain: true };
+}
+
+/* Commit nélkül a fa tárgya: a worktree nem commitolt sora, ha van, különben a HEAD-commitja. */
+function plainSha(wt) {
+  return DATA.commits.find(c => c.uncommitted && !c.staged && c.worktree === wt.slug)?.sha || wt.head;
 }
 
 function retarget() {
@@ -312,11 +317,12 @@ function retarget() {
   const want = sideTarget();
   // a lenyitott HEAD-commit és a tiszta worktree HEAD-je ugyanaz a sha, más tárgy
   if (want && want.sha === side.sha && want.commit === side.commit) { renderTree(side); return; }
-  const { el, query } = side;
+  const { el, query, path, plain } = side;
   side = want ? { ...newTree(el, want.sha, want.all, want.clean), commit: want.commit, plain: want.plain }
     : { ...newTree(el, null, false), commit: false };
   if (!want) { renderTree(side); return; }   // nincs tárgy (nincs saját worktree): üres fa, nem a régi
   side.query = query;
+  if (plain && want.plain) side.path = path;  // a WIP sor megjelent / eltűnt: a kijelölt fájl marad
   const btn = el.querySelector('.fv-diff');
   btn.setAttribute('aria-pressed', String(!want.all));
   btn.disabled = want.clean && !want.plain;
@@ -586,6 +592,8 @@ export function refreshFull() {
   const wip = fv.plain && !fv.sha.startsWith('*') && codeViews.get(fv.key)?.wrote && wt
     && DATA.commits.find(c => c.uncommitted && c.worktree === wt.slug && c.sha.startsWith('*uncommitted:'));
   if (wip) { switchCommit(wip.sha); return; }
+  // commit nélkül a fa a worktree mostani állapotát követi: a megjelent WIP sort, vagy újra a HEAD-et
+  if (fv.plain && wt && plainSha(wt) !== fv.sha && commitBySha(plainSha(wt))) { switchCommit(plainSha(wt), true); return; }
   if (fv.all && fv.sha.startsWith('*')) loadTree(fv);
   renderTree(fv);
   renderCommits();
