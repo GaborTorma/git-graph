@@ -273,6 +273,18 @@ class CollapseTest(MergeCase):
         # kibontva a nyíl felfelé mutat (a CaretDown 180°-kal elforgatva)
         self.assertEqual(rotation(self.row(MERGE).locator(".merge-chev .ic")), [-1, 0, 0, -1])
 
+    def test_expanded_chevron_between_lanes(self) -> None:
+        """Kibontva a nyíl közepe pont a merge melletti két sáv (+1 és +2) között áll."""
+        # Adott egy kibontott merge
+        self.expand()
+        # Ha a nyíl látszik (hover)
+        row = self.row(MERGE)
+        row.locator(".merge-hit").hover(position={"x": 4, "y": 4})
+        self.settle()
+        # Akkor a közepe a merge sávjától 1,5 sávnyira (21 px) van; a `.merge-fold` a sávtól 10 px-re kezdődik
+        fold, ic = (row.locator(s).bounding_box() for s in (".merge-fold", ".merge-chev .ic"))
+        self.assertAlmostEqual(ic["x"] + ic["width"] / 2 - (fold["x"] - 10), 1.5 * 14, delta=0.5)
+
     def test_graph_column_expands(self) -> None:
         """A merge gráfoszlopára (a „+2”-re is) kattintás a merge-et bontja ki, a panelt nem nyitja."""
         self.row(MERGE).locator(".merge-n").click()

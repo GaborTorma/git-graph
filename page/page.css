@@ -671,7 +671,7 @@ button { font: inherit; color: inherit; }
 .merge-chev .ic { width: 16px; height: 16px; transform: rotate(-90deg); }   /* a fordulatot a `morphFold` animálja */
 .merge-hit:is(:hover, .hover) .merge-chev { opacity: 1; }
 .merge-hit.hover .merge-chev { transition: none; }   /* újrarajzolás után, amíg az egér rajta van: nem villan */
-.merge-fold:not(:has(.merge-n)) .merge-chev { margin-left: 6px; }   /* szám nélkül (kibontva): a lenyílt ág vonalától el */
+.merge-fold:not(:has(.merge-n)) .merge-chev { margin-left: 3px; }   /* szám nélkül (kibontva): a közepe a merge melletti két sáv (+1, +2) között, a sávtól 10 + 3 + 8 = 21 px = 1,5 sáv */
 .merge-chev[aria-expanded="true"] .ic { transform: rotate(-180deg); }   /* −90° → −180°: 90°-os fordulat */
 /* A szám halvány, tint hátterű kis címke vékony kerettel (a vonalat is takarja). */
 .merge-n {

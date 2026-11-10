@@ -37,7 +37,7 @@ megjelenő sorok száma (a belső merge-ek alá rejtettek és a ref-es commitok 
 Halvány, a beolvasztott ág (2. szülő) színével tintelt kis címke vékony kerettel, 11 px-es
 betűvel; a háttere a gráf vonalát is takarja. Utána, csak a merge gráfoszlopa fölött, a nyíl:
 a lenyíló menü 16 px-es CaretDown-ja, ugyanabban a színben, háttér nélkül; összecsukva jobbra,
-kibontva felfelé mutat, és a lenyílt ág vonalától jobbra áll. A gráfoszlop a lap legszélesebb
+kibontva felfelé mutat, és a közepe pont a merge melletti két sáv között áll. A gráfoszlop a lap legszélesebb
 számához igazodik, így a subject a nyíl után 10 px-re kezdődik.
 
 ### Kétrészes sor
