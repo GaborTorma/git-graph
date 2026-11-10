@@ -12,7 +12,8 @@ lapja 0.2.66-on, a Lesowné 0.2.74-en futott, a legújabb 0.2.96 volt.
 
 Döntés (a Fejlesztőé, 2026-11-10): minden lap a `publish.PUBLISH_CONTRACT`-tal publikálódik,
 rögzítve, mindenhol ugyanazzal. A contract része a `caps_digest`-nek és a `page_digest`-nek,
-így váltáskor minden repó következő sessionje újrapublikálja a lapját.
+így váltáskor minden repó következő sessionje újrapublikálja a lapját. A 0.2.96 a git-graph
+lapján mérve működik (betöltés, `file_tree`), 2026-11-10.
 
 **Why:** egyforma, ismert API minden lapon; a frissítés ne magától, ne lapról lapra történjen.
 
