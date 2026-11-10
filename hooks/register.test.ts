@@ -11,14 +11,20 @@ const runs = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on: any,
   stdout: string,
-  { read = 'owner', denyOnce = '' } = {},
+  { read = 'owner', denyOnce = '', cwds = ['/repo'] } = {},
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): Promise<{ argv: string[][]; calls: any[] }> => {
+): Promise<{ argv: string[][]; calls: any[]; sleeps: number }> => {
   const argv: string[][] = []
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const calls: any[] = []
   let denied = false
-  on('session.cwd', () => ({ value: '/repo' }))
+  let sleeps = 0
+  // a mappák sorban, az utolsó marad
+  on('session.cwd', () => ({ value: cwds.length > 1 ? cwds.shift() : cwds[0] }))
+  on('clock.sleep', () => {
+    sleeps++
+    return { value: undefined }
+  })
   on('session.id', () => ({ value: 's1' }))
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on('process.run', (_: any, e: any) => {
@@ -47,8 +53,18 @@ const runs = async (
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
   // a mod nem várja meg a publikálást (`void`): a mikrofeladatok lefutnak
   for (let i = 0; i < 2000; i++) await Promise.resolve()
-  return { argv: argv.map(a => a.slice(2)), calls }
+  return { argv: argv.map(a => a.slice(2)), calls, sleeps }
 }
+
+test('előre melegített sessionben a végleges mappát várja meg', async ($, on) => {
+  // Adott: az app a sessiont egy spare mappában indítja, és később helyezi át a repóba
+  const spare = '/Users/u/.claude/spares/spare-Ab12'
+  const { argv, calls, sleeps } = await runs($, on, PLAN, { cwds: [spare, spare, '/repo'] })
+  // Akkor a mod a repó mappájával dönt, nem a spare-ével
+  expect(argv[0]).toEqual(['/repo', '--mod-plan', '--session', 's1'])
+  expect(sleeps).toBe(2)
+  expect(calls.map(c => c.tool)).toEqual(['get_artifact', 'publish_files', 'mcp__ccd_view__show_pane'])
+})
 
 test('a lapot az élő verzióra újraküldi, visszaírja a hasht, és megnyitja a panelt', async ($, on) => {
   // Adott egy meglévő Artifact a mostani capability-vel
