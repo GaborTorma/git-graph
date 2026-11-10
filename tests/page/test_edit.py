@@ -58,7 +58,9 @@ COORDS = f"""async ([sel, line, col]) => {{
     const a = at(); await frames(); const b = at();
     if (a[0] === b[0] && a[1] === b[1] && document.elementFromPoint(b[0], b[1])?.closest(sel + ' .cm-content')) return b;
   }}
-  throw new Error('a pont nem áll meg a szerkesztőn: ' + sel);
+  const b = at(), el = document.elementFromPoint(b[0], b[1]);
+  throw new Error('a pont nem áll meg a szerkesztőn: ' + sel + ': ' + JSON.stringify(b) + ' ' + innerWidth + 'x' + innerHeight + ' '
+    + (el ? el.tagName + '.' + el.className + ' < ' + el.parentElement?.className : 'null') + ' scroll=' + document.querySelector('.scroll')?.scrollTop);
 }}"""
 
 

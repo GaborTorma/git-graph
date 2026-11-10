@@ -19,6 +19,7 @@ osztályok függetlenek: saját kamu HOME, fixture-repó, MCP-szerver, tesztenk�
 from __future__ import annotations
 
 import atexit
+import contextlib
 import json
 import os
 import shutil
@@ -233,6 +234,8 @@ class PageTestCase(unittest.TestCase):
             content_type="text/html", headers={"Content-Security-Policy": CSP}, body=self.html))
         self.page.goto(URL)
         self.page.wait_for_selector("#rows .row")
+        # a betűk (`font.js`) a FontFace betöltése után rendezik újra a lapot: ezt a `__quiet` nem látja
+        self.page.wait_for_function("[...document.fonts].filter(f => f.family.includes('Anthropic') && f.status === 'loaded').length === 2")
         self.settle()
 
     def tearDown(self) -> None:
@@ -255,6 +258,20 @@ class PageTestCase(unittest.TestCase):
             if time.monotonic() > end:
                 self.fail(f"{timeout} s alatt sem teljesült: {what}")
             self.page.wait_for_timeout(50)
+
+    @contextlib.contextmanager
+    def frozen(self):
+        """A blokkban indult animációk (CSS, Web Animations) állnak, a kezdőpontjukon: a teszt a
+        közbülső állapotukat olvashatja. Terhelt gépen két Playwright-hívás között egy 200 ms-os
+        animáció már véget érhetne. Utána a lap egy képkockán belül újra a saját ütemében fut."""
+        cdp = self.context.new_cdp_session(self.page)
+        cdp.send("Animation.enable")
+        cdp.send("Animation.setPlaybackRate", {"playbackRate": 0})
+        try:
+            yield
+        finally:
+            cdp.send("Animation.setPlaybackRate", {"playbackRate": 1})
+            cdp.detach()
 
     def poke(self) -> None:
         """A nyitva tartott `changes` hívás most válaszol: a lap az élő frissítést futtatja."""
