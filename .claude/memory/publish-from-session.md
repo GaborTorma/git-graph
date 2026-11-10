@@ -1,9 +1,15 @@
 ---
 name: publish-from-session
-description: Az Artifactot a session publikálja (a hook kéri) — meglévőre csak Artifact read után, csak végigolvasott fájlt; a lépésekben git-graph áll, nem abszolút út
+description: (KIVEZETVE 2026-11-10, a mod publikál) Az Artifactot a session publikálja (a hook kéri) — meglévőre csak Artifact read után, csak végigolvasott fájlt; a lépésekben git-graph áll, nem abszolút út
 metadata:
   type: project
 ---
+
+**Kivezetve 2026-11-10-én:** a publikálást a mod végzi a modell nélkül ([[hook-publishes-mod-opens]]);
+a kézi út a mod `/git-graph` commandja. A session-lépések (`publish_steps`, `--publish`,
+`--open-url`, az `artifact-publish` / `artifact-open` skill) törölve. Ami alább áll, az
+`Artifact` eszköz viselkedéséről ma is igaz (pl. meglévőre csak `read` után publikál).
+
 
 Mérve 2026-10-01-én (Claude Code 2.1.285, contract 0.2.66):
 

@@ -55,10 +55,10 @@
 
 - [Stabil másolat, telepítés](stable-copy-install.md) — nincs install-esemény, a SessionStart hook telepít; stabil zip; csere: lap → zip → manifest; bump nélkül a `plugin update` nem hoz le semmit
 - [Önfrissítő szerver](server-self-update.md) — a futó szerver frissít és szerel le (`watch_plugin`); puffereletlen stdin
-- [A mod publikál és nyit](hook-publishes-mod-opens.md) — 2.1.321 óta a mod `read`+`publish`+`open`; a hook csak telepít; kézzel a skillek
+- [A mod publikál és nyit](hook-publishes-mod-opens.md) — 2.1.321 óta a mod `read`+`publish`+`open`; a hook csak telepít; kézzel a `/git-graph` command
 - [Spare session mappája](spare-session-cwd.md) — új chat előre melegített sessionből: a mod `session.start`-ja a `~/.claude/spares/` alatt fut
 - [Runtime-contract rögzítve](artifact-contract.md) — `PUBLISH_CONTRACT` minden lapon; újabbra csak egyeztetés után
-- [Publikálás a sessionből](publish-from-session.md) — meglévőre csak `Artifact read` után; a lépésekben `git-graph`, nem abszolút út
+- [Publikálás a sessionből (kivezetve)](publish-from-session.md) — ma a mod publikál; az `Artifact` publish meglévőre csak `read` után
 - [Mod korlátai](mod-limits.md) — 2.1.321 óta modból `Artifact` read/publish/capabilities is megy kérés nélkül; `classic.*` nem jön; panel nem DOM
 - [Mod és a fájllink](mod-link-press.md) — a válasz fájllinkjének kattintása modból elkapható (`AssistantMessage` + `onLinkPress`); diff-kártyára nem
 - [Beépülés saját panelként](desktop-integration-paths.md) — zárt panelkészlet, távoli UI, zárt asar; a böngészőpanel localhostot scripttel futtat

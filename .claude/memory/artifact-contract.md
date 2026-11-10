@@ -17,6 +17,6 @@ lapján mérve működik (betöltés, `file_tree`), 2026-11-10.
 
 **Why:** egyforma, ismert API minden lapon; a frissítés ne magától, ne lapról lapra történjen.
 
-**How to apply:** ha az `Artifact` publish eredménye újabb contractot jelez („newest …”), szólj a
-Fejlesztőnek; csak az ő jóváhagyása után emeld a `PUBLISH_CONTRACT`-ot (előtte nézd át az új
+**How to apply:** ha az `Artifact` publish eredménye újabb contractot jelez („newest …” — a mod
+ilyenkor `$.ui.toast`-tal szól), szólj a Fejlesztőnek; csak az ő jóváhagyása után emeld a `PUBLISH_CONTRACT`-ot (előtte nézd át az új
 verzió típusait: az artifact-capabilities skill `<verzió>/*.d.ts`), és futtasd a lap tesztjeit.
