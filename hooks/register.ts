@@ -1,61 +1,20 @@
 import type { Register } from 'claude-code'
 
-// A plugin modja: a session indulásakor a modell nélkül küldi újra és nyitja
-// meg a repó Artifactját. Az app Artifact-panelje csak a sessionben publikált
-// lapot mutatja, ezért a mod a lapot újraküldi — a csak betöltőt érintő
-// frissítést is (a capability a republishnél öröklődik) —, visszaírja a hasht
-// (`--republished`), majd előhozza a panelt. Hogy kell-e, azt a Python dönti el
-// (`git-graph --mod-plan`): be van-e kapcsolva, a deklarált capability-lista a
-// mostani-e, a sessionben volt-e már, és engedik-e a Claude Code beállításai
-// (`permissions.allow`) a kérés nélküli hívást. Új lapot és capability-változást
-// a hook kéri a sessiontől: a `declare_capabilities` modból nem megy át, a
-// kattintás `consent`-jével sem (mérve, .claude/memory/mod-limits.md).
+// A plugin modja: a session indulásakor a modell nélkül publikálja (ha kell) és
+// nyitja meg a repó Artifactját a beépített `Artifact` eszközzel, majd előhozza a
+// panelt. Hogy mit kell, azt a Python dönti el (`git-graph --mod-plan`): be van-e
+// kapcsolva, van-e már lap, naprakész-e (betöltő, capability-lista, contract), és a
+// sessionben volt-e már. A 2.1.321 óta a mod hívásai kérés nélkül mennek, a
+// publikálás és a capability-deklarálás is (mérve, .claude/memory/mod-limits.md).
 
-type Plan = { repo: string; url: string; page: string }
+type Publish = { file_path: string; title: string; capabilities: unknown; contract: string }
+type Plan = { repo: string; url: string; publish?: Publish }
 
-type Artifact = { slug: string; url?: string; version: string; read?: string }
-
-const ARTIFACTS = 'mcp__claude-artifacts__'
-
-// Egy Artifact-eszköz hívása; a válasza JSON. Elutasítás vagy hiba: kivétel. Ha az
-// auto mód nem döntött („gave no verdict”), az üzenete szerint egyszer újra —
-// olvasásnál szabály nélkül előfordul (mérve, 2026-11-06).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const call = async ($: any, tool: string, args: Record<string, unknown>): Promise<any> => {
-  const input = { tool: ARTIFACTS + tool, ...args }
-  let r = await $.tool.call(input)
-  if (r.deny !== undefined && String(r.deny).includes('gave no verdict')) r = await $.tool.call(input)
-  if (r.deny !== undefined) throw new Error(`${tool}: ${r.deny}`)
-  if (r.isError) throw new Error(`${tool}: ${r.text}`)
-  return leadingJson(String(r.text))
-}
-
-// A válasz eleji JSON-objektum: az eszköz utána még szöveget fűzhet hozzá.
-const leadingJson = (text: string): unknown => {
-  const start = text.indexOf('{')
-  let depth = 0
-  let quoted = false
-  for (let i = start; i >= 0 && i < text.length; i++) {
-    const c = text[i]
-    if (quoted) {
-      if (c === '\\') i++
-      else if (c === '"') quoted = false
-    } else if (c === '"') quoted = true
-    else if (c === '{') depth++
-    else if (c === '}' && --depth === 0) return JSON.parse(text.slice(start, i + 1))
-  }
-  return JSON.parse(text)
-}
-
-// A lap újraküldése az élő verzióra.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const republish = async ($: any, plan: Plan): Promise<void> => {
-  const live: Artifact = await call($, 'get_artifact', { slug: plan.url })
-  const shared = live.read && live.read !== 'owner' ? { shared_live: live.read } : {}
-  await call($, 'publish_files', {
-    slug: live.slug, base_version: live.version, files: [{ as: 'index.html', path: plan.page }], ...shared,
-  })
-}
+// Az új Artifact URL-je a publish válaszából: „Published <fájl> at <URL> (Version …”.
+const PUBLISHED_URL = /\bat (https:\/\/claude\.ai\/artifact\/[A-Za-z0-9_-]+)/
+// A rögzítettnél újabb contract a publish válaszában: „Stored — contract 0.2.96 (newest 0.2.97)”.
+// Az emelés egyeztetés után, a kódban (`PUBLISH_CONTRACT`): a mod csak szól.
+const NEWER_CONTRACT = /\(newest (\d+\.\d+\.\d+)\)/
 
 // Az app új chathez előre melegített sessiont tart (`~/.claude/spares/spare-*`):
 // a `session.start` ott fut, a végleges mappát csak a chat indulásakor kapja meg
@@ -72,23 +31,63 @@ const settledCwd = async ($: any): Promise<string> => {
   return cwd
 }
 
+// Egy `Artifact`-hívás; a válasza, ha sikerült, különben null. Ha az auto mód nem
+// döntött („gave no verdict”), egyszer újra (mérve, 2026-11-06).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const run = async ($: any): Promise<void> => {
+const artifact = async ($: any, input: Record<string, unknown>): Promise<string | null> => {
+  const call = { tool: 'Artifact', ...input }
+  let r = await $.tool.call(call)
+  if (r.deny !== undefined && String(r.deny).includes('gave no verdict')) r = await $.tool.call(call)
+  return r.deny === undefined && !r.isError ? String(r.text ?? '') : null
+}
+
+// A lap feltöltése: meglévőre `read` után (enélkül a publish elutasított), a teljes
+// capability-listával és a rögzített contracttal; utána a `--published` írja vissza
+// az URL-t és a hasheket. A lap URL-je, vagy null, ha nem sikerült.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const publish = async ($: any, bin: string, plan: Plan, job: Publish): Promise<string | null> => {
+  const { file_path, capabilities, contract } = job
+  if (plan.url && (await artifact($, { action: 'read', url: plan.url })) === null) return null
+  const text = await artifact($, plan.url
+    ? { action: 'publish', url: plan.url, file_path, capabilities, contract }
+    : { action: 'publish', file_path, title: job.title, icon: 'branch', capabilities, contract })
+  const url = plan.url || PUBLISHED_URL.exec(text ?? '')?.[1]
+  if (text === null || !url) return null
+  const newer = NEWER_CONTRACT.exec(text)?.[1]
+  if (newer) await $.ui.toast(`git-graph: újabb Artifact-contract érhető el (${newer}; a lap ${contract}-on fut)`)
+  await $.process.run(['/usr/bin/python3', bin, plan.repo, '--published', url])
+  return url
+}
+
+// A terv végrehajtása: publikálás, ha kell, majd megnyitás. `manual`: a `/git-graph`
+// command kérése (a beállításoktól és a session korábbi megnyitásától függetlenül).
+// A válasz a command kimenetének sora; a session indulásakor senki nem olvassa.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const run = async ($: any, manual = false): Promise<string> => {
   const bin = `${$.plugin.root}/bin/git-graph`
   const { stdout } = await $.process.run([
     '/usr/bin/python3', bin, await settledCwd($), '--mod-plan', '--session', await $.session.id(),
+    ...(manual ? ['--manual'] : []),
   ])
-  if (!stdout.trim()) return
+  if (!stdout.trim()) return 'A git-graph itt nem nyitható meg: a mappa nem git repó.'
   const plan: Plan = JSON.parse(stdout)
-  await republish($, plan)
-  await $.process.run(['/usr/bin/python3', bin, plan.repo, '--republished', plan.url])
+  const url = plan.publish ? await publish($, bin, plan, plan.publish) : plan.url
+  if (!url) return 'A git-graph lapját nem sikerült publikálni.'
+  if ((await artifact($, { action: 'open', url })) === null) return `A git-graph lapját nem sikerült megnyitni: ${url}`
   await $.tool.call({ tool: 'mcp__ccd_view__show_pane', pane: 'artifact' })
+  return `${plan.publish ? 'Publikálva és megnyitva' : 'Megnyitva'}: ${url}`
 }
+
+const COMMAND = 'git-graph'
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
+    await $.command.register({
+      name: COMMAND, description: 'A repó Git Graph lapja: publikálja, ha kell, és megnyitja',
+    })
     void run($).catch(() => undefined)
     return started
   })
+  on('command.run', { command: COMMAND }, async $ => ({ text: await run($, true) }))
 }

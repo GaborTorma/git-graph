@@ -1,9 +1,15 @@
 ---
 name: publish-from-session
-description: Az Artifactot a session publikálja (a hook kéri) — meglévőre csak Artifact read után, csak végigolvasott fájlt; a lépésekben git-graph áll, nem abszolút út
+description: (KIVEZETVE 2026-11-10, a mod publikál) Az Artifactot a session publikálja (a hook kéri) — meglévőre csak Artifact read után, csak végigolvasott fájlt; a lépésekben git-graph áll, nem abszolút út
 metadata:
   type: project
 ---
+
+**Kivezetve 2026-11-10-én:** a publikálást a mod végzi a modell nélkül ([[hook-publishes-mod-opens]]);
+a kézi út a mod `/git-graph` commandja. A session-lépések (`publish_steps`, `--publish`,
+`--open-url`, az `artifact-publish` / `artifact-open` skill) törölve. Ami alább áll, az
+`Artifact` eszköz viselkedéséről ma is igaz (pl. meglévőre csak `read` után publikál).
+
 
 Mérve 2026-10-01-én (Claude Code 2.1.285, contract 0.2.66):
 
@@ -23,23 +29,16 @@ Mérve 2026-10-01-én (Claude Code 2.1.285, contract 0.2.66):
   `Bash(git-graph:*)` engedély lefedi.
 - Headless (`-p`, SDK; `CLAUDE_CODE_ENTRYPOINT=sdk-*`) sessionben a hook nem kér publikálást.
 
-Mérve 2026-11-04 óta (a `claude-artifacts` MCP eszközei váltották az `Artifact` toolt):
-
-- A `publish_files` csak olyan fájlt csatol, amelyet a session olvashat; a `~/.git-graph` lapja
-  így elbukik: *„only files this session is allowed to read can be attached … add its folder
-  with /add-dir. publish_files was not called.”* Megoldás: a telepítés a `~/.git-graph`-ot a
-  `~/.claude/settings.json` `permissions.additionalDirectories`-ába veszi (`install_read_dir`); a
-  lap tartalomként küldése (`publish_version`) elvetve, a Fejlesztő döntése.
-- A publikálásnak nincs `capabilities` paramétere: a `declare_capabilities` (előtte
-  `read_declaration`) állítja, a republish a régit viszi. Emiatt két lapon (Lesown, hlinkify)
-  hiányzott a `file_tree` és a `write_file`.
-- `open` művelet nincs; a `show_pane` (`pane: "artifact"`) a sessionben publikáltat hozza elő.
-- Az auto mód a próbapublikálást (szándékosan rossz `base_version`-nel) kérés nélkül
-  megtagadta: „Unrequested Commit in a Connected App”.
+- A `~/.git-graph` lapját a session csak akkor olvassa kérdés nélkül, ha a mappa a session
+  munkamappái közt van: a telepítés a `~/.claude/settings.json`
+  `permissions.additionalDirectories`-ába veszi (`install_read_dir`).
+- A publish `capabilities` paramétere teljes halmaz: ami kimarad, visszavonódik; ha az egész
+  kimarad, a régi deklaráció öröklődik. Ezért a lépések mindig a teljes `PUBLISH_CAPS`-ot és a
+  rögzített `contract`-ot adják ([[artifact-contract]]).
 
 **Why:** a headless `claude -p` + launchd út ([[headless-publish-retired]]) helyett ez lett a
 publikálás; a mod nem publikálhat ([[mod-limits]]).
 
-**How to apply:** `publish_steps` / `git-graph --publish`: `get_artifact` → `publish_files` →
-`read_declaration` + `declare_capabilities` a `PUBLISH_CAPS`-szal → `git-graph --published <URL>` → `show_pane`. A lapba ne kerüljön nagy, egysoros tartalom
+**How to apply:** `publish_steps` / `git-graph --publish`: `Artifact` `read` → `Artifact` `publish`
+(`file_path`, `capabilities`, `contract`) → `git-graph --published <URL>` → `show_pane`. A lapba ne kerüljön nagy, egysoros tartalom
 ([[artifact-holds-no-data]]).

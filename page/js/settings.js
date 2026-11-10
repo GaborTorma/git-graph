@@ -1,6 +1,6 @@
 /* ── Beállítások ── a fogaskerék-menü kapcsolói. A megnyitás a repóé (a
    `.git/config`-ban): a session indulásakor magától nyílik a lap, és ha elavult,
-   frissül. A publikálás a gépé: Artifact nélküli repóban a session létrehozza.
+   frissül. A publikálás a gépé: Artifact nélküli repóban a plugin modja létrehozza.
    A merge-ek összecsukása is a repóé; a lap a `graph_data`-ból már az első rajzolásnál ismeri.
    A git-graph tárolja (`settings` tool); a menü nyitáskor kérdezi le. */
 import { icon } from './icons.js';

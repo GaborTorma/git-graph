@@ -1,27 +1,27 @@
 ---
 name: hook-publishes-mod-opens
-description: A hook publikáltat, a mod nyit meg — mert modból a publish nem megy; sessionönként egyszer nyit (sessions.json); resume, /clear, compact nem zárja be a lapot
+description: A mod publikál és nyit (2.1.321 óta), a hook csak telepít és regisztrál; sessionönként egyszer (sessions.json); resume, /clear, compact nem zárja be a lapot
 metadata:
   type: project
 ---
 
-- Ha a repónak nincs Artifactja, vagy a lap hashe eltér a `git-graph.artifactHash`-től, a SessionStart
-  hook a publikálás lépéseit adja a sessionnek (`publish_steps`). A meglévőt a plugin modja
-  (`hooks/register.ts`) nyitja meg a modell nélkül, a session indulásakor: a `git-graph --open-url`
-  dönt, a mod `$.tool.call`-lal hívja az `Artifact` `open`-t ([[mod-limits]]).
+- 2026-11-10 óta (a Fejlesztő döntése, a 2.1.321-es mérés után; a régebbi kliens nem érdekes) a
+  plugin modja (`hooks/register.ts`) végez mindent a session indulásakor, a modell nélkül: a
+  `git-graph --mod-plan` terve szerint új vagy elavult lapnál `Artifact` `read` + `publish`
+  (teljes `PUBLISH_CAPS`, `PUBLISH_CONTRACT`), `--published`, majd `Artifact` `open` +
+  `show_pane`. A SessionStart hook csak telepít és regisztrál, a sessiontől nem kér semmit.
+  Élesben mérve 2026-11-10-én a Lesownon: új chat → a mod újrapublikálta (0.2.96, 7 tool), a
+  `--published` frissítette a hasheket.
+- Előtte (2.1.293–2.1.317) a mod nem publikálhatott (auto mód), ezért a hook kérte a sessiont
+  (`publish_steps` additionalContextként); a kézi út két skill volt. Mindez törölve.
 - Sessionönként egyszer: `~/.git-graph/sessions.json` (`session_id → slug`, 7 nap után törlődik), a
   `source`-tól függetlenül — a `resume`, a `/clear` és a `compact` nem zárja be a lapot; archiválásra
-  nincs hook, a `SessionEnd` app-bezáráskor is fut. Publikáláskor a hook jegyzi be a sessiont: utána a
-  modell nyit.
+  nincs hook. Elbukott publikálás után abban a sessionben nincs újrapróba.
 - Kapcsolók a lap fogaskerekén (`settings` tool): automatikus megnyitás repónként
-  (`git-graph.autoOpen`; a 0.13 előtti `autoPublish=false` is kikapcsoltnak számít) és automatikus
-  publikálás a gépen (`~/.git-graph/settings.json`).
-- A hook némán kilép, ha a mappa nem repó (minden sessionben fut, zajt nem csinálhat). Ahol nem fut
-  mod (régi kliens), a lap magától nem nyílik meg. Worktree-váltásra nincs hook (0.13 előtt
-  `PostToolUse` futott az `Enter`/`ExitWorktree` után).
+  (`git-graph.autoOpen`) és automatikus publikálás a gépen (`~/.git-graph/settings.json`, az új
+  Artifacthoz).
 
-**Why:** az Artifact API-t csak a modell és a mod éri el; a mod publikálását az auto mód elutasítja,
-a modellé a hook kérésére megy.
+**Why:** a modell köre és a hook szövege nélkül, a session indulásakor rendeződik a lap.
 
-**How to apply:** publikálás → hook-lépés a sessionnek; megnyitás → mod
-([[artifact-open-paths]]). A publikálást ne próbáld modba tenni.
+**How to apply:** automatikus publikálás és megnyitás → mod ([[mod-limits]], [[spare-session-cwd]]);
+kézi → a mod `/git-graph` commandja (`--mod-plan --manual`: beállítástól és a sessiontől független).

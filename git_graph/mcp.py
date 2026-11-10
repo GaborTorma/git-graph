@@ -91,8 +91,8 @@ MCP_TOOLS = [
          **_REPO_ARG["properties"],
          "autoOpen": {"type": "boolean", "description": "a repó Artifactja a session indulásakor "
                                                         "megnyílik (és ha kell, frissül)"},
-         "autoPublish": {"type": "boolean", "description": "Artifact nélküli repóban a session "
-                                                           "publikálja (a gépen, minden repóra)"},
+         "autoPublish": {"type": "boolean", "description": "Artifact nélküli repóban a mod "
+                                                           "létrehozza (a gépen, minden repóra)"},
          "collapseMerges": {"type": "boolean", "description": "a lapon a beolvasztott commitok a "
                                                               "merge alá csukódnak (a repóé)"}}},
      "description": "A git-graph beállításai: a megadottakat beírja, és mindegyik értékét adja."},

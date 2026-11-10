@@ -25,11 +25,9 @@ Használat és felépítés: [README.md](../README.md).
 | `ruff.toml`, `biome.json` | lint: Python (3.9-célverzióval) és a `page/` JS / CSS / HTML-je |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
-| `hooks/hooks.json` | a plugin SessionStart hookja (`--session-hook`) és a mod (`modules`) |
-| `hooks/register.ts` | a plugin modja: a repó Artifactját a modell nélkül újraküldi (a csak betöltőt érintő frissítést is) és megnyitja (`git-graph --mod-plan`, `get_artifact` + `publish_files`, `show_pane`), ha a `permissions.allow` engedi; új lapot és capability-változást a hook kéri a sessiontől; teszt: `register.test.ts` |
-| `skills/artifact-publish/SKILL.md` | a `/git-graph:artifact-publish` skill (`git-graph --publish`, publikálja, ha kell, és megnyitja) |
-| `skills/artifact-open/SKILL.md` | a `/git-graph:artifact-open` skill (`git-graph --open-url`, és megnyitja az Artifactot; elavultat előbb frissít, újat nem hoz létre) |
-| `skills/artifact-forget/SKILL.md` | a `/git-graph:artifact-forget` skill: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; uninstall előtt: mind) |
+| `hooks/hooks.json` | a plugin SessionStart hookja (`--session-hook`: telepítés, regisztráció) és a mod (`modules`) |
+| `hooks/register.ts` | a plugin modja: a repó Artifactját a modell nélkül publikálja, ha kell (új, elavult, capability- vagy contract-változás: `Artifact` `read` + `publish`, `--published`), és megnyitja (`Artifact` `open`, `show_pane`) — a session indulásakor és a `/git-graph` commandra (`--manual`); `git-graph --mod-plan` dönt; teszt: `register.test.ts` |
+| `skills/forget-artifact/SKILL.md` | a `/git-graph:forget-artifact` skill: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; uninstall előtt: mind) |
 | `docs/README.md`, `docs/<funkció>.md` | a funkcióoldalak listája és oldalai (pl. `file-diff.md`): működés, `R-N` követelmények, használat |
 
 ## Parancsok
@@ -39,12 +37,11 @@ claude plugin install git-graph@git-graph   # a hook az első sessionben telepí
 claude --plugin-dir .                      # fejlesztés: a working tree pluginként, bump nélkül
 claude plugin validate . --strict          # manifestek, skill, hook
 git-graph --help             # a teljes súgó
-git-graph --publish          # az Artifact vékony lapja + a publikálás lépései a sessionnek
-git-graph --published <URL>  # a session publikálása után: URL + hash a .git/config-ba
+git-graph --published <URL>  # a mod publikálása után: URL + hash a .git/config-ba
 git-graph --mcp              # MCP szerver stdio-n — a Claude app indítja, nem kézzel
 git-graph --artifacts        # ismert repók Artifactjai (regiszter + a szülőmappák repói)
 git-graph --forget           # a repó git-graph nyomai + automatikus megnyitás KI
-git-graph --mod-plan --session <ID>   # a mod kérdése: JSON, ha most újra kell küldenie és megnyitnia
+git-graph --mod-plan --session <ID> [--manual]   # a mod kérdése: JSON, ha most publikálnia és/vagy megnyitnia kell
 claude plugin test .         # a mod tesztjei (hooks/*.test.ts)
 uv run --no-project --with playwright==1.63.0 --with pytest==9.0.3 --with pytest-xdist==3.8.0 python -m pytest tests/page -n auto --dist worksteal -q -p no:cacheprovider   # a lap böngészőben
 uv run --no-project --with playwright==1.63.0 python scripts/screenshots.py   # a funkcióoldalak képei
@@ -120,6 +117,9 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
 - **Deploy**: a marketplace forrása a repó `main`-je, tehát a merge már
   élesít; a `/release` deploy-lépése a helyi frissítés:
   `claude plugin marketplace update git-graph && claude plugin update git-graph@git-graph`.
+- **Runtime-contract**: minden repó lapja a `publish.PUBLISH_CONTRACT`-tal publikálódik (rögzítve,
+  mindenhol ugyanaz). Ha a publish újabbat jelez („newest …”; a mod értesítést ad róla), szólj, és
+  csak egyeztetés után emeld: [artifact-contract](memory/artifact-contract.md).
 - **Env**: a toolnak nincs env-függősége, ezért nincs `.env.example`.
 - **Funkcióoldal**: bár ez plugin, a funkcióoldalak a `docs/<funkció>.md`-ben élnek, a lista a
   `docs/README.md`; a README csak belépő, funkciónként egy rövid bekezdéssel és linkkel —

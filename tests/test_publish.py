@@ -1,4 +1,4 @@
-"""Publikálás (`publish`): a betöltő kiírása, a session lépései, a publikált lap hashe."""
+"""Publikálás (`publish`): a betöltő kiírása és a publikált lap hashe."""
 from __future__ import annotations
 
 from helpers import HomeTestCase
@@ -6,33 +6,20 @@ from helpers import HomeTestCase
 
 class PublishTest(HomeTestCase):
     def test_flow(self) -> None:
-        """Nincs Artifact → lépések címmel, ikonnal, a lap fájljával; publikálva → naprakész;
-        capability-változás → frissítés az élő verzió olvasásával és a capability deklarálásával."""
+        """Nincs Artifact → a lap kiírva, címmel; publikálva → naprakész; capability-változás → újra kell,
+        az élő URL-lel."""
         gg = self.load()
         repo = self.plain_repo()
         gg.gitio.set_repo(repo)
         job = gg.publish.prepare_publish()
-        self.assertEqual(job["url"], "")
+        self.assertEqual((job["url"], job["title"]), ("", "Git Graph (plain)"))
         self.assertEqual(job["page"], gg.publish.artifact_path(repo))
         self.assertIn("<title>Git Graph (plain)</title>", job["page"].read_text(encoding="utf-8"))
-        steps = gg.publish.publish_steps(job)
-        self.assertIn('title: "Git Graph (plain)", icon: "branch"', steps)
-        self.assertIn(f'"path": "{job["page"]}"', steps)
-        self.assertIn("declare_capabilities", steps)
-        self.assertIn("--published <URL>", steps)
-        self.assertNotIn("get_artifact", steps)
-
         gg.publish.mark_published("https://claude.ai/artifact/x")
         self.assertEqual(gg.gitio.config_get("artifact"), "https://claude.ai/artifact/x")
         self.assertIsNone(gg.publish.prepare_publish())
-
         gg.publish.PUBLISH_CAPS["mcp"]["servers"][0]["tools"].append("uj_tool")
-        job = gg.publish.prepare_publish()
-        self.assertEqual(job["url"], "https://claude.ai/artifact/x")
-        steps = gg.publish.publish_steps(job)
-        self.assertTrue(steps.startswith("1) mcp__claude-artifacts__get_artifact, slug: "
-                                         "https://claude.ai/artifact/x"))
-        self.assertIn("uj_tool", steps.split("declare_capabilities")[1])
+        self.assertEqual(gg.publish.prepare_publish()["url"], "https://claude.ai/artifact/x")
 
     def test_caps_tools(self) -> None:
         """A lap capability-je a fájlfa és az író tool hívását is engedi."""
@@ -43,29 +30,28 @@ class PublishTest(HomeTestCase):
         # Akkor az MCP szerver minden toolja benne van
         self.assertEqual(set(tools), {t["name"] for t in gg.mcp.MCP_TOOLS})
 
-    def test_caps_tracking(self) -> None:
-        """A session publikálása a capability hashét is rögzíti, a mod újraküldése nem; a kézi URL törli."""
-        # Adott egy kiírt lap
+    def test_declaration_in_hash(self) -> None:
+        """A lap hashe a capability-listát és a contractot is tartalmazza: ha bármelyik változik, a
+        lap elavult; a publikálás után újra naprakész; a kézi URL ismeretlen hasht jelent."""
+        # Adott egy publikált lap
         gg = self.load()
         gg.gitio.set_repo(self.plain_repo())
         gg.publish.prepare_publish()
-        # Ha a nyilvántartás előtt publikálták, akkor a naprakész lap hashe dönt
-        gg.publish.mark_published("https://claude.ai/artifact/x", declared=False)
-        self.assertTrue(gg.publish.caps_current())
-        gg.gitio.git("config", "--local", "git-graph.artifactHash", "elavult")
-        self.assertFalse(gg.publish.caps_current())
-        # Ha a session publikál, akkor a mostani capability a deklarált
         gg.publish.mark_published("https://claude.ai/artifact/x")
-        self.assertTrue(gg.publish.caps_current())
-        gg.publish.mark_published("https://claude.ai/artifact/x", declared=False)
-        self.assertTrue(gg.publish.caps_current())                 # az újraküldés nem törli
-        # Ha a capability-lista változik, akkor már nem a deklarált
+        self.assertIsNone(gg.publish.prepare_publish())
+        # Ha a capability-lista változik, akkor elavult
         gg.publish.PUBLISH_CAPS["mcp"]["servers"][0]["tools"].append("uj_tool")
-        self.assertFalse(gg.publish.caps_current())
+        self.assertIsNotNone(gg.publish.prepare_publish())
         gg.publish.PUBLISH_CAPS["mcp"]["servers"][0]["tools"].pop()
-        # Ha kézzel adják meg az URL-t, akkor ismeretlen
+        self.assertIsNone(gg.publish.prepare_publish())
+        # Ha a rögzített contract változik, akkor is, a publikálás után már nem
+        gg.publish.PUBLISH_CONTRACT = "9.9.9"
+        self.assertIsNotNone(gg.publish.prepare_publish())
+        gg.publish.mark_published("https://claude.ai/artifact/x")
+        self.assertIsNone(gg.publish.prepare_publish())
+        # Ha kézzel adják meg az URL-t, akkor újra kell publikálni
         gg.gitio.remember_artifact("https://claude.ai/artifact/y")
-        self.assertFalse(gg.publish.caps_current())
+        self.assertIsNotNone(gg.publish.prepare_publish())
 
     def test_mark_published_needs_page(self) -> None:
         gg = self.load()
