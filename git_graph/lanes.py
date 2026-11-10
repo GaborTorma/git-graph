@@ -4,6 +4,17 @@ from __future__ import annotations
 from .worktrees import STAGED, UNCOMMITTED
 
 
+def on_first_parents(start: str, target: str, commits: list[dict], index: dict[str, int]) -> bool:
+    """Igaz, ha a `target` a `start` első szülő-láncán van (a betöltött commitok között)."""
+    sha: str | None = start
+    while sha is not None and sha in index:
+        if sha == target:
+            return True
+        parents = commits[index[sha]]["parents"]
+        sha = parents[0] if parents else None
+    return False
+
+
 def assign_lanes(commits: list[dict], trunk: str | None = None) -> list[dict]:
     """Sávkiosztás: minden commit kap egy oszlopot, a szülők sávot foglalnak.
 
@@ -40,12 +51,26 @@ def assign_lanes(commits: list[dict], trunk: str | None = None) -> list[dict]:
         active[lane] = parents[0]
         for parent in parents[1:]:
             existing = next((i for i, h in enumerate(active) if h == parent), None)
-            if existing is None:
-                slot = next((i for i, h in enumerate(active) if h is None), None)
+            if existing is not None:
+                continue
+            # Ha a beolvasztott csúcs egy már futó ág első szülő-láncán van (arra az ágra
+            # épült egy másik, korábban mergelt ág), a merge kapja annak a sávját: a szára
+            # a csúcsig fut, és a ráépülő ág onnan jobbra ágazik el, nem folyik össze vele.
+            host = next((i for i, h in enumerate(active)
+                         if h is not None and i != lane and on_first_parents(h, parent, commits, index)), None)
+            if host is not None:
+                active[host], moved = parent, active[host]
+                slot = next((i for i in range(host + 1, len(active)) if active[i] is None), None)
                 if slot is None:
                     active.append(None)
                     slot = len(active) - 1
-                active[slot] = parent
+                active[slot] = moved
+                continue
+            slot = next((i for i, h in enumerate(active) if h is None), None)
+            if slot is None:
+                active.append(None)
+                slot = len(active) - 1
+            active[slot] = parent
 
     # Élek: gyerek → szülő, sáv- és sorindexekkel (a rajzoláshoz).
     edges = []

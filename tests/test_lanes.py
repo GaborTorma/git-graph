@@ -16,6 +16,25 @@ class LanesTest(HomeTestCase):
         self.assertIn({"fromRow": 0, "fromLane": 0, "toRow": 1, "toLane": 1, "merge": True}, edges)
         self.assertIn({"fromRow": 1, "fromLane": 1, "toRow": 2, "toLane": 0, "merge": False}, edges)
 
+    def test_merge_stem_below_dependent_branch(self) -> None:
+        """Ha egy korábban mergelt ág csúcsára épül egy később mergelt ág, a korábbi merge saját
+        sávja (a szára) fut le a csúcsig, és a ráépülő ág onnan egy sávval jobbra ágazik el."""
+        gg = self.load()
+        # Adott: m2 a t2 ágat mergeli, amely a t1 csúcsára (b) épül; m1 a t1 ágat (a, b) mergeli
+        commits = [{"sha": "m2", "parents": ["m1", "c"]},
+                   {"sha": "m1", "parents": ["o", "b"]},
+                   {"sha": "c", "parents": ["b"]},
+                   {"sha": "b", "parents": ["a"]},
+                   {"sha": "a", "parents": ["o"]},
+                   {"sha": "o", "parents": []}]
+        # Ha a sávok kiosztódnak
+        edges = gg.lanes.assign_lanes(commits)
+        lane = {c["sha"]: c["lane"] for c in commits}
+        # Akkor m1 éle a csúcs sávjába fut, a t2 ága (c) jobbra áll, és onnan ágazik el
+        self.assertIn({"fromRow": 1, "fromLane": 0, "toRow": 3, "toLane": lane["b"], "merge": True}, edges)
+        self.assertGreater(lane["c"], lane["b"])
+        self.assertEqual(lane["a"], lane["b"])
+
     def test_assign_lanes_trunk(self) -> None:
         """A `trunk` a 0. sávot kapja akkor is, ha egy újabb commit előtte jön."""
         gg = self.load()
