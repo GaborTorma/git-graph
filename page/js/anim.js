@@ -71,7 +71,8 @@ export function grow(el, change, settle) {
 /* Merge kibontása és összecsukása: a megjelenő sorok 0-ról a saját magasságukra nőnek (`unfoldRows`),
    az eltűnők 0-ra csukódnak, utána `done` (`foldRows`). Együtt mozognak; a gráf képkockánként
    újrarajzol, így a vonal velük nyúlik és rövidül. Csukáskor a felcsukódó ág a haladással együtt
-   halványul, és a merge pontozott éle beúszik; nyitáskor fordítva (`setFoldFx`). */
+   halványul (a sorok is, ugyanazzal a görbével), és a merge pontozott éle beúszik; nyitáskor
+   fordítva (`setFoldFx`). */
 const FOLD_MS = 200;
 function rows(els, frames, done) {
   if (!els.length || reducedMotion()) { done?.(); return; }
@@ -96,8 +97,9 @@ function rows(els, frames, done) {
     drawGraph();
   });
 }
-export const unfoldRows = els => rows(els, el => [FLAT, fullBox(el)]);
-export const foldRows = (els, done) => rows(els, el => [fullBox(el), FLAT], done);
+// A sor a pöttyével együtt (ugyanazzal a görbével) halványul el / úszik be.
+export const unfoldRows = els => rows(els, el => [{ ...FLAT, opacity: 0 }, { ...fullBox(el), opacity: 1 }]);
+export const foldRows = (els, done) => rows(els, el => [{ ...fullBox(el), opacity: 1 }, { ...FLAT, opacity: 0 }], done);
 
 /* A merge gráfoszlopa (`.merge-fold`) a változás előtt: a nyíl bal széle és szöge (a CSS-é: jobbra
    −90°, kibontva felfelé −180°, így a fordulat mindig 90°). */

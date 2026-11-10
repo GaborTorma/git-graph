@@ -372,6 +372,27 @@ class CollapseTest(MergeCase):
         self.assertEqual(self.page.locator("#lanes path.fold").count(), 0)
         self.assertEqual(self.page.locator("#lanes [opacity]:not(circle)").count(), 0)
 
+    def test_fold_rows_fade(self) -> None:
+        """Összecsukáskor a felcsukódó sorok a pöttyeikkel együtt halványulnak el, kibontáskor a
+        lenyílók beúsznak."""
+        # Adott egy kibontott merge
+        self.expand()
+        for closing in (True, False):
+            # Ha a User összecsukja (majd kibontja), és az animáció félúton tart
+            op = self.row(MERGE).locator(".merge-hit").evaluate("""async el => {
+              el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+              const row = [...document.querySelectorAll('#rows .row')]
+                .find(r => r.querySelector('.subject').textContent.startsWith('Login'));
+              const anims = row.getAnimations();
+              anims.forEach(a => { a.pause(); a.currentTime = 100; });
+              const op = Number(getComputedStyle(row).opacity);
+              anims.forEach(a => a.play());
+              return op;
+            }""")
+            # Akkor a sor félig átlátszó
+            self.assertTrue(0 < op < 1, (closing, op))
+            self.settle()
+
     def test_collapse_morph(self) -> None:
         """Összecsukáskor a felcsukódással együtt (200 ms) a nyíl a helyéről jobbra fordul, és a szám
         balról jobbra nő, maga előtt tolva a nyilat; a végén a nyíl a szám után áll."""
