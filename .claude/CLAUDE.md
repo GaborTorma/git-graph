@@ -27,7 +27,7 @@ Használat és felépítés: [README.md](../README.md).
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
 | `hooks/hooks.json` | a plugin SessionStart hookja (`--session-hook`: telepítés, regisztráció) és a mod (`modules`) |
 | `hooks/register.ts` | a plugin modja: a repó Artifactját a modell nélkül publikálja, ha kell (új, elavult, capability- vagy contract-változás: `Artifact` `read` + `publish`, `--published`), és megnyitja (`Artifact` `open`, `show_pane`) — a session indulásakor és a `/git-graph` commandra (`--manual`); `git-graph --mod-plan` dönt; teszt: `register.test.ts` |
-| `skills/artifact-forget/SKILL.md` | a `/git-graph:artifact-forget` skill: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; uninstall előtt: mind) |
+| `skills/forget-artifact/SKILL.md` | a `/git-graph:forget-artifact` skill: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; uninstall előtt: mind) |
 | `docs/README.md`, `docs/<funkció>.md` | a funkcióoldalak listája és oldalai (pl. `file-diff.md`): működés, `R-N` követelmények, használat |
 
 ## Parancsok

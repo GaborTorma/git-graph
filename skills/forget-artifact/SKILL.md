@@ -1,6 +1,6 @@
 ---
-name: artifact-forget
-description: A git-graph Artifact törlése és a repó git-graph nyomainak eltakarítása (`git-graph --forget`) — az aktuális repóé vagy az összesé (a plugin eltávolítása előtt). Használd, ha a Fejlesztő egy repó Artifactját meg akarja szüntetni, a git-graph-ot el akarja távolítani, vagy /git-graph:artifact-forget-et ír.
+name: forget-artifact
+description: A git-graph Artifact törlése és a repó git-graph nyomainak eltakarítása (`git-graph --forget`) — az aktuális repóé vagy az összesé (a plugin eltávolítása előtt). Használd, ha a Fejlesztő egy repó Artifactját meg akarja szüntetni, a git-graph-ot el akarja távolítani, vagy /git-graph:forget-artifact-et ír.
 allowed-tools: Bash(git-graph:*), Bash(git config:*), Artifact, AskUserQuestion
 ---
 
@@ -10,7 +10,7 @@ Az Artifactot törli a claude.ai-ról, és a `git-graph --forget`-tel a repó
 `git-graph.*` kulcsait, helyi lapját és regiszterbejegyzését. A `--forget` a repó
 automatikus megnyitását is kikapcsolja (`git-graph.autoOpen=false` a
 `.git/config`-ban): a plugin modja abban a repóban nem publikál és nem nyit meg. A kézi
-`/git-graph:artifact-publish` új Artifactja visszakapcsolja.
+`/git-graph` command új Artifactja visszakapcsolja.
 
 A `claude plugin uninstall` a gépi részt magától leszereli, de az Artifactokat nem
 törli — eltávolítás előtt ezért az összeset kell.
@@ -50,7 +50,7 @@ A kiválasztott soronként:
 ### 5. Jelentsd vissza
 
 Hány Artifact törlődött, mi maradt, és hogy ezekben a repókban az automatikus
-megnyitás ki van kapcsolva (visszakapcsolás: `/git-graph:artifact-publish`).
+megnyitás ki van kapcsolva (visszakapcsolás: `/git-graph`).
 
 **Mind** esetén utolsó sorként a plugin eltávolítása:
 

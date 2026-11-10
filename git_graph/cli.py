@@ -53,7 +53,7 @@ def main() -> int:
                     help="a repóhoz tartozó Artifact URL kézi megjegyzése")
     ap.add_argument("--artifacts", action="store_true",
                     help="az ismert repók Artifactjai, soronként: <repó>\\t<URL> "
-                         "(a /git-graph:artifact-forget ebből dolgozik)")
+                         "(a /git-graph:forget-artifact ebből dolgozik)")
     ap.add_argument("--forget", action="store_true",
                     help="a repó git-graph nyomainak törlése (.git/config kulcsok, "
                          "helyi lap, regiszter) és az automatikus megnyitás "

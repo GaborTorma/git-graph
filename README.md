@@ -54,7 +54,7 @@ claude plugin marketplace add GaborTorma/git-graph
 claude plugin install git-graph@git-graph
 ```
 
-A plugin hozza a modot (a `/git-graph` commanddal), a `/git-graph:artifact-forget`
+A plugin hozza a modot (a `/git-graph` commanddal), a `/git-graph:forget-artifact`
 skillt, a SessionStart hookot, és a Claude
 Bash eszközének PATH-jára a `git-graph` parancsot. Függősége
 nincs a Python 3 stdliben túl (a lap a Mermaid vendorolt buildjét hozza, a
@@ -76,7 +76,7 @@ változáskor ír):
 
 **Eltávolítás:** két lépés.
 
-1. `/git-graph:artifact-forget` egy sessionben, **Mind** választással — törli az Artifactokat (a `git-graph --artifacts`
+1. `/git-graph:forget-artifact` egy sessionben, **Mind** választással — törli az Artifactokat (a `git-graph --artifacts`
    listája alapján, mindegyiket külön jóváhagyással), és repónként a `git-graph
    --forget`-tel a `git-graph.*` kulcsokat, a helyi lapokat és a
    regiszterbejegyzést. Közben kikapcsolja az automatikus publikálást, hogy a
@@ -156,7 +156,7 @@ repóét kikapcsolja.
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace (egyetlen plugin: ez a repó) |
 | `hooks/hooks.json` | SessionStart hook: `git-graph --session-hook` (telepít, regisztrál); és a mod (publikál, megnyit) |
 | `hooks/register.ts` | a plugin modja: az Artifactot a modell nélkül publikálja, ha kell, és megnyitja — a session indulásakor és a `/git-graph` commandra |
-| `skills/artifact-forget/SKILL.md` | `/git-graph:artifact-forget`: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; eltávolítás előtt: mind) |
+| `skills/forget-artifact/SKILL.md` | `/git-graph:forget-artifact`: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; eltávolítás előtt: mind) |
 
 ## Kimenet
 
