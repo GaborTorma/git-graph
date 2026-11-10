@@ -1,3 +1,43 @@
+## [0.19.1] - 2026-11-10
+
+### 🐛 Bug Fixes
+
+- *(lanes)* A korábban mergelt ág szára a csúcsáig fut, a ráépülő ág jobbra ágazik el
+- *(page)* Összecsukáskor a pontozott merge-él a felcsukódás alatt úszik be
+- *(page)* Kibontáskor a pontozott merge-él a lenyílás alatt halványul el
+- *(page)* Az összecsukott ágra épülő kibontott ág a merge szárába fut be
+- *(page)* A ráépülő ág összecsukva és animáció közben is a merge szárába fut be
+- *(page)* A ráépülő ág mindig felül, a saját színével fut be a másik merge szárába
+- *(page)* Folytonos pontozott él, sima csatlakozó ív, a lenyíló ág éle beúszik
+- *(page)* A ráépülő ág csatlakozása összecsukáskor a helyére csúszik
+- *(page)* Összecsukott másik merge mellett is egyetlen vonal csúszik a helyére
+- *(page)* A helyére csúszó csatlakozás a sorokkal együtt mozog
+- *(page)* Kibontáskor a merge-ből induló szakasz a lenyílással együtt válik folytonossá
+- *(page)* A helyére csúszó csatlakozás íve nem lapul el és nem fordul vissza
+- *(page)* A régebbi merge kapcsolásakor a ráépülő ág alja egy vonal marad
+- *(page)* A régebbi merge nyitásakor a ráépülő ág alja a sorokkal együtt mozdul
+
+### 🚜 Refactor
+
+- *(page)* A pontozott élek rajzolása közös segédekkel
+- *(page)* A helyére csúszó csatlakozás végállapotai a statikus rajzból
+- *(test)* A gráf mérő segédei egy forrásból (LIB)
+- *(test)* Az ív kezdete a LIB-ből, nem a számok közti eltolásból
+- *(page)* A foldStates nem pótol elérhetetlen magasságot
+
+### 📚 Documentation
+
+- *(merge-collapse)* A ráépülő ág sávja és a csatlakozás animációja
+
+### 🎨 Styling
+
+- *(page)* A nyitás animációja egy kicsit lassabban indul
+- *(page)* A merge felcsukódó és lenyíló sorai a pöttyeikkel együtt halványulnak
+
+### 🧪 Testing
+
+- *(page)* A helyére csúszó csatlakozás tesztje a sorok közti látható committal
+- *(page)* A merge-animációk egy forgatókönyv-mátrixban, közös képkocka-segéddel
 ## [0.19.0] - 2026-11-10
 
 ### 🚀 Features
