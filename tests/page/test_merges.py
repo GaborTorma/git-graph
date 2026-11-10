@@ -88,23 +88,25 @@ def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner:
         git("branch", "-q", "-D", "feat/profile", day=3)
 
 
-# A gráf élei: a kezdő- és végpont Y-ja (az SVG koordinátáiban) és a szaggatás.
-EDGES = """() => [...document.querySelectorAll('#lanes path')].map(p => {
-  const n = p.getAttribute('d').match(/-?[\\d.]+/g).map(Number);
-  return { y1: n[1], y2: n.at(-1), dash: p.getAttribute('stroke-dasharray') };
-})"""
+# A mérések segédei a lapon: egy sor közepe a gráf SVG-jében (null, ha nincs ilyen sor), és a gráf
+# útjai (koordináták, szaggatás, erősség, pontozott-e, ívvel végződik-e).
+LIB = """const mid = s => { const row = [...document.querySelectorAll('#rows .row')]
+    .find(r => r.querySelector('.subject').textContent === s);
+  if (!row) return null;
+  const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+  return rb.top + rb.height / 2 - sb.top; };
+const paths = () => [...document.querySelectorAll('#lanes path')].map(p => { const d = p.getAttribute('d');
+  return { n: d.match(/-?[\\d.]+/g).map(Number), dash: p.getAttribute('stroke-dasharray'), fold: p.matches('.fold'),
+           op: Number(p.getAttribute('opacity') ?? 1), curve: d.lastIndexOf('C') > d.lastIndexOf('L') }; });"""
 
 # A gráf éleinek összes koordinátája (x, y párok sorban) és a szaggatás.
-PATHS = """() => [...document.querySelectorAll('#lanes path')].map(p => ({
-  n: p.getAttribute('d').match(/-?[\\d.]+/g).map(Number), dash: p.getAttribute('stroke-dasharray') }))"""
+PATHS = f"""() => {{ {LIB} return paths(); }}"""
+
+# A gráf élei: a kezdő- és végpont Y-ja (az SVG koordinátáiban) és a szaggatás.
+EDGES = f"""() => {{ {LIB} return paths().map(p => ({{ y1: p.n[1], y2: p.n.at(-1), dash: p.dash }})); }}"""
 
 # Egy sor közepének Y-ja a gráf SVG-jében.
-ROW_MID = """subject => {
-  const row = [...document.querySelectorAll('#rows .row')]
-    .find(r => r.querySelector('.subject').textContent === subject);
-  const r = row.getBoundingClientRect(), s = document.querySelector('#lanes').getBoundingClientRect();
-  return r.top + r.height / 2 - s.top;
-}"""
+ROW_MID = f"""s => {{ {LIB} return mid(s); }}"""
 
 # A sor közepének magasságában ülő körök a gráfban.
 DOTS_AT = """subject => {
@@ -123,17 +125,6 @@ def rotation(loc) -> list[int]:
     m = loc.evaluate("el => getComputedStyle(el).transform")
     return [round(float(v)) for v in m[7:-1].split(",")[:4]]
 
-
-# A mérések segédei a lapon: egy sor közepe a gráf SVG-jében (null, ha nincs ilyen sor), és a gráf
-# útjai (koordináták, szaggatás, erősség, pontozott-e, ívvel végződik-e).
-LIB = """const mid = s => { const row = [...document.querySelectorAll('#rows .row')]
-    .find(r => r.querySelector('.subject').textContent === s);
-  if (!row) return null;
-  const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
-  return rb.top + rb.height / 2 - sb.top; };
-const paths = () => [...document.querySelectorAll('#lanes path')].map(p => { const d = p.getAttribute('d');
-  return { n: d.match(/-?[\\d.]+/g).map(Number), dash: p.getAttribute('stroke-dasharray'), fold: p.matches('.fold'),
-           op: Number(p.getAttribute('opacity') ?? 1), curve: d.lastIndexOf('C') > d.lastIndexOf('L') }; });"""
 
 BG = """() => getComputedStyle(document.body).backgroundColor"""
 
