@@ -30,6 +30,7 @@
 - [file_diff bemenete](file-diff-input-safety.md) — a `sha` csak hex; fájlt közvetlenül csak követetlen esetben olvasunk
 - [Ág-távolság origin/HEAD-hez](branch-base-origin-head.md) — a reflog forrás-ága szándékosan nem; gazda a HEAD-reflogból
 - [Független történet felismerése](unrelated-history-detection.md) — behind = alapág commitszáma; közös ős ⇔ közös gyökér; merge-base nélkül
+- [Szerzői sorrend](author-date-order.md) — a lista `--author-date-order`, nem a VS Code `--date-order`-je: egyezzen a napfejlécekkel
 
 ## MCP és host-híd
 

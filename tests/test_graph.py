@@ -22,7 +22,7 @@ class GraphTest(HomeTestCase):
     def test_mirrors(self) -> None:
         """A közös ős nélküli történet azonos subjectű, szerzőjű és author-dátumú commitja a forrás
         tükre (`mirrorOf`); a cherry-pick (közös ős van) és a forrás maga nem az. A forrás az
-        alapágé akkor is, ha a mellékág cherry-pickje újabb (a `--date-order`-ben elöl áll)."""
+        alapágé akkor is, ha a mellékág cherry-pickje újabb (a committer-dátuma szerint elöl állna)."""
         repo = self.plain_repo()
         run = lambda *a: git_in(repo, *a)  # noqa: E731
         date = "--date=@1780000000 +0000"                                # az author-dátum
@@ -42,6 +42,29 @@ class GraphTest(HomeTestCase):
         gg.graph.mark_mirrors(commits, "")
         marked = {c["sha"]: c["mirrorOf"] for c in commits if "mirrorOf" in c}
         self.assertEqual(marked, {mirror: src})
+
+    def test_author_date_order(self) -> None:
+        """A sorrend a szerzői időt követi (mint a napfejlécek), nem a committer-dátumot: a később
+        cherry-pickelt, de korábban írt commit a helyén marad."""
+        # Adott két ág, amelyek commitjait később, fordított sorrendben cherry-pickelték újra
+        repo = self.plain_repo()
+        run = lambda *a: git_in(repo, *a)  # noqa: E731
+
+        def commit(msg: str, authored: int, committed: int) -> None:
+            with mock.patch.dict(os.environ, {"GIT_COMMITTER_DATE": f"@{committed} +0000"}):
+                run("commit", "-q", "--allow-empty", "-m", msg, f"--date=@{authored} +0000")
+
+        run("switch", "-q", "-c", "a")
+        commit("a1", 1780000100, 1780009000)
+        commit("a2", 1780000300, 1780009100)
+        run("switch", "-q", "-c", "b", "main")
+        commit("b1", 1780000200, 1780009200)                         # később pickelve, de korábban írva
+        gg = self.load()
+        gg.gitio.set_repo(repo)
+        # Ha a lap a commitokat kéri
+        subjects = [c["subject"] for c in gg.graph.collect_commits(None)]
+        # Akkor a szerzői idő szerint jönnek: a2, b1, a1
+        self.assertEqual([s for s in subjects if s in ("a1", "a2", "b1")], ["a2", "b1", "a1"])
 
     def test_subtree_splits(self) -> None:
         """A subtree squash-commitja (gyökér) a `git-subtree-split:` commitjához kötve (`splitOf`);

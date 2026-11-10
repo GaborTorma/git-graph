@@ -22,7 +22,9 @@ COMMIT_FMT = FS.join(["%H", "%P", "%an", "%ae", "%aI", "%cI", "%D", "%s", "%b"])
 
 def collect_commits(limit: int | None) -> list[dict]:
     """Commitok minden refről, szülőkkel, ref-dekorációval és törzzsel; köztük a stash-ek."""
-    args = ["log", *ALL_BUT_STASH, "--date-order", f"--pretty=format:{RS}{COMMIT_FMT}"]
+    # A sorrend a szerzői idő (`--author-date-order`), mint a napfejlécek és a sor ideje: a
+    # cherry-pick és a rebase a committer-dátumot mostanra állítja, a szerzőit nem.
+    args = ["log", *ALL_BUT_STASH, "--author-date-order", f"--pretty=format:{RS}{COMMIT_FMT}"]
     if limit:
         args.append(f"-{limit}")
     return insert_stashes(parse_commits(git(*args)), stash_commits())
@@ -72,22 +74,22 @@ def stash_commits() -> list[dict]:
     return stashes
 
 
-def committed_at(c: dict) -> datetime:
-    # A `%cI` UTC-nél `Z`-vel végződik: a Python 3.9 `fromisoformat`-ja nem ismeri.
-    return datetime.fromisoformat(c["committed"].replace("Z", "+00:00"))
+def authored_at(c: dict) -> datetime:
+    # Az ISO-idő UTC-nél `Z`-vel végződhet: a Python 3.9 `fromisoformat`-ja nem ismeri.
+    return datetime.fromisoformat(c["date"].replace("Z", "+00:00"))
 
 
 def insert_stashes(commits: list[dict], stashes: list[dict]) -> list[dict]:
-    """A stash-ek a `--date-order` szerinti helyükre: az első nem újabb commit elé, de
+    """A stash-ek a szerzői idő szerinti helyükre (`--author-date-order`): az első nem újabb commit elé, de
     legkésőbb a bázisuk elé. Ha a bázis és a helyük is a limiten túl van, kimaradnak."""
     shas = {c["sha"] for c in commits}
-    times = [committed_at(c) for c in commits]
+    times = [authored_at(c) for c in commits]
     for st in reversed(stashes):                 # a régebbi előbb: az újabb fölé kerül, azonos időnél is
         if st["sha"] in shas:
             continue
         end = len(commits)
         base = next((i for i, c in enumerate(commits) if c["sha"] == st["parents"][0]), end)
-        when = committed_at(st)
+        when = authored_at(st)
         at = next((i for i, t in enumerate(times) if t <= when), end)
         if base == end and at == end:
             continue
@@ -241,7 +243,7 @@ def mark_mirrors(commits: list[dict], base: str) -> None:
     közös ősük van.
 
     Közös ős ⇔ közös gyökér-commit. A gyökereket a látható commitokból számoljuk: a
-    `--date-order` miatt a szülő a gyereke után jön, így visszafelé egy menetben. Ahol a
+    `--author-date-order` miatt a szülő a gyereke után jön, így visszafelé egy menetben. Ahol a
     limit elvágja a történetet, ott a `rev-list --max-parents=0` dönt (csak a jelölteknél)."""
     by_sha = {c["sha"]: c for c in commits if not c.get("stash")}
     key = lambda c: (c["subject"], c["author"], c["email"], c["date"])  # noqa: E731
@@ -280,7 +282,7 @@ def mark_mirrors(commits: list[dict], base: str) -> None:
                 continue
             cands = [s for s in sources if not roots_of(s["sha"]) & roots_of(c["sha"])]
             # egy mellékág cherry-pickje is jelölt (közös a gyökere az alapággal): az alapágé
-            # az elsőbb, különben a `--date-order` sorrendje döntene
+            # az elsőbb, különben a lista sorrendje döntene
             if cands:
                 c["mirrorOf"] = min(cands, key=lambda s: not in_base(s["sha"]))["sha"]
 
