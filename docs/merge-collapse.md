@@ -31,11 +31,16 @@ szülője a merge alatti látható sorból ágazik, él nincs. Ha egy ág egy m�
 pontozott vége ennek a merge-nek a szárába (a 2. szülő-élébe: összecsukva pontozott, kibontva
 folytonos) fut be, mindig felül, legkésőbb a szár fordulópontjánál (a cél előtt egy sornyival):
 kibontva a legalsó commitja alól egy sornyi ívvel, összecsukva a merge-e a saját sávjában a másik
-merge alá fut, és ott csatlakozik. Az ív annak az ágnak a színét kapja, amelyikből jön. Onnan
+merge alá fut, és ott csatlakozik. A gráfban a korábbi merge sávja (a szára) a ráépülő ág alapjáig
+fut, a ráépülő ág onnan jobbra, a következő szabad sávba ágazik el (`git_graph/lanes.py`), így a két
+ág nem folyik össze. Az ív annak az ágnak a színét kapja, amelyikből jön. Onnan
 egyetlen vonal megy tovább, a kibontás és az összecsukás animációja alatt is. Ha a ráépülő merge-et
 összecsukják vagy kinyitják, a csatlakozás ugyanaz a vonal marad, és a helyére csúszik a másik merge
 alá (és vissza): kibontott másik merge mellett a csúcs fölötti helyről, közben folytonosból
-pontozottá válva; összecsukott mellett a legalsó commit alól, végig pontozottan. A csupa rejtett commitból álló napnak
+pontozottá válva; összecsukott mellett a legalsó commit alól, végig pontozottan. A fordulója a
+ráépülő ág legalsó commitjával együtt mozog, és az animáció végére pontosan a statikus rajz helyére
+fut be. Ha a régebbi merge kapcsol, a kibontott ráépülő ág alja ugyanígy egy vonal: a vége a sorok
+haladásával megy a csúcs és a szár között. A csupa rejtett commitból álló napnak
 nincs fejléce.
 
 ### A szám és a nyíl
@@ -133,6 +138,12 @@ Jellemző: Merge-ek összecsukása
       Ha a lap kirajzolja a gráfot
       Akkor a profil-merge pontozott éle a login-merge alatt fut be a login-ág sávjába, nem a "Login űrlap"-nál
 
+    Forgatókönyv: Ráépülő ág saját sávban
+      Adott a login-ág csúcsára épülő, később mergelt profil-ág, mindkét merge kibontva
+      Ha a lap kirajzolja a gráfot
+      Akkor a login-merge szára a "Login űrlap"-ig fut a saját sávjában
+        És a profil-ág onnan jobbra, külön sávban ágazik el
+
     Forgatókönyv: Mindkét merge összecsukva
       Adott a profil-merge és a login-merge is összecsukva
       Ha a lap kirajzolja a gráfot
@@ -195,6 +206,13 @@ Jellemző: Merge-ek összecsukása
         És közben a szám 20 %-os fedésről nő, maga előtt tolva a jobbra forduló nyilat
         És közben a felcsukódó ág halványul, a pontozott él beúszik
         És a három egyszerre ér véget, a nyíl végig látszik
+
+    Forgatókönyv: Ráépülő ág csatlakozása animáció közben
+      Adott a login-ág csúcsára épülő profil-ág
+      Ha a User bármelyik merge-et kibontja vagy összecsukja, a másik kibontott vagy összecsukott
+      Akkor minden képkockán egyetlen vonal fut a profil-ág felől a login-ág sávjába
+        És a csatlakozás a sorokkal együtt mozog, és nem fordul vissza
+        És az animáció végén a statikus rajz áll, nincs ugrás
 
   Szabály: R-6 — A kézi állapot az újratöltésig él
     Forgatókönyv: Élő frissítés
