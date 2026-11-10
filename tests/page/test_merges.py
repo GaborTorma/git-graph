@@ -89,15 +89,16 @@ def login_history(repo: Path, *, tag: bool = False, remote: bool = False, inner:
 
 
 # A mérések segédei a lapon: egy sor közepe a gráf SVG-jében (null, ha nincs ilyen sor), és a gráf
-# útjai (koordináták, szaggatás, erősség, pontozott-e, ívvel végződik-e).
+# útjai (koordináták, szaggatás, erősség, pontozott-e, és ha ívvel végződik, az ív kezdetének Y-ja: `turn`).
 LIB = """const mid = s => { const row = [...document.querySelectorAll('#rows .row')]
     .find(r => r.querySelector('.subject').textContent === s);
   if (!row) return null;
   const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
   return rb.top + rb.height / 2 - sb.top; };
-const paths = () => [...document.querySelectorAll('#lanes path')].map(p => { const d = p.getAttribute('d');
-  return { n: d.match(/-?[\\d.]+/g).map(Number), dash: p.getAttribute('stroke-dasharray'), fold: p.matches('.fold'),
-           op: Number(p.getAttribute('opacity') ?? 1), curve: d.lastIndexOf('C') > d.lastIndexOf('L') }; });"""
+const paths = () => [...document.querySelectorAll('#lanes path')].map(p => {
+  const d = p.getAttribute('d'), n = d.match(/-?[\\d.]+/g).map(Number);
+  return { n, dash: p.getAttribute('stroke-dasharray'), fold: p.matches('.fold'), op: Number(p.getAttribute('opacity') ?? 1),
+           turn: d.lastIndexOf('C') > d.lastIndexOf('L') ? n.at(-7) : null }; });"""
 
 # A gráf éleinek összes koordinátája (x, y párok sorban) és a szaggatás.
 PATHS = f"""() => {{ {LIB} return paths(); }}"""
@@ -599,8 +600,8 @@ class StackedTest(MergeCase):
                             self.assertLessEqual(len({round(p["n"][-1]) for p in joins}), 1, (case, y, f))
                             # És az ív vége nincs a fordulója fölött (nem fordul vissza)
                             for p in joins:
-                                if p["curve"]:
-                                    self.assertGreaterEqual(p["n"][-1] - p["n"][-7], 0, (case, p))
+                                if p["turn"] is not None:
+                                    self.assertGreaterEqual(p["n"][-1], p["turn"], (case, p))
                         # És a profil-merge pontozott éle a login-merge alatt, a szár egyenes részén ér véget
                         for p in dotted:
                             if abs(p["n"][1] - f["top"]) < 1 and p["n"][-2] == login:
