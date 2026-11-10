@@ -1,3 +1,51 @@
+## [0.19.0] - 2026-11-10
+
+### 🚀 Features
+
+- *(publish)* Rögzített runtime-contract (0.2.96) minden lapon
+- *(mod)* A mod publikálja és nyitja meg a lapot, a modell nélkül
+- *(mod)* [**breaking**] /git-graph command a kézi publikáláshoz és megnyitáshoz
+- *(skills)* [**breaking**] A kézi skillek helyett a /git-graph command; forget-artifact
+
+### 🐛 Bug Fixes
+
+- *(mod)* Előre melegített sessionben a végleges mappával nyit
+- *(mod)* A beépített Artifact eszköz open-jével nyit, ahol van
+- *(publish)* A beépített Artifact eszközzel publikál és nyit
+- *(skills)* Az Artifact-skillek a beépített Artifact eszközzel
+- *(skills)* Az artifact-forget a mod megnyitását és publikálását említi
+- *(full)* Commit nélkül a diff-szűrő a WIP sort jelöli ki
+- *(full)* Commit nélkül a fa követi a megjelenő WIP sort
+- *(full)* Commit nélkül a fa a WIP sor változásait is mutatja
+- *(full)* Commit nélkül a WIP sor mappái csak jelölve, csukva
+- *(page)* A kibontott merge nyila pont a két szomszédos sáv között áll
+- *(graph)* A lista a szerzői idő szerint rendez, mint a napfejlécek
+
+### 🚜 Refactor
+
+- *(mod)* A claude-artifacts tartalék és a --republished törlése
+- *(publish)* Az artifactCaps kulcs és a régi visszaesési ág törlése
+
+### 📚 Documentation
+
+- A fa vastagabb változott nevei, a merge-nyíl utáni kisebb térköz, friss képek
+
+### 🎨 Styling
+
+- *(page)* Halve the gap after the merge fold
+- *(full)* A fában a változott fájl és mappa neve vastagabb
+
+### 🧪 Testing
+
+- *(page)* Wait for a steady point on the editor before double-clicking
+- *(page)* Read transient animation states with animations frozen
+- *(page)* Give the first page load and Mermaid render 15 s
+- *(page)* Keep the 5 s limit for the first page load
+- *(page)* Drop the 15 s Mermaid render limit
+
+### ⚙️ Miscellaneous Tasks
+
+- *(check)* Run the page tests on 4 workers in the background, 10 otherwise
 ## [0.18.0] - 2026-11-07
 
 ### 🚀 Features
