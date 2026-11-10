@@ -26,7 +26,7 @@ Használat és felépítés: [README.md](../README.md).
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest — a verzió egyetlen forrása |
 | `.claude-plugin/marketplace.json` | a `git-graph` marketplace: egyetlen plugin, `source: "./"` |
 | `hooks/hooks.json` | a plugin SessionStart hookja (`--session-hook`) és a mod (`modules`) |
-| `hooks/register.ts` | a plugin modja: a naprakész repó-Artifactot a modell nélkül megnyitja (`git-graph --mod-plan`, `Artifact` `open`, `show_pane`; tartalék: `claude-artifacts` újraküldés); új és elavult lapot és capability-változást a hook kéri a sessiontől; teszt: `register.test.ts` |
+| `hooks/register.ts` | a plugin modja: a naprakész repó-Artifactot a modell nélkül megnyitja (`git-graph --mod-plan`, `Artifact` `open`, `show_pane`); új és elavult lapot, capability- és contract-változást a hook kéri a sessiontől; teszt: `register.test.ts` |
 | `skills/artifact-publish/SKILL.md` | a `/git-graph:artifact-publish` skill (`git-graph --publish`, publikálja, ha kell, és megnyitja) |
 | `skills/artifact-open/SKILL.md` | a `/git-graph:artifact-open` skill (`git-graph --open-url`, és megnyitja az Artifactot; elavultat előbb frissít, újat nem hoz létre) |
 | `skills/artifact-forget/SKILL.md` | a `/git-graph:artifact-forget` skill: az aktuális vagy az összes repó Artifactjának törlése + `git-graph --forget` (választás; uninstall előtt: mind) |
@@ -120,6 +120,9 @@ telepítés kézi próbája: [dev-from-source](memory/dev-from-source.md).
 - **Deploy**: a marketplace forrása a repó `main`-je, tehát a merge már
   élesít; a `/release` deploy-lépése a helyi frissítés:
   `claude plugin marketplace update git-graph && claude plugin update git-graph@git-graph`.
+- **Runtime-contract**: minden repó lapja a `publish.PUBLISH_CONTRACT`-tal publikálódik (rögzítve,
+  mindenhol ugyanaz). Ha az `Artifact` publish újabbat jelez („newest …”), szólj, és csak
+  egyeztetés után emeld: [artifact-contract](memory/artifact-contract.md).
 - **Env**: a toolnak nincs env-függősége, ezért nincs `.env.example`.
 - **Funkcióoldal**: bár ez plugin, a funkcióoldalak a `docs/<funkció>.md`-ben élnek, a lista a
   `docs/README.md`; a README csak belépő, funkciónként egy rövid bekezdéssel és linkkel —

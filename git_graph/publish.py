@@ -26,6 +26,11 @@ def artifact_path(repo: Path) -> Path:
     return STATE_DIR / slug_for(repo) / "artifact.html"
 
 
+# A lap runtime-contractja (a `window.claude` API verziója): minden repó lapja
+# ezzel publikálódik, rögzítve. Újabb contractra csak egyeztetés után váltunk
+# (.claude/memory/artifact-contract.md); a váltás minden lapot újrapublikáltat.
+PUBLISH_CONTRACT = "0.2.96"
+
 # A lap ezen át éri el a gépen futó git-graph --mcp-t (enélkül use("mcp") null).
 PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
                                      "tools": ["changes", "graph_data", "file_diff",
@@ -34,9 +39,10 @@ PUBLISH_CAPS = {"mcp": {"servers": [{"server": "host:git-graph",
 
 
 def caps_digest() -> str:
-    """A capability-deklaráció hashe: a `git-graph.artifactCaps` ezt őrzi a legutóbbi
-    deklarálásról. Amíg egyezik, a lap frissítéséhez nem kell modell (`mod_plan`)."""
-    return hashlib.sha256(json.dumps(PUBLISH_CAPS, sort_keys=True).encode()).hexdigest()
+    """A capability-deklaráció és a contract hashe: a `git-graph.artifactCaps` ezt őrzi a
+    legutóbbi publikálásról. Ha eltér, a hook a sessiontől kér újrapublikálást."""
+    declared = {"capabilities": PUBLISH_CAPS, "contract": PUBLISH_CONTRACT}
+    return hashlib.sha256(json.dumps(declared, sort_keys=True).encode()).hexdigest()
 
 
 def caps_current() -> bool:
@@ -55,23 +61,22 @@ def caps_current() -> bool:
 
 
 def page_digest(html_page: str) -> str:
-    """A publikált lap hashe — a capability-deklaráció is része: ha változik, újra kell."""
-    return hashlib.sha256((html_page + json.dumps(PUBLISH_CAPS)).encode()).hexdigest()
+    """A publikált lap hashe — a capability-deklaráció és a contract is része: ha változik, újra kell."""
+    return hashlib.sha256((html_page + json.dumps(PUBLISH_CAPS) + PUBLISH_CONTRACT).encode()).hexdigest()
 
 
-def prepare_publish(force: bool = False) -> dict | None:
+def prepare_publish() -> dict | None:
     """Az Artifact vékony lapja: kiírja, ha eltér a legutóbb publikálttól.
 
     Adat nincs benne — a lap a Claude appban a gép `git-graph --mcp`-jéből kéri —,
     így csak sablon- (kód-) vagy repónév-változáskor kell újra feltölteni.
     None, ha van már Artifact, a lap hashe egyezik, és a deklarált capability a
-    mostani (egy elbukott deklarálás után nem az) — kivéve `force`-szal (a mod a
-    megnyitáshoz újraküldi: `mod_plan`).
+    mostani (egy elbukott deklarálás után nem az).
     """
     html_page = build(page_title(repo_name()), register(gitio.REPO))
     url = config_get("artifact")
     declared = config_get("artifactCaps")      # üres: a nyilvántartás előtti lap, a hash dönt
-    if (not force and url and page_digest(html_page) == config_get("artifactHash")
+    if (url and page_digest(html_page) == config_get("artifactHash")
             and declared in ("", caps_digest())):
         return None
     page = artifact_path(gitio.REPO)
@@ -87,24 +92,28 @@ def publish_steps(job: dict) -> str:
     végzi (mérve, .claude/memory/publish-from-session.md), a beépített `Artifact`
     eszközzel. A lap a `~/.git-graph`-ból megy fel (a telepítés a session mappái
     közé veszi: `install_read_dir`), a capability-lista ugyanabban a hívásban,
-    teljes halmazként — így a deklaráció nem csúszhat el a nyilvántartott hashtől.
+    teljes halmazként, a rögzített contracttal (`PUBLISH_CONTRACT`) — így a
+    deklaráció nem csúszhat el a nyilvántartott hashtől.
     Meglévő lapra a publish csak egy `read` után megy. Az URL-t és a hasht a
     `--published` írja vissza — a hook a publikálás eredményét nem látja. A
     `git-graph` a plugin `bin/`-jéből a Bash eszköz PATH-ján van (egy
     `Bash(git-graph:*)` engedéllyel nem kérdez).
     """
     publish = (f'Artifact, action: "publish", file_path: {json.dumps(str(job["page"]))}, '
-               f"capabilities: {json.dumps(PUBLISH_CAPS)}")
+               f"capabilities: {json.dumps(PUBLISH_CAPS)}, contract: {json.dumps(PUBLISH_CONTRACT)}")
     record = (f"Bash: git-graph {shlex.quote(str(gitio.REPO))} --published <URL> "
               "(az URL a publish eredményéből)")
     # A publikálás magától nem nyitja meg a panelt (mérve: csak a kártya jelent
     # meg) — a hook pedig ebben a sessionben már nem kéri (`shown_in_session`).
     show = 'mcp__ccd_view__show_pane, pane: "artifact"'
+    # Az újabb contractra váltás egyeztetés után, a kódban (`PUBLISH_CONTRACT`).
+    newer = (" Ha a publish eredménye újabb contractot jelez („newest …”), egy mondatban jelezd "
+             "a Fejlesztőnek; a contract értékét ne változtasd.")
     if job["url"]:
         return (f'1) Artifact, action: "read", url: {job["url"]}; '
-                f"2) {publish}, url: {job['url']}; 3) {record}; 4) {show}.")
+                f"2) {publish}, url: {job['url']}; 3) {record}; 4) {show}.{newer}")
     return (f'1) {publish}, title: {json.dumps(job["title"])}, icon: "branch"; '
-            f"2) {record}; 3) {show}.")
+            f"2) {record}; 3) {show}.{newer}")
 
 
 def auto_open() -> bool:
@@ -140,22 +149,18 @@ def config_unset(key: str) -> None:
         gitio.git("config", "--local", "--unset", f"git-graph.{key}")
 
 
-def mark_published(url: str, declared: bool = True) -> None:
-    """A publikálás után: az URL és a feltöltött lap hashe a `.git/config`-ba.
-
-    A session publikálása a capability-t is deklarálja (`declared`): annak hashe
-    is bekerül (`artifactCaps`). A mod újraküldése (`--republished`) nem
-    deklarál, a capability öröklődik — a hashe marad. Az új Artifact (a
-    `--forget` után is) bekapcsolt automatikus megnyitással indul; a meglévő
-    frissítése a beállítást nem érinti.
+def mark_published(url: str) -> None:
+    """A session publikálása után: az URL, a feltöltött lap hashe, és a deklarált
+    capability-lista és contract hashe (`artifactCaps`) a `.git/config`-ba. Az új
+    Artifact (a `--forget` után is) bekapcsolt automatikus megnyitással indul; a
+    meglévő frissítése a beállítást nem érinti.
     """
     page = artifact_path(gitio.REPO)
     if not page.exists():
         raise SystemExit("HIBA: nincs kiírt Artifact-lap — előbb: git-graph --publish")
     fresh = not config_get("artifact")
     remember_artifact(url, page_digest(page.read_text(encoding="utf-8")))
-    if declared:
-        gitio.git("config", "--local", "git-graph.artifactCaps", caps_digest())
+    gitio.git("config", "--local", "git-graph.artifactCaps", caps_digest())
     if fresh:
         config_unset("autoOpen")
     register(gitio.REPO)

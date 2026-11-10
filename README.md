@@ -200,13 +200,12 @@ elavult lapot a **session** publikál, a naprakészet a plugin **modja** nyitja 
 
 - **A session**: a hook (vagy a `/git-graph:artifact-publish` skill a `git-graph --publish`-sal)
   kiírja az `artifact.html`-t és a lépéseket — meglévőre `Artifact` `read`, majd `Artifact`
-  `publish` a lappal és a teljes `host:git-graph` capability-listával egy hívásban, végül
+  `publish` a lappal, a teljes `host:git-graph` capability-listával és a rögzített
+  runtime-contracttal (`PUBLISH_CONTRACT`, minden lapon ugyanaz) egy hívásban, végül
   `git-graph --published <URL>`, ami az URL-t, a lap és a capability hashét visszaírja. Modból
   az auto mód a publikálást nem engedi, ezért ez mindig a session dolga.
 - **A mod**, a modell nélkül: a session indulásakor megnyitja a naprakész lapot (`git-graph
-  --mod-plan`, `Artifact` `open`), és előhozza a panelt; sessionönként egyszer. Ahol a
-  sessionben nincs `Artifact` eszköz, csak a `claude-artifacts` eszközei (2026-11-05/06),
-  azokkal újraküldi a lapot.
+  --mod-plan`, `Artifact` `open`), és előhozza a panelt; sessionönként egyszer.
 
 Kikapcsolt automatikus megnyitásnál (`git-graph.autoOpen=false`, a `--forget`
 is ezt írja) a hook nem kér publikálást, és a mod nem lép; a
