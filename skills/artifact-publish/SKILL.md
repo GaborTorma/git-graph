@@ -1,7 +1,7 @@
 ---
 name: artifact-publish
 description: Az aktuális repó élő, Git Graph stílusú Artifact oldalát publikálja, ha még nincs, vagy a lapja elavult, majd megnyitja — meglévőt frissít, nem hoz létre duplikátumot. Használd, ha a Fejlesztő a repó Artifactját frissíteni / feltölteni akarja, vagy /git-graph:artifact-publish-t ír.
-allowed-tools: Bash(git-graph:*), mcp__claude-artifacts__get_artifact, mcp__claude-artifacts__publish_files, mcp__claude-artifacts__read_declaration, mcp__claude-artifacts__declare_capabilities, mcp__ccd_view__show_pane
+allowed-tools: Bash(git-graph:*), Artifact, mcp__ccd_view__show_pane
 ---
 
 ## Feladat
@@ -21,7 +21,7 @@ Futtasd: `git-graph --publish`. Ha `HIBA:`-val tér vissza, idézd szó szerint,
 ### 2. Publikálás
 
 Hajtsd végre a `PUBLIKÁLD:` sor lépéseit sorban, pontosan a megadott
-paraméterekkel (a `files` és a `capabilities` értékét változatlanul add át). Ha a publish-t
+paraméterekkel (a `file_path`, a `capabilities` és a `contract` értékét változatlanul add át). Ha a publish-t
 a platform elutasítja, kövesd az elutasítás utasítását. A
 `git-graph … --published <URL>` hívással írd vissza az URL-t. A sor utolsó
 lépése (`show_pane`) a 3. lépés: a publikálás magától nem nyitja meg.
@@ -29,9 +29,8 @@ lépése (`show_pane`) a 3. lépés: a publikálás magától nem nyitja meg.
 ### 3. Megnyitás
 
 Hívd a `mcp__ccd_view__show_pane`-t `pane: "artifact"`-tal: ez a sessionben
-publikált Artifactot hozza elő. Ha ebben a sessionben nem publikáltál, és van
-`Artifact` eszközöd, előbb nyisd meg azzal (`action: "open"`, `url`: az URL);
-ha nincs, a válaszban a link nyitja meg.
+publikált Artifactot hozza elő. Ha ebben a sessionben nem publikáltál, előbb
+nyisd meg az `Artifact` eszközzel (`action: "open"`, `url`: az URL).
 
 ### 4. Jelentsd vissza
 
