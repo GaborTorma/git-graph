@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shlex
 from pathlib import Path
 
 from . import gitio
@@ -59,38 +58,6 @@ def prepare_publish() -> dict | None:
     page.parent.mkdir(parents=True, exist_ok=True)
     page.write_text(html_page, encoding="utf-8")
     return {"page": page, "url": url, "title": page_title(repo_name())}
-
-
-def publish_steps(job: dict) -> str:
-    """A session teendője a lap kézi publikálásához — a `git-graph --publish` és az `--open-url` adja
-    a modellnek (az automatikusat a mod végzi: `mod_plan`).
-
-    Az Artifact API-t csak a modell éri el, ezért a publikálást a session
-    végzi (mérve, .claude/memory/publish-from-session.md), a beépített `Artifact`
-    eszközzel. A lap a `~/.git-graph`-ból megy fel (a telepítés a session mappái
-    közé veszi: `install_read_dir`), a capability-lista ugyanabban a hívásban,
-    teljes halmazként, a rögzített contracttal (`PUBLISH_CONTRACT`) — így a
-    deklaráció nem csúszhat el a nyilvántartott hashtől.
-    Meglévő lapra a publish csak egy `read` után megy. Az URL-t és a hasht a
-    `--published` írja vissza — a Python a publikálás eredményét nem látja. A
-    `git-graph` a plugin `bin/`-jéből a Bash eszköz PATH-ján van (egy
-    `Bash(git-graph:*)` engedéllyel nem kérdez).
-    """
-    publish = (f'Artifact, action: "publish", file_path: {json.dumps(str(job["page"]))}, '
-               f"capabilities: {json.dumps(PUBLISH_CAPS)}, contract: {json.dumps(PUBLISH_CONTRACT)}")
-    record = (f"Bash: git-graph {shlex.quote(str(gitio.REPO))} --published <URL> "
-              "(az URL a publish eredményéből)")
-    # A publikálás magától nem nyitja meg a panelt (mérve: csak a kártya jelent
-    # meg) — a hook pedig ebben a sessionben már nem kéri (`shown_in_session`).
-    show = 'mcp__ccd_view__show_pane, pane: "artifact"'
-    # Az újabb contractra váltás egyeztetés után, a kódban (`PUBLISH_CONTRACT`).
-    newer = (" Ha a publish eredménye újabb contractot jelez („newest …”), egy mondatban jelezd "
-             "a Fejlesztőnek; a contract értékét ne változtasd.")
-    if job["url"]:
-        return (f'1) Artifact, action: "read", url: {job["url"]}; '
-                f"2) {publish}, url: {job['url']}; 3) {record}; 4) {show}.{newer}")
-    return (f'1) {publish}, title: {json.dumps(job["title"])}, icon: "branch"; '
-            f"2) {record}; 3) {show}.{newer}")
 
 
 def auto_open() -> bool:

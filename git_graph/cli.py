@@ -9,10 +9,9 @@ Az Artifact lapjában nincs adat: a Claude appban megnyitva a gépen futó
 `git-graph --mcp`-ből kéri (a Claude app host-hídján át). Kétmásodpercenként olcsó
 ujjlenyomatot kér, és csak tényleges változásra tölt új adatot. A lapot a
 plugin modja publikálja a session indulásakor: ha még nincs, vagy a sablonja (a
-git-graph kódja), a capability-listája vagy a contractja változott. Kézzel: a
-`/git-graph:artifact-publish` skill.
+git-graph kódja), a capability-listája vagy a contractja változott. Kézzel: a mod
+`/git-graph` commandja.
 
-    git-graph --publish                  # az Artifact publikálásának lépései a sessionnek
     git-graph --published <URL>          # a publikálás után: URL + hash a .git/config-ba
     git-graph --artifacts                # az ismert repók Artifactjai
 
@@ -31,11 +30,11 @@ import argparse
 import json
 from pathlib import Path
 
-from .gitio import config_get, git, main_checkout, remember_artifact, repo_name, resolve_repo, set_repo
-from .hook import mod_plan, open_url, session_hook
+from .gitio import git, main_checkout, remember_artifact, repo_name, resolve_repo, set_repo
+from .hook import mod_plan, session_hook
 from .install import dev_install
 from .mcp import mcp_serve
-from .publish import mark_published, prepare_publish, publish_steps
+from .publish import mark_published
 from .registry import forget, list_artifacts, register
 
 
@@ -59,13 +58,8 @@ def main() -> int:
                     help="a repó git-graph nyomainak törlése (.git/config kulcsok, "
                          "helyi lap, regiszter) és az automatikus megnyitás "
                          "kikapcsolása — az Artifactot nem törli")
-    ap.add_argument("--publish", action="store_true",
-                    help="az Artifact vékony lapjának kiírása, és a publikálás lépései "
-                         "a sessionnek (változatlan lapnál: naprakész) — a /git-graph:artifact-publish "
-                         "ezt hívja")
     ap.add_argument("--published", metavar="URL", default=None,
-                    help="a session publikálása után: az URL és a lap hashe a "
-                         ".git/config-ba (a --publish lépései kérik)")
+                    help="a mod publikálása után: az URL és a lap hashe a .git/config-ba")
     ap.add_argument("--mcp", action="store_true",
                     help="MCP szerver stdio-n a Claude appnak (az app indítja a "
                          "configjából; az Artifact innen kapja az élő adatot)")
@@ -73,14 +67,14 @@ def main() -> int:
                     help="fejlesztés: a working tree a stabil helyre (+dev verzióval) — a "
                          "Claude appban futó git-graph átvált rá, a lap élőben kipróbálható")
     ap.add_argument("--session-hook", action="store_true", dest="session_hook",
-                    help="Claude Code SessionStart hook: telepítés, és ha kell, a repó "
-                         "Artifactjának publikálása (stdin: a hook JSON-ja)")
-    ap.add_argument("--open-url", action="store_true", dest="open_url",
-                    help="a /git-graph:artifact-open-nak: az URL, elavult lapnál a frissítés "
-                         "lépései, Artifact nélkül semmi")
+                    help="Claude Code SessionStart hook: telepítés és a repó regisztrálása "
+                         "(stdin: a hook JSON-ja)")
     ap.add_argument("--mod-plan", action="store_true", dest="mod_plan",
-                    help="a plugin modjának (--session-nel): JSON, ha most újra kell küldenie és "
-                         "megnyitnia a repó Artifactját; különben semmi")
+                    help="a plugin modjának (--session-nel): JSON, ha most publikálnia és/vagy "
+                         "megnyitnia kell a repó Artifactját; különben semmi")
+    ap.add_argument("--manual", action="store_true",
+                    help="a --mod-plan-hez: a /git-graph command kérése — a beállításoktól és "
+                         "a session korábbi megnyitásától függetlenül")
     ap.add_argument("--session", metavar="ID", default=None,
                     help="a --mod-plan-hez: a Claude Code session azonosítója")
     args = ap.parse_args()
@@ -88,14 +82,9 @@ def main() -> int:
     if args.session_hook:
         return session_hook()
 
-    if args.open_url:
-        url = open_url(Path(args.repo).expanduser().resolve())
-        if url:
-            print(url)
-        return 0
-
     if args.mod_plan:
-        plan = mod_plan(Path(args.repo).expanduser().resolve(), args.session) if args.session else None
+        plan = (mod_plan(Path(args.repo).expanduser().resolve(), args.session, manual=args.manual)
+                if args.session else None)
         if plan:
             print(json.dumps(plan))
         return 0
@@ -133,14 +122,6 @@ def main() -> int:
             register(repo)
         print(f"✓ Artifact megjegyezve: {url}")
         print(f"  {repo_name()} @ {git('rev-parse', '--short', 'HEAD').strip()}")
-        return 0
-
-    if args.publish:
-        job = prepare_publish()
-        if job is None:
-            print(f"✓ Az Artifact naprakész, nincs mit feltölteni: {config_get('artifact')}")
-        else:
-            print("PUBLIKÁLD: " + publish_steps(job))
         return 0
 
     ap.print_help()

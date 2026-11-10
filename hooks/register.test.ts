@@ -16,9 +16,9 @@ const runs = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on: any,
   stdout: string,
-  { denyOnce = false, fail = '', cwds = ['/repo'] } = {},
+  { denyOnce = false, fail = '', cwds = ['/repo'], command = false, newest = '' } = {},
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): Promise<{ argv: string[][]; calls: any[]; sleeps: number }> => {
+): Promise<{ argv: string[][]; calls: any[]; sleeps: number; commands: string[]; toasts: string[]; text?: string }> => {
   const argv: string[][] = []
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const calls: any[] = []
@@ -31,6 +31,18 @@ const runs = async (
     return { value: undefined }
   })
   on('session.id', () => ({ value: 's1' }))
+  const commands: string[] = []
+  const toasts: string[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  on('ui.toast', (_: any, e: any) => {
+    toasts.push(e.text ?? e.message ?? JSON.stringify(e))
+    return { value: undefined }
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  on('command.register', (_: any, e: any) => {
+    commands.push(e.name)
+    return { value: { command: e.name } }
+  })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on('process.run', (_: any, e: any) => {
     argv.push([...e.argv])
@@ -47,7 +59,7 @@ const runs = async (
     if (args.tool === 'Artifact' && args.action === fail) return { result: {}, isError: true, text: 'refused' }
     // a publish válasza (mérve, 2026-11-10)
     const text = args.action === 'publish'
-      ? `Published ${args.file_path} at ${args.url ?? NEW_URL} (Version 2, version id 1-a)\n\nStored — contract 0.2.96`
+      ? `Published ${args.file_path} at ${args.url ?? NEW_URL} (Version 2, version id 1-a)\n\nStored — contract 0.2.96${newest ? ` (newest ${newest})` : ''}`
       : 'ok'
     return { result: {}, text }
   })
@@ -56,7 +68,12 @@ const runs = async (
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
   // a mod nem várja meg a megnyitást (`void`): a mikrofeladatok lefutnak
   for (let i = 0; i < 2000; i++) await Promise.resolve()
-  return { argv: argv.map(a => a.slice(2)), calls, sleeps }
+  if (!command) return { argv: argv.map(a => a.slice(2)), calls, sleeps, commands, toasts }
+  // a /git-graph command külön futás: a session indulásáé nem számít bele
+  argv.length = 0
+  calls.length = 0
+  const { text } = await $.command.run({ command: 'git-graph' })
+  return { argv: argv.map(a => a.slice(2)), calls, sleeps, commands, toasts, text }
 }
 
 test('a lapot az Artifact open-jével nyitja meg, és előhozza a panelt', async ($, on) => {
@@ -123,6 +140,33 @@ test('ha a publikálás nem sikerül, nem ír vissza és nem nyit', async ($, on
   // Akkor a régi lapot sem nyitja meg, és a hash marad
   expect(calls.map(c => c.action)).toEqual(['read', 'publish'])
   expect(argv.length).toBe(1)
+})
+
+test('a /git-graph command a beállításoktól függetlenül publikál és megnyit, és ezt írja ki', async ($, on) => {
+  // Adott: a session indulásakor nem volt teendő, a command regisztrálva
+  // Ha a Fejlesztő kiadja a /git-graph commandot, és a lap elavult
+  const { argv, calls, commands, text } = await runs($, on, STALE, { command: true })
+  // Akkor a mod a --manual tervvel publikál, megnyit, és a kimenet az URL
+  expect(commands).toEqual(['git-graph'])
+  expect(argv[0]).toEqual(['/repo', '--mod-plan', '--session', 's1', '--manual'])
+  expect(calls.map(c => c.action ?? c.tool)).toEqual(['read', 'publish', 'open', 'mcp__ccd_view__show_pane'])
+  expect(text).toBe(`Publikálva és megnyitva: ${URL}`)
+})
+
+test('a /git-graph command nem repóban megmondja, miért nem nyit', async ($, on) => {
+  // Adott: a mappa nem git repó (a Python nem ad tervet)
+  const { calls, text } = await runs($, on, '', { command: true })
+  // Akkor nincs eszközhívás, a kimenet az ok
+  expect(calls).toEqual([])
+  expect(text).toBe('A git-graph itt nem nyitható meg: a mappa nem git repó.')
+})
+
+test('ha a publish újabb contractot jelez, szól, de a rögzítettel publikál', async ($, on) => {
+  // Adott: a platform már újabb contractot is ismer
+  const { calls, toasts } = await runs($, on, STALE, { newest: '0.2.97' })
+  // Akkor a publikálás a rögzített contracttal megy, és egy értesítés jelzi az újat
+  expect(calls[1].contract).toBe('0.2.96')
+  expect(toasts).toEqual(['git-graph: újabb Artifact-contract érhető el (0.2.97; a lap 0.2.96-on fut)'])
 })
 
 test('nem lép, ha a git-graph nem ad tervet', async ($, on) => {

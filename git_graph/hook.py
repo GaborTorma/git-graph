@@ -10,8 +10,7 @@ from pathlib import Path
 from . import gitio
 from .gitio import config_get, main_checkout, resolve_repo, set_repo
 from .install import ensure_installed
-from .publish import (PUBLISH_CAPS, PUBLISH_CONTRACT, auto_open, auto_publish, prepare_publish,
-                      publish_steps)
+from .publish import PUBLISH_CAPS, PUBLISH_CONTRACT, auto_open, auto_publish, prepare_publish
 from .registry import register, shown_in_session
 from .state import log
 
@@ -46,21 +45,7 @@ def headless() -> bool:
     return os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk")
 
 
-def open_url(start: Path) -> str | None:
-    """A `/git-graph:artifact-open`-nek, a beállítástól függetlenül: az URL, elavult
-    lapnál a frissítés lépései (`PUBLIKÁLD: …`), Artifact nélkül semmi."""
-    try:
-        repo = main_checkout(resolve_repo(start))
-    except (SystemExit, subprocess.CalledProcessError):
-        return None
-    set_repo(repo)
-    if not config_get("artifact"):
-        return None
-    job = prepare_publish()
-    return "PUBLIKÁLD: " + publish_steps(job) if job else config_get("artifact")
-
-
-def mod_plan(start: Path, session_id: str) -> dict | None:
+def mod_plan(start: Path, session_id: str, manual: bool = False) -> dict | None:
     """A mod kérdése a session indulásakor: publikálja-e és nyissa-e meg a repó Artifactját.
 
     A terv: `repo`, `url` (új Artifactnál üres), és ha a lap nem naprakész (nincs
@@ -69,7 +54,8 @@ def mod_plan(start: Path, session_id: str) -> dict | None:
     `Artifact` `read` + `publish`-sal küldi fel, a `--published`-del írja vissza,
     majd az `open`-nel nyitja meg. Akkor ad tervet, ha be van kapcsolva az
     automatikus megnyitás (Artifact nélkül a gép automatikus publikálása is), és
-    ebben a sessionben még nem volt (`shown_in_session`). Headless sessionben nincs.
+    ebben a sessionben még nem volt (`shown_in_session`). A `/git-graph` command kérése
+    (`manual`) ezektől független: mindig ad tervet, Artifact nélkül is. Headless sessionben nincs.
     """
     if headless():
         return None
@@ -79,9 +65,8 @@ def mod_plan(start: Path, session_id: str) -> dict | None:
         return None
     set_repo(repo)
     url = config_get("artifact")
-    if not auto_open() or not (url or auto_publish()):
-        return None
-    if shown_in_session(session_id, register(repo)):
+    seen = shown_in_session(session_id, register(repo))
+    if not manual and (seen or not auto_open() or not (url or auto_publish())):
         return None
     plan: dict = {"repo": str(repo), "url": url}
     job = prepare_publish()
