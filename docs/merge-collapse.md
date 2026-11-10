@@ -27,11 +27,12 @@ beolvasztott lánc viszont rejtett, és szaggatott él köti az első látható 
 összecsukott merge éle: a rejtett ág sávjában, szaggatottan fut a cél fölé. A szaggatott él olyan
 vastag, mint a fő vonal (2 px), és a cél fölött ívben fordul a cél sávjába, akkor is, ha a cél a
 közvetlenül alatta lévő sor. Ha a merge 2.
-szülője a merge alatti látható sorból ágazik, él nincs. Ha egy ág egy másik, összecsukott merge rejtett
-ágára épül, a pontozott vége a merge szárába fut be, legkésőbb a szár fordulópontjánál (a cél
-előtt egy sornyival): kibontva a legalsó commitja alól egy sornyi ívvel, összecsukva a merge-e
-a saját sávjában a másik merge alá fut, és ott csatlakozik. Onnan egyetlen pontozott vonal megy
-tovább, a kibontás és az összecsukás animációja alatt is. A csupa rejtett commitból álló napnak
+szülője a merge alatti látható sorból ágazik, él nincs. Ha egy ág egy másik merge ágára épül, a
+pontozott vége ennek a merge-nek a szárába (a 2. szülő-élébe: összecsukva pontozott, kibontva
+folytonos) fut be, mindig felül, legkésőbb a szár fordulópontjánál (a cél előtt egy sornyival):
+kibontva a legalsó commitja alól egy sornyi ívvel, összecsukva a merge-e a saját sávjában a másik
+merge alá fut, és ott csatlakozik. Az ív annak az ágnak a színét kapja, amelyikből jön. Onnan
+egyetlen vonal megy tovább, a kibontás és az összecsukás animációja alatt is. A csupa rejtett commitból álló napnak
 nincs fejléce.
 
 ### A szám és a nyíl
@@ -123,6 +124,11 @@ Jellemző: Merge-ek összecsukása
       Ha a lap kirajzolja a gráfot
       Akkor a "Profil oldal" pontozott vége egy sornyi ívvel a login-merge szárába fut be
         És az "Indulás"-ig egyetlen pontozott vonal ér le
+
+    Forgatókönyv: Kibontott merge szárába
+      Adott a login-merge kibontva, a profil-merge összecsukva
+      Ha a lap kirajzolja a gráfot
+      Akkor a profil-merge pontozott éle a login-merge alatt fut be a login-ág sávjába, nem a "Login űrlap"-nál
 
     Forgatókönyv: Mindkét merge összecsukva
       Adott a profil-merge és a login-merge is összecsukva

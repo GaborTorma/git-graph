@@ -62,15 +62,14 @@ export function drawGraph() {
   // Az összecsukott merge-ek szára: a rejtett 2. szülő sora → a merge sora. Ha egy látható
   // commit (egy ráépülő, kibontott ág alja) ugyanerre a rejtett commitra épül, a pontozott vége
   // ebbe a szárba fut be, nem húz külön vonalat (`foldedEdge`, `stemAbove`).
-  // Animáció közben (`foldFx`) a felcsukódó / megjelenő sorok is rejtettnek számítanak.
+  // A szár a merge 2. szülő-éle: összecsukva pontozott, kibontva folytonos; mindkettőbe befuthat
+  // egy rá épülő ág. Animáció közben (`foldFx`) a felcsukódó / megjelenő sorok rejtettnek számítanak.
   const stems = new Map();
   for (const e of DATA.edges) {
     if (!e.merge) continue;
-    const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha), to = DATA.commits[e.toRow].sha;
+    const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
     if (a === undefined || foldFx?.hidden.has(DATA.commits[e.fromRow].sha)) continue;
-    if (foldFx?.hidden.has(to) || (!rowIndexBySha.has(to) && hiddenSha(to))) {
-      stems.set(e.toRow, Math.min(stems.get(e.toRow) ?? Infinity, a));
-    }
+    stems.set(e.toRow, Math.min(stems.get(e.toRow) ?? Infinity, a));
   }
   for (const e of DATA.edges) {
     const a = rowIndexBySha.get(DATA.commits[e.fromRow].sha);
@@ -204,16 +203,24 @@ function foldedEdge(e, a, rowIndexBySha, rowY, skip = null, opacity = 1, stems =
    szárba. A path nyitva marad (`fadeAttr` és lezárás a hívóé); ha nincs ilyen szár, ''. */
 function joinStem(e, a, b, rowIndexBySha, rowY, skip, stems, from) {
   if (!stems?.size) return '';
+  const hidden = sha => skip?.has(sha) || foldFx?.hidden.has(sha) || !rowIndexBySha.has(sha);
+  // A rejtett lánc első olyan commitja, amelyre egy másik merge szára fut; ha a lánc egy látható
+  // commiton ér véget, az is lehet szár-cél (kibontott merge 2. szülője).
   let c = DATA.commits[e.toRow], stemRow, hRow;
-  while (c && (skip?.has(c.sha) || !rowIndexBySha.has(c.sha))) {
+  while (c) {
     const r = rowOfSha().get(c.sha), s = stems.get(r);
     if (s !== undefined && s !== a) { stemRow = s; hRow = r; break; }
+    if (!hidden(c.sha)) break;
     c = commitBySha(c.parents[0]);
   }
   if (stemRow === undefined) return '';
+  const tip = rowIndexBySha.get(DATA.commits[hRow].sha);
+  const end = tip !== undefined && !hidden(DATA.commits[hRow].sha) ? tip : b;
   const x1 = laneX(e.fromLane), xs = laneX(DATA.commits[hRow].lane), y1 = rowY(a);
-  const bend = Math.max(rowY(stemRow) + ROW_H, rowY(b) - ROW_H);
-  const color = tint(from, laneColor(e.toLane));
+  const bend = Math.max(rowY(stemRow) + ROW_H, rowY(end) - ROW_H);
+  // Az ív annak az ágnak a színe, amelyikből jön: a commit alól a commit sávjáé, a merge-ből a
+  // rejtett ágáé.
+  const color = tint(from, laneColor(stemRow < a ? e.fromLane : e.toLane));
   let d;
   if (stemRow < a) {
     if (bend <= y1 + 4) return '';

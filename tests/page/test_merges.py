@@ -504,6 +504,13 @@ class StackedTest(MergeCase):
         self.assertEqual(len(join), 1, dotted)
         # És a szár még egyenes részén ér véget: a szár a cél előtt egy sornyival (34 px) fordul el
         self.assertLessEqual(join[0][-1], start - 34 + 0.5, join)
+        # És a profil-ág színét kapja, nem a login-ágét
+        colors = self.page.evaluate("""y => ({
+          join: [...document.querySelectorAll('#lanes path.fold')]
+            .find(p => Math.abs(Number(p.getAttribute('d').match(/-?[\\d.]+/g)[1]) - y) < 1).getAttribute('stroke'),
+          dot: [...document.querySelectorAll('#lanes circle')]
+            .find(c => Math.abs(Number(c.getAttribute('cy')) - y) < 1).getAttribute('fill') })""", profile)
+        self.assertEqual(colors["join"], colors["dot"])
 
 
     def test_both_collapsed_join(self) -> None:
@@ -548,6 +555,81 @@ class StackedTest(MergeCase):
             self.assertGreater(res["n"], 0)
             reaching = [n for n in res["dotted"] if abs(n[-1] - res["start"]) < 1]
             self.assertLessEqual(len(reaching), 1, res)
+            self.settle()
+
+
+    def test_collapse_keeps_join_in_place(self) -> None:
+        """A ráépülő merge összecsukásakor a pontozott éle már az animáció alatt is ott csatlakozik
+        a másik merge szárába, ahol a végén: nem fut le a célig, és a végén nem ugrik fel."""
+        # Adott: a profil-merge kibontva, a login-merge összecsukva
+        self.expand(STACKED)
+        # Ha a User összecsukja a profil-merge-et, és az animáció félúton tart
+        res = self.row(STACKED).locator(".merge-hit").evaluate("""async el => {
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          const anims = document.getAnimations().filter(a => a.effect?.target?.classList?.contains('row'));
+          anims.forEach(a => { a.pause(); a.currentTime = 100; });
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const mid = s => { const row = [...document.querySelectorAll('#rows .row')]
+            .find(r => r.querySelector('.subject').textContent === s);
+            const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+            return rb.top + rb.height / 2 - sb.top; };
+          const top = mid("Merge branch 'feat/profile'");
+          const fold = [...document.querySelectorAll('#lanes path.fold')]
+            .map(p => p.getAttribute('d').match(/-?[\\d.]+/g).map(Number)).filter(n => Math.abs(n[1] - top) < 1);
+          const res = { start: mid('Indulás'), below: mid("Merge branch 'feat/login'"), fold };
+          anims.forEach(a => a.play());
+          return res;
+        }""")
+        # Akkor a profil-merge pontozott éle a login-merge alatt csatlakozik, nem a célnál
+        self.assertEqual(len(res["fold"]), 1, res)
+        self.assertGreater(res["fold"][0][-1], res["below"])
+        self.assertLessEqual(res["fold"][0][-1], res["start"] - 34 + 0.5, res)
+
+
+    def _fold_end(self, toggle: str | None = None) -> dict:
+        """A profil-merge pontozott élének vége (a toggle merge-re kattintva, az animáció
+        félútján), a login-merge és az Indulás sorának közepe ugyanabban a pillanatban."""
+        hit = self.row(toggle or STACKED).locator(".merge-hit")
+        return hit.evaluate("""async (el, toggle) => {
+          let anims = [];
+          if (toggle) {
+            el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            anims = document.getAnimations().filter(a => a.effect?.target?.classList?.contains('row'));
+            anims.forEach(a => { a.pause(); a.currentTime = 100; });
+          }
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const mid = s => { const row = [...document.querySelectorAll('#rows .row')]
+            .find(r => r.querySelector('.subject').textContent === s);
+            const rb = row.getBoundingClientRect(), sb = document.querySelector('#lanes').getBoundingClientRect();
+            return rb.top + rb.height / 2 - sb.top; };
+          const top = mid("Merge branch 'feat/profile'");
+          const fold = [...document.querySelectorAll('#lanes path.fold')]
+            .map(p => p.getAttribute('d').match(/-?[\\d.]+/g).map(Number)).filter(n => Math.abs(n[1] - top) < 1);
+          const res = { below: mid("Merge branch 'feat/login'"), fold };
+          anims.forEach(a => a.play());
+          return res;
+        }""", toggle)
+
+    def test_join_under_expanded_merge(self) -> None:
+        """Kibontott login-merge mellett is a login-merge alatt fut be a profil-merge pontozott éle
+        a login-ág sávjába, nem alul, a login-ág csúcsánál."""
+        # Adott: a login-merge kibontva, a profil-merge összecsukva
+        self.expand(MERGE)
+        # Ha a gráf kirajzolódik
+        res = self._fold_end()
+        tip = self.page.evaluate(ROW_MID, "Login űrlap")
+        # Akkor a pontozott él a login-merge alatt, a csúcs előtt legalább egy sornyival ér véget
+        self.assertEqual(len(res["fold"]), 1, res)
+        self.assertGreater(res["fold"][0][-1], res["below"])
+        self.assertLessEqual(res["fold"][0][-1], tip - 34 + 0.5, (res, tip))
+
+    def test_join_stays_while_toggling_other(self) -> None:
+        """A login-merge összecsukása és kibontása közben a profil-merge pontozott éle a helyén marad
+        (a login-merge alatt csatlakozik), nem fut le alulra."""
+        for _ in range(2):
+            res = self._fold_end(MERGE)
+            self.assertEqual(len(res["fold"]), 1, res)
+            self.assertLessEqual(res["fold"][0][-1], res["below"] + 2 * 34 + 0.5, res)
             self.settle()
 
 
