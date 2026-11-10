@@ -49,6 +49,10 @@ CHAIN = f"{FENCE}mermaid\nflowchart TD\n  A[Első] --> B[Második] --> C[Harmadi
 ER = (f'{FENCE}mermaid\nerDiagram\n  Szerzo ||--o{{ Konyv : iras\n  Szerzo ||--o{{ Cikk : ""\n'
       f'  Konyv ||--o{{ Fejezet : ""\n  Cikk |o..o{{ Fejezet : hivatkozas\n{FENCE}\n')
 
+# A diagram első kirajzolása több időt kap: előtte a vendorolt Mermaid-build MCP-n jön, és blobból töltődik
+# be (`mermaid.js`), ez terhelt gépen 5 s fölé mehet. A téma- és méretváltás újrarajzolása 5 s marad.
+RENDER_MS = 15_000
+
 # A kirajzolt diagramok: [keret, szövegek] — a keret a diff színe (`add` / `del`), vagy üres.
 FIGS = ("fs => fs.map(f => [f.className.replace(/md-mmd-(fig|)/g, '').trim(),"
         " [...f.querySelectorAll('svg .nodeLabel, svg text')].map(t => t.textContent.trim()).filter(Boolean)])")
@@ -66,7 +70,7 @@ class MermaidTest(PageTestCase):
         }, cls.SUBJECT)
 
     def figs(self, scope: str) -> list:
-        self.page.wait_for_selector(f"{scope} .md-mmd-on")
+        self.page.wait_for_selector(f"{scope} .md-mmd-on", timeout=RENDER_MS)
         return self.page.locator(f"{scope} .md-mmd-fig").evaluate_all(FIGS)
 
     def test_changed_and_unchanged(self) -> None:
@@ -155,7 +159,7 @@ class MermaidTest(PageTestCase):
     def test_broken_keeps_code(self) -> None:
         """Ha a diagram hibás, a kódnézet látszik, alatta a Mermaid hibája."""
         self.open_file("hibas.md")
-        err = self.page.wait_for_selector(".md-mmd-err")
+        err = self.page.wait_for_selector(".md-mmd-err", timeout=RENDER_MS)
         self.assertIn("A diagram nem rajzolható ki", err.text_content())
         self.assertIn("Parse error", err.text_content())
         shown = self.page.locator(".md-mmd .md-code").evaluate("c => getComputedStyle(c).display")
@@ -189,7 +193,7 @@ class MermaidTest(PageTestCase):
         self.resize(1400)
         self.open_file("lanc.md")
         fig = self.page.locator(".md-mmd-on .md-mmd-fig:visible")
-        fig.wait_for()
+        fig.wait_for(timeout=RENDER_MS)
         self.assertGreater(fig.evaluate(aspect), 1)
         self.resize(700)
         self.assertLess(fig.evaluate(aspect), 1)
@@ -198,7 +202,7 @@ class MermaidTest(PageTestCase):
         """Az ER-diagram vonala az entitás mellett egyenesen fut, és csak a jelölő (kör, villa)
         után fordul: a jelölő nem a fordulón ül."""
         self.open_file("er.md")
-        self.page.wait_for_selector(".md-doc .md-mmd-on")
+        self.page.wait_for_selector(".md-doc .md-mmd-on", timeout=RENDER_MS)
         # a vonal két végén az egyenes szakasz hossza (a rajz egységeiben)
         stubs = self.page.locator(".md-mmd-fig svg").first.evaluate("""svg => {
           const straight = (p, from, dir) => {
