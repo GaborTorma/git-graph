@@ -80,9 +80,8 @@ def open_url(start: Path) -> str | None:
 def mod_plan(start: Path, session_id: str) -> dict | None:
     """A mod kérdése a session indulásakor: nyissa-e meg a repó Artifactját.
 
-    A mod a beépített `Artifact` eszköz `open`-jével nyit (2026-11-09 óta újra ez
-    van; a `claude-artifacts` eszközeit csak tartalékként hívja, a lap
-    újraküldésével). Elavult lapot, új capability-listát és új Artifactot a hook
+    A mod a beépített `Artifact` eszköz `open`-jével nyit. Elavult lapot, új
+    capability-listát vagy contractot és új Artifactot a hook
     a sessiontől kér (modból az auto mód a publikálást elutasítja, mérve
     2026-10-09 és 2026-11-06), ilyenkor nincs terv. Akkor ad tervet, ha be van
     kapcsolva az automatikus megnyitás, a lap naprakész, és ebben a sessionben még
@@ -99,8 +98,7 @@ def mod_plan(start: Path, session_id: str) -> dict | None:
         return None
     if shown_in_session(session_id, register(repo)):
         return None
-    job = prepare_publish(force=True)
-    return {"repo": str(repo), "url": config_get("artifact"), "page": str(job["page"])}
+    return {"repo": str(repo), "url": config_get("artifact")}
 
 
 def emit_context(*parts: str | None) -> int:

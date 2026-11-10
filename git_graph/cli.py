@@ -65,9 +65,6 @@ def main() -> int:
     ap.add_argument("--published", metavar="URL", default=None,
                     help="a session publikálása után: az URL és a lap hashe a "
                          ".git/config-ba (a --publish lépései kérik)")
-    ap.add_argument("--republished", metavar="URL", default=None,
-                    help="a plugin modjának: a lap újraküldése után a hash a .git/config-ba "
-                         "(a capability öröklődött, a nyilvántartása marad)")
     ap.add_argument("--mcp", action="store_true",
                     help="MCP szerver stdio-n a Claude appnak (az app indítja a "
                          "configjából; az Artifact innen kapja az élő adatot)")
@@ -124,12 +121,12 @@ def main() -> int:
     repo = main_checkout(resolve_repo(Path(args.repo).expanduser().resolve()))
     set_repo(repo)
 
-    if args.set_artifact or args.published or args.republished:
-        url = args.set_artifact or args.published or args.republished
+    if args.set_artifact or args.published:
+        url = args.set_artifact or args.published
         if not url.startswith("https://"):
             raise SystemExit("HIBA: az URL-nek https://-sel kell kezdődnie.")
-        if args.published or args.republished:
-            mark_published(url, declared=bool(args.published))
+        if args.published:
+            mark_published(url)
         else:
             remember_artifact(url)
             register(repo)

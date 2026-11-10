@@ -61,8 +61,7 @@ class HookTest(HomeTestCase):
         self.run_script(str(main), "--published", "https://claude.ai/artifact/x")
         # Ha a session indul, akkor a mod tervet kap, a repó másik worktree-jéből már nem
         plan = self.mod_plan(main, "s2")
-        self.assertEqual((plan["url"], plan["repo"]), ("https://claude.ai/artifact/x", str(main)))
-        self.assertTrue(Path(plan["page"]).is_file())
+        self.assertEqual(plan, {"url": "https://claude.ai/artifact/x", "repo": str(main)})
         self.assertIsNone(self.mod_plan(extra, "s2"))
         self.assertIsNone(self.mod_plan(main, "s3", CLAUDE_CODE_ENTRYPOINT="sdk-py"))
         self.assertIsNone(self.mod_plan(self.home, "s3"))             # nem repó

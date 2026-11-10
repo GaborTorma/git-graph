@@ -1,17 +1,17 @@
 import { expect, test } from 'claude-code/testing'
 
 const URL = 'https://claude.ai/artifact/x'
-const PLAN = JSON.stringify({ repo: '/repo', url: URL, page: '/state/artifact.html' })
+const PLAN = JSON.stringify({ repo: '/repo', url: URL })
 
-// A mod futása: a git-graph válasza (`--mod-plan`), az Artifact-eszközök kamu
-// válaszai, és amit a mod ebből hív.
+// A mod futása: a git-graph válasza (`--mod-plan`), az eszközök kamu válaszai, és
+// amit a mod ebből hív.
 const runs = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   $: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on: any,
   stdout: string,
-  { read = 'owner', denyOnce = '', cwds = ['/repo'], artifactTool = false } = {},
+  { denyOnce = false, fail = false, cwds = ['/repo'] } = {},
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<{ argv: string[][]; calls: any[]; sleeps: number }> => {
   const argv: string[][] = []
@@ -31,47 +31,30 @@ const runs = async (
     argv.push([...e.argv])
     return { value: { exitCode: 0, stdout: e.argv.includes('--mod-plan') ? stdout : '', stderr: '' } }
   })
-  const answers: Record<string, unknown> = {
-    get_artifact: { slug: 'u1', url: URL, version: 'v1', read },
-    publish_files: { slug: 'u1', url: URL, version: 'v2' },
-  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on('tool.call', (_: any, e: any) => {
-    const { tool, tool_use_id: _id, ...args } = e
-    const name = tool.replace('mcp__claude-artifacts__', '')
-    calls.push({ tool: name, ...args })
-    // a 2.1.317 egyes buildjeiben nincs beépített Artifact eszköz (mérve, 2026-11-05)
-    if (name === 'Artifact' && !artifactTool) return { result: {}, isError: true, text: 'no tool named "Artifact" in this session' }
-    if (name === denyOnce && !denied) {
+    const { tool_use_id: _id, ...args } = e
+    calls.push(args)
+    if (args.tool === 'Artifact' && denyOnce && !denied) {
       denied = true
-      return { deny: `The server-side auto mode classifier gave no verdict for ${tool}` }
+      return { deny: 'The server-side auto mode classifier gave no verdict for Artifact' }
     }
-    // a publish_files a JSON után szöveget is fűz (mérve, 2026-11-06)
-    const tail = name === 'publish_files' ? '\n\nOpen it: {url} — "kész"' : ''
-    return { result: {}, text: JSON.stringify(answers[name] ?? {}) + tail }
+    if (args.tool === 'Artifact' && fail) return { result: {}, isError: true, text: 'not found' }
+    return { result: {}, text: 'ok' }
   })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
-  // a mod nem várja meg a publikálást (`void`): a mikrofeladatok lefutnak
+  // a mod nem várja meg a megnyitást (`void`): a mikrofeladatok lefutnak
   for (let i = 0; i < 2000; i++) await Promise.resolve()
   return { argv: argv.map(a => a.slice(2)), calls, sleeps }
 }
 
-test('előre melegített sessionben a végleges mappát várja meg', async ($, on) => {
-  // Adott: az app a sessiont egy spare mappában indítja, és később helyezi át a repóba
-  const spare = '/Users/u/.claude/spares/spare-Ab12'
-  const { argv, calls, sleeps } = await runs($, on, PLAN, { cwds: [spare, spare, '/repo'] })
-  // Akkor a mod a repó mappájával dönt, nem a spare-ével
-  expect(argv[0]).toEqual(['/repo', '--mod-plan', '--session', 's1'])
-  expect(sleeps).toBe(2)
-  expect(calls.map(c => c.tool)).toEqual(['Artifact', 'get_artifact', 'publish_files', 'mcp__ccd_view__show_pane'])
-})
-
-test('ha van beépített Artifact eszköz, azzal nyitja meg, újraküldés nélkül', async ($, on) => {
-  // Adott: a sessionben a beépített Artifact eszköz van (open művelettel)
-  const { argv, calls } = await runs($, on, PLAN, { artifactTool: true })
-  // Akkor a mod megnyitja a lapot és előhozza a panelt, a claude-artifacts eszközei nélkül
+test('a lapot az Artifact open-jével nyitja meg, és előhozza a panelt', async ($, on) => {
+  // Adott egy naprakész Artifact
+  // Ha a session indul
+  const { argv, calls } = await runs($, on, PLAN)
+  // Akkor a mod a Python tervéből megnyitja a lapot, újraküldés nélkül
   expect(calls).toEqual([
     { tool: 'Artifact', action: 'open', url: URL },
     { tool: 'mcp__ccd_view__show_pane', pane: 'artifact' },
@@ -79,39 +62,33 @@ test('ha van beépített Artifact eszköz, azzal nyitja meg, újraküldés nélk
   expect(argv).toEqual([['/repo', '--mod-plan', '--session', 's1']])
 })
 
-test('a lapot az élő verzióra újraküldi, visszaírja a hasht, és megnyitja a panelt', async ($, on) => {
-  // Adott egy meglévő Artifact a mostani capability-vel
-  // Ha a session indul
-  const { argv, calls } = await runs($, on, PLAN)
-  // Akkor a mod a Python tervéből újraküldi a lapot, és előhozza a panelt
-  expect(calls).toEqual([
-    { tool: 'Artifact', action: 'open', url: URL },
-    { tool: 'get_artifact', slug: URL },
-    { tool: 'publish_files', slug: 'u1', base_version: 'v1', files: [{ as: 'index.html', path: '/state/artifact.html' }] },
-    { tool: 'mcp__ccd_view__show_pane', pane: 'artifact' },
-  ])
-  expect(argv).toEqual([['/repo', '--mod-plan', '--session', 's1'], ['/repo', '--republished', URL]])
-})
-
-test('megosztott lapnál a megosztást is megnevezi', async ($, on) => {
-  // Adott egy szervezettel megosztott Artifact
-  const { calls } = await runs($, on, PLAN, { read: 'org' })
-  // Akkor a republish a shared_live-ot is viszi
-  expect(calls[2]?.shared_live).toBe('org')
+test('előre melegített sessionben a végleges mappát várja meg', async ($, on) => {
+  // Adott: az app a sessiont egy spare mappában indítja, és később helyezi át a repóba
+  const spare = '/Users/u/.claude/spares/spare-Ab12'
+  const { argv, sleeps } = await runs($, on, PLAN, { cwds: [spare, spare, '/repo'] })
+  // Akkor a mod a repó mappájával dönt, nem a spare-ével
+  expect(argv[0]).toEqual(['/repo', '--mod-plan', '--session', 's1'])
+  expect(sleeps).toBe(2)
 })
 
 test('a döntés nélküli elutasítás után egyszer újrapróbál', async ($, on) => {
-  // Adott: az auto mód elsőre nem dönt az olvasásról
-  const { calls } = await runs($, on, PLAN, { denyOnce: 'get_artifact' })
-  // Akkor a mod másodszorra továbbjut
-  expect(calls.map(c => c.tool)).toEqual(
-    ['Artifact', 'get_artifact', 'get_artifact', 'publish_files', 'mcp__ccd_view__show_pane'])
+  // Adott: az auto mód elsőre nem dönt a megnyitásról
+  const { calls } = await runs($, on, PLAN, { denyOnce: true })
+  // Akkor a mod másodszorra megnyitja
+  expect(calls.map(c => c.tool)).toEqual(['Artifact', 'Artifact', 'mcp__ccd_view__show_pane'])
+})
+
+test('ha a megnyitás nem sikerül, a panelt sem hozza elő', async ($, on) => {
+  // Adott: az Artifact open hibát ad
+  const { calls } = await runs($, on, PLAN, { fail: true })
+  // Akkor nincs show_pane
+  expect(calls.map(c => c.tool)).toEqual(['Artifact'])
 })
 
 test('nem lép, ha a git-graph nem ad tervet', async ($, on) => {
-  // Adott: a Python szerint nincs teendő (szabály nélkül, új lap, capability-változás, már nyitva)
+  // Adott: a Python szerint nincs teendő (kikapcsolva, elavult lap, már nyitva)
   const { argv, calls } = await runs($, on, '')
-  // Akkor nincs eszközhívás és nincs visszaírás
+  // Akkor nincs eszközhívás
   expect(calls).toEqual([])
   expect(argv.length).toBe(1)
 })
