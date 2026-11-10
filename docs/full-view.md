@@ -28,7 +28,8 @@ tetejétől a láblécig tölti ki:
 - **Lábléc** (28 px) mindig látszik; a commitszám helyén a fájl útja.
 
 **A fa.** A diff-szűrő alapból lenyomva: csak a változott fájlok, a mappáikkal; az egyetlen gyereket
-tartalmazó mappalánc egy sor (`page/js`). Kikapcsolva a commit állapotának minden fájlja: a módosult
+tartalmazó mappalánc egy sor (`page/js`). A változott fájl és mappa neve a változás színével, picit
+vastagabban (a merge subjectjének vastagságával) áll. Kikapcsolva a commit állapotának minden fájlja: a módosult
 fájlok mappája a változás színét kapja (vegyes változásnál a „módosult” színt), a törölt fájl áthúzva a
 helyén marad. A nem módosult fájl tartalma színezve, diffjel nélkül látszik. A fa commitonként egyben
 töltődik (`file_tree`, `git ls-tree`), 20 000 fájl fölött mappánként. Ha nem jön meg, a fában pirosan a
@@ -136,6 +137,7 @@ Jellemző: Fájlfa és teljes nézet
       Adott egy commit, amely a "page/js/diff.js" és a "git_graph/diff.py" fájlt módosítja
       Ha a teljes képernyő megnyílik
       Akkor a diff-szűrő lenyomva, a fában csak ez a két fájl látszik, a mappáikkal és +N −N számokkal
+        És a fájlok és a mappáik neve a változás színével, picit vastagabban áll
         És a "page/js" mappalánc egy sor
 
     Forgatókönyv: Összes fájl
