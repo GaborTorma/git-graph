@@ -224,7 +224,7 @@ function foldStates(heightBySha) {
   visible.forEach((c, i) => {
     const y = g.rowY(i);
     if (!foldFx.hidden.has(c.sha)) { open.push(y + full - now); closed.push(y - now); return; }
-    const h = heightBySha.get(c.sha) || 0, top = y - h / 2, f = foldFx.full.get(c.sha) ?? h;
+    const h = heightBySha.get(c.sha), top = y - h / 2, f = foldFx.full.get(c.sha);
     open.push(top + full - now + f / 2);
     closed.push(top - now);
     now += h; full += f;
